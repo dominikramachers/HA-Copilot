@@ -1375,6 +1375,8 @@ function actionsEl(list = [], open = false) {
     const wissen = items.filter((a) => a.kind === "knowledge").length;
     const memory = items.filter((a) => a.kind === "memory").length;
     const made = items.filter((a) => a.kind === "file" && a.status === "ok").length;
+    const edited = items.filter((a) => a.kind === "file-edit" && a.status === "ok").length;
+    const looked = items.filter((a) => a.kind === "file-read").length;
     const gh = items.filter((a) => a.kind === "gh-read" || a.kind === "gh-write");
     const ghChanges = gh.filter((a) => a.kind === "gh-write" && a.status === "ok").length;
     const other = items.filter((a) => a.kind === "memory-read").length;
@@ -1393,8 +1395,12 @@ function actionsEl(list = [], open = false) {
     if (wissen) parts.push(trn(wissen, "im Wissen nachgeschlagen", "{0}× im Wissen nachgeschlagen"));
     if (memory) parts.push(trn(memory, "Gedächtnis aktualisiert", "Gedächtnis {0}× aktualisiert"));
     if (made) parts.push(trn(made, "Datei erstellt", "{0} Dateien erstellt"));
+    if (edited) parts.push(trn(edited, "Datei bearbeitet", "{0} Dateien bearbeitet"));
     const tried = items.filter((a) => a.kind === "file").length;
     if (!made && tried) parts.push(tr("Datei erstellen"));
+    const triedEdit = items.filter((a) => a.kind === "file-edit").length;
+    if (!edited && triedEdit) parts.push(tr("Datei bearbeiten"));
+    if (looked && !made && !edited && !triedEdit) parts.push(trn(looked, "Datei angesehen", "{0} Dateien angesehen"));
     const lookedUp = items.filter((a) => a.kind === "memory-read" && a.label.startsWith(tr("Smarthome-Überblick"))).length;
     if (!parts.length && other - lookedUp > 0) parts.push(tr("Gedächtnis angesehen"));
     if (!parts.length && lookedUp) parts.push(tr("Smarthome-Überblick nachgesehen"));
@@ -1622,15 +1628,16 @@ async function refreshTitle(chatId) {
 }
 
 // ----------------------------------------------------------------- Anhänge
-// Dateien bleiben im Arbeitsspeicher des Browsers, gehen mit der Nachricht zum Server und werden dort
-// ebenfalls nur im Arbeitsspeicher verarbeitet. Gespeichert werden nur Name, Art und Größe.
+// Dateien bleiben im Arbeitsspeicher des Browsers und gehen mit der Nachricht zum Server. Dort werden sie geprüft und
+// weitergereicht; in der Datenbank stehen nur Name, Art und Größe. Mit der Option „Dateien bearbeiten“ legt der Server
+// zusätzlich eine Kopie für diesen Chat ab, damit die KI sie lesen und bearbeiten kann (siehe attachments.persist).
 
-const KIND_LABEL = { image: tr("Bild"), pdf: "PDF", text: tr("Text"), word: tr("Word"), excel: tr("Excel") };
+const KIND_LABEL = { image: tr("Bild"), pdf: "PDF", text: tr("Text"), word: tr("Word"), excel: tr("Excel"), powerpoint: tr("PowerPoint") };
 const MB = 1024 * 1024;
 const NATIVE_PDF = 20 * MB; // größere PDFs liest der Server nur als Text (Obergrenze der Claude-API je Anfrage)
 const NATIVE_TOTAL = 22 * MB; // Bilder und „angesehene“ PDFs zusammen
 const nativeSize = (f) => (f.kind === "image" || (f.kind === "pdf" && f.blob.size <= NATIVE_PDF) ? f.blob.size : 0);
-const LIMITS = { files: 5, total: 60 * MB, image: 5 * MB, pdf: 50 * MB, word: 50 * MB, excel: 50 * MB, text: MB };
+const LIMITS = { files: 5, total: 60 * MB, image: 5 * MB, pdf: 50 * MB, word: 50 * MB, excel: 50 * MB, powerpoint: 50 * MB, text: MB };
 const IMAGE_PASSTHROUGH = 1.5 * 1024 * 1024;
 const IMAGE_MAX_SIDE = 2000;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
@@ -1647,6 +1654,7 @@ function fileKind(file) {
   if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) return "pdf";
   if (/\.docx$/i.test(file.name)) return "word";
   if (/\.xlsx$/i.test(file.name)) return "excel";
+  if (/\.pptx$/i.test(file.name)) return "powerpoint";
   return "text";
 }
 

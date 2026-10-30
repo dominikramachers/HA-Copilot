@@ -36,11 +36,11 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 - **Zugriff auf Home Assistant** mit Rechtestufen je Benutzer (nichts, lesen, ausführen, ändern), Rückfrage im Chat vor Änderungen und Sperrliste für gefährliche Befehle
 - Chats pro Benutzer getrennt, Projekte mit Anweisungen, Anpinnen, Umbenennen, automatische Kurztitel
 - **Suche** in allen eigenen Chats (Strg/Cmd+K), Export als Markdown oder ZIP, eigene Chats gesammelt löschen
-- **Dateien erzeugen:** Word, Excel, PowerPoint, PDF und Skripte (PowerShell, Shell, Python …) zum Herunterladen
+- **Dateien erzeugen und bearbeiten:** Word, Excel, PowerPoint, PDF und Skripte (PowerShell, Shell, Python …) zum Herunterladen; angehängte Dateien (PDF-Formulare, Word, Excel, PowerPoint, Text und Code) liest und ändert die KI auf Wunsch, das Original bleibt unverändert
 - **GitHub:** Repositories lesen, Code durchsuchen, Issues und Pull Requests ansehen; mit Schreibrecht Commits, Zweige und Pull Requests (jede Änderung wird im Chat bestätigt)
 - **Websuche** und Seiten lesen, wählbare Modelle, Hinweis auf das Nutzungslimit des Abos
 - **Geplante Aufgaben** (lesend, ohne Rückfragen) mit Benachrichtigung im Chat, in Home Assistant oder aufs Handy
-- Dateianhänge bis 50 MB: Bilder, PDF, Word, Excel, Text (nur im Arbeitsspeicher, nie dauerhaft gespeichert)
+- Dateianhänge bis 50 MB: Bilder, PDF, Word, Excel, PowerPoint, Text und Code (zum Bearbeiten als Kopie im Chat, sonst nur im Arbeitsspeicher)
 - Lange Chats werden automatisch zusammengefasst, statt abgeschnitten zu werden
 - Zugang über das HA-Panel (Ingress) und optional über eine eigene Domain mit Entra-ID-Anmeldung oder „Mit Home Assistant anmelden“
 - **Deutsch oder Englisch** (Option `language`, Standard Deutsch)
@@ -69,7 +69,7 @@ Du brauchst eigene Zugangsdaten. Sie werden nur in deiner Add-on-Konfiguration g
 ## Datenschutz und Sicherheit
 
 - Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil der HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; sonst an niemanden.
-- Dateianhänge werden nur im Arbeitsspeicher verarbeitet. In der Datenbank stehen Name, Art und Größe.
+- Dateianhänge: In der Datenbank stehen Name, Art und Größe. Mit der Option „Dateien bearbeiten“ (Standard) legt das Add-on außer bei Bildern eine Kopie für diesen Chat im Datenordner ab (`files_keep_days` Tage, mit dem Chat gelöscht); mit `files_edit: false` bleiben Anhänge nur im Arbeitsspeicher.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OIDC mit PKCE, serverseitige Sitzungen, Schutz gegen Cross-Site-Anfragen). Das Add-on gibt den Port der Domain-Seite nicht nach außen frei; ein Tunnel (z. B. Cloudflare) ist deine Entscheidung.
 - Das Add-on legt von sich aus keinen Zugang über das Internet an. Wer die Domain-Seite aktiviert, sollte vorher [docs/domain-zugang.md](docs/domain-zugang.md) und [ki_chat/DOCS.md](ki_chat/DOCS.md) lesen.
 

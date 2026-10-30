@@ -1,4 +1,4 @@
-"""Anhänge liegen nur im Arbeitsspeicher: geprüft, weitergereicht, verworfen."""
+"""Anhänge: geprüft und weitergereicht; ohne „Dateien bearbeiten“ nur im Arbeitsspeicher, sonst als Kopie im Chat."""
 import base64
 import json
 import os
@@ -7,8 +7,11 @@ import time
 import pytest
 
 from app import attachments as att
+from app.config import parse_settings
 from app.db import Store
-from tests.conftest import ADM01, as_user
+from app.main import build_ingress_app
+from fastapi.testclient import TestClient
+from tests.conftest import ADM01, RAW, as_user
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 40
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 40
@@ -29,6 +32,13 @@ def send(client, chat_id, text, files=None):
     if files is not None:
         body["files"] = [{"name": n, "data": b64(d)} for n, d in files]
     return client.post(f"/api/chats/{chat_id}/send", json=body, headers=as_user(ADM01, True))
+
+
+@pytest.fixture()
+def memory_client(store, backend):
+    """Dateien bearbeiten aus: Anhänge bleiben im Arbeitsspeicher."""
+    settings = parse_settings({**RAW, "files_edit": False}, frozenset({"testclient"}))
+    return TestClient(build_ingress_app(settings, store, backend))
 
 
 # ---------------------------------------------------------------- Prüfung
@@ -92,7 +102,8 @@ def test_closing_tag_in_text_cannot_break_out():
 # ------------------------------------------------------------- Senden
 
 
-def test_send_passes_files_to_backend_and_stores_only_metadata(client, backend, store, tmp_path):
+def test_send_passes_files_to_backend_and_stores_only_metadata(memory_client, backend, store, tmp_path):
+    client = memory_client
     chat_id = new_chat(client)
     response = send(client, chat_id, "Prüfe das", [("log.txt", MARKER.encode()), ("foto.png", PNG)])
     assert response.status_code == 200
@@ -112,7 +123,8 @@ def test_send_passes_files_to_backend_and_stores_only_metadata(client, backend, 
     assert not any(MARKER in json.dumps(m) for m in messages)
 
 
-def test_followup_gets_note_instead_of_content(client, backend):
+def test_followup_gets_note_instead_of_content(memory_client, backend):
+    client = memory_client
     chat_id = new_chat(client)
     send(client, chat_id, "Erste", [("bericht.pdf", PDF)])
     send(client, chat_id, "Zweite")

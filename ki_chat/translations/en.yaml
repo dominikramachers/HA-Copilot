@@ -165,9 +165,12 @@ configuration:
   files_enabled:
     name: Create files
     description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
+  files_edit:
+    name: Edit files
+    description: 'On (default): Attached files (PDF, Word, Excel, PowerPoint, text and code) are kept for this chat and the AI can read and edit them, e.g. fill or lock PDF fields, change Word text, set Excel cells, adjust code. The edited version is offered for download; the original stays unchanged. Off: attachments are only held in memory for the one message and nothing is stored. Requires "Create files".'
   files_keep_days:
-    name: Keep created files (days)
-    description: 'How long a file created by the AI stays available for download (1 to 365, default 14). After that it is deleted; the chat stays. Files of a deleted chat are removed immediately.'
+    name: Keep files (days)
+    description: 'How long created, edited and attached files stay available in the chat (1 to 365, default 14). After that they are deleted; the chat stays. Files of a deleted chat are removed immediately.'
   restore_snapshot:
     name: Restore database
     description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'
