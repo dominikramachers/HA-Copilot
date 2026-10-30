@@ -1,14 +1,11 @@
 name: KI Chat
-version: "0.26.1"
+version: "0.26.2"
 slug: ki_chat
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
 arch:
   - amd64
   - aarch64
-startup: application
-boot: auto
-init: true
 
 # Sicherung im gestoppten Zustand: Home Assistant hält das Add-on kurz an, kopiert die Datenbank und startet es wieder.
 # So ist die Kopie immer vollständig (eine laufende SQLite-Datei kann sonst mitten im Schreiben kopiert werden).
@@ -16,7 +13,6 @@ backup: cold
 
 # Zugang innerhalb von Home Assistant (Sidebar-Panel, Authentifizierung durch HA)
 ingress: true
-ingress_port: 8099
 ingress_entry: /
 panel_icon: mdi:robot-happy-outline
 panel_title: KI Chat

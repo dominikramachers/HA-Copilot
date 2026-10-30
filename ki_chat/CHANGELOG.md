@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.26.2
+- `config.yaml`: Vier Einträge entfernt, die nur den Standardwert von Home Assistant wiederholten (`startup`, `boot`, `init`, `ingress_port`), damit die Add-on-Prüfung der CI grün ist. Das Verhalten bleibt gleich; keine neuen Optionen.
+
 ## 0.26.1
 - Die Repository-Adresse ist eingetragen (Startseite des Add-ons in Home Assistant, `repository.yaml`, README, CI-Plakette). Keine Änderung am Verhalten, keine neuen Optionen.
 
