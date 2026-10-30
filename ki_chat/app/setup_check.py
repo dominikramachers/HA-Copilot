@@ -17,7 +17,7 @@ from .i18n import tr
 from .github_api import GithubApi, GithubError
 from .ha_client import HaApi, HaApiError
 
-CONFIG_STEP = "Öffne in Home Assistant Einstellungen → Apps (früher Add-ons) → KI Chat → Konfiguration."
+CONFIG_STEP = "Öffne in Home Assistant Einstellungen → Apps (früher Add-ons) → HA Copilot → Konfiguration."
 RESTART_STEP = "Speichere und starte das Add-on neu (Reiter „Info“ → Neustart)."
 LEVEL_ORDER = {"required": 0, "recommended": 1, "optional": 2}
 ACCESS_TEXT = {

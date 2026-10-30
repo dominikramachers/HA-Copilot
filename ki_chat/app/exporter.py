@@ -127,7 +127,7 @@ def build_zip(store: Store, profile_id: str, app_name: str = "", now: datetime |
     used: set[str] = set()
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(tr("LIESMICH.txt"), tr(README, app=app_name or "KI Chat", when=now.strftime("%d.%m.%Y %H:%M")))
+        archive.writestr(tr("LIESMICH.txt"), tr(README, app=app_name or "HA Copilot", when=now.strftime("%d.%m.%Y %H:%M")))
         for chat in store.list_chats(profile_id):
             messages = store.list_messages(profile_id, chat["id"]) or []
             if chat.get("schedule_id"):

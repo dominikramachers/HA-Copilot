@@ -41,7 +41,7 @@ configuration:
     description: 'Only if users should sign in via the domain with their Home Assistant account: externally reachable address, e.g. https://ha.example.org. The sign-in page then shows “Sign in with Home Assistant”. Leave empty: Microsoft Entra only.'
   app_name:
     name: App name
-    description: 'Name used on the sign-in page, in the title and in the sidebar. Default: KI Chat. The name of the Home Assistant sidebar entry is fixed and cannot be changed here.'
+    description: 'Name used on the sign-in page, in the title and in the sidebar. Default: HA Copilot. The name of the Home Assistant sidebar entry is fixed and cannot be changed here.'
   login_text:
     name: Sign-in page text
     description: Short sentence below the name, e.g. “Sign in with your company account.”
@@ -149,7 +149,7 @@ configuration:
     description: 'all (default): every user; ha_write: only users with access level write (others can read it, and the AI saves nothing there for them). Personal memory always belongs to that person.'
   ha_scan_days:
     name: Read smart home overview (every … days)
-    description: 'On first start and then every N days (default 7), KI Chat reads an overview of Home Assistant (areas, devices, automations, integrations) and stores it in household memory so the AI knows your setup from the start. 0 = never automatically, only via the button in the memory dialog. Only names and assignments are read, no state values, coordinates or credentials. Applies only while memory is enabled.'
+    description: 'On first start and then every N days (default 7), HA Copilot reads an overview of Home Assistant (areas, devices, automations, integrations) and stores it in household memory so the AI knows your setup from the start. 0 = never automatically, only via the button in the memory dialog. Only names and assignments are read, no state values, coordinates or credentials. Applies only while memory is enabled.'
   github_token:
     name: GitHub token
     description: 'Personal access token from GitHub (Settings → Developer settings → Fine-grained tokens). Give it only the repositories and permissions the AI should have: Contents, Pull requests and Issues (read and write), Metadata (read); to create new repositories use a classic token with the ''repo'' scope. Empty: GitHub is off.'

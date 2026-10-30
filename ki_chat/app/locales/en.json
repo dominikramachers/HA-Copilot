@@ -264,7 +264,7 @@
 "Verbunden": "Connected",
 " (Home Assistant {version}).": " (Home Assistant {version}).",
 " (Das Token konnte gerade nicht geprüft werden: {error})": " (The token could not be checked right now: {error})",
-"Öffne in Home Assistant Einstellungen → Apps (früher Add-ons) → KI Chat → Konfiguration.": "In Home Assistant, open Settings → Apps (formerly Add-ons) → KI Chat → Configuration.",
+"Öffne in Home Assistant Einstellungen → Apps (früher Add-ons) → HA Copilot → Konfiguration.": "In Home Assistant, open Settings → Apps (formerly Add-ons) → HA Copilot → Configuration.",
 "Lege fest, wie abgerechnet wird. Für dich allein genügt ein Claude-Abo: Führe am eigenen Computer mit installiertem Claude Code `claude setup-token` aus und kopiere das ausgegebene Token. Nutzen mehrere Personen den Chat, erzeuge stattdessen in der Claude Console (console.anthropic.com) unter „API Keys“ einen API-Schlüssel; dann wird nach Verbrauch abgerechnet.": "Decide how usage is billed. A Claude subscription is enough for you alone: on your own computer with Claude Code installed, run `claude setup-token` and copy the token it prints. If several people use the chat, instead create an API key in the Claude Console (console.anthropic.com) under “API Keys”; usage is then billed by consumption.",
 "Trage das Abo-Token bei `claude_oauth_token` oder den API-Schlüssel bei `anthropic_api_key` ein und stelle `backend` auf `claude`.": "Enter the subscription token in `claude_oauth_token` or the API key in `anthropic_api_key` and set `backend` to `claude`.",
 "Speichere und starte das Add-on neu (Reiter „Info“ → Neustart).": "Save and restart the add-on (tab “Info” → Restart).",

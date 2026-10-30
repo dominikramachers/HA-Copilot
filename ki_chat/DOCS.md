@@ -1,4 +1,4 @@
-# KI Chat
+# HA Copilot
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
@@ -93,14 +93,14 @@ Kleines, schnelles Modell (Standard `claude-haiku-5-5`), das nach der ersten Ant
 
 ## Personalisierung: Name, Logo, Texte, Farben
 
-Alles in diesem Abschnitt ist optional; ohne Angaben sieht die App neutral aus (Name „KI Chat“, blaues Sprechblasen-Zeichen, Farben des Home-Assistant-Themes).
+Alles in diesem Abschnitt ist optional; ohne Angaben sieht die App neutral aus (Name „HA Copilot“, blaues Sprechblasen-Zeichen, Farben des Home-Assistant-Themes).
 
 ### Optionen
 
 | Option | Bedeutung |
 |---|---|
 | `language` | `de` (Standard) oder `en`: Sprache von Oberfläche und Meldungen, siehe „Sprache“. |
-| `app_name` | Name in Anmeldeseite, Browser-Titel, Seitenleiste und als Name der App auf dem Startbildschirm (höchstens 40 Zeichen). Standard `KI Chat`. Der Eintrag in der Home-Assistant-Seitenleiste und der Add-on-Name stehen fest in `config.yaml` (`panel_title`) und folgen dieser Option nicht. |
+| `app_name` | Name in Anmeldeseite, Browser-Titel, Seitenleiste und als Name der App auf dem Startbildschirm (höchstens 40 Zeichen). Standard `HA Copilot`. Der Eintrag in der Home-Assistant-Seitenleiste und der Add-on-Name stehen fest in `config.yaml` (`panel_title`) und folgen dieser Option nicht. |
 | `login_text` | Satz unter dem Namen auf der Anmeldeseite. |
 | `login_placeholder` | Beispiel-Adresse im E-Mail-Feld der Anmeldeseite. |
 | `logo_tile` | Für Logos, die auf hellem Grund schlecht lesbar sind (z. B. leuchtendes Cyan): im hellen Design auf dunkler Kachel zeigen. |
@@ -438,7 +438,7 @@ Alles liegt in `/data/ki_chat.sqlite3`. Das Token steht in den Add-on-Optionen u
 - **HA-Sicherung:** Das Add-on wird mit `backup: cold` gesichert. Home Assistant hält es dafür kurz an (wenige Sekunden), kopiert die Daten und startet es wieder. So ist die Kopie immer vollständig, auch wenn gerade jemand schreibt. Beim Beenden wird die Datenbank vorher sauber abgeschlossen. Eine Antwort, die genau in diesem Moment läuft, wird unterbrochen (die bis dahin erhaltene Teilantwort bleibt gespeichert, deine Frage ebenfalls).
 - **Schnappschüsse:** Etwa einmal am Tag legt das Add-on zusätzlich einen geprüften Schnappschuss in `/data/snapshots/` an (`ki_chat-JJJJ-MM-TT_HHMMSS.sqlite3`, die letzten 7 bleiben). Er liegt im Datenordner und steckt damit in jeder HA-Sicherung. Vor dem Update auf eine neue Datenbankversion entsteht zusätzlich `vor-update-…` (die letzten 3).
 - **Prüfung beim Start:** Das Add-on prüft die Datenbank bei jedem Start. Meldet sie einen Fehler, erscheint oben in der Oberfläche ein roter Hinweis mit den neuesten Schnappschüssen, und die Datei wird nicht verändert.
-- **Wiederherstellen:** In den Add-on-Optionen unter `restore_snapshot` den Dateinamen eines Schnappschusses eintragen (z. B. `ki_chat-2026-10-27_033012.sqlite3`) und das Add-on neu starten. Der bisherige Stand wird vorher als `vor-wiederherstellung-…` gesichert. Danach die Option leeren; solange der Name stehen bleibt, wird nicht erneut überschrieben. Die Namen der vorhandenen Schnappschüsse stehen beim Start im Add-on-Protokoll. Aus einer ganzen HA-Sicherung stellst du den KI Chat über Einstellungen, System, Sicherungen wieder her (Teilwiederherstellung des Add-ons).
+- **Wiederherstellen:** In den Add-on-Optionen unter `restore_snapshot` den Dateinamen eines Schnappschusses eintragen (z. B. `ki_chat-2026-10-27_033012.sqlite3`) und das Add-on neu starten. Der bisherige Stand wird vorher als `vor-wiederherstellung-…` gesichert. Danach die Option leeren; solange der Name stehen bleibt, wird nicht erneut überschrieben. Die Namen der vorhandenen Schnappschüsse stehen beim Start im Add-on-Protokoll. Aus einer ganzen HA-Sicherung stellst du den HA Copilot über Einstellungen, System, Sicherungen wieder her (Teilwiederherstellung des Add-ons).
 - **Umzug in ein anderes Add-on** (z. B. vom lokalen Add-on im Ordner `/addons` zum Add-on aus einem GitHub-Repository): Für Home Assistant sind das zwei verschiedene Add-ons mit getrennten Daten, die Chats wandern nicht von selbst mit. So nimmst du sie mit: (1) Im *alten* Add-on `export_database` einschalten und neu starten; es legt `ki_chat-export.sqlite3` in seinen Config-Ordner (in Home Assistant unter `/addon_configs/<Ordner>/`, z. B. per Samba oder Datei-Editor). (2) Die Datei in den Config-Ordner des *neuen* Add-ons kopieren. (3) Im neuen Add-on `restore_snapshot` auf `ki_chat-export.sqlite3` setzen und neu starten; die Chats, Projekte, das Gedächtnis und die geplanten Aufgaben sind dann da (Dateien, die die KI erzeugt hat, und Projektdateien-Inhalte, die nicht in der Datenbank liegen, nicht). (4) Danach `restore_snapshot` leeren, `export_database` ausschalten und die Export-Datei löschen, denn sie enthält alle Chats. Die Konfiguration (Benutzer, Zugangsdaten) musst du im neuen Add-on selbst eintragen.
 - **Ablauf-Hinweise:** Trage in `claude_token_expires` und `entra_secret_expires` das Ablaufdatum ein (Format `JJJJ-MM-TT`). 30 Tage vorher erscheint oben in der Oberfläche ein Hinweis und steht im Protokoll; nach Ablauf wird er rot. Das Claude-Token gilt ein Jahr ab dem Tag, an dem du `claude setup-token` ausgeführt hast. Das Ablaufdatum des Entra-Secrets zeigt Entra bei der App-Registrierung unter „Zertifikate & Geheimnisse“.
 

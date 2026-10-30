@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.26.3
+- Umbenannt: Das Add-on heißt jetzt **HA Copilot** (Name im Add-on-Store, Eintrag in der Home-Assistant-Seitenleiste, Standard von `app_name`, Anmeldeseite, Export, Dokumentation, `repository.yaml`). Der technische Name (`slug: ki_chat`), der Ordner `ki_chat`, Datenbank- und Export-Dateinamen bleiben unverändert, damit Updates und der Umzug der Daten nicht berührt werden.
+- Eine eigene Eintragung bei `app_name` bleibt wie sie ist; nur wer nichts eingetragen hatte, sieht jetzt „HA Copilot“ statt „KI Chat“.
+
 ## 0.26.2
 - `config.yaml`: Vier Einträge entfernt, die nur den Standardwert von Home Assistant wiederholten (`startup`, `boot`, `init`, `ingress_port`), damit die Add-on-Prüfung der CI grün ist. Das Verhalten bleibt gleich; keine neuen Optionen.
 

@@ -167,7 +167,7 @@ class GithubToolbox:
         except ValueError as exc:
             raise ToolError(str(exc)) from None
         if not self.policy.allows(repo):
-            raise ToolError(f"Auf {repo} darf in diesem KI Chat nicht zugegriffen werden (Freigabeliste github_repos).")
+            raise ToolError(f"Auf {repo} darf in diesem HA Copilot nicht zugegriffen werden (Freigabeliste github_repos).")
         return repo
 
     async def _default_branch(self, repo: str) -> str:
@@ -655,7 +655,7 @@ class GithubToolbox:
                 raise ToolError("Für /repos/… sind besitzer und name nötig.")
             repo = f"{parts[1]}/{parts[2]}"
             if not REPO_OK(repo) or not self.policy.allows(repo):
-                raise ToolError(f"Auf {repo} darf in diesem KI Chat nicht zugegriffen werden (Freigabeliste github_repos).")
+                raise ToolError(f"Auf {repo} darf in diesem HA Copilot nicht zugegriffen werden (Freigabeliste github_repos).")
             if write:
                 for rule in _BLOCKED_WRITE:
                     if rule.search(path) and not (rule.pattern == r"^/repos/[^/]+/[^/]+$" and method == "PATCH"):

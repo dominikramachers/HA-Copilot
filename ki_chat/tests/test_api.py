@@ -82,7 +82,7 @@ def test_title_validation(client):
 
 def test_security_headers_and_index(client):
     page = client.get("/", headers=as_user(DORA))
-    assert page.status_code == 200 and "KI Chat" in page.text
+    assert page.status_code == 200 and "HA Copilot" in page.text
     assert page.headers["x-content-type-options"] == "nosniff"
     api = client.get("/api/chats", headers=as_user(DORA))
     assert api.headers["cache-control"] == "no-store"
@@ -91,7 +91,7 @@ def test_security_headers_and_index(client):
 def test_double_slash_paths_from_ingress_are_served(client):
     # Der HA-Ingress ruft das Add-on real mit "//" statt "/" auf (Log: GET // HTTP/1.1).
     page = client.get("http://testserver//", headers=as_user(DORA))
-    assert page.status_code == 200 and "KI Chat" in page.text
+    assert page.status_code == 200 and "HA Copilot" in page.text
     assert client.get("http://testserver//static/app.js").status_code == 200
     chats = client.get("http://testserver//api/chats", headers=as_user(DORA))
     assert chats.status_code == 200

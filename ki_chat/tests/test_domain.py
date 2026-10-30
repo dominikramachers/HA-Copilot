@@ -189,7 +189,7 @@ def test_full_login_creates_session_for_the_right_profile(pub, idp, store):
     me = pub.get("/api/me").json()
     assert me["id"] == "dora" and me["mode"] == "domain" and me["can_logout"] is True
     page = pub.get("/new")
-    assert page.status_code == 200 and "KI Chat" in page.text and "__V__" not in page.text
+    assert page.status_code == 200 and "HA Copilot" in page.text and "__V__" not in page.text
     assert 'data-embed="web"' in page.text
     assert pub.get("/").status_code == 200
     assert location(pub.get("/login")) == "/new"

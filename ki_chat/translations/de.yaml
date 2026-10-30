@@ -41,7 +41,7 @@ configuration:
     description: 'Nur wenn sich Benutzer über die Domain mit ihrem Home-Assistant-Konto anmelden sollen: von außen erreichbare Adresse, z. B. https://ha.example.org. Dann erscheint auf der Anmeldeseite „Mit Home Assistant anmelden“. Leer lassen: nur Microsoft Entra.'
   app_name:
     name: App-Name
-    description: 'Name in Anmeldeseite, Titel und Seitenleiste. Standard: KI Chat. Der Name des Eintrags in der Home-Assistant-Seitenleiste ist fest und lässt sich hier nicht ändern.'
+    description: 'Name in Anmeldeseite, Titel und Seitenleiste. Standard: HA Copilot. Der Name des Eintrags in der Home-Assistant-Seitenleiste ist fest und lässt sich hier nicht ändern.'
   login_text:
     name: Text auf der Anmeldeseite
     description: Kurzer Satz unter dem Namen, z. B. „Anmelden mit deinem Firmenkonto.“
@@ -149,7 +149,7 @@ configuration:
     description: 'all (Standard): jeder Benutzer; ha_write: nur Benutzer mit Zugriffsstufe write (die anderen können es lesen, die KI trägt für sie nichts ein). Das persönliche Gedächtnis gehört immer der jeweiligen Person.'
   ha_scan_days:
     name: Smarthome-Überblick einlesen (alle … Tage)
-    description: 'Der KI Chat liest beim ersten Start und danach alle N Tage (Standard 7) einen Überblick über Home Assistant ein (Bereiche, Geräte, Automationen, Integrationen) und legt ihn im Haushaltsgedächtnis ab, damit die KI deine Umgebung von Anfang an kennt. 0 = nie automatisch, nur auf Knopfdruck im Gedächtnis-Dialog. Es werden nur Namen und Zuordnungen gelesen, keine Zustandswerte, Koordinaten oder Zugangsdaten. Gilt nur, wenn das Gedächtnis aktiv ist.'
+    description: 'Der HA Copilot liest beim ersten Start und danach alle N Tage (Standard 7) einen Überblick über Home Assistant ein (Bereiche, Geräte, Automationen, Integrationen) und legt ihn im Haushaltsgedächtnis ab, damit die KI deine Umgebung von Anfang an kennt. 0 = nie automatisch, nur auf Knopfdruck im Gedächtnis-Dialog. Es werden nur Namen und Zuordnungen gelesen, keine Zustandswerte, Koordinaten oder Zugangsdaten. Gilt nur, wenn das Gedächtnis aktiv ist.'
   github_token:
     name: GitHub-Token
     description: 'Persönliches Zugriffstoken von GitHub (Einstellungen → Entwicklereinstellungen → Fine-grained tokens). Gib ihm nur die Repositories und Rechte, die die KI haben soll: Contents, Pull requests und Issues (je lesen und schreiben), Metadata (lesen); zum Anlegen neuer Repositories ein klassisches Token mit dem Recht „repo“. Leer: GitHub ist aus.'

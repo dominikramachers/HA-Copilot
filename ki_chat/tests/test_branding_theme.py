@@ -61,7 +61,7 @@ def make(store, backend, tmp_path, ha=None, **extra):
 
 def test_defaults_are_neutral():
     s = parse_settings(copy.deepcopy(RAW))
-    assert s.app_name == "KI Chat" and s.follow_ha_theme is True and s.logo_tile is False and s.colors == ()
+    assert s.app_name == "HA Copilot" and s.follow_ha_theme is True and s.logo_tile is False and s.colors == ()
 
 
 def test_texts_are_cleaned_and_limited():

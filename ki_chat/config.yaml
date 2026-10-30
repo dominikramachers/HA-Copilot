@@ -1,5 +1,5 @@
-name: KI Chat
-version: "0.26.2"
+name: HA Copilot
+version: "0.26.3"
 slug: ki_chat
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -15,7 +15,7 @@ backup: cold
 ingress: true
 ingress_entry: /
 panel_icon: mdi:robot-happy-outline
-panel_title: KI Chat
+panel_title: HA Copilot
 panel_admin: false
 
 # Home-Assistant-Anbindung: Benutzernamen zu IDs auflösen, Theme-Farben übernehmen und (je nach Rechtestufe des Benutzers)
@@ -40,7 +40,7 @@ options:
   all_ha_users: false
   ha_users_excluded: ""
   ha_url: ""
-  app_name: KI Chat
+  app_name: HA Copilot
   login_text: ""
   login_placeholder: ""
   logo_tile: false

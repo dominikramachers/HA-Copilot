@@ -830,7 +830,7 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
 
 # ----------------------------------------------------------------- Zusammenfassung
 
-def render(name: str, content: str, author: str = "KI Chat") -> tuple[bytes, str]:
+def render(name: str, content: str, author: str = "HA Copilot") -> tuple[bytes, str]:
     """Datei erzeugen: ``(Bytes, Medientyp)``. Wirft :class:`FileError`."""
     name = clean_name(name)
     if not isinstance(content, str) or not content.strip():
@@ -882,7 +882,7 @@ class OutboxToolbox:
         record: Callable[[dict], None],
         next_id: Callable[[], int],
         keep_days: int,
-        author: str = "KI Chat",
+        author: str = "HA Copilot",
     ) -> None:
         self.store = store
         self.profile_id = profile_id

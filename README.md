@@ -1,4 +1,4 @@
-# KI Chat für Home Assistant
+# HA Copilot
 
 [![CI](https://github.com/dominikramachers/HA-Copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dominikramachers/HA-Copilot/actions/workflows/ci.yml)
 
@@ -36,9 +36,9 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 
 1. In Home Assistant: **Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories** und diese Repository-Adresse hinzufügen:
    `https://github.com/dominikramachers/HA-Copilot`
-2. **KI Chat** installieren.
+2. **HA Copilot** installieren.
 3. In der Add-on-Konfiguration einen Benutzer eintragen (`ha_user` = dein HA-Benutzername) und die Zugangsdaten zu Claude hinterlegen (siehe unten). Bis dahin läuft das Add-on im Testmodus (`backend: echo`) ohne KI.
-4. `backend` auf `claude` stellen, Add-on starten, „KI Chat“ erscheint in der Seitenleiste.
+4. `backend` auf `claude` stellen, Add-on starten, „HA Copilot“ erscheint in der Seitenleiste.
 
 Alle Optionen sind in [ki_chat/DOCS.md](ki_chat/DOCS.md) beschrieben.
 

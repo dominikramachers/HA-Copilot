@@ -388,7 +388,7 @@ function openPopover(anchor, items, opts = {}) {
 const isWeb = () => document.documentElement.dataset.embed === "web";
 const projectOf = (id) => state.projects.find((p) => p.id === id) || null;
 
-// Ruhezustand der Kopfzeile: leer. „KI Chat“ steht in HA schon in der Kopfzeile von Home Assistant,
+// Ruhezustand der Kopfzeile: leer. „HA Copilot“ steht in HA schon in der Kopfzeile von Home Assistant,
 // im Web ist die Marke bereits in der Seitenleiste.
 function idleTitle() {
   const project = projectOf(state.newProject);
@@ -631,7 +631,7 @@ async function loadAll() {
 
 // Ein Punkt vor dem Namen im Tab-Titel zeigt ungelesene Chats auch dann, wenn der Tab im Hintergrund liegt.
 function syncBadge() {
-  const base = state.me?.app_name || "KI Chat";
+  const base = state.me?.app_name || "HA Copilot";
   document.title = (state.chats.some((c) => c.unread) ? "● " : "") + base;
 }
 

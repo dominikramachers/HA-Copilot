@@ -137,7 +137,7 @@ def test_every_browser_text_has_an_english_counterpart():
 
 
 def test_no_german_text_is_left_unwrapped_in_the_browser_code():
-    allowed = {'"KI Chat"', '"Chat.md"'}
+    allowed = {'"HA Copilot"', '"Chat.md"'}
     problems = []
     for name in JS_FILES + ("theme-init.js", "i18n.js"):
         text = re.sub(r"/\*.*?\*/", "", (STATIC / name).read_text(encoding="utf-8"), flags=re.S)

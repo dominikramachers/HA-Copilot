@@ -1,4 +1,4 @@
-"""KI Chat: Profile, Chat-Verwaltung, Streaming-Antworten; Zugang über HA-Ingress und über die Domain (Entra)."""
+"""HA Copilot: Profile, Chat-Verwaltung, Streaming-Antworten; Zugang über HA-Ingress und über die Domain (Entra)."""
 from __future__ import annotations
 
 import asyncio
@@ -825,7 +825,7 @@ def register_chat_routes(
             raise HTTPException(status_code=429, detail=tr("Bitte etwas später noch einmal versuchen."))
         data = await asyncio.to_thread(exporter.build_zip, store, profile.id, settings.app_name)
         stamp = datetime.now().strftime("%Y-%m-%d")
-        return download(data, f"{exporter.safe_name(settings.app_name, 'KI Chat')} Export {stamp}.zip", "application/zip")
+        return download(data, f"{exporter.safe_name(settings.app_name, 'HA Copilot')} Export {stamp}.zip", "application/zip")
 
     @app.post("/api/data/delete-chats", dependencies=[Depends(write_guard)])
     def delete_all_chats(body: DeleteChatsBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -1432,7 +1432,7 @@ def build_ingress_app(
     busy = busy if busy is not None else {}
     scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy)
     asset_version = _asset_version()
-    app = FastAPI(title="KI Chat", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="HA Copilot", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.scheduler = scheduler
     _add_security_headers(app)
 
@@ -1529,7 +1529,7 @@ def build_public_app(
     start_limit = RateLimiter(10, 600)
     callback_limit = RateLimiter(30, 600)
 
-    app = FastAPI(title="KI Chat (Domain)", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="HA Copilot (Domain)", docs_url=None, redoc_url=None, openapi_url=None)
     _add_security_headers(app, PUBLIC_SECURITY_HEADERS)
 
     def client_ip(request: Request) -> str:

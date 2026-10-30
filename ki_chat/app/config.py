@@ -80,7 +80,7 @@ COLOR_OPTIONS = {
     "text_color_light": "text_light",
     "text_color_dark": "text_dark",
 }
-APP_NAME_DEFAULT = "KI Chat"
+APP_NAME_DEFAULT = "HA Copilot"
 LOGIN_PLACEHOLDER_DEFAULT = "name@beispiel.de"
 LOGIN_TEXT_DEFAULT = "Mit deinem Konto anmelden."
 
