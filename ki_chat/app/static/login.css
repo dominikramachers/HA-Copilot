@@ -1,0 +1,107 @@
+/* Anmeldeseite: ein Türschild (das Logo auf dunklem Grund, in beiden Darstellungen gleich) neben dem Formular.
+   Keine Hintergrundgrafik, kein Leuchten; das Logo ist das einzig Bunte auf der Seite. */
+
+body.login { min-height: 100dvh; }
+
+.sign {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 300px 340px;
+  gap: 56px;
+  align-content: center;
+  justify-content: center;
+  padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+  animation: arrive .45s ease-out both;
+}
+@keyframes arrive { from { opacity: 0; } }
+
+.plate {
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--plate);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.plate img { display: block; width: 196px; height: auto; max-height: 196px; object-fit: contain; }
+
+.entry { align-self: center; }
+h1 { margin: 0; font-size: 32px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em; }
+.lead { margin: 8px 0 30px; color: var(--text-2); font-size: 16px; }
+
+label { display: block; margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.field {
+  display: block;
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--panel);
+  font-size: 16px;
+  outline: 0;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field::placeholder { color: var(--muted); }
+.field[aria-invalid="true"] { border-color: var(--danger); }
+.err { min-height: 20px; margin: 6px 0 8px; font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--danger); }
+
+.go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 48px;
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 16px;
+  font-weight: 600;
+  transition: opacity .15s, transform .15s;
+}
+.go:hover { opacity: .9; }
+.go:active { transform: scale(.985); }
+.go:disabled { opacity: .7; cursor: default; }
+.go:focus-visible { outline-offset: 3px; }
+.ms { flex: none; }
+.spin { display: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+.sign[data-state="busy"] .spin { display: inline-block; }
+.sign[data-state="busy"] .ms { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Anmeldung mit Home Assistant (nur sichtbar, wenn sie eingerichtet ist); Entra-Formular nur, wenn Entra eingerichtet ist */
+html[data-entra="false"] #form { display: none; }
+html[data-ha="false"] .alt { display: none; }
+.or { display: flex; align-items: center; gap: 12px; margin: 22px 0 14px; color: var(--muted); font-size: 14px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+html[data-entra="false"] .or { display: none; }
+html[data-entra="false"] .alt .err { margin-top: 0; }
+.alt .err:empty { min-height: 0; margin: 0; }
+.alt-go { text-decoration: none; }
+html[data-entra="true"] .alt-go { background: transparent; color: var(--text); border: 1px solid var(--line-2); }
+html[data-entra="true"] .alt-go:hover { background: var(--panel); opacity: 1; }
+.ha { flex: none; }
+
+/* Schmal: das Schild liegt oberhalb des Formulars */
+@media (max-width: 760px) {
+  .sign {
+    grid-template-columns: minmax(0, 420px);
+    gap: 28px;
+    align-content: start;
+    padding-top: max(24px, env(safe-area-inset-top));
+  }
+  .plate { height: 168px; }
+  .plate img { width: 128px; }
+  h1 { font-size: 28px; }
+  .lead { margin-bottom: 24px; }
+}
+@media (max-width: 760px) and (max-height: 640px) {
+  .plate { height: 120px; }
+  .plate img { width: 92px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign { animation: none; }
+  .spin { animation-duration: 2s; }
+}

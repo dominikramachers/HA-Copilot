@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            ki_chat/requirements.txt
+            ki_chat/requirements-files.txt
+      - name: Abhängigkeiten installieren
+        working-directory: ki_chat
+        run: |
+          pip install -r requirements.txt pytest pyyaml
+          pip install -r requirements-files.txt
+      - name: Tests
+        working-directory: ki_chat
+        run: python -m pytest -q
+
+  addon-lint:
+    name: Add-on-Konfiguration prüfen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: frenck/action-addon-linter@v2
+        with:
+          path: ./ki_chat
+
+  docker-build:
+    name: Image bauen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image bauen (ohne Veröffentlichung)
+        run: docker build ki_chat

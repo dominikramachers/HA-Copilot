@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de" data-logo-tile="__TILE__" data-entra="__ENTRA__" data-ha="__HALOGIN__">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Anmelden – __NAME__</title>
+  <link rel="icon" type="image/png" href="branding/icon">
+  <link rel="apple-touch-icon" href="branding/icon">
+  <script src="static/theme-init.js?v=__V__"></script>
+  <link rel="stylesheet" href="static/theme.css?v=__V__">
+  <link rel="stylesheet" href="branding/theme.css">
+  <link rel="stylesheet" href="static/login.css?v=__V__">
+  <link rel="stylesheet" href="branding/custom.css">
+</head>
+<body class="login">
+  <main class="sign" id="stage" data-state="idle">
+    <div class="plate"><img src="branding/logo-full" width="196" alt="__NAME__"></div>
+
+    <div class="entry">
+      <h1>__NAME__</h1>
+      <p class="lead">__LOGIN_TEXT__</p>
+
+      <form id="form" novalidate>
+        <label for="email">E-Mail-Adresse</label>
+        <input class="field" id="email" name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="__PLACEHOLDER__" required autofocus>
+        <p class="err" id="err" role="alert"></p>
+        <button class="go" id="go" type="submit">
+          <svg class="ms" viewBox="0 0 21 21" width="18" height="18" aria-hidden="true"><path fill="#F25022" d="M1 1h9v9H1z"/><path fill="#7FBA00" d="M11 1h9v9h-9z"/><path fill="#00A4EF" d="M1 11h9v9H1z"/><path fill="#FFB900" d="M11 11h9v9h-9z"/></svg>
+          <span id="go-label">Mit Microsoft anmelden</span><span class="spin" aria-hidden="true"></span>
+        </button>
+      </form>
+
+      <div class="alt" id="alt">
+        <p class="or" aria-hidden="true"><span>oder</span></p>
+        <p class="err" id="err-ha" role="alert"></p>
+        <a class="go alt-go" id="go-ha" href="auth/ha-start">
+          <svg class="ha" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 3 2 11.5h2.8V20h5.4v-5.2h3.6V20h5.4v-8.5H22z"/></svg>
+          <span>Mit Home Assistant anmelden</span>
+        </a>
+      </div>
+    </div>
+  </main>
+  <script src="branding/lang.js?v=__V__"></script>
+  <script src="static/i18n.js?v=__V__"></script>
+  <script src="static/login.js?v=__V__"></script>
+</body>
+</html>

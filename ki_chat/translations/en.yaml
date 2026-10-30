@@ -1,0 +1,184 @@
+configuration:
+  profiles:
+    name: Users (profiles)
+    description: Who may use the app. “Add” creates another user; usually the Home Assistant username is enough and everything else is optional. Anyone not listed sees their username and ID in the app so they can be added. Restart the add-on after saving.
+    fields:
+      ha_user:
+        name: Home Assistant username
+        description: Login name or person of the user in Home Assistant (e.g. “doralab”). The add-on derives the ID from it. Alternatively enter the ID below.
+      label:
+        name: Display name (optional)
+        description: Name shown in the app. Leave empty to use the Home Assistant username.
+      ha_user_id:
+        name: Home Assistant user ID (optional)
+        description: 32 characters. Only needed when the username is ambiguous. The add-on log lists all users with their IDs at start.
+      entra_upn:
+        name: E-mail / UPN for domain sign-in (optional)
+        description: Account the person uses to sign in via the public domain with Microsoft Entra.
+      ha_access:
+        name: Home Assistant access (optional)
+        description: 'What the AI may do in Home Assistant for this user: none, read, execute (read and operate devices) or write (read, execute and change automations, scripts, dashboards, helpers). Empty: the default below applies.'
+      github_access:
+        name: GitHub access (optional)
+        description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default below applies. The token belongs to you as the operator: every user with read or write can see your private repositories through it (unless the allow-list restricts it).'
+      web_access:
+        name: Web search (optional)
+        description: 'on = the AI may search the web and read pages for this user, off = not. Empty: the default below applies.'
+      notify_service:
+        name: Notification service (optional)
+        description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). The AI uses it when a longer answer finishes while nobody is watching, and scheduled tasks can report to the phone. Empty: no phone notifications.'
+      id:
+        name: Short name (optional)
+        description: 'Internal id, a–z, 0–9, hyphen. Leave empty to derive it from the display name. Do not change later: chats are tied to it.'
+  all_ha_users:
+    name: Allow all Home Assistant users
+    description: 'Off (default): only the users listed above. On: every Home Assistant user may use the app and automatically gets a profile of their own, with their own chats, on first access. Listed users keep their profile. Listing is then only needed for a display name or Microsoft sign-in.'
+  ha_users_excluded:
+    name: Excluded Home Assistant users (optional)
+    description: 'Only with “Allow all Home Assistant users”: usernames, names or IDs, comma separated (e.g. “child1, guest”). These users cannot get in.'
+  ha_url:
+    name: Home Assistant address for sign-in via the domain (optional)
+    description: 'Only if users should sign in via the domain with their Home Assistant account: externally reachable address, e.g. https://ha.example.org. The sign-in page then shows “Sign in with Home Assistant”. Leave empty: Microsoft Entra only.'
+  app_name:
+    name: App name
+    description: 'Name used on the sign-in page, in the title and in the sidebar. Default: KI Chat. The name of the Home Assistant sidebar entry is fixed and cannot be changed here.'
+  login_text:
+    name: Sign-in page text
+    description: Short sentence below the name, e.g. “Sign in with your company account.”
+  login_placeholder:
+    name: Example address in sign-in field
+    description: Placeholder in the e-mail field of the sign-in page, e.g. name@company.com.
+  logo_tile:
+    name: Logo on dark tile
+    description: 'For logos that only look good on dark backgrounds (light or neon logos): shows them on a dark tile in the light design.'
+  follow_ha_theme:
+    name: Follow Home Assistant theme
+    description: 'On: colours and light/dark follow the active Home Assistant theme live (inside HA) or the default theme (via the domain). Off: built-in colours with the app''s own light/dark switch.'
+  theme_name:
+    name: Theme for the domain (optional)
+    description: 'Name of a Home Assistant theme to use via the domain. Empty: Home Assistant''s default theme.'
+  accent_color:
+    name: Accent colour
+    description: 'Hex value like #175CD3. Overrides the theme''s accent colour. Empty: from the theme.'
+  background_color_light:
+    name: Background light
+    description: 'Hex value like #F3F4F6. Empty: from the theme.'
+  background_color_dark:
+    name: Background dark
+    description: 'Hex value like #0D192D. Empty: from the theme.'
+  card_color_light:
+    name: Surfaces light
+    description: 'Colour of cards and input fields in the light design. Empty: from the theme.'
+  card_color_dark:
+    name: Surfaces dark
+    description: 'Colour of cards and input fields in the dark design. Empty: from the theme.'
+  text_color_light:
+    name: Text light
+    description: 'Text colour in the light design. Empty: from the theme.'
+  text_color_dark:
+    name: Text dark
+    description: 'Text colour in the dark design. Empty: from the theme.'
+  public_enabled:
+    name: Enable domain access
+    description: Turns on access through the public domain (port 8100), with Microsoft Entra and/or (with a Home Assistant address) Home Assistant sign-in.
+  public_base_url:
+    name: Public address
+    description: e.g. https://chat.example.org. Must match the Entra app's redirect URI.
+  entra_tenant_id:
+    name: 'Entra: directory (tenant) ID'
+  entra_client_id:
+    name: 'Entra: application (client) ID'
+  entra_client_secret:
+    name: 'Entra: client secret'
+  session_days:
+    name: Sign-in duration (days)
+    description: How long a sign-in via the domain stays valid (1–90).
+  public_trusted_proxies:
+    name: Trusted proxies
+    description: Addresses of reverse proxies (e.g. a Cloudflare tunnel container) whose forwarding headers may be trusted.
+  backend:
+    name: Answer source
+    description: 'echo: test mode without AI. claude: real answers through the Claude subscription.'
+  claude_oauth_token:
+    name: Claude access token (subscription)
+    description: Long-lived token from “claude setup-token” (Claude subscription). ONLY for your own personal use. Several users or the domain side need an API key (observe Anthropic’s terms).
+  anthropic_api_key:
+    name: Anthropic API key
+    description: Alternative to the subscription token (pay-as-you-go via the Claude Console). Takes precedence if both are set.
+  model:
+    name: Default model
+    description: 'Model for new chats, e.g. claude-sonnet-5-5. Users can switch it per chat when more models are listed below.'
+  title_model:
+    name: Model for chat titles
+    description: Smaller model for automatic titles.
+  models:
+    name: More selectable models (optional)
+    description: 'Comma-separated, e.g. “claude-opus-5-5, claude-haiku-5-5”. The default model above is always included. Empty: Opus 5.5 and Haiku 5.5 are offered. “none”: no model picker in the chat. Which models your plan allows is up to Anthropic; an unavailable model reports an error.'
+  web_access_default:
+    name: 'Default: web search'
+    description: 'on (default) or off. The AI can search the web and read pages when needed or when asked. Can be overridden per user; in the chat it can be switched off per message. Search queries leave your network.'
+  schedules_enabled:
+    name: Allow scheduled tasks
+    description: 'On (default): the “Scheduled” menu item, where the AI performs tasks at fixed times (read-only, no questions). Off: no scheduled tasks, existing ones rest. Scheduled runs use your plan’s quota.'
+  notify_long_answers:
+    name: Notify when an answer is ready
+    description: 'On (default): if an answer takes longer than about 45 seconds and nobody is watching (chat switched, tab closed), the person gets a phone notification. Only applies to users with a notification service set.'
+  default_effort:
+    name: Default thinking effort
+    description: low, medium or high.
+  language:
+    name: Language
+    description: 'de (default) for German or en for English. Applies to the interface, the add-on’s messages and the default language of the AI’s answers (anyone who writes in another language still gets the answer in that language). Chats that are already saved stay unchanged.'
+  ha_access_default:
+    name: Default Home Assistant access
+    description: 'Applies to all users without their own setting: none, read (default), execute or write. With read and execute the AI only sees and controls entities exposed to Assist in Home Assistant.'
+  ha_write_confirm:
+    name: Confirmation for changes
+    description: 'ask (default): every change to automations, scripts, dashboards, helpers and settings must be confirmed in the chat (once, or “always allow in this chat”). always_allow: no prompt. Sensitive actions (locks, alarm, garage doors) and messages with attachments always ask.'
+  ha_limit_to_exposed:
+    name: Only entities exposed to Assist (read/execute)
+    description: 'On (default): users with read or execute only see and control entities that are exposed to Assist in Home Assistant. Users with write are not affected.'
+  ha_access_via_domain:
+    name: HA access via the domain too
+    description: 'On (default): the access levels also apply when signing in through the public domain. Off: there the AI has no access to Home Assistant, only in the HA panel.'
+  memory_enabled:
+    name: AI memory
+    description: 'On (default): the AI remembers facts on its own, for the whole household and separately for each person. Everyone can view, edit and delete entries in the chat under “Memory”. Off: no memory.'
+  memory_household_writers:
+    name: Who may change household memory
+    description: 'all (default): every user; ha_write: only users with access level write (others can read it, and the AI saves nothing there for them). Personal memory always belongs to that person.'
+  ha_scan_days:
+    name: Read smart home overview (every … days)
+    description: 'On first start and then every N days (default 7), KI Chat reads an overview of Home Assistant (areas, devices, automations, integrations) and stores it in household memory so the AI knows your setup from the start. 0 = never automatically, only via the button in the memory dialog. Only names and assignments are read, no state values, coordinates or credentials. Applies only while memory is enabled.'
+  github_token:
+    name: GitHub token
+    description: 'Personal access token from GitHub (Settings → Developer settings → Fine-grained tokens). Give it only the repositories and permissions the AI should have: Contents, Pull requests and Issues (read and write), Metadata (read); to create new repositories use a classic token with the ''repo'' scope. Empty: GitHub is off.'
+  github_access_default:
+    name: Default GitHub access
+    description: 'Applies to all users without their own setting: none (default), read or write. Has no effect without a token in the configuration.'
+  github_write_confirm:
+    name: Confirmation for GitHub changes
+    description: 'ask (default): every change (commit, pull request, issue, comment …) must be confirmed in the chat (once, or ''always allow in this chat''). always_allow: without asking. Always asked for: commits to the default branch, merges, new repositories, deletions, workflow files, and after reading foreign content or with a file attachment.'
+  github_repos:
+    name: Allowed repositories (optional)
+    description: 'Allow-list, comma separated: ''doralab/smarthome, doralab/*''. owner/* allows all repositories of an owner. Empty: everything the token can reach. The AI cannot access other repositories at all.'
+  files_enabled:
+    name: Create files
+    description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
+  files_keep_days:
+    name: Keep created files (days)
+    description: 'How long a file created by the AI stays available for download (1 to 365, default 14). After that it is deleted; the chat stays. Files of a deleted chat are removed immediately.'
+  restore_snapshot:
+    name: Restore database
+    description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'
+  export_database:
+    name: Export database (migration)
+    description: 'Only for moving to another add-on (e.g. from the local add-on to the GitHub add-on): on start, a copy of all chats is written to the add-on’s config folder as ki_chat-export.sqlite3. Switch it off afterwards and delete the file.'
+  claude_token_expires:
+    name: Claude token expires on
+    description: Date (YYYY-MM-DD) for the reminder in the app.
+  entra_secret_expires:
+    name: Entra secret expires on
+    description: Date (YYYY-MM-DD) for the reminder in the app.
+network:
+  8100/tcp: Domain access (Cloudflare tunnel)

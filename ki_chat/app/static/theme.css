@@ -1,0 +1,102 @@
+/* Eingebaute Palette (Rückfall, wenn weder Konfiguration noch Home-Assistant-Theme Farben liefern).
+   Der Standard-Akzent ist #175CD3.
+   Formen: wenige, feste Radien (kein "alles rund"). Farbe: nur der Akzent für Bedienbares; das Logo ist das einzig Bunte. */
+
+@layer tokens;
+
+@font-face {
+  font-family: "Roboto";
+  src: url("fonts/roboto-latin-wght.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Code und Logs: Atkinson Hyperlegible Mono unterscheidet 0/O und l/1/I eindeutig. */
+@font-face {
+  font-family: "Atkinson Hyperlegible Mono";
+  src: url("fonts/atkinson-mono-latin-wght.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --r-1: 6px;   /* Knöpfe in Gruppen, Marken */
+  --r-2: 10px;  /* Eingaben, Knöpfe, Zeilen, Blöcke */
+  --r-3: 14px;  /* Eingabefeld des Chats, Vorschau */
+  --r-4: 18px;  /* Fenster von unten */
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Farben. Die Tokens (--bg, --panel, --text, --accent …) werden in dieser Reihenfolge belegt:
+     1. --ov-*                 Farben aus der Add-on-Konfiguration (branding/theme.css)
+     2. Home-Assistant-Variablen  --primary-color, --card-background-color …  (live aus HA übernommen, wenn die Seite
+                                  in Home Assistant eingebettet ist, sonst aus dem Standard-Theme von HA, branding/theme.css)
+     3. --b-*                  eingebaute Palette (unten)
+   Alles Abgeleitete (Linien, Chips, Sprechblase …) mischt sich aus diesen Grundfarben.
+   Die Tokens liegen in einer Ebene (@layer): eigene Regeln in custom.css haben immer Vorrang.
+   --------------------------------------------------------------------------------------------------------------- */
+@layer tokens {
+  :root {
+    --b-bg: #F3F4F6; --b-card: #FFFFFF; --b-sidebar: #FFFFFF; --b-text: #101B2D; --b-text-2: #667085;
+    --b-accent: #175CD3; --b-on-accent: #FFFFFF; --b-danger: #DC2626; --b-warn: #99451F;
+    --b-plate: #0A1120;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --b-bg: #0D192D; --b-card: #1B273A; --b-sidebar: #0A1120; --b-text: #F1F5F9; --b-text-2: #94A3B8;
+    --b-accent: #4C8DF6; --b-on-accent: #08142B; --b-danger: #F87171; --b-warn: #FDBA74;
+    color-scheme: dark;
+  }
+
+  :root {
+    --bg: var(--ov-bg, var(--primary-background-color, var(--b-bg)));
+    --panel: var(--ov-card, var(--card-background-color, var(--b-card)));
+    --sidebar: var(--ov-card, var(--sidebar-background-color, var(--b-sidebar)));
+    --sheet: var(--panel);
+    --text: var(--ov-text, var(--primary-text-color, var(--b-text)));
+    --text-2: var(--ov-text-2, var(--secondary-text-color, var(--b-text-2)));
+    --accent: var(--ov-accent, var(--primary-color, var(--b-accent)));
+    --on-accent: var(--ov-on-accent, var(--text-primary-color, var(--b-on-accent)));
+    --danger: var(--error-color, var(--b-danger));
+    --warn-fg: var(--warning-color, var(--b-warn));
+    --plate: var(--b-plate);   /* Fläche hinter dem Logo auf der Anmeldeseite */
+
+    --panel-2: color-mix(in srgb, var(--text) 5%, var(--panel));
+    --muted: color-mix(in srgb, var(--text-2) 70%, var(--bg));
+    --line: color-mix(in srgb, var(--text) 9%, transparent);
+    --line-2: color-mix(in srgb, var(--text) 16%, transparent);
+    --chip: color-mix(in srgb, var(--text) 8%, transparent);
+    --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+    --bubble: color-mix(in srgb, var(--accent) 7%, color-mix(in srgb, var(--text) 6%, var(--bg)));
+    --bubble-ink: var(--text);
+    --danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
+    --warn-bg: color-mix(in srgb, var(--warn-fg) 16%, transparent);
+    --shadow: none;
+    --scrim: rgba(3, 6, 14, 0.56);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font: 400 16px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+button, input, textarea { font: inherit; color: inherit; }
+button { border: 0; background: none; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.icon { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icon.solid { fill: currentColor; stroke: none; }

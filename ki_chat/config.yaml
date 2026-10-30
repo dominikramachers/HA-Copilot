@@ -1,0 +1,151 @@
+name: KI Chat
+version: "0.26.1"
+slug: ki_chat
+url: https://github.com/dominikramachers/HA-Copilot
+description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: true
+
+# Sicherung im gestoppten Zustand: Home Assistant hält das Add-on kurz an, kopiert die Datenbank und startet es wieder.
+# So ist die Kopie immer vollständig (eine laufende SQLite-Datei kann sonst mitten im Schreiben kopiert werden).
+backup: cold
+
+# Zugang innerhalb von Home Assistant (Sidebar-Panel, Authentifizierung durch HA)
+ingress: true
+ingress_port: 8099
+ingress_entry: /
+panel_icon: mdi:robot-happy-outline
+panel_title: KI Chat
+panel_admin: false
+
+# Home-Assistant-Anbindung: Benutzernamen zu IDs auflösen, Theme-Farben übernehmen und (je nach Rechtestufe des Benutzers)
+# der KI Zugriff auf Home Assistant geben (lesen, ausführen, schreiben; siehe ha_access_default)
+homeassistant_api: true
+
+# Ordner „addon_config“: hier liegen eigenes Logo (logo.png), Symbol (icon.png) und optional custom.css.
+# In Home Assistant erreichbar unter /addon_configs/<Ordnername>/ (z. B. per Samba oder Datei-Editor).
+map:
+  - app_config:rw
+
+# Direktzugang für die Domain (Cloudflare Tunnel) mit Entra-Anmeldung. Standardmäßig
+# NICHT nach außen gemappt (null) und abgeschaltet (public_enabled: false).
+ports:
+  8100/tcp: null
+ports_description:
+  8100/tcp: Domain-Zugang (Ziel des Cloudflare Tunnels, nicht ins Internet öffnen)
+
+options:
+  profiles:
+    - label: Administrator
+  all_ha_users: false
+  ha_users_excluded: ""
+  ha_url: ""
+  app_name: KI Chat
+  login_text: ""
+  login_placeholder: ""
+  logo_tile: false
+  follow_ha_theme: true
+  theme_name: ""
+  public_enabled: false
+  public_base_url: ""
+  entra_tenant_id: ""
+  entra_client_id: ""
+  entra_client_secret: ""
+  session_days: 30
+  public_trusted_proxies: []
+  backend: echo
+  claude_oauth_token: ""
+  anthropic_api_key: ""
+  model: claude-sonnet-5-5
+  title_model: claude-haiku-5-5
+  models: ""
+  web_access_default: "on"
+  schedules_enabled: true
+  notify_long_answers: true
+  default_effort: medium
+  language: de
+  ha_access_default: read
+  ha_write_confirm: ask
+  ha_limit_to_exposed: true
+  ha_access_via_domain: true
+  memory_enabled: true
+  memory_household_writers: all
+  ha_scan_days: 7
+  github_token: ""
+  github_access_default: none
+  github_write_confirm: ask
+  github_repos: ""
+  files_enabled: true
+  files_keep_days: 14
+  restore_snapshot: ""
+  export_database: false
+  claude_token_expires: ""
+  entra_secret_expires: ""
+
+schema:
+  profiles:
+    - ha_user: str?
+      label: str?
+      ha_user_id: "match(^[0-9a-fA-F]{32}$)?"
+      entra_upn: str?
+      ha_access: list(none|read|execute|write)?
+      github_access: list(none|read|write)?
+      web_access: list(on|off)?
+      notify_service: str?
+      id: "match(^[a-z0-9_-]{2,32}$)?"
+  all_ha_users: bool?
+  ha_users_excluded: str?
+  ha_url: str?
+  app_name: str?
+  login_text: str?
+  login_placeholder: str?
+  logo_tile: bool?
+  follow_ha_theme: bool?
+  theme_name: str?
+  accent_color: "match(^#?[0-9a-fA-F]{6}$)?"
+  background_color_light: "match(^#?[0-9a-fA-F]{6}$)?"
+  background_color_dark: "match(^#?[0-9a-fA-F]{6}$)?"
+  card_color_light: "match(^#?[0-9a-fA-F]{6}$)?"
+  card_color_dark: "match(^#?[0-9a-fA-F]{6}$)?"
+  text_color_light: "match(^#?[0-9a-fA-F]{6}$)?"
+  text_color_dark: "match(^#?[0-9a-fA-F]{6}$)?"
+  public_enabled: bool
+  public_base_url: str?
+  entra_tenant_id: str?
+  entra_client_id: str?
+  entra_client_secret: password?
+  session_days: int(1,90)?
+  public_trusted_proxies:
+    - str
+  backend: list(echo|claude)
+  claude_oauth_token: password?
+  anthropic_api_key: password?
+  model: str
+  title_model: str?
+  models: str?
+  web_access_default: list(on|off)?
+  schedules_enabled: bool?
+  notify_long_answers: bool?
+  default_effort: list(low|medium|high)
+  language: list(de|en)?
+  ha_access_default: list(none|read|execute|write)?
+  ha_write_confirm: list(ask|always_allow)?
+  ha_limit_to_exposed: bool?
+  ha_access_via_domain: bool?
+  memory_enabled: bool?
+  memory_household_writers: list(all|ha_write)?
+  ha_scan_days: int(0,90)?
+  github_token: password?
+  github_access_default: list(none|read|write)?
+  github_write_confirm: list(ask|always_allow)?
+  github_repos: str?
+  files_enabled: bool?
+  files_keep_days: int(1,365)?
+  restore_snapshot: str?
+  export_database: bool?
+  claude_token_expires: str?
+  entra_secret_expires: str?
