@@ -106,6 +106,10 @@ def test_login_page_preview_requires_access(client):
     page = client.get("/login", headers=as_user(DORA))
     assert page.status_code == 200 and "E-Mail-Adresse" in page.text and "__V__" not in page.text
     assert client.get("/static/login.css").status_code == 200
+    # Animierter Hintergrund: Canvas im Markup, Skript als eigene Datei (die CSP erlaubt nur Skripte der eigenen Herkunft).
+    assert '<canvas id="particles"' in page.text and "static/login-bg.js" in page.text
+    script = client.get("/static/login-bg.js")
+    assert script.status_code == 200 and "prefers-reduced-motion" in script.text and "visibilitychange" in script.text
     font = client.get("/static/fonts/roboto-latin-wght.woff2")
     assert font.status_code == 200 and font.content[:4] == b"wOF2"
 
