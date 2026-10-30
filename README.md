@@ -8,11 +8,26 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 
 > **Inoffizielles Projekt.** Nicht von Anthropic oder Nabu Casa. „Claude“ ist eine Marke von Anthropic.
 
-![Chat, hell](docs/screenshots/chat-hell.png)
+![HA Copilot in Home Assistant: Seitenleiste, Dashboard und Chat](docs/screenshots/ha-copilot-im-panel.png)
 
-| Dunkel | Menü | Handy |
+| Seitenleiste und Dashboard | Dunkel | Handy |
 |---|---|---|
-| ![Chat, dunkel](docs/screenshots/chat-dunkel.png) | ![Menü](docs/screenshots/menue.png) | ![Chat auf dem Handy](docs/screenshots/chat-handy.png) |
+| ![Home Assistant mit Dashboard und HA Copilot in der Seitenleiste](docs/screenshots/ha-seitenleiste-dashboard.png) | ![HA Copilot in Home Assistant, dunkel](docs/screenshots/ha-copilot-im-panel-dunkel.png) | ![Chat auf dem Handy](docs/screenshots/chat-handy.png) |
+
+*Die Bilder zeigen eine Test-Instanz von Home Assistant mit Demo-Geräten und Beispiel-Chats, keine echten Daten. Wie sie entstanden sind, steht in [docs/screenshots/README.md](docs/screenshots/README.md).*
+
+## Dokumentation
+
+| Seite | Inhalt |
+|---|---|
+| [Installation](docs/installation.md) | Repository hinzufügen, installieren, Zugang zu Claude, erster Start, Einrichtungsprüfung, Updates |
+| [Benutzer und Rechte](docs/benutzer.md) | Ersten und weitere Benutzer anlegen, Rechtestufen der KI, „alle HA-Benutzer“ |
+| [Alle Einstellungen](docs/einstellungen.md) | Jede Option mit Standardwert und Bedeutung |
+| [Funktionen](docs/funktionen.md) | Chat, Projekte, Suche, Home Assistant, GitHub, Gedächtnis, geplante Aufgaben, Dateien |
+| [Domain-Zugang](docs/domain-zugang.md) | Entra-ID-Anmeldung, Cloudflare Tunnel, Anmeldung mit Home Assistant |
+| [Betrieb](docs/betrieb.md) | Sicherung, Wiederherstellung, Umzug, Protokoll, Fehlerbehebung |
+| [Ausführliche Referenz](ki_chat/DOCS.md) | Alles bis ins Einzelne (erscheint auch im Reiter „Dokumentation“ des Add-ons) |
+| [Änderungen](ki_chat/CHANGELOG.md) | Was sich in welcher Version geändert hat |
 
 ## Funktionen
 
@@ -34,13 +49,13 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 
 ## Installation
 
-1. In Home Assistant: **Einstellungen → Add-ons → Add-on-Store → ⋮ → Repositories** und diese Repository-Adresse hinzufügen:
+1. In Home Assistant **Einstellungen → Add-ons** (ab 2026.2 „Apps“) → **Add-on-Store → ⋮ → Repositories** öffnen und diese Adresse hinzufügen:
    `https://github.com/dominikramachers/HA-Copilot`
-2. **HA Copilot** installieren.
-3. In der Add-on-Konfiguration einen Benutzer eintragen (`ha_user` = dein HA-Benutzername) und die Zugangsdaten zu Claude hinterlegen (siehe unten). Bis dahin läuft das Add-on im Testmodus (`backend: echo`) ohne KI.
+2. **HA Copilot** installieren, auf dem Reiter Info **In der Seitenleiste anzeigen** einschalten.
+3. In der Konfiguration deinen Benutzer eintragen (`ha_user` = dein HA-Benutzername) und die Zugangsdaten zu Claude hinterlegen (siehe unten). Bis dahin läuft das Add-on im Testmodus (`backend: echo`) ohne KI.
 4. `backend` auf `claude` stellen, Add-on starten, „HA Copilot“ erscheint in der Seitenleiste.
 
-Alle Optionen sind in [ki_chat/DOCS.md](ki_chat/DOCS.md) beschrieben.
+Die ausführliche Anleitung mit Bildern: [docs/installation.md](docs/installation.md). Benutzer und Rechte: [docs/benutzer.md](docs/benutzer.md). Alle Optionen: [docs/einstellungen.md](docs/einstellungen.md).
 
 ## Zugang zu Claude
 
@@ -56,7 +71,7 @@ Du brauchst eigene Zugangsdaten. Sie werden nur in deiner Add-on-Konfiguration g
 - Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil der HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; sonst an niemanden.
 - Dateianhänge werden nur im Arbeitsspeicher verarbeitet. In der Datenbank stehen Name, Art und Größe.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OIDC mit PKCE, serverseitige Sitzungen, Schutz gegen Cross-Site-Anfragen). Das Add-on gibt den Port der Domain-Seite nicht nach außen frei; ein Tunnel (z. B. Cloudflare) ist deine Entscheidung.
-- Das Add-on legt von sich aus keinen Zugang über das Internet an. Wer die Domain-Seite aktiviert, sollte vorher [ki_chat/DOCS.md](ki_chat/DOCS.md) lesen.
+- Das Add-on legt von sich aus keinen Zugang über das Internet an. Wer die Domain-Seite aktiviert, sollte vorher [docs/domain-zugang.md](docs/domain-zugang.md) und [ki_chat/DOCS.md](ki_chat/DOCS.md) lesen.
 
 ## Entwicklung
 
@@ -66,7 +81,7 @@ pip install -r requirements.txt pytest pyyaml
 python -m pytest -q
 ```
 
-Die Tests laufen ohne Claude-Zugang (Test-Backend). Der Testmodus des Add-ons (`backend: echo`) verursacht ebenfalls keine Kosten.
+Die Tests laufen ohne Claude-Zugang (Test-Backend). Der Testmodus des Add-ons (`backend: echo`) verursacht ebenfalls keine Kosten. Die Seite [Alle Einstellungen](docs/einstellungen.md) wird mit `python tools/gen_options_doc.py` aus `config.yaml` erzeugt; ein Test prüft, dass sie aktuell ist und alle Links und Bilder der Dokumentation existieren.
 
 ## Lizenz
 

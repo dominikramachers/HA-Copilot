@@ -1,0 +1,33 @@
+homeassistant:
+  name: Zuhause
+  unit_system: metric
+  time_zone: Europe/Berlin
+  country: DE
+  language: de
+  currency: EUR
+  latitude: 52.52
+  longitude: 13.405
+  elevation: 40
+http:
+  server_port: 8123
+frontend:
+config:
+lovelace:
+history:
+logbook:
+map:
+sun:
+person:
+energy:
+media_source:
+system_health:
+todo:
+shopping_list:
+demo:
+panel_custom:
+  - name: ha-copilot-panel
+    sidebar_title: HA Copilot
+    sidebar_icon: mdi:robot-happy-outline
+    module_url: /local/copilot-panel.js
+    require_admin: false
+    config: {}
