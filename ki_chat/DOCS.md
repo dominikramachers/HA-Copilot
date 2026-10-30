@@ -2,7 +2,17 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.25.0 (Einrichtungsprüfung mit genauen Schritten); davor 0.24.0 (Sicherheitsprüfung des gesamten Codes, Korrektur der Upload-Grenzen vor der Anmeldung); davor 0.23.0 (Vorbereitung der Veröffentlichung: Hinweis zum Abo-Token, Datenbank-Export für den Umzug, CI und SECURITY.md); davor 0.22.3 (kompakteres Modellmenü); davor 0.22.2 (Hinweis der KI bei fehlender GitHub-Einrichtung); davor 0.22.1 (Modellauswahl standardmäßig an, kompaktere Seitenleiste); davor 0.22.0 (Suche, Export und Löschen eigener Daten); davor 0.21.0 (Geplante Aufgaben, Benachrichtigung bei fertigen Antworten); davor 0.20.0 (Websuche, Modellwahl, Hinweis auf das Nutzungslimit); davor 0.19.0 (GitHub: Repositories lesen, Dateien einchecken, Pull Requests, Issues); davor 0.18.0 (Dateien erzeugen: Word, Excel, PowerPoint, PDF, Skripte); davor 0.17.0 (Smarthome-Überblick, neue Warteanzeige); davor 0.16.1 (Hinweis: der Dialog „Unknown error, see supervisor logs“ bei „Nach Updates suchen“ ist ein Zeitlimit von Home Assistant für das Neuladen des App-Stores und kommt nicht vom Add-on; das Update wird trotzdem gefunden; davor 0.16.0 (Projektwissen zum Hochladen und Gedächtnis je Haushalt und Person; vorher 0.15.0 Zugriff der KI auf Home Assistant mit Rechtestufen; 0.14.1 Vorbereitung für die Veröffentlichung; ab 0.11.0 Branding, Theme und Benutzer in der Konfiguration, ab 0.12.0 optional alle HA-Benutzer und Anmeldung mit Home Assistant)** – Profile, Zugang über das HA-Sidebar-Panel (Ingress) und zusätzlich über eine eigene Domain mit Microsoft-Entra-Anmeldung, Chat-Verwaltung und Antworten der KI als Live-Stream. Name, Logo, Texte und Farben lassen sich in der Konfiguration anpassen, die Oberfläche übernimmt das Theme von Home Assistant, und Benutzer pflegt man ausschließlich in der Add-on-Konfiguration. Beide Zugangswege führen auf dasselbe Profil und damit auf dieselben Chats.
+**Stand: 0.26.4.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+
+**Schnellzugriff (Dokumentation im Repository, mit Bildern):**
+[Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
+[Benutzer und Rechte](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/benutzer.md) ·
+[Alle Einstellungen](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/einstellungen.md) ·
+[Funktionen](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/funktionen.md) ·
+[Domain-Zugang](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/domain-zugang.md) ·
+[Betrieb](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/betrieb.md)
+
+Diese Seite ist die ausführliche Referenz. Sie behandelt: Profile, Zugang über das HA-Sidebar-Panel (Ingress) und zusätzlich über eine eigene Domain mit Microsoft-Entra-Anmeldung, Chat-Verwaltung und Antworten der KI als Live-Stream. Name, Logo, Texte und Farben lassen sich in der Konfiguration anpassen, die Oberfläche übernimmt das Theme von Home Assistant, und Benutzer pflegt man ausschließlich in der Add-on-Konfiguration. Beide Zugangswege führen auf dasselbe Profil und damit auf dieselben Chats.
 
 ## Konfiguration
 

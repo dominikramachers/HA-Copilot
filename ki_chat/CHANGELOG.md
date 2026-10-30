@@ -1,7 +1,11 @@
 # Änderungen
 
 ## 0.26.4
-- Update-Test über GitHub: Die Mindestversionen der Python-Pakete sind angehoben (fastapi, uvicorn, claude-agent-sdk, httpx, pyjwt, websockets, pypdf). Das Image installierte ohnehin schon die jeweils neuesten erlaubten Versionen; neu ist nur die Untergrenze. Keine Änderung am Verhalten, keine neuen Optionen.
+- **Dokumentation im Repository:** Neuer Ordner `docs/` mit Installation (Schritt für Schritt bis zum ersten Chat), Benutzer und Rechte, **allen Einstellungen** (jede Option mit Standardwert und Bedeutung, aus `config.yaml` erzeugt), Funktionen, Domain-Zugang (Entra, Cloudflare Tunnel, Anmeldung mit Home Assistant) und Betrieb (Sicherung, Wiederherstellung, Umzug, Fehlerbehebung). Die README führt dorthin, der Reiter „Dokumentation“ des Add-ons verlinkt die Seiten.
+- **Neue Screenshots:** Seitenleiste von Home Assistant mit dem Eintrag „HA Copilot“ und einem Platzhalter-Dashboard (hell und dunkel), HA Copilot im Home-Assistant-Rahmen, Einrichtungsprüfung, Suche, geplante Aufgaben, Gedächtnis, Chat-Menü, Handy und englische Oberfläche. Sie zeigen eine Test-Instanz mit Demo-Daten und eine nachgebildete KI, keine echten Daten (`docs/screenshots/README.md`, Erzeugung in `tools/screenshots/`).
+- Ein Test (`test_docs.py`) prüft, dass die Seite „Alle Einstellungen“ zu `config.yaml` passt, jede Option dort steht und alle Links und Bilder der Dokumentation existieren.
+- Die Mindestversionen der Python-Pakete sind angehoben (fastapi, uvicorn, claude-agent-sdk, httpx, pyjwt, websockets, pypdf). Das Image installierte ohnehin schon die jeweils neuesten erlaubten Versionen; neu ist nur die Untergrenze.
+- Keine Änderung am Verhalten, keine neuen Optionen.
 
 ## 0.26.3
 - Umbenannt: Das Add-on heißt jetzt **HA Copilot** (Name im Add-on-Store, Eintrag in der Home-Assistant-Seitenleiste, Standard von `app_name`, Anmeldeseite, Export, Dokumentation, `repository.yaml`). Der technische Name (`slug: ki_chat`), der Ordner `ki_chat`, Datenbank- und Export-Dateinamen bleiben unverändert, damit Updates und der Umzug der Daten nicht berührt werden.
