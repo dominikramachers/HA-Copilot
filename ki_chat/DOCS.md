@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.27.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.27.1.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -145,7 +145,7 @@ Aus dem Theme werden nur diese Variablen verwendet: `primary-color` (Akzent), `p
 
 ### Eigenes CSS (`custom.css`)
 
-Wird als letztes geladen und gewinnt immer. Zum Anpassen genügt meist, die Farbvariablen zu setzen:
+Wird als letztes geladen und gewinnt immer. Die Anmeldeseite hat seit 0.27.1 einen dezent animierten Hintergrund (treibende Punkte in der Akzentfarbe, passend zu Hell und Dunkel). Er hält an, wenn der Tab verdeckt ist, und steht still, wenn das Gerät „Bewegung reduzieren“ verlangt. Ausschalten: `canvas#particles { display: none; }` in `custom.css`. Zum Anpassen genügt meist, die Farbvariablen zu setzen:
 
 ```css
 :root {

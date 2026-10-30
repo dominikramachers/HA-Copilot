@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.27.1
+- **Animierter Hintergrund auf der Anmeldeseite**, wie auf der neu gestalteten Home-Assistant-Anmeldeseite: langsam treibende Punkte, die sich bei Nähe mit feinen Linien verbinden. Die Farben kommen aus dem Theme (Akzentfarbe, Hell/Dunkel), das Logo bleibt das einzig Bunte. Der Hintergrund pausiert bei verdecktem Tab, steht bei „Bewegung reduzieren“ still und fängt keine Klicks ab.
+- Ausschalten: in `custom.css` `canvas#particles { display: none; }`. Keine neue Option, keine Änderung an bestehender Konfiguration.
+
 ## 0.27.0
 - **Die KI kann Dateien bearbeiten**, nicht nur erzeugen: PDF (Formularfelder ausfüllen oder **sperren**, Seiten löschen, drehen, ordnen, zusammenfügen, Text ergänzen, neue Felder anlegen, Formular festschreiben), Word, Excel, PowerPoint sowie Text und Code jeder Art (`.py`, `.sh`, `.json`, `.yaml` …). Neue Werkzeuge `file_list`, `file_read` und `file_edit`; die bearbeitete Fassung erscheint als Karte zum Herunterladen, das Original bleibt unverändert. Alles oder nichts: scheitert eine Änderung, wird nichts gespeichert. Auslöser war ein PDF-Formular, bei dem die KI nur ein Skript lieferte, statt die ausgefüllten Felder zu sperren.
 - **PowerPoint (.pptx) als Anhang** wird jetzt gelesen (Folientexte und Notizen).

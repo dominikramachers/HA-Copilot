@@ -1,7 +1,11 @@
 /* Anmeldeseite: ein Türschild (das Logo auf dunklem Grund, in beiden Darstellungen gleich) neben dem Formular.
-   Keine Hintergrundgrafik, kein Leuchten; das Logo ist das einzig Bunte auf der Seite. */
+   Dahinter treiben dezente Punkte in der Akzentfarbe (login-bg.js); kein Leuchten, das Logo bleibt das einzig Bunte. */
 
 body.login { min-height: 100dvh; }
+
+/* Animierter Hintergrund: liegt hinter dem Formular und fängt keine Klicks ab. Ausblenden: canvas#particles { display: none; } in custom.css */
+#particles { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.sign { position: relative; z-index: 1; }
 
 .sign {
   min-height: 100dvh;
