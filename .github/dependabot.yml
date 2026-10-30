@@ -1,0 +1,18 @@
+# Hält GitHub Actions, Python-Abhängigkeiten und das Basis-Image aktuell (Pull Requests, CI läuft darauf).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /ki_chat
+    schedule:
+      interval: weekly
+    groups:
+      python-abhaengigkeiten:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /ki_chat
+    schedule:
+      interval: weekly
