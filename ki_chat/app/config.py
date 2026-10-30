@@ -121,6 +121,7 @@ class Settings:
     github_repos: tuple[str, ...] = ()  # Freigabeliste „besitzer/name“ oder „besitzer/*“; leer = alles, was das Token erreicht
     # Dateien, die die KI erzeugt (Word, Excel, PDF, PowerPoint, Skripte …)
     files_enabled: bool = True
+    files_edit: bool = True  # Anhänge im Chat aufbewahren; die KI kann Dateien lesen und bearbeiten
     files_keep_days: int = 14  # so lange bleiben erzeugte Dateien zum Herunterladen verfügbar
     # Domain-Zugang (nur relevant, wenn public_enabled)
     public_base_url: str = ""
@@ -440,6 +441,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         github_write_confirm=github_write_confirm,
         github_repos=github_repos,
         files_enabled=bool(raw.get("files_enabled", True)),
+        files_edit=bool(raw.get("files_edit", True)),
         files_keep_days=files_keep_days,
     )
 

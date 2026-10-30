@@ -10,7 +10,7 @@
 | Sicherungen geänderter Automationen, Skripte, Szenen, Dashboards | `/data/ha-backups/` (die letzten 60) |
 | Eigenes Logo, Symbol, `custom.css`, Export-Datei | Ordner `addon_config`, in Home Assistant unter `/addon_configs/<Kennung>/` (Samba-Freigabe `addon_configs` oder Datei-Editor) |
 
-Anhänge werden **nie** gespeichert, siehe [Anhänge und Speicherplatz](../ki_chat/DOCS.md#anhänge-und-speicherplatz).
+Anhänge: Mit der Option `files_edit` (Standard) liegt eine Kopie für `files_keep_days` Tage in `/data/outfiles` (und damit in der Sicherung); mit `files_edit: false` werden Anhänge **nie** gespeichert, siehe [Anhänge und Speicherplatz](../ki_chat/DOCS.md#anhänge-und-speicherplatz).
 
 ## Sicherung
 

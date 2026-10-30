@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS outfiles (
     size        INTEGER NOT NULL,
     created_at  TEXT NOT NULL,
     expires_at  TEXT NOT NULL,
+    origin      TEXT NOT NULL DEFAULT 'ai',
     FOREIGN KEY (chat_id, profile_id) REFERENCES chats(id, profile_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_outfiles_profile ON outfiles(profile_id, created_at);
@@ -197,7 +198,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 12  # 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 13  # 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id"
 
@@ -357,6 +358,9 @@ class Store:
         self._conn.executescript(KNOWLEDGE_SCHEMA)
         self._conn.executescript(STATE_SCHEMA)
         self._conn.executescript(OUTFILES_SCHEMA)
+        outfile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(outfiles)")}
+        if "origin" not in outfile_columns:
+            self._conn.execute("ALTER TABLE outfiles ADD COLUMN origin TEXT NOT NULL DEFAULT 'ai'")  # 'ai' = erzeugt/bearbeitet, 'attached' = von der Person angehängt
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -1021,9 +1025,15 @@ class Store:
     def _outfile_path(self, file_id: str) -> Path:
         return self.files_dir / file_id
 
-    def outfile_add(self, profile_id: str, chat_id: str, name: str, mime: str, data: bytes, keep_days: int) -> dict[str, Any] | None:
-        """Eine von der KI erzeugte Datei ablegen (Inhalt auf der Platte, Angaben in der Datenbank). ``None``: Chat unbekannt."""
+    def outfile_add(
+        self, profile_id: str, chat_id: str, name: str, mime: str, data: bytes, keep_days: int, origin: str = "ai"
+    ) -> dict[str, Any] | None:
+        """Eine Datei dieses Chats ablegen (Inhalt auf der Platte, Angaben in der Datenbank). ``None``: Chat unbekannt.
+
+        ``origin``: ``ai`` (von der KI erzeugt oder bearbeitet) oder ``attached`` (von der Person angehängt).
+        """
         _require(profile_id)
+        origin = "attached" if origin == "attached" else "ai"
         file_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc)
         with self._lock:
@@ -1038,9 +1048,9 @@ class Store:
             try:
                 with self._conn:
                     self._conn.execute(
-                        "INSERT INTO outfiles (id, profile_id, chat_id, name, mime, size, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO outfiles (id, profile_id, chat_id, name, mime, size, created_at, expires_at, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (file_id, profile_id, chat_id, name, mime, len(data), now.isoformat(timespec="seconds"),
-                         (now + timedelta(days=max(1, keep_days))).isoformat(timespec="seconds")),
+                         (now + timedelta(days=max(1, keep_days))).isoformat(timespec="seconds"), origin),
                     )
             except sqlite3.Error:
                 target.unlink(missing_ok=True)
@@ -1075,6 +1085,24 @@ class Store:
             return self._outfile_path(row["id"]).read_bytes()
         except OSError:
             return None
+
+    def outfile_list(self, profile_id: str, chat_id: str) -> list[dict[str, Any]]:
+        """Die Dateien dieses Chats (je Name die neueste Fassung), neueste zuerst."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, mime, size, origin, created_at FROM outfiles WHERE profile_id = ? AND chat_id = ? AND expires_at > ? "
+                "ORDER BY created_at DESC, rowid DESC",
+                (profile_id, chat_id, _now()),
+            ).fetchall()
+        seen: set[str] = set()
+        result = []
+        for row in rows:
+            if row["name"] in seen:
+                continue
+            seen.add(row["name"])
+            result.append(dict(row))
+        return result
 
     def outfile_usage(self, profile_id: str) -> int:
         _require(profile_id)

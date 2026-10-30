@@ -55,7 +55,7 @@ from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
 from .context_tools import RESERVED_TEXT, ContextToolbox, _RESERVED
 from .ha_tools import HaToolbox
-from .outbox import OutboxToolbox
+from .outbox import FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox
 from . import exporter
 from . import limits as limitlib
 from . import schedule as sched
@@ -1128,7 +1128,8 @@ def register_chat_routes(
             raise HTTPException(status_code=422, detail=str(exc)) from None
         body.files.clear()  # Base64-Kopien der Anfrage nicht länger festhalten
         # Frühere Dateien liegen nicht mehr vor: Claude bekommt nur den Hinweis, dass es sie gab.
-        history = [{**m, "content": m["content"] + filelib.note_for_history(m["attachments"])} for m in history]
+        files_kept = settings.files_enabled and settings.files_edit
+        history = [{**m, "content": m["content"] + filelib.note_for_history(m["attachments"], files_kept)} for m in history]
         key = (profile.id, chat_id)
         previous = live_run(key)
         if previous and not previous.finished:
@@ -1198,6 +1199,13 @@ def register_chat_routes(
         async def ask_github(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("github", label, details, offer_chat)
 
+        stored_files: list[str] = []
+        skipped_files: list[str] = []
+        if files and files_kept:
+            stored_files, skipped_files = await asyncio.to_thread(
+                filelib.persist, store, profile.id, chat_id, files, settings.files_keep_days, MAX_PROFILE_BYTES
+            )
+
         specs = []
         if level in ("read", "execute", "write") and ha is not None:
             toolbox = HaToolbox(
@@ -1205,7 +1213,7 @@ def register_chat_routes(
                 limit_to_exposed=settings.ha_limit_to_exposed,
                 confirm_writes=settings.ha_write_confirm == "ask",
                 # Dateien können eingeschleuste Anweisungen enthalten: dann nichts ohne ausdrückliches Zulassen
-                force_confirm=lambda: bool(files) or any(a["kind"] in ("web", "gh-read") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or any(a["kind"] in ("web", "gh-read", "file-read") for a in run.actions.values()),
                 ask=ask,
                 record=run.push,
                 chat_allowed=lambda: key in chat_allow,
@@ -1221,14 +1229,14 @@ def register_chat_routes(
             household_write=household_writable(profile),
             force_confirm=bool(files),
             ask=ask_memory, record=run.push, next_id=run.next_tool_id,
-            tainted=lambda: any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web") for a in run.actions.values()),
+            tainted=lambda: any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read") for a in run.actions.values()),
             overview=overview_allowed(profile),
         )
         specs += context.specs()
         if settings.files_enabled:
             specs += OutboxToolbox(
                 store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
-                keep_days=settings.files_keep_days, author=settings.app_name,
+                keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit,
             ).specs()
         gh_level = github_level(profile)
         if gh_level != "none" and github is not None:
@@ -1243,7 +1251,7 @@ def register_chat_routes(
                 github, gh_level,
                 policy=github_policy,
                 confirm_writes=settings.github_write_confirm == "ask",
-                force_confirm=lambda: bool(files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "web") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "web", "file-read") for a in run.actions.values()),
                 ask=ask_github, record=run.push, chat_allowed=lambda: key in github_allow, allow_chat=lambda: github_allow.add(key),
                 next_id=run.next_tool_id, file_bytes=attachment_bytes,
             ).specs()
@@ -1253,6 +1261,12 @@ def register_chat_routes(
         if specs:
             extra["tools"] = specs
         extra["note"] = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
+        if any(s.name == "file_edit" for s in specs):
+            extra["note"] += "\n" + FILES_NOTE
+            if stored_files:
+                extra["note"] += " In dieser Nachricht angehängt und im Chat abgelegt: " + ", ".join(stored_files) + "."
+            if skipped_files:
+                extra["note"] += " Nicht bearbeitbar: " + "; ".join(skipped_files) + "."
         if web_on:
             extra["note"] += "\n" + WEB_NOTE
         if any(s.name.startswith("github_") for s in specs):

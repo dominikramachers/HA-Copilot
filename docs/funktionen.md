@@ -9,11 +9,11 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 - Antworten erscheinen als **Live-Stream** mit Markdown, Tabellen und Codeblöcken (Kopieren, Herunterladen). Vollständige HTML-Seiten bekommen eine **Vorschau**, die abgeschottet und ohne Netzwerk läuft.
 - **Antworten laufen auf dem Server weiter.** Du kannst den Chat wechseln, die Seite neu laden oder den Tab schließen; die Antwort wird trotzdem fertig und steht danach als ungelesen in der Liste. Mit „Stopp“ brichst du sie ab.
 - Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** (Einstellung `models`) und die **Websuche**.
-- **Anhänge** (bis zu 5 je Nachricht, zusammen 60 MB): Bilder, PDF, Word, Excel, Text. Sie werden nur im Arbeitsspeicher verarbeitet und nie dauerhaft gespeichert. Einfügen mit Strg/Cmd+V oder Ziehen auf die Seite geht auch.
+- **Anhänge** (bis zu 5 je Nachricht, zusammen 60 MB): Bilder, PDF, Word, Excel, PowerPoint, Text und Code. Mit der Option „Dateien bearbeiten“ (Standard) bleibt eine Kopie für diesen Chat erhalten, damit die KI die Datei später lesen und **bearbeiten** kann (z. B. PDF-Felder sperren, Word-Text ändern, Excel-Zellen setzen, Code anpassen); die bearbeitete Fassung gibt es als Download, das Original bleibt unverändert. Ohne die Option gibt es die Anhänge nur im Arbeitsspeicher. Einfügen mit Strg/Cmd+V oder Ziehen auf die Seite geht auch.
 - Lange Chats werden **automatisch zusammengefasst**, statt abgeschnitten zu werden.
 - Ein kurzer **Titel** entsteht automatisch (`title_model`), und jeder Chat lässt sich umbenennen.
 
-Mehr: [Oberfläche](../ki_chat/DOCS.md#oberfläche), [So arbeitet die KI](../ki_chat/DOCS.md#so-arbeitet-die-ki), [Anhänge und Speicherplatz](../ki_chat/DOCS.md#anhänge-und-speicherplatz).
+Mehr: [Oberfläche](../ki_chat/DOCS.md#oberfläche), [So arbeitet die KI](../ki_chat/DOCS.md#so-arbeitet-die-ki), [Dateien bearbeiten](../ki_chat/DOCS.md#dateien-bearbeiten-ab-0270), [Anhänge und Speicherplatz](../ki_chat/DOCS.md#anhänge-und-speicherplatz).
 
 ## Projekte, Suche, Export
 
@@ -119,7 +119,7 @@ Im Konto-Menü zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Sc
 
 ## Sicherheit und Datenschutz
 
-- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic, sonst an niemanden.
+- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic, sonst an niemanden. Kopien von Anhängen (für das Bearbeiten) liegen für `files_keep_days` Tage im Datenordner des Add-ons und verschwinden mit dem Chat.
 - Jede Abfrage ist auf das Profil gefiltert; Benutzer sehen nie die Chats anderer.
 - Rechte setzt der Server durch, nicht die KI. Alles, was von außen kommt (Home Assistant, Web, GitHub, Dateien), gilt für die KI als Information und nicht als Anweisung; nach dem Lesen fremder Inhalte fragt jede Änderung im Chat nach.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OpenID Connect mit PKCE), Sitzungen liegen serverseitig, Cookies sind `Secure` und `HttpOnly`.

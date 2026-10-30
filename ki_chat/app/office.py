@@ -1,6 +1,6 @@
-"""Word (.docx) und Excel (.xlsx) in Text umwandeln, ohne zusätzliche Pakete.
+"""Word (.docx), Excel (.xlsx) und PowerPoint (.pptx) in Text umwandeln, ohne zusätzliche Pakete.
 
-Beide Formate sind ZIP-Archive mit XML. Gelesen wird nur das Nötige (Text, Tabellen, Zellwerte), und das
+Alle Formate sind ZIP-Archive mit XML. Gelesen wird nur das Nötige (Text, Tabellen, Zellwerte), und das
 mit Schutz gegen präparierte Dateien: begrenzte Anzahl und entpackte Größe der Einträge, keine XML-Entitäten
 oder DOCTYPE-Deklarationen. Nichts davon wird auf die Platte geschrieben.
 """
@@ -23,6 +23,8 @@ MAX_COLUMNS = 200
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 S = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 PKG_REL = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 
 OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
@@ -69,7 +71,7 @@ def _open(data: bytes) -> zipfile.ZipFile:
 
 
 def kind_of(data: bytes) -> str | None:
-    """``word``, ``excel`` oder ``None`` (anderes ZIP). Wirft OfficeError für kaputte Archive."""
+    """``word``, ``excel``, ``powerpoint`` oder ``None`` (anderes ZIP). Wirft OfficeError für kaputte Archive."""
     if data.startswith(OLE_MAGIC):
         raise OfficeError(
             tr("ist ein altes Office-Format (.doc/.xls) oder passwortgeschützt. Bitte als .docx bzw. .xlsx ohne Passwort speichern.")
@@ -81,6 +83,8 @@ def kind_of(data: bytes) -> str | None:
         return "word"
     if "xl/workbook.xml" in names:
         return "excel"
+    if "ppt/presentation.xml" in names:
+        return "powerpoint"
     return None
 
 
@@ -300,6 +304,76 @@ def xlsx_to_text(data: bytes, limit: int) -> str:
             break
     if not sections:
         raise OfficeError(tr("enthält keine Zellwerte."))
+    return _cut("\n\n".join(sections), limit)
+
+
+# ------------------------------------------------------------- PowerPoint
+
+def _slide_paths(zf: zipfile.ZipFile) -> list[str]:
+    """Pfade der Folien in Präsentationsreihenfolge."""
+    root = _xml(zf, "ppt/presentation.xml")
+    rels = _xml(zf, "ppt/_rels/presentation.xml.rels", required=False)
+    if root is None or rels is None:
+        return []
+    targets = {r.get("Id"): r.get("Target", "") for r in rels.findall(PKG_REL + "Relationship")}
+    result = []
+    for sld in root.iter(P + "sldId"):
+        target = targets.get(sld.get(R + "id"), "")
+        if not target:
+            continue
+        path = target.lstrip("/") if target.startswith("/") else "ppt/" + target
+        result.append(re.sub(r"[^/]+/\.\./", "", path))
+    return result
+
+
+def _notes_root(zf: zipfile.ZipFile, slide_path: str) -> ET.Element | None:
+    """Notizseite einer Folie über deren Beziehungen (die Nummern in den Dateinamen stimmen nicht immer überein)."""
+    folder, _, name = slide_path.rpartition("/")
+    rels = _xml(zf, f"{folder}/_rels/{name}.rels", required=False)
+    if rels is None:
+        return None
+    for rel in rels.findall(PKG_REL + "Relationship"):
+        if rel.get("Type", "").endswith("/notesSlide"):
+            target = rel.get("Target", "")
+            path = target.lstrip("/") if target.startswith("/") else f"{folder}/{target}"
+            path = path.replace("/./", "/")
+            while "/../" in path:
+                path = re.sub(r"[^/]+/\.\./", "", path, count=1)
+            return _xml(zf, path, required=False)
+    return None
+
+
+def _shape_lines(tree: ET.Element) -> list[str]:
+    lines: list[str] = []
+    for node in tree.iter():
+        if node.tag == A + "p":
+            text = "".join(t.text or "" for t in node.iter(A + "t")).strip()
+            if text:
+                lines.append(text)
+    return lines
+
+
+def pptx_to_text(data: bytes, limit: int) -> str:
+    zf = _open(data)
+    sections: list[str] = []
+    used = 0
+    for number, path in enumerate(_slide_paths(zf), 1):
+        root = _xml(zf, path, required=False)
+        if root is None:
+            continue
+        lines = _shape_lines(root)
+        notes = _notes_root(zf, path)
+        note_lines = _shape_lines(notes) if notes is not None else []
+        note_lines = [n for n in note_lines if not n.isdigit()]
+        section = f"## Folie {number}\n" + "\n".join(lines)
+        if note_lines:
+            section += "\n[Notizen] " + " ".join(note_lines)
+        sections.append(section)
+        used += len(section)
+        if used > limit:
+            break
+    if not any("\n" in sec and sec.split("\n", 1)[1].strip() for sec in sections):
+        raise OfficeError(tr("enthält keinen lesbaren Text."))
     return _cut("\n\n".join(sections), limit)
 
 

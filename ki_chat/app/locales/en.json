@@ -1,7 +1,7 @@
 {
 "„{label}“ ist zu groß.": "“{label}” is too large.",
 "„{label}“ ist leer.": "“{label}” is empty.",
-"„{label}“ hat ein Format, das noch nicht unterstützt wird. Möglich sind Bilder (PNG, JPEG, GIF, WebP), PDF, Word (.docx), Excel (.xlsx) und Textdateien.": "“{label}” has a format that is not supported yet. Supported are images (PNG, JPEG, GIF, WebP), PDF, Word (.docx), Excel (.xlsx) and text files.",
+"„{label}“ hat ein Format, das noch nicht unterstützt wird. Möglich sind Bilder (PNG, JPEG, GIF, WebP), PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx) und Textdateien.": "“{label}” has a format that is not supported yet. Supported are images (PNG, JPEG, GIF, WebP), PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx) and text files.",
 "„{label}“ ist zu groß (Textdateien höchstens 1 MB).": "“{label}” is too large (text files up to 1 MB).",
 "„{label}“ enthält keinen auslesbaren Text (vermutlich ein Scan). PDFs ohne Text sind nur bis {mb} MB möglich.": "“{label}” contains no readable text (probably a scan). PDFs without text are only possible up to {mb} MB.",
 "„{label}“ ist zu groß (höchstens {mb} MB).": "“{label}” is too large (at most {mb} MB).",
@@ -332,5 +332,11 @@
 "Anmelden – __NAME__": "Sign in – __NAME__",
 "E-Mail-Adresse": "Email address",
 "oder": "or",
-"Mit Home Assistant anmelden": "Sign in with Home Assistant"
+"Mit Home Assistant anmelden": "Sign in with Home Assistant",
+"Datei bearbeiten": "Edit file",
+"Datei bearbeiten: {name}": "Edit file: {name}",
+"Datei bearbeitet: {name}": "File edited: {name}",
+"Datei lesen": "Read file",
+"Datei lesen: {name}": "Read file: {name}",
+"Dateien dieses Chats ansehen": "Look at the files of this chat"
 }

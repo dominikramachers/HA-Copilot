@@ -1,9 +1,11 @@
-"""Dateianhänge: nur im Arbeitsspeicher, nie auf der Platte.
+"""Dateianhänge: geprüft und im Arbeitsspeicher an Claude weitergereicht.
 
-Eine Datei kommt zusammen mit der Nachricht an (Base64 im JSON), wird hier geprüft, direkt an
-Claude weitergereicht und danach verworfen. In die Datenbank gelangen nur Name, Art und Größe,
-damit der Chat zeigen kann, was angehängt war. Der Inhalt steht für Folgefragen nicht mehr zur
-Verfügung (die Antwort von Claude bleibt im Chat erhalten).
+Eine Datei kommt zusammen mit der Nachricht an (Base64 im JSON), wird hier geprüft und direkt an
+Claude weitergereicht. In die Datenbank gelangen nur Name, Art und Größe, damit der Chat zeigen
+kann, was angehängt war. Ist das Bearbeiten von Dateien eingeschaltet (``files_edit``), legt der
+Aufrufer zusätzlich eine Kopie der Originaldatei (``Attachment.raw``) für diesen Chat ab, damit die
+KI sie in Folgenachrichten lesen und bearbeiten kann (siehe ``fileedit.py``). Sonst bleibt der
+Inhalt nur für die eine Nachricht verfügbar.
 """
 from __future__ import annotations
 
@@ -39,7 +41,7 @@ MAX_NAME_CHARS = 100
 MAX_BODY_BYTES = int(MAX_TOTAL_BYTES * 4 / 3) + 256 * 1024
 MAX_BASE64_CHARS = int(MAX_PDF_BYTES * 4 / 3) + 16
 
-KIND_LABEL = {"image": "Bild", "pdf": "PDF", "text": "Text", "word": "Word", "excel": "Excel"}
+KIND_LABEL = {"image": "Bild", "pdf": "PDF", "text": "Text", "word": "Word", "excel": "Excel", "powerpoint": "PowerPoint"}
 
 
 class AttachmentError(ValueError):
@@ -54,6 +56,7 @@ class Attachment:
     data: bytes
     shown_kind: str | None = None  # Word/Excel: als Text weitergereicht, aber so angezeigt
     original_size: int | None = None  # Größe der hochgeladenen Datei (data ist dann der umgewandelte Text)
+    raw: bytes | None = None  # Originaldatei bei Word/Excel/PowerPoint/PDF (data ist dort Text oder gleich raw), für das Bearbeiten
 
     @property
     def size(self) -> int:
@@ -130,7 +133,7 @@ def parse_one(name: str, b64: str) -> Attachment:
         return _office(label, office_kind, data)
     if _looks_binary(data) or data.startswith(b"PK\x03\x04"):
         raise AttachmentError(
-            tr("„{label}“ hat ein Format, das noch nicht unterstützt wird. Möglich sind Bilder (PNG, JPEG, GIF, WebP), PDF, Word (.docx), Excel (.xlsx) und Textdateien.", label=label)
+            tr("„{label}“ hat ein Format, das noch nicht unterstützt wird. Möglich sind Bilder (PNG, JPEG, GIF, WebP), PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx) und Textdateien.", label=label)
         )
     if len(data) > MAX_TEXT_BYTES:
         raise AttachmentError(tr("„{label}“ ist zu groß (Textdateien höchstens 1 MB).", label=label))
@@ -151,18 +154,18 @@ def _big_pdf(label: str, data: bytes) -> Attachment:
             tr("„{label}“ enthält keinen auslesbaren Text (vermutlich ein Scan). PDFs ohne Text sind nur bis {mb} MB möglich.", label=label, mb=MAX_NATIVE_PDF_BYTES // 1024 // 1024)
         )
     note = "[Hinweis: Dieses große PDF wurde nur als Text ausgelesen; Bilder, Diagramme und Layout fehlen.]\n\n"
-    return Attachment(label, "text", "text/plain", (note + text).encode("utf-8"), shown_kind="pdf", original_size=len(data))
+    return Attachment(label, "text", "text/plain", (note + text).encode("utf-8"), shown_kind="pdf", original_size=len(data), raw=data)
 
 
 def _office(label: str, kind: str, data: bytes) -> Attachment:
     if len(data) > MAX_OFFICE_BYTES:
         raise AttachmentError(tr("„{label}“ ist zu groß (höchstens {mb} MB).", label=label, mb=MAX_OFFICE_BYTES // 1024 // 1024))
-    convert = office.docx_to_text if kind == "word" else office.xlsx_to_text
+    convert = {"word": office.docx_to_text, "excel": office.xlsx_to_text, "powerpoint": office.pptx_to_text}[kind]
     try:
         text = convert(data, MAX_TEXT_CHARS)
     except office.OfficeError as exc:
         raise AttachmentError(tr("„{label}“ {exc}", label=label, exc=exc)) from None
-    return Attachment(label, "text", "text/plain", text.encode("utf-8"), shown_kind=kind, original_size=len(data))
+    return Attachment(label, "text", "text/plain", text.encode("utf-8"), shown_kind=kind, original_size=len(data), raw=data)
 
 
 def parse(items: list[tuple[str, str]]) -> list[Attachment]:
@@ -182,6 +185,39 @@ def parse(items: list[tuple[str, str]]) -> list[Attachment]:
     return result
 
 
+def editable_bytes(att: Attachment) -> bytes | None:
+    """Originalinhalt, den die KI bearbeiten kann (PDF, Office, Text); ``None`` für Bilder."""
+    if att.kind == "image":
+        return None
+    return att.raw if att.raw is not None else att.data
+
+
+EDIT_MAX_BYTES = 25 * 1024 * 1024  # größere Anhänge werden nicht für das Bearbeiten aufbewahrt
+
+
+def persist(store, profile_id: str, chat_id: str, files: list[Attachment], keep_days: int, max_usage: int) -> tuple[list[str], list[str]]:
+    """Originale der Anhänge für diesen Chat ablegen, damit die KI sie später lesen und bearbeiten kann.
+
+    Liefert (abgelegte Namen, nicht abgelegte mit Grund). Bilder werden nicht abgelegt (die KI sieht sie in der Nachricht)."""
+    from .outbox import media_type
+
+    stored: list[str] = []
+    skipped: list[str] = []
+    for att in files:
+        raw = editable_bytes(att)
+        if raw is None:
+            skipped.append(f"{att.name} (Bild: ansehen ja, bearbeiten nein)")
+        elif len(raw) > EDIT_MAX_BYTES:
+            skipped.append(f"{att.name} (zu groß zum Bearbeiten, über {EDIT_MAX_BYTES // 1024 // 1024} MB)")
+        elif store.outfile_usage(profile_id) + len(raw) > max_usage:
+            skipped.append(f"{att.name} (Speicher für Dateien voll)")
+        elif store.outfile_add(profile_id, chat_id, att.name, media_type(att.name), raw, keep_days, "attached") is None:
+            skipped.append(f"{att.name} (Chat nicht gefunden)")
+        else:
+            stored.append(att.name)
+    return stored, skipped
+
+
 def human_size(size: int) -> str:
     if size < 1024:
         return f"{size} B"
@@ -190,11 +226,15 @@ def human_size(size: int) -> str:
     return f"{size / 1024 / 1024:.1f} MB".replace(".", ",")
 
 
-def note_for_history(metas: list[dict]) -> str:
-    """Hinweis für Claude, dass eine frühere Nachricht Dateien hatte, die nicht mehr vorliegen."""
+def note_for_history(metas: list[dict], kept: bool = False) -> str:
+    """Hinweis für Claude, dass eine frühere Nachricht Dateien hatte.
+
+    ``kept``: Das Bearbeiten ist eingeschaltet, die Dateien liegen (bis zum Ablauf) im Chat und sind mit file_list/file_read erreichbar."""
     if not metas:
         return ""
     names = ", ".join(f"{m['name']} ({KIND_LABEL.get(m['kind'], 'Datei')}, {human_size(m['size'])})" for m in metas)
+    if kept:
+        return f"\n\n[Dieser Nachricht waren Dateien angehängt: {names}. Außer Bildern kannst du sie mit file_list und file_read ansehen, solange sie nicht abgelaufen sind]"
     return f"\n\n[Dieser Nachricht waren Dateien angehängt, die jetzt nicht mehr vorliegen: {names}]"
 
 
