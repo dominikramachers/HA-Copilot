@@ -10,7 +10,17 @@ with sync_playwright() as p:
     for scheme, name in (("light", "chat-hell"), ("dark", "chat-dunkel")):
         c = b.new_context(viewport={"width": 1280, "height": 800}, color_scheme=scheme, locale="de-DE", timezone_id="Europe/Berlin", extra_http_headers=H)
         pg = c.new_page(); pg.goto("http://127.0.0.1:8099/"); pg.wait_for_timeout(900)
-        open_chat(pg, "Haus", "Lichter"); pg.screenshot(path=f"{OUT}/{name}.png"); c.close()
+        open_chat(pg, "Haus", "Lichter"); pg.screenshot(path=f"{OUT}/{name}.png")
+        if scheme == "light":
+            # Eigene Nachricht: Zeitpunkt, Bearbeiten und Kopieren beim Darüberfahren, dann der Editor
+            clip = {"x": 300, "y": 56, "width": 980, "height": 300}
+            # Die Demo-Daten sind gerade erst angelegt; für das Bild so tun, als wäre die Frage vor 33 Minuten gesendet worden.
+            pg.evaluate("document.querySelector('.msg-group.user-group').dataset.at = new Date(Date.now() - 33 * 60000).toISOString()")
+            pg.locator(".msg.user").first.hover(); pg.wait_for_timeout(500)
+            pg.screenshot(path=f"{OUT}/nachricht-zeit.png", clip=clip)
+            pg.locator(".msg-edit-btn").first.click(); pg.wait_for_timeout(400)
+            pg.screenshot(path=f"{OUT}/nachricht-bearbeiten.png", clip=clip)
+        c.close()
     c = b.new_context(viewport={"width": 390, "height": 800}, device_scale_factor=2, is_mobile=True, has_touch=True, locale="de-DE", extra_http_headers=H)
     pg = c.new_page(); pg.goto("http://127.0.0.1:8099/"); pg.wait_for_timeout(900)
     pg.click("#menu-composer"); pg.wait_for_timeout(400); open_chat(pg, "Haus", "Lichter"); pg.screenshot(path=f"{OUT}/chat-handy.png"); c.close()

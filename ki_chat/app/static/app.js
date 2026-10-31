@@ -1531,14 +1531,129 @@ function fileCardsEl(actions) {
   return box;
 }
 
-function messageEl(role, text, files = [], actions = []) {
-  if (role === "user" && files.length) {
-    const group = node("div", "msg-group");
+// Wann wurde die Nachricht gesendet? „vor 33 Minuten“, „vor 2 Stunden“ (gerundet), danach „Heute Morgen“, „Gestern“,
+// „Vorgestern“, „vor 3 Tagen“ und ab einer Woche das Datum.
+function sentAgo(iso, now = new Date()) {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return "";
+  const mins = Math.max(0, Math.round((now - then) / 60000));
+  if (mins < 1) return tr("gerade eben");
+  if (mins < 60) return trn(mins, "vor 1 Minute", "vor {0} Minuten");
+  if (mins < 360) { const hours = Math.round(mins / 60); return trn(hours, "vor 1 Stunde", "vor {0} Stunden"); }
+  const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((midnight(now) - midnight(then)) / 86400000);
+  if (days <= 0) {
+    const h = then.getHours();
+    if (h < 5) return tr("Heute Nacht");
+    if (h < 11) return tr("Heute Morgen");
+    if (h < 14) return tr("Heute Mittag");
+    if (h < 18) return tr("Heute Nachmittag");
+    return tr("Heute Abend");
+  }
+  if (days === 1) return tr("Gestern");
+  if (days === 2) return tr("Vorgestern");
+  if (days < 7) return tr("vor {0} Tagen", days);
+  const opts = { day: "numeric", month: "short" };
+  if (then.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return then.toLocaleDateString(kiLocale, opts);
+}
+
+const exactTime = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(kiLocale, { dateStyle: "medium", timeStyle: "short" }); };
+
+// Eigene Nachricht: Blase, darunter (beim Darüberfahren) Zeitpunkt, Bearbeiten und Kopieren. Die Nummer (data-id)
+// kommt vom Server; bis dahin (gerade gesendet) fehlt der Stift.
+function userMessage(text, files = [], meta = {}) {
+  const group = node("div", "msg-group user-group");
+  if (meta.id) group.dataset.id = String(meta.id);
+  group.dataset.at = meta.at || new Date().toISOString();
+  if (files.length) {
     const row = node("div", "msg-files");
     for (const f of files) row.append(fileChip(f, false));
-    group.append(row, messageEl("user", text));
-    return group;
+    group.append(row);
   }
+  const bubble = node("div", "msg user");
+  bubble.textContent = text;
+  const bar = node("div", "msg-meta");
+  const time = node("span", "msg-time");
+  const refresh = () => { time.textContent = sentAgo(group.dataset.at); time.title = exactTime(group.dataset.at); };
+  const edit = actionButton(tr("Nachricht bearbeiten"), "edit", "msg-act msg-edit-btn", () => startEdit(group, text, files.length > 0));
+  const copy = actionButton(tr("Nachricht kopieren"), "copy", "msg-act", async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.replaceChildren(icon("check"));
+      setTimeout(() => copy.replaceChildren(icon("copy")), 1600);
+    } catch { toast(tr("Kopieren nicht möglich.")); }
+  });
+  bar.append(time, edit, copy);
+  group.append(bubble, bar);
+  refresh();
+  group.addEventListener("pointerenter", refresh);
+  group.addEventListener("focusin", refresh);
+  // Touchscreen: Antippen blendet die Leiste ein oder aus (es gibt kein Darüberfahren).
+  bubble.addEventListener("click", () => {
+    if (!window.matchMedia("(hover: none)").matches || window.getSelection()?.toString()) return;
+    refresh();
+    group.classList.toggle("show-meta");
+  });
+  return group;
+}
+
+// Nachricht bearbeiten: Die Blase wird zum Eingabefeld; „Senden“ ersetzt diese Frage und alles danach durch eine neue Antwort.
+function startEdit(group, text, hadFiles) {
+  if (state.streaming) { toast(tr("Warte, bis die Antwort fertig ist.")); return; }
+  if (!group.dataset.id) { toast(tr("Diese Nachricht lässt sich gerade nicht bearbeiten.")); return; }
+  const bubble = group.querySelector(".msg.user");
+  const box = node("div", "msg-edit");
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.maxLength = 20000;
+  area.setAttribute("aria-label", tr("Nachricht bearbeiten"));
+  const fit = () => { area.style.height = "auto"; area.style.height = `${Math.min(area.scrollHeight, window.innerHeight * 0.5)}px`; };
+  area.addEventListener("input", fit);
+  const notes = [];
+  if (group.nextElementSibling) notes.push(tr("Spätere Nachrichten in diesem Chat werden durch die neue Antwort ersetzt."));
+  if (hadFiles) notes.push(tr("Angehängte Dateien werden nicht übernommen. Hänge sie bei Bedarf neu an."));
+  const row = node("div", "msg-edit-row");
+  const cancel = node("button", "pill ghost small", tr("Abbrechen"));
+  const save = node("button", "pill primary small", tr("Senden"));
+  cancel.type = save.type = "button";
+  const close = () => { box.remove(); group.classList.remove("editing"); area.removeEventListener("input", fit); };
+  cancel.addEventListener("click", close);
+  save.addEventListener("click", () => {
+    const value = area.value.trim();
+    if (!value) return;
+    close();
+    sendMessage({ id: Number(group.dataset.id), text: value, el: group }).catch(() => {});
+  });
+  area.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); close(); }
+    else if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); save.click(); }
+  });
+  row.append(cancel, save);
+  box.append(area);
+  if (notes.length) box.append(node("p", "msg-edit-note", notes.join(" ")));
+  box.append(row);
+  group.classList.add("editing");
+  bubble.after(box);
+  fit();
+  area.focus();
+  area.setSelectionRange(area.value.length, area.value.length);
+}
+
+// Nach dem Senden kennt die Oberfläche die Nummern der neuen Fragen noch nicht: vom Server holen (nötig zum Bearbeiten).
+async function stampMessages(chatId) {
+  try {
+    const messages = await api(`api/chats/${encodeURIComponent(chatId)}/messages`);
+    if (state.activeId !== chatId) return;
+    const mine = messages.filter((m) => m.role === "user");
+    const groups = $("thread").querySelectorAll(".msg-group.user-group");
+    if (groups.length !== mine.length) return;
+    groups.forEach((g, i) => { g.dataset.id = String(mine[i].id); g.dataset.at = mine[i].created_at; });
+  } catch { /* der Stift erscheint nach dem nächsten Laden */ }
+}
+
+function messageEl(role, text, files = [], actions = [], meta = {}) {
+  if (role === "user") return userMessage(text, files, meta);
   const el = node("div", `msg ${role}`);
   if (role === "assistant") {
     if (actions.length) el.append(actionsEl(actions));
@@ -1576,7 +1691,7 @@ function renderMessages(messages) {
   for (const m of messages) {
     if (anySummarized && !seenLive && !m.summarized) { thread.append(compactNote()); }
     if (!m.summarized) seenLive = true;
-    thread.append(messageEl(m.role, m.content, m.attachments || [], m.tools || []));
+    thread.append(messageEl(m.role, m.content, m.attachments || [], m.tools || [], { id: m.id, at: m.created_at }));
   }
 }
 
@@ -2180,6 +2295,7 @@ async function settleRun(run, bubble, out, view = {}) {
   if (out.answer && !document.hidden) await patchChat({ id: chatId }, { unread: false }).catch(() => {});
   await loadAll().catch(() => {});
   if (state.activeId === chatId) state.shownAt = state.chats.find((c) => c.id === chatId)?.updated_at ?? null;
+  if (state.activeId === chatId) await stampMessages(chatId);
   if (out.compacted && state.activeId === chatId) {
     // Trennlinie „ab hier zusammengefasst“ einblenden
     try { renderMessages(await api(`api/chats/${encodeURIComponent(chatId)}/messages`)); } catch { /* bleibt wie es ist */ }
@@ -2233,10 +2349,11 @@ async function reloadActive(chatId) {
   } catch { /* beim nächsten Auffrischen */ }
 }
 
-async function sendMessage() {
-  if (state.streaming) { stopAnswer(); return; }
+// ``edit`` = { id, text, el }: eine frühere Frage bearbeiten (el = ihre Ansicht); sie und alles danach wird ersetzt.
+async function sendMessage(edit = null) {
+  if (state.streaming) { if (!edit) stopAnswer(); return; }
   const input = $("input");
-  const text = input.value.trim();
+  const text = edit ? edit.text : input.value.trim();
   if (!text) {
     if (state.files.length) toast(tr("Schreibe noch eine Frage zu den Dateien."));
     return;
@@ -2259,23 +2376,26 @@ async function sendMessage() {
   }
   const chatId = state.activeId;
   const thread = $("thread");
-  const first = !thread.querySelector(".msg");
+  const first = !edit && !thread.querySelector(".msg");
   thread.querySelector(".hello")?.remove();
   thread.classList.remove("empty");
 
-  const sentFiles = state.files;
-  state.files = [];
-  renderTray();
+  if (edit) {
+    // Die alte Frage und alles danach verschwindet aus der Ansicht; der Server ersetzt es beim Annehmen.
+    for (let n = edit.el; n;) { const next = n.nextElementSibling; n.remove(); n = next; }
+  }
+  const sentFiles = edit ? [] : state.files;
+  if (!edit) { state.files = []; renderTray(); }
   const userEl = messageEl("user", text, sentFiles);
   const bubble = node("div", "msg assistant pending");
   thread.append(userEl, bubble);
   scrollDown(true);
 
-  input.value = "";
-  autosize();
+  if (!edit) { input.value = ""; autosize(); }
   const run = openRun(chatId);
   addBusy(run, bubble);
-  const view = { userEl, text, sentFiles, first };
+  // Beim Bearbeiten holt ein Fehler ohne Antwort den alten Stand vom Server zurück (kein ``userEl`` in der Ansicht).
+  const view = edit ? { text, sentFiles, first } : { userEl, text, sentFiles, first };
 
   let out;
   try {
@@ -2287,6 +2407,7 @@ async function sendMessage() {
       headers: { "X-Requested-With": "ki-chat", "Content-Type": "application/json" },
       body: JSON.stringify({
         content: text, effort: state.effort, files,
+        ...(edit ? { edit_message_id: edit.id } : {}),
         ...((state.me?.models?.length || 0) > 1 && validModel(state.model) ? { model: state.model } : {}),
         ...(state.me?.web && !state.web ? { web: false } : {}),
       }),

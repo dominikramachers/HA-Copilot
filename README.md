@@ -31,7 +31,7 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 
 ## Funktionen
 
-- Antworten als Live-Stream mit Markdown, Tabellen, Codeblöcken (Kopieren, Herunterladen) und HTML-Vorschau
+- Antworten als Live-Stream mit Markdown, Tabellen, Codeblöcken (Kopieren, Herunterladen) und HTML-Vorschau; eigene Nachrichten lassen sich bearbeiten und kopieren, mit Zeitangabe
 - **Antworten laufen auf dem Server weiter:** Chat wechseln, Seite neu laden oder Tab schließen verliert nichts; fertige Antworten erscheinen als ungelesen
 - **Zugriff auf Home Assistant** mit Rechtestufen je Benutzer (nichts, lesen, ausführen, ändern), Rückfrage im Chat vor Änderungen und Sperrliste für gefährliche Befehle
 - Chats pro Benutzer getrennt, Projekte mit Anweisungen, Anpinnen, Umbenennen, automatische Kurztitel

@@ -160,6 +160,8 @@ class SendBody(BaseModel):
     model: str | None = Field(default=None, max_length=64)  # nur aus der Liste der Konfiguration; sonst gilt das Standard-Modell
     web: bool | None = None  # False = Websuche für diese Nachricht abschalten
     files: list[FileBody] = Field(default_factory=list, max_length=filelib.MAX_FILES)
+    # Eine frühere eigene Frage bearbeiten: sie und alles danach werden durch diese Nachricht und die neue Antwort ersetzt.
+    edit_message_id: int | None = Field(default=None, ge=1)
 
 
 class CreateChatBody(BaseModel):
@@ -1157,9 +1159,19 @@ def register_chat_routes(
         summarize = getattr(backend, "summarize", None)
         level = ha_level(profile)
 
+        # Frage bearbeiten: die alte Frage und alles danach wird entfernt (bei einem Fehler ohne Antwort kommt es zurück).
+        cut = None
+        if body.edit_message_id is not None:
+            cut = store.cut_from(profile.id, chat_id, body.edit_message_id)
+            if cut is None:
+                raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+            history = [m for m in history if m["id"] < body.edit_message_id]
+
         # Die Frage steht ab jetzt in der Datenbank: Seite neu laden oder Chat wechseln verliert sie nicht mehr.
         question = store.add_message(profile.id, chat_id, "user", text, metas)
         if question is None:
+            if cut:
+                store.restore_cut(profile.id, chat_id, cut)
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         provisional = _title_from(text)
         if first_exchange:
@@ -1172,6 +1184,8 @@ def register_chat_routes(
         def withdraw_question() -> None:
             """Keine Antwort entstanden: Frage wieder zurücknehmen, damit sie erneut gesendet werden kann."""
             store.delete_message(profile.id, chat_id, question["id"])
+            if cut:
+                store.restore_cut(profile.id, chat_id, cut)
             if first_exchange:
                 store.replace_title_if(profile.id, chat_id, provisional, chat.get("title") or default_title())
 
