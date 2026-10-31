@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.27.4
+- **Eingabe nach dem Vorbild von Claude:** Das Eingabefeld enthält nur noch Text und Senden-Knopf, beide jetzt genau mittig (bei mehreren Zeilen bleibt der Knopf unten). Büroklammer (und am Handy in Home Assistant das Chats-Symbol) stehen in einer Fußzeile darunter, in der Mitte der Hinweis „Die KI kann Fehler machen.“ (nur am Computer).
+- **Modell und Aufwand in einem Menü:** Rechts in der Fußzeile steht ein Knopf mit dem Modell und dem Aufwand (z. B. „Sonnet 5.5 Mittel“). Er öffnet ein Menü mit dem gewählten Modell, „Aufwand“ (Niedrig, Mittel, Hoch), „Weitere Modelle“ und der Websuche; am Handy dieselben Punkte als Liste von unten. Der bisherige Umschalter Niedrig/Mittel/Hoch entfällt.
+- **Nutzungslimit und Rückfragen als eigene schmale Boxen** mit Abstand über dem Eingabefeld, nicht mehr an das Feld angebaut (0.27.2). Das Limit hat ein Info-Symbol und lässt sich schließen; Rückfragen zeigen links die Frage und rechts Zulassen / Ablehnen.
+- Keine neuen Optionen, keine Änderung an bestehender Konfiguration. (Die Version 0.27.3 enthielt keine weiteren Änderungen.)
+
 ## 0.27.2
 - **Nutzungslimit und Rückfragen über dem Eingabefeld:** Die Meldung zum Nutzungslimit und die Rückfragen der KI („Soll diese Änderung in Home Assistant ausgeführt werden?“ mit Zulassen / Ablehnen) erscheinen jetzt wie in Claude selbst als Streifen direkt über dem Eingabefeld statt ganz oben bzw. im Verlauf. Sie verschwinden, sobald sie beantwortet sind oder der Chat gewechselt wird.
 - **Kompaktere Eingabe:** Das Eingabefeld ist eine einzelne schlanke Zeile (Büroklammer, Text, Senden). Modell und Denkaufwand stehen schlicht darunter.

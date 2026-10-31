@@ -124,6 +124,11 @@ def test_page_has_dock_above_input_and_shortcut_hints(client):
     script = client.get("/static/app.js").text
     assert "KeyP" in script and "Strg+Umschalt+{0}" in script
     assert ".nav-item:hover .nav-key" in client.get("/static/style.css").text
+    # Eingabe wie in Claude: im Feld nur Text und Senden, Anhängen sowie Modell/Aufwand in der Fußzeile darunter
+    box = page[page.index('class="composer-box"'):page.index('class="composer-foot"')]
+    foot = page[page.index('class="composer-foot"'):]
+    assert 'id="send"' in box and 'id="attach"' not in box and 'id="effort"' not in page
+    assert 'id="attach"' in foot and 'id="tools"' in foot and 'id="tools-effort"' in foot
 
 
 def test_page_knows_it_is_embedded_in_ha(client):

@@ -28,6 +28,7 @@ const ICONS = {
   chat: ["M20 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"],
   fold: ["M4 8l4 4-4 4M12 6h8M12 12h8M12 18h8"],
   close: ["M6 6l12 12M18 6L6 18"],
+  info: ["M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z", "M12 11v5.5", "M12 7.8h.01"],
   bolt: ["M13 3L5 13.5h6L10 21l8-10.5h-6z"],
   bug: ["M9 7a3 3 0 0 1 6 0M8 9h8v5a4 4 0 0 1-8 0zM4 10l4 1.5M20 10l-4 1.5M4 18l4-2M20 18l-4-2M12 9v10"],
   code: ["M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"],
@@ -242,6 +243,7 @@ function popItem(entry) {
   row.setAttribute("role", "menuitem");
   if (entry.icon) row.append(icon(entry.icon));
   row.append(node("span", "pop-label", entry.label));
+  if (entry.detail) row.append(node("span", "pop-detail", entry.detail));
   if (entry.submenu) { row.classList.add("has-sub"); row.append(icon("chevron")); }
   else if (entry.toggle !== undefined) {
     const sw = node("span", "pop-switch" + (entry.toggle ? " on" : ""));
@@ -2262,21 +2264,9 @@ async function sendMessage() {
 
 // -------------------------------------------------------------------- Start
 
-function initThemeAndEffort() {
-  const group = $("effort");
-  const markEffort = () => {
-    for (const b of group.querySelectorAll("button")) b.setAttribute("aria-checked", String(b.dataset.value === state.effort));
-  };
-  group.addEventListener("click", (event) => {
-    const b = event.target.closest("button");
-    if (!b) return;
-    state.effort = b.dataset.value;
-    try { localStorage.setItem("ki-effort", state.effort); } catch { /* optional */ }
-    markEffort();
-  });
-  markEffort();
-  return markEffort;
-}
+// Aufwand und Modell stehen in einem Knopf unter dem Eingabefeld; das Menü dazu ist toolsMenu().
+const EFFORTS = [["low", tr("Niedrig")], ["medium", tr("Mittel")], ["high", tr("Hoch")]];
+const effortLabel = (value) => EFFORTS.find(([key]) => key === value)?.[1] || "";
 
 // Hinweise des Add-ons (ablaufende Zugangsdaten, Datenbank). Weggeklickt gilt pro Browser-Sitzung.
 function renderNotices(list, box = $("notices")) {
@@ -2287,6 +2277,7 @@ function renderNotices(list, box = $("notices")) {
     if (dismissed.includes(notice.id)) continue;
     const row = node("div", `notice ${notice.level === "error" ? "error" : "warn"}`);
     row.setAttribute("role", "alert");
+    if (box.id === "limit-notices") row.append(icon("info"));
     row.append(node("span", "notice-text", notice.text));
     if (notice.action) {
       const go = node("button", "notice-btn", notice.action.label);
@@ -2348,15 +2339,12 @@ const modelLabel = (id) => state.me?.models?.find((m) => m.id === id)?.label || 
 function markTools() {
   const me = state.me;
   const hasModels = (me?.models?.length || 0) > 1;
-  const hasWeb = !!me?.web;
   const btn = $("tools");
-  btn.hidden = !(hasModels || hasWeb);
-  $("tools-name").textContent = hasModels ? modelLabel(effectiveModel()) : "";
-  btn.classList.toggle("has-name", hasModels);
-  btn.classList.toggle("web-off", hasWeb && !state.web);
-  const tip = (hasModels ? tr("Modell: {0}", modelLabel(effectiveModel())) : tr("Websuche")) + (hasWeb ? (state.web ? tr(" · Websuche an") : tr(" · Websuche aus")) : "");
-  btn.dataset.tip = tip;
-  btn.setAttribute("aria-label", tip);
+  const model = hasModels ? modelLabel(effectiveModel()) : "";
+  $("tools-name").textContent = model;
+  $("tools-effort").textContent = effortLabel(state.effort);
+  btn.classList.toggle("web-off", !!me?.web && !state.web);
+  btn.setAttribute("aria-label", `${tr("Modell, Aufwand und Websuche")}: ${[model, effortLabel(state.effort)].filter(Boolean).join(", ")}`);
 }
 
 // Modell des geöffneten Chats (gemerkt auf dem Server) oder, bei einem neuen Chat, das zuletzt gewählte.
@@ -2370,32 +2358,42 @@ function useChatModel(chat) {
   markTools();
 }
 
+// Menü am Knopf unter dem Eingabefeld wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs, Websuche.
+// Auf dem Handy dieselben Punkte als flache Liste.
 async function toolsMenu() {
   const me = state.me;
+  const models = me.models || [];
+  const current = effectiveModel();
+  const several = models.length > 1;
   const entries = [];
-  if ((me.models?.length || 0) > 1) {
-    const current = effectiveModel();
-    entries.push({ heading: tr("Modell") });
-    for (const m of me.models) entries.push({ value: `model:${m.id}`, label: m.label, active: m.id === current });
+  if (wideScreen()) {
+    if (several) entries.push({ value: `model:${current}`, label: modelLabel(current), active: true });
+    entries.push({ label: tr("Aufwand"), detail: effortLabel(state.effort), submenu: EFFORTS.map(([value, label]) => ({ value: `effort:${value}`, label, active: value === state.effort })) });
+    if (several) entries.push({ label: tr("Weitere Modelle"), submenu: models.filter((m) => m.id !== current).map((m) => ({ value: `model:${m.id}`, label: m.label })) });
+  } else {
+    if (several) for (const m of models) entries.push({ value: `model:${m.id}`, label: m.label, active: m.id === current });
+    for (const [value, label] of EFFORTS) entries.push({ value: `effort:${value}`, label: tr("Aufwand: {0}", label), active: value === state.effort });
   }
   if (me.web) {
-    if (entries.length) entries.push({ divider: true });
+    if (wideScreen()) entries.push({ divider: true });
     entries.push({ value: "web", icon: "globe", label: tr("Websuche"), active: state.web, toggle: state.web });
   }
-  if (!entries.length) return;
   const button = $("tools");
   button.setAttribute("aria-expanded", "true");
   let choice;
   try {
     choice = wideScreen()
-      ? await openPopover(button, entries, { compact: true })
-      : await openSheet({ title: tr("Modell und Websuche"), items: entries.filter((e) => !e.divider && !e.heading) });
+      ? await openPopover(button, entries, {})
+      : await openSheet({ title: tr("Modell, Aufwand und Websuche"), items: entries });
   } finally {
     button.setAttribute("aria-expanded", "false");
   }
   if (typeof choice === "string" && choice.startsWith("model:")) {
     state.model = choice.slice(6);
     try { localStorage.setItem("ki-model", state.model); } catch { /* optional */ }
+  } else if (typeof choice === "string" && choice.startsWith("effort:")) {
+    state.effort = choice.slice(7);
+    try { localStorage.setItem("ki-effort", state.effort); } catch { /* optional */ }
   } else if (choice === "web") {
     state.web = !state.web;
     try { localStorage.setItem("ki-web", state.web ? "on" : "off"); } catch { /* optional */ }
@@ -3068,7 +3066,6 @@ async function accountMenu() {
 
 async function init() {
   initSheet();
-  const markEffort = initThemeAndEffort();
   setStreaming(false);
 
   loadUi();
@@ -3103,7 +3100,7 @@ async function init() {
     let stored = null;
     try { stored = localStorage.getItem("ki-effort"); } catch { /* optional */ }
     state.effort = ["low", "medium", "high"].includes(stored) ? stored : state.me.default_effort;
-    markEffort();
+    markTools();
     $("test-badge").hidden = !state.me.test_mode;
     let webStored = null;
     try { webStored = localStorage.getItem("ki-web"); } catch { /* optional */ }
