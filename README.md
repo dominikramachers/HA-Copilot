@@ -35,7 +35,7 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 - **Antworten laufen auf dem Server weiter:** Chat wechseln, Seite neu laden oder Tab schließen verliert nichts; fertige Antworten erscheinen als ungelesen
 - **Zugriff auf Home Assistant** mit Rechtestufen je Benutzer (nichts, lesen, ausführen, ändern), Rückfrage im Chat vor Änderungen und Sperrliste für gefährliche Befehle
 - Chats pro Benutzer getrennt, Projekte mit Anweisungen, Anpinnen, Umbenennen, automatische Kurztitel
-- **Suche** in allen eigenen Chats (Strg/Cmd+K), Export als Markdown oder ZIP, eigene Chats gesammelt löschen
+- **Suche** in allen eigenen Chats (Strg/Cmd+Umschalt+F), Export als Markdown oder ZIP, eigene Chats gesammelt löschen
 - **Dateien erzeugen und bearbeiten:** Word, Excel, PowerPoint, PDF und Skripte (PowerShell, Shell, Python …) zum Herunterladen; angehängte Dateien (PDF-Formulare, Word, Excel, PowerPoint, Text und Code) liest und ändert die KI auf Wunsch, das Original bleibt unverändert
 - **GitHub:** Repositories lesen, Code durchsuchen, Issues und Pull Requests ansehen; mit Schreibrecht Commits, Zweige und Pull Requests (jede Änderung wird im Chat bestätigt)
 - **Websuche** und Seiten lesen, wählbare Modelle, Hinweis auf das Nutzungslimit des Abos

@@ -421,7 +421,7 @@
  "Darstellung": "Appearance",
  "Abmelden": "Sign out",
  "Konto": "Account",
- "Strg K": "Ctrl K",
+ "Strg+Umschalt+{0}": "Ctrl+Shift+{0}",
  "Schritte anzeigen": "Show steps",
  "Nicht angemeldet": "Not signed in",
  "Mit Microsoft anmelden": "Sign in with Microsoft",

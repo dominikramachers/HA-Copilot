@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.27.2
+- **Nutzungslimit und Rückfragen über dem Eingabefeld:** Die Meldung zum Nutzungslimit und die Rückfragen der KI („Soll diese Änderung in Home Assistant ausgeführt werden?“ mit Zulassen / Ablehnen) erscheinen jetzt wie in Claude selbst als Streifen direkt über dem Eingabefeld statt ganz oben bzw. im Verlauf. Sie verschwinden, sobald sie beantwortet sind oder der Chat gewechselt wird.
+- **Kompaktere Eingabe:** Das Eingabefeld ist eine einzelne schlanke Zeile (Büroklammer, Text, Senden). Modell und Denkaufwand stehen schlicht darunter.
+- **Neue Tastenkürzel** (Strg bzw. ⌘ am Mac, plus Umschalt): **F** Suchen (statt Strg+K), **O** neuer Chat, **P** neues Projekt, **G** Geplant. Das Kürzel erscheint in der Seitenleiste nur, wenn man mit der Maus über den Eintrag fährt, und passt sich Windows/Linux und Mac automatisch an. Mit Umschalt, weil Strg/⌘ plus Buchstabe allein dem Browser gehört.
+- Keine neuen Optionen, keine Änderung an bestehender Konfiguration.
+
 ## 0.27.1
 - **Animierter Hintergrund auf der Anmeldeseite**, wie auf der neu gestalteten Home-Assistant-Anmeldeseite: langsam treibende Punkte, die sich bei Nähe mit feinen Linien verbinden. Die Farben kommen aus dem Theme (Akzentfarbe, Hell/Dunkel), das Logo bleibt das einzig Bunte. Der Hintergrund pausiert bei verdecktem Tab, steht bei „Bewegung reduzieren“ still und fängt keine Klicks ab.
 - Ausschalten: in `custom.css` `canvas#particles { display: none; }`. Keine neue Option, keine Änderung an bestehender Konfiguration.
