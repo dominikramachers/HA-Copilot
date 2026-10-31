@@ -1178,6 +1178,55 @@ class Store:
             )
         return cur.rowcount == 1
 
+    def cut_from(self, profile_id: str, chat_id: str, message_id: int) -> dict[str, Any] | None:
+        """Eine eigene Frage und alles danach entfernen (Frage bearbeiten und neu senden).
+
+        Liefert eine Sicherung für :meth:`restore_cut`, falls die neue Antwort scheitert; ``None``, wenn die Nachricht
+        nicht existiert, nicht zum Chat und Profil gehört oder keine Frage ist. Reicht die Zusammenfassung des älteren
+        Verlaufs bis in den entfernten Teil, wird sie verworfen (sie würde sonst Inhalte kennen, die es nicht mehr gibt).
+        """
+        _require(profile_id)
+        with self._lock, self._conn:
+            target = self._conn.execute(
+                "SELECT role FROM messages WHERE id = ? AND chat_id = ? AND profile_id = ?",
+                (message_id, chat_id, profile_id),
+            ).fetchone()
+            if not target or target["role"] != "user":
+                return None
+            rows = self._conn.execute(
+                "SELECT id, role, content, created_at, attachments, tools FROM messages "
+                "WHERE chat_id = ? AND profile_id = ? AND id >= ? ORDER BY id",
+                (chat_id, profile_id, message_id),
+            ).fetchall()
+            chat = self._conn.execute(
+                "SELECT summary, summary_upto FROM chats WHERE id = ? AND profile_id = ?", (chat_id, profile_id)
+            ).fetchone()
+            self._conn.execute(
+                "DELETE FROM messages WHERE chat_id = ? AND profile_id = ? AND id >= ?", (chat_id, profile_id, message_id)
+            )
+            upto = chat["summary_upto"] if chat else None
+            if upto is not None and upto >= message_id:
+                self._conn.execute(
+                    "UPDATE chats SET summary = NULL, summary_upto = NULL WHERE id = ? AND profile_id = ?", (chat_id, profile_id)
+                )
+        return {"rows": [dict(r) for r in rows], "summary": chat["summary"] if chat else None, "upto": upto}
+
+    def restore_cut(self, profile_id: str, chat_id: str, backup: dict[str, Any]) -> None:
+        """Die mit :meth:`cut_from` entfernten Nachrichten (mit ihren alten Nummern) und die Zusammenfassung zurückholen."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            for row in backup["rows"]:
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO messages (id, chat_id, profile_id, role, content, created_at, attachments, tools) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (row["id"], chat_id, profile_id, row["role"], row["content"], row["created_at"], row["attachments"], row["tools"]),
+                )
+            if backup.get("summary"):
+                self._conn.execute(
+                    "UPDATE chats SET summary = ?, summary_upto = ? WHERE id = ? AND profile_id = ?",
+                    (backup["summary"], backup["upto"], chat_id, profile_id),
+                )
+
     def add_exchange(
         self,
         profile_id: str,

@@ -23,7 +23,7 @@ KI_LANG=en KI_PORT=8098 TZ=Europe/Berlin python tools/screenshots/demo_addon.py 
 export SHOT_WORK=work
 python tools/screenshots/capture_ha.py docs/screenshots        # Seitenleiste, Dashboard, Chat in Home Assistant
 python tools/screenshots/capture_features.py docs/screenshots  # Einrichtungsprüfung, Suche, Geplant, Gedächtnis, Menü
-python tools/screenshots/capture_app.py docs/screenshots       # Chat allein, Handy, Englisch
+python tools/screenshots/capture_app.py docs/screenshots       # Chat allein, Handy, Englisch, Nachricht bearbeiten
 python tools/screenshots/capture_theme.py docs/screenshots     # dasselbe mit dem eigenen Theme DORALAB, hell und dunkel
 ```
 

@@ -169,7 +169,7 @@
   color: var(--bubble-ink);
   white-space: pre-wrap;
 }
-.msg.assistant { margin: 0 0 26px; line-height: 1.6; }
+.msg.assistant { margin: 0 0 14px; line-height: 1.6; }
 /* Warteanzeige: kleines Zeichen mit Bewegung, dazu ein Wort oder die laufende Aktion; beim Schreiben bleibt nur das Zeichen */
 .busy { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 26px; color: var(--text-2); font-size: 14.5px; }
 .spark { position: relative; flex: none; width: 18px; height: 18px; }
@@ -216,10 +216,11 @@
 .out-get { flex: none; color: var(--text-2); display: grid; place-items: center; }
 .out-get .icon { width: 20px; height: 20px; }
 .out-card:hover:not(:disabled) .out-get { color: var(--accent); }
-.msg-tools { margin-top: 6px; display: flex; gap: 4px; }
-.tool-btn { height: 32px; padding: 0 10px 0 8px; border-radius: var(--r-1); display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); }
-.tool-btn .icon { width: 16px; height: 16px; }
-.tool-btn:hover { background: var(--chip); color: var(--text); }
+/* Unter einer Antwort: Symbole nur bei der letzten Antwort dauerhaft, sonst beim Darüberfahren; der Zeitpunkt nur beim Darüberfahren */
+.msg-meta.answer-meta { justify-content: flex-start; margin: 4px 0 0 -7px; }
+.msg.assistant:hover .answer-meta, .msg.assistant:focus-within .answer-meta, .msg.assistant.show-meta .answer-meta, .msg.assistant.last-answer .answer-meta { opacity: 1; }
+.answer-meta .msg-time { margin: 0 0 0 6px; opacity: 0; transition: opacity .12s; }
+.msg.assistant:hover .answer-meta .msg-time, .msg.assistant:focus-within .answer-meta .msg-time, .msg.assistant.show-meta .answer-meta .msg-time { opacity: 1; }
 
 /* Markdown in Antworten */
 .md > :first-child { margin-top: 0; }
@@ -321,8 +322,25 @@
 .file-x:hover { background: var(--chip); color: var(--text); }
 .reattach { height: 30px; padding: 0 11px 0 9px; border-radius: var(--r-1); display: inline-flex; align-items: center; gap: 6px; align-self: center; font-size: 12.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); }
 .reattach .icon { width: 14px; height: 14px; }
-.msg-group { display: flex; flex-direction: column; align-items: flex-end; margin: 0 0 22px; }
+.msg-group { display: flex; flex-direction: column; align-items: flex-end; margin: 0 0 6px; }
 .msg-group .msg.user { margin: 0; }
+/* Zeitpunkt, Bearbeiten und Kopieren unter der eigenen Nachricht: nur beim Darüberfahren (Touchscreen: Antippen) */
+.msg-meta { display: flex; align-items: center; gap: 2px; height: 28px; margin: 2px 0 2px; opacity: 0; transition: opacity .12s; }
+.msg-group:hover .msg-meta, .msg-group:focus-within .msg-meta, .msg-group.show-meta .msg-meta { opacity: 1; }
+/* Touchscreen: Leiste braucht keinen reservierten Platz, sie klappt beim Antippen auf */
+@media (hover: none) { .msg-group .msg-meta { height: 0; margin: 0; overflow: hidden; } .msg-group.show-meta .msg-meta { height: 28px; margin: 2px 0 2px; overflow: visible; } .msg-group { margin-bottom: 22px; } }
+.msg-time { margin-right: 4px; font-size: 12.5px; color: var(--text-2); white-space: nowrap; cursor: default; }
+.msg-act { width: 28px; height: 28px; border-radius: var(--r-1); display: grid; place-items: center; color: var(--text-2); }
+.msg-act .icon { width: 15px; height: 15px; }
+.msg-act:hover, .msg-act:focus-visible { background: var(--chip); color: var(--text); }
+.msg-group:not([data-id]) .msg-edit-btn { display: none; }
+@media (pointer: coarse) { .msg-act { width: 38px; height: 38px; } .msg-act .icon { width: 17px; height: 17px; } .msg-group.show-meta .msg-meta { height: 38px !important; } }
+.msg-group.editing .msg.user, .msg-group.editing .msg-meta, .msg-group.editing .msg-files { display: none; }
+.msg-edit { align-self: stretch; margin: 0 0 14px; padding: 10px; border: 1px solid var(--line-2); border-radius: var(--r-3); background: var(--panel); }
+.msg-edit textarea { display: block; width: 100%; min-height: 64px; resize: none; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; line-height: 1.5; }
+.msg-edit-note { margin: 6px 2px 0; font-size: 12.5px; color: var(--text-2); }
+.msg-edit-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.pill.small { height: 34px; padding: 0 16px; font-size: 14px; }
 .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin: 0 0 6px; max-width: 85%; }
 .msg-files .file-chip { height: 40px; max-width: 220px; padding-right: 12px; background: var(--chip); }
 .msg-files .file-thumb { width: 30px; height: 30px; border-radius: 8px; }
