@@ -114,6 +114,18 @@ def test_login_page_preview_requires_access(client):
     assert font.status_code == 200 and font.content[:4] == b"wOF2"
 
 
+def test_page_has_dock_above_input_and_shortcut_hints(client):
+    page = client.get("/", headers=as_user(DORA)).text
+    # Nutzungslimit und Rückfragen stehen im Dock vor dem Eingabefeld
+    assert page.index('id="dock"') < page.index('id="limit-notices"') < page.index('id="dock-asks"') < page.index('class="composer-box"')
+    # Kürzel: Neuer Chat, Suchen, Geplant haben je einen Buchstaben (Anzeige nur beim Hover, per CSS)
+    for letter in ("O", "F", "G"):
+        assert f'class="nav-key" data-key="{letter}"' in page
+    script = client.get("/static/app.js").text
+    assert "KeyP" in script and "Strg+Umschalt+{0}" in script
+    assert ".nav-item:hover .nav-key" in client.get("/static/style.css").text
+
+
 def test_page_knows_it_is_embedded_in_ha(client):
     page = client.get("/", headers=as_user(DORA))
     assert 'data-embed="ha"' in page.text and "__EMBED__" not in page.text

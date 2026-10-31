@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.27.1.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.27.2.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -379,7 +379,7 @@ Die Benachrichtigung zeigt den Anfang der Antwort, also auch auf dem Sperrbildsc
 
 ## Suche, Export und eigene Daten (ab 0.22.0)
 
-**Suche.** „Suchen“ in der Seitenleiste (am Computer auch Strg+K bzw. Cmd+K) durchsucht Titel und Nachrichten aller *deiner* Chats, auch die der geplanten Aufgaben. Es zählen nur Chats mit allen eingegebenen Wörtern (die Wörter können in verschiedenen Nachrichten stehen), ohne Beachtung von Groß- und Kleinschreibung und Umlautpunkten („kuche“ findet „Küche“). Zu jedem Treffer stehen Titel, Datum und ein Ausschnitt mit markierter Fundstelle; Enter öffnet den ersten Treffer, die Pfeiltasten wechseln zwischen den Treffern. Es werden höchstens 30 Chats gezeigt, die neuesten zuerst, und mindestens zwei Zeichen verlangt. Gesucht wird nur im Text der Nachrichten, nicht in Anhängen, Aktionsprotokollen, Projektwissen oder erzeugten Dateien.
+**Suche.** „Suchen“ in der Seitenleiste (am Computer auch Strg+Umschalt+F bzw. ⇧⌘F am Mac) durchsucht Titel und Nachrichten aller *deiner* Chats, auch die der geplanten Aufgaben. Es zählen nur Chats mit allen eingegebenen Wörtern (die Wörter können in verschiedenen Nachrichten stehen), ohne Beachtung von Groß- und Kleinschreibung und Umlautpunkten („kuche“ findet „Küche“). Zu jedem Treffer stehen Titel, Datum und ein Ausschnitt mit markierter Fundstelle; Enter öffnet den ersten Treffer, die Pfeiltasten wechseln zwischen den Treffern. Es werden höchstens 30 Chats gezeigt, die neuesten zuerst, und mindestens zwei Zeichen verlangt. Gesucht wird nur im Text der Nachrichten, nicht in Anhängen, Aktionsprotokollen, Projektwissen oder erzeugten Dateien.
 
 **Chat exportieren.** Im Menü eines Chats (⋯) speichert „Als Markdown exportieren“ den Chat als `.md`-Datei mit Titel, Projekt, Datum, allen Nachrichten, den Namen der Anhänge und den Aktionen der KI (Home Assistant, GitHub, Web).
 

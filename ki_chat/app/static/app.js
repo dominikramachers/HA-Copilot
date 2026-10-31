@@ -534,7 +534,7 @@ function renderProjects(root) {
   toggle.append(icon("chevron"), node("span", "", tr("Projekte")));
   toggle.addEventListener("click", () => { ui.projectsOpen = !ui.projectsOpen; saveUi(); renderSide(); });
   const head = node("div", "sec-head");
-  head.append(toggle, actionButton(tr("Neues Projekt"), "plus", "add", createProject));
+  head.append(toggle, actionButton(`${tr("Neues Projekt")} (${shortcutText("P")})`, "plus", "add", createProject));
   root.append(head);
   if (!ui.projectsOpen) return;
 
@@ -1848,6 +1848,7 @@ function detachRun() {
   const run = state.streaming;
   if (!run) return;
   run.detached = true;
+  clearAsks(run);
   run.busy?.stop();
   state.streaming = null;
   setStreaming(false);
@@ -1868,22 +1869,22 @@ async function consume(response, run, bubble) {
   // Aufbau der Blase: Aktionsliste, Text, offene Rückfragen (entsteht erst mit dem ersten Inhalt, damit der leere Zustand erhalten bleibt)
   const parts = {};
   const byId = new Map();
-  const cards = new Map();
+  const cards = new Map(); // offene Rückfragen: stehen über dem Eingabefeld (Dock), nicht im Verlauf
+  run.cards = cards;
   const build = () => {
     if (parts.text) return;
     parts.log = actionsEl([], true);
     parts.log.hidden = true;
     parts.text = node("div", "act-text");
     parts.files = fileCardsEl([]);
-    parts.asks = node("div", "ask-list");
-    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.asks, ...(run.busy ? [run.busy.el] : []));
+    bubble.replaceChildren(parts.log, parts.text, parts.files, ...(run.busy ? [run.busy.el] : []));
   };
   // Was die Warteanzeige gerade zeigt: laufende Aktion, Rückfrage, Hinweistext oder (sobald Text kommt) nur das kleine Zeichen
   let statusText = "";
   const syncBusy = () => {
     if (!run.busy || run.detached) return;
     const running = out.actions.filter((a) => a.status === "running");
-    const waiting = out.actions.some((a) => a.status === "waiting") || parts.asks?.childElementCount > 0;
+    const waiting = out.actions.some((a) => a.status === "waiting") || cards.size > 0;
     run.busy.set({ tool: running.at(-1)?.label || "", status: statusText, waiting, streaming: !!out.answer && !running.length && !waiting });
   };
   let frame = 0;
@@ -1907,10 +1908,11 @@ async function consume(response, run, bubble) {
         out.actions = [...byId.values()];
         if (!run.detached) { build(); parts.log.update(out.actions); parts.files.update(out.actions); scrollDown(false); }
       } else if (ev.type === "approval") {
-        if (!run.detached) { build(); const card = approvalCard(run.chatId, ev); cards.set(ev.id, card); parts.asks.append(card); scrollDown(true); }
+        if (!run.detached) { build(); const card = approvalCard(run.chatId, ev); cards.set(ev.id, card); $("dock-asks").append(card); syncDock(); }
       } else if (ev.type === "approval_done") {
         cards.get(ev.id)?.remove();
         cards.delete(ev.id);
+        syncDock();
       } else if (ev.type === "compacted") {
         out.compacted = true;
       } else if (ev.type === "error") {
@@ -1928,6 +1930,7 @@ async function consume(response, run, bubble) {
     if (err.name !== "AbortError") out.lost = true;
   } finally {
     if (frame) cancelAnimationFrame(frame);
+    clearAsks(run);
   }
   // Strom ohne Abschluss, ohne dass wir ihn selbst beendet haben: Verbindung verloren, der Server macht weiter.
   if (!out.ended && !run.controller.signal.aborted) out.lost = true;
@@ -1994,6 +1997,42 @@ function makeBusy() {
 function addBusy(run, bubble) {
   run.busy = makeBusy();
   bubble.append(run.busy.el);
+}
+
+// Kurzwahl: ⌘ (Mac) bzw. Strg (Windows, Linux) plus Umschalt plus Buchstabe. Mit Umschalt, weil Strg/⌘ allein
+// (F, N, P …) dem Browser gehört. Die Taste steht nur im Hover am Knopf; am Handy gibt es sie nicht.
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "");
+const shortcutText = (letter) => (IS_MAC ? `⇧⌘${letter}` : tr("Strg+Umschalt+{0}", letter));
+
+function initShortcuts() {
+  for (const key of document.querySelectorAll(".nav-key[data-key]")) key.textContent = shortcutText(key.dataset.key);
+  const actions = {
+    KeyO: () => startNew(),
+    KeyF: () => openSearch(),
+    KeyP: () => createProject(),
+    KeyG: () => (state.me?.schedules ? openSchedules() : null),
+  };
+  document.addEventListener("keydown", (event) => {
+    const mod = IS_MAC ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+    const run = actions[event.code];
+    if (!run || !mod || !event.shiftKey || event.altKey || event.isComposing) return;
+    event.preventDefault();
+    if (sheetDone) return;
+    Promise.resolve(run()).catch(() => {});
+  });
+}
+
+// Dock über dem Eingabefeld: Nutzungslimit und offene Rückfragen der KI (wie in Claude selbst).
+function syncDock() {
+  const dock = $("dock");
+  if (!dock) return;
+  dock.hidden = $("limit-notices").hidden && $("dock-asks").childElementCount === 0;
+}
+
+function clearAsks(run) {
+  for (const card of run.cards?.values() || []) card.remove();
+  run.cards?.clear();
+  syncDock();
 }
 
 // Rückfrage der KI vor einer Änderung in Home Assistant.
@@ -2263,6 +2302,7 @@ function renderNotices(list, box = $("notices")) {
     box.append(row);
   }
   box.hidden = box.children.length === 0;
+  syncDock();
 }
 
 // ------------------------------------------------- Nutzungslimit, Modell und Websuche
@@ -3038,12 +3078,7 @@ async function init() {
   $("new-chat").addEventListener("click", () => startNew());
   $("nav-schedules").addEventListener("click", () => { openSchedules().catch(() => {}); });
   $("nav-search").addEventListener("click", () => { openSearch().catch(() => {}); });
-  document.addEventListener("keydown", (event) => {
-    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      if (!sheetDone) openSearch().catch(() => {});
-    }
-  });
+  initShortcuts();
   $("account").addEventListener("click", () => { accountMenu().catch(() => {}); });
   $("new-chat-top").addEventListener("click", () => startNew());
   initSideToggle();
@@ -3075,7 +3110,6 @@ async function init() {
     state.web = webStored !== "off";
     useChatModel(null);
     $("nav-schedules").hidden = !state.me.schedules;
-    $("nav-search").querySelector(".nav-key").textContent = /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘K" : tr("Strg K");
     $("tools").addEventListener("click", () => { toolsMenu().catch(() => {}); });
     syncTopbar();
     renderNotices(state.me.setup_open
