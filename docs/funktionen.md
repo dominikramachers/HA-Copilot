@@ -103,6 +103,12 @@ Mehr: [Geplante Aufgaben](../ki_chat/DOCS.md#geplante-aufgaben-ab-0210).
 |---|---|---|
 | ![Seitenleiste und Dashboard, dunkel](screenshots/ha-seitenleiste-dashboard-dunkel.png) | ![Chat, hell](screenshots/chat-hell.png) | ![Chat, dunkel](screenshots/chat-dunkel.png) |
 
+Mit einem eigenen Home-Assistant-Theme (hier „DORALAB“, nur Farben) übernimmt die App Akzent, Flächen und Schrift live, hell und dunkel:
+
+| Eigenes Theme, hell | Eigenes Theme, dunkel |
+|---|---|
+| ![HA Copilot mit eigenem Theme, hell](screenshots/ha-copilot-doralab.png) | ![HA Copilot mit eigenem Theme, dunkel](screenshots/ha-copilot-doralab-dunkel.png) |
+
 Englische Oberfläche (`language: en`):
 
 ![Englische Oberfläche](screenshots/chat-en.png)
