@@ -108,10 +108,6 @@
 .seg button { flex: 1; height: 32px; padding: 0 14px; border-radius: var(--r-1); font-size: 13px; font-weight: 500; color: var(--text-2); transition: background .15s, color .15s; }
 .seg button[aria-pressed="true"], .seg button[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
 :root[data-theme="dark"] .seg button[aria-pressed="true"], :root[data-theme="dark"] .seg button[aria-checked="true"] { background: var(--panel-2); }
-.seg.small { flex: none; padding: 2px; background: transparent; }
-.composer-foot .seg.small button[aria-checked="true"] { background: var(--chip); box-shadow: none; }
-.composer-foot .tools-btn { width: auto; height: 30px; padding: 0 8px; gap: 6px; display: flex; align-items: center; }
-.seg.small button { flex: none; height: 26px; padding: 0 10px; font-size: 12.5px; }
 
 .icon-btn { width: 36px; height: 36px; border-radius: var(--r-1); display: grid; place-items: center; color: var(--text-2); }
 .icon-btn .icon { width: 18px; height: 18px; }
@@ -262,39 +258,48 @@
 .notice .icon-btn:hover { background: rgba(0, 0, 0, .08); color: inherit; }
 
 /* ---------- Eingabe ---------- */
-.composer { padding: 6px 16px calc(8px + env(safe-area-inset-bottom)); }
+.composer { padding: 6px 16px calc(6px + env(safe-area-inset-bottom)); }
 .composer-box, .dock, .composer-foot { max-width: 740px; margin-left: auto; margin-right: auto; }
 .composer-box {
-  position: relative;
-  z-index: 1;
-  padding: 6px 6px 6px 8px;
+  padding: 6px 6px 6px 16px;
   border-radius: var(--r-3);
   background: var(--panel);
   border: 1px solid var(--line-2);
   transition: border-color .15s;
 }
 .composer-box:focus-within { border-color: var(--accent); }
-.composer-main { display: flex; align-items: flex-end; gap: 4px; }
-.composer textarea { display: block; flex: 1; min-width: 0; max-height: 40vh; resize: none; border: 0; outline: 0; background: transparent; padding: 7px 0; line-height: 1.5; }
+/* Einzeilig sind Textfeld (24 px Zeile + 2 x 6 px) und Senden-Knopf gleich hoch und damit mittig; bei mehr Zeilen bleibt der Knopf unten. */
+.composer-main { display: flex; align-items: flex-end; gap: 8px; }
+.composer textarea { display: block; flex: 1; min-width: 0; max-height: 40vh; resize: none; border: 0; outline: 0; background: transparent; padding: 6px 0; line-height: 24px; }
 .composer textarea::placeholder { color: var(--muted); }
-.composer-foot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-height: 30px; padding: 2px 4px 0; }
-.composer-tools { display: flex; align-items: center; gap: 4px; min-width: 0; }
 
-/* Dock: Nutzungslimit und Rückfragen sitzen wie in Claude als Streifen direkt über dem Eingabefeld */
-.dock { position: relative; z-index: 0; margin-bottom: -16px; padding-bottom: 16px; border: 1px solid var(--line-2); border-bottom: 0; border-radius: var(--r-3) var(--r-3) 0 0; background: var(--panel-2); overflow: hidden; }
-.dock[hidden] { display: none; }
-.dock .notices { gap: 0; }
-.dock .notice { padding: 9px 6px 9px 14px; }
-.dock .notice + .notice { border-top: 1px solid var(--line); }
-.dock-asks:empty { display: none; }
-.dock-asks { display: grid; }
-.dock .notices:not([hidden]) + .dock-asks:not(:empty) { border-top: 1px solid var(--line); }
-.dock .ask-card { margin: 0; padding: 12px 14px; border: 0; border-radius: 0; background: var(--warn-bg); }
-.dock .ask-card + .ask-card { border-top: 1px solid var(--line); }
-.dock .ask-title { font-size: 14px; }
-.dock .ask-what { font-size: 14px; max-height: 5.5em; overflow: auto; }
-.dock .ask-actions { margin-top: 10px; gap: 6px; }
+/* Fußzeile unter dem Feld wie in Claude: links Anhängen, in der Mitte der Hinweis, rechts Modell und Aufwand */
+.composer-foot { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 2px 0 0; }
+.foot-note { flex: 1; min-width: 0; margin: 0; text-align: center; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 639px) { .foot-note { display: none; } }
+.composer-foot .tools-btn { margin-left: auto; }
+
+/* Dock: Nutzungslimit und Rückfragen als eigene schmale Boxen über dem Feld (nicht an das Feld angebaut) */
+.dock { display: grid; gap: 8px; margin-bottom: 8px; }
+.dock[hidden], .dock-asks:empty { display: none; }
+.dock .notices, .dock-asks { display: grid; gap: 8px; }
+.dock .notice, .dock .ask-card { border: 1px solid var(--line-2); border-radius: var(--r-3); background: var(--panel); color: var(--text-2); }
+.dock .notice { padding: 8px 8px 8px 14px; gap: 10px; font-weight: 400; font-size: 14px; }
+.dock .notice > .icon { flex: none; width: 18px; height: 18px; }
+.dock .notice.warn > .icon { color: var(--warn-fg); }
+.dock .notice.error > .icon, .dock .notice.error .notice-text { color: var(--danger); }
+.dock .notice .icon-btn { width: 30px; height: 30px; color: var(--text-2); }
+.dock .notice .icon-btn:hover { background: var(--chip); color: var(--text); }
+.dock .ask-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 14px; padding: 10px 12px 10px 14px; }
+.dock .ask-title { grid-column: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+.dock .ask-what { grid-column: 1; margin: 0; font-size: 14px; color: var(--text-2); max-height: 5.5em; overflow: auto; }
+.dock .ask-details { grid-column: 1; margin: 2px 0 0; }
+.dock .ask-actions { grid-column: 2; grid-row: 1 / span 3; max-width: 290px; margin: 0; gap: 6px; justify-content: flex-end; }
 .dock .ask-actions .pill { height: 32px; padding: 0 14px; font-size: 13.5px; }
+@media (max-width: 639px) {
+  .dock .ask-card { grid-template-columns: minmax(0, 1fr); }
+  .dock .ask-actions { grid-column: 1; grid-row: auto; justify-content: flex-start; margin-top: 8px; }
+}
 
 /* ---------- Anhänge ---------- */
 .attach-tray { display: flex; gap: 8px; margin: 0 0 10px -8px; padding: 0 8px 2px; overflow-x: auto; scrollbar-width: none; }
@@ -318,28 +323,22 @@
 .drop-hint { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--scrim); pointer-events: none; }
 .attach-tray[hidden], .drop-hint[hidden] { display: none; }
 .drop-hint span { padding: 18px 26px; border-radius: var(--r-3); border: 2px dashed var(--accent); background: var(--sheet); font-size: 17px; font-weight: 600; }
-#menu-composer { display: none; margin-right: auto; }
-.attach { flex: none; width: 34px; height: 34px; border-radius: var(--r-2); display: grid; place-items: center; color: var(--text-2); transition: background .15s, color .15s; }
+#menu-composer { display: none; }
+.attach { flex: none; width: 36px; height: 36px; border-radius: var(--r-2); display: grid; place-items: center; color: var(--text-2); transition: background .15s, color .15s; }
 .attach .icon { width: 19px; height: 19px; }
 .attach:hover { background: var(--chip); color: var(--text); }
-.tools-btn.has-name { width: auto; padding: 0 10px 0 8px; gap: 6px; display: flex; align-items: center; }
-.tools-name { display: none; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-@media (min-width: 640px) { .tools-btn.has-name .tools-name { display: inline; } }
-.tools-btn.web-off::before { content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--text-3, var(--text-2)); }
-.tools-btn.has-name.web-off::before { right: auto; left: 22px; }
+.tools-btn { position: relative; flex: none; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: var(--r-2); font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; transition: background .15s; }
+.tools-btn:hover, .tools-btn[aria-expanded="true"] { background: var(--chip); }
+.tools-effort { color: var(--text-2); }
+.tools-btn.web-off::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .has-tip { position: relative; }
 .has-tip::after { content: attr(data-tip); position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 30; padding: 7px 11px; border-radius: var(--r-1); background: var(--text); color: var(--bg); font-size: 12.5px; font-weight: 500; line-height: 1.2; white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity .15s, transform .15s; }
 @media (hover: hover) { .has-tip:hover::after { opacity: 1; transform: none; transition-delay: .35s; } }
 .has-tip:focus-visible::after { opacity: 1; transform: none; }
-.send { flex: none; width: 36px; height: 36px; border-radius: var(--r-2); display: grid; place-items: center; background: var(--accent); color: var(--on-accent); transition: transform .15s, opacity .15s; }
+.send { flex: none; width: 36px; height: 36px; margin-bottom: 0; border-radius: var(--r-2); display: grid; place-items: center; background: var(--accent); color: var(--on-accent); transition: transform .15s, opacity .15s; }
 .send:active { transform: scale(.92); }
 .send.stop { background: var(--text); color: var(--bg); }
 .send:disabled { opacity: .4; cursor: default; }
-
-@media (max-width: 380px) {
-  .composer-tools { gap: 4px; }
-  .composer-tools .seg.small button { padding: 0 8px; font-size: 12.5px; }
-}
 
 /* ---------- Bottom-Sheet (wie die Popups der Dashboards) ---------- */
 .scrim { position: fixed; inset: 0; z-index: 40; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity .2s; }
@@ -458,7 +457,6 @@
   .thread.empty { padding-bottom: 4vh; }
   .hello h2 { font-size: 34px; }
   .row .more { opacity: 1; }
-  .composer-tools .seg.small button { padding: 0 10px; }
 
   /* Im Web: ganz normales Seitenmenü von links */
   :root[data-embed="web"] .sidebar {
@@ -500,7 +498,6 @@
   :root[data-embed="ha"] #new-chat-top, :root[data-embed="ha"] #menu { display: none; }
   :root[data-embed="ha"] #menu-composer { display: grid; }
   :root[data-embed="ha"] .topbar { min-height: 48px; padding: 4px 16px; }
-  :root[data-embed="ha"] .composer-tools { gap: 6px; }
 }
 
 /* Eingebettet in Home Assistant: Den Anmeldenamen zeigt HA selbst schon an, das Logo bleibt sichtbar
@@ -553,6 +550,9 @@
 .popover.compact { width: 200px; padding: 4px; }
 .popover.compact .pop-item { height: 32px; font-size: 14px; gap: 10px; }
 .popover.compact .pop-item.plain > .icon:last-child { width: 15px; height: 15px; }
+.pop-detail { margin-left: auto; color: var(--muted); font-size: 14px; font-weight: 400; }
+.pop-item .pop-detail + .icon { margin-left: 0; }
+.pop-item.plain.has-sub > .icon:last-child { color: var(--muted); }
 .pop-head { padding: 6px 12px 3px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .pop-switch { flex: none; margin-left: auto; position: relative; width: 28px; height: 16px; border-radius: 8px; background: color-mix(in srgb, var(--text) 24%, transparent); transition: background .15s; }
 .pop-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); transition: transform .15s; }

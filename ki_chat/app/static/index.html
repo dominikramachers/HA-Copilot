@@ -66,21 +66,15 @@
           <div class="attach-tray" id="attach-tray" hidden></div>
           <input type="file" id="file-input" multiple hidden tabindex="-1" accept="image/*,.pdf,.docx,.xlsx,.pptx,text/*,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.log,.py,.js,.ts,.sh,.ps1,.ini,.conf,.cfg,.toml,.sql,.html,.css">
           <div class="composer-main">
-            <button class="attach has-tip" id="attach" type="button" aria-label="Dateien hochladen oder hinzufügen" data-tip="Dateien hochladen oder hinzufügen"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg></button>
             <textarea id="input" rows="1" placeholder="Nachricht schreiben" aria-label="Nachricht" maxlength="20000"></textarea>
             <button class="send" id="send" type="submit" aria-label="Senden"></button>
           </div>
         </div>
         <div class="composer-foot">
           <button class="attach" id="menu-composer" type="button" aria-label="Chats anzeigen"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/></svg></button>
-          <div class="composer-tools">
-            <button class="attach tools-btn has-tip" id="tools" type="button" aria-label="Modell und Websuche" aria-haspopup="menu" aria-expanded="false" data-tip="Modell und Websuche" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><path d="M13 5v4M7 15v4"/></svg><span class="tools-name" id="tools-name"></span></button>
-            <div class="seg small" id="effort" role="radiogroup" aria-label="Denkaufwand">
-              <button type="button" role="radio" data-value="low">Niedrig</button>
-              <button type="button" role="radio" data-value="medium">Mittel</button>
-              <button type="button" role="radio" data-value="high">Hoch</button>
-            </div>
-          </div>
+          <button class="attach has-tip" id="attach" type="button" aria-label="Dateien hochladen oder hinzufügen" data-tip="Dateien hochladen oder hinzufügen"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg></button>
+          <p class="foot-note">Die KI kann Fehler machen.</p>
+          <button class="tools-btn" id="tools" type="button" aria-label="Modell, Aufwand und Websuche" aria-haspopup="menu" aria-expanded="false"><span class="tools-name" id="tools-name"></span><span class="tools-effort" id="tools-effort"></span></button>
         </div>
       </form>
     </main>

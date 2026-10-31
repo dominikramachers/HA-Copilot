@@ -8,7 +8,7 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 
 - Antworten erscheinen als **Live-Stream** mit Markdown, Tabellen und Codeblöcken (Kopieren, Herunterladen). Vollständige HTML-Seiten bekommen eine **Vorschau**, die abgeschottet und ohne Netzwerk läuft.
 - **Antworten laufen auf dem Server weiter.** Du kannst den Chat wechseln, die Seite neu laden oder den Tab schließen; die Antwort wird trotzdem fertig und steht danach als ungelesen in der Liste. Mit „Stopp“ brichst du sie ab.
-- Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** (Einstellung `models`) und die **Websuche**.
+- Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** (Einstellung `models`) und die **Websuche**. Alles steht in einem Menü rechts unter dem Eingabefeld (Knopf z. B. „Sonnet 5.5 Mittel“), wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs.
 - **Anhänge** (bis zu 5 je Nachricht, zusammen 60 MB): Bilder, PDF, Word, Excel, PowerPoint, Text und Code. Mit der Option „Dateien bearbeiten“ (Standard) bleibt eine Kopie für diesen Chat erhalten, damit die KI die Datei später lesen und **bearbeiten** kann (z. B. PDF-Felder sperren, Word-Text ändern, Excel-Zellen setzen, Code anpassen); die bearbeitete Fassung gibt es als Download, das Original bleibt unverändert. Ohne die Option gibt es die Anhänge nur im Arbeitsspeicher. Einfügen mit Strg/Cmd+V oder Ziehen auf die Seite geht auch.
 - Lange Chats werden **automatisch zusammengefasst**, statt abgeschnitten zu werden.
 - Ein kurzer **Titel** entsteht automatisch (`title_model`), und jeder Chat lässt sich umbenennen.
@@ -22,7 +22,7 @@ Mehr: [Oberfläche](../ki_chat/DOCS.md#oberfläche), [So arbeitet die KI](../ki_
 - **Projekte** ordnen Chats und tragen **Anweisungen** (bis 4000 Zeichen), die in jedem Chat des Projekts mitgehen. Zu einem Projekt kannst du **Wissen** hochladen (Notizen, Word, Excel, PDF, ZIP); die KI liest bei Bedarf nach.
 - **Suchen** (Strg/Cmd+Umschalt+F) durchsucht Titel und Nachrichten aller deiner Chats, ohne Rücksicht auf Groß- und Kleinschreibung und Umlaute.
 - **Tastenkürzel** am Computer: Strg (Mac: ⌘) + Umschalt + **O** neuer Chat, **F** Suchen, **P** neues Projekt, **G** geplante Aufgaben. Das Kürzel steht in der Seitenleiste erst, wenn du mit der Maus über den Eintrag fährst.
-- **Hinweise über dem Eingabefeld:** Nutzungslimit und Rückfragen der KI (z. B. vor einer Änderung in Home Assistant) erscheinen als Streifen direkt über dem Eingabefeld, wie in Claude selbst.
+- **Hinweise über dem Eingabefeld:** Nutzungslimit und Rückfragen der KI (z. B. vor einer Änderung in Home Assistant) erscheinen als Streifen direkt über dem Eingabefeld, wie in Claude selbst, jeweils als eigene schmale Box (nicht am Eingabefeld angebaut).
 - Anpinnen, umbenennen, in ein Projekt verschieben, als Markdown exportieren, löschen: alles im Menü (⋯) jeder Zeile.
 
 ![Chat-Menü](screenshots/menue.png)
