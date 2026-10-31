@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.27.4"
+version: "0.27.5"
 slug: ki_chat
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil

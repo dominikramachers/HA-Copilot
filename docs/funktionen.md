@@ -8,7 +8,7 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 
 - Antworten erscheinen als **Live-Stream** mit Markdown, Tabellen und Codeblöcken (Kopieren, Herunterladen). Vollständige HTML-Seiten bekommen eine **Vorschau**, die abgeschottet und ohne Netzwerk läuft.
 - **Antworten laufen auf dem Server weiter.** Du kannst den Chat wechseln, die Seite neu laden oder den Tab schließen; die Antwort wird trotzdem fertig und steht danach als ungelesen in der Liste. Mit „Stopp“ brichst du sie ab.
-- Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** (Einstellung `models`) und die **Websuche**. Alles steht in einem Menü rechts unter dem Eingabefeld (Knopf z. B. „Sonnet 5.5 Mittel“), wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs.
+- Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** (Einstellung `models`) und die **Websuche**. Alles steht in einem Menü (Knopf z. B. „Sonnet 5.5 Mittel“; am Computer rechts unter dem Eingabefeld, am Handy im Eingabefeld neben der Büroklammer), wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs.
 - **Anhänge** (bis zu 5 je Nachricht, zusammen 60 MB): Bilder, PDF, Word, Excel, PowerPoint, Text und Code. Mit der Option „Dateien bearbeiten“ (Standard) bleibt eine Kopie für diesen Chat erhalten, damit die KI die Datei später lesen und **bearbeiten** kann (z. B. PDF-Felder sperren, Word-Text ändern, Excel-Zellen setzen, Code anpassen); die bearbeitete Fassung gibt es als Download, das Original bleibt unverändert. Ohne die Option gibt es die Anhänge nur im Arbeitsspeicher. Einfügen mit Strg/Cmd+V oder Ziehen auf die Seite geht auch.
 - Lange Chats werden **automatisch zusammengefasst**, statt abgeschnitten zu werden.
 - Ein kurzer **Titel** entsteht automatisch (`title_model`), und jeder Chat lässt sich umbenennen.
@@ -102,6 +102,12 @@ Mehr: [Geplante Aufgaben](../ki_chat/DOCS.md#geplante-aufgaben-ab-0210).
 | Home Assistant dunkel | Die App allein, hell | Die App allein, dunkel |
 |---|---|---|
 | ![Seitenleiste und Dashboard, dunkel](screenshots/ha-seitenleiste-dashboard-dunkel.png) | ![Chat, hell](screenshots/chat-hell.png) | ![Chat, dunkel](screenshots/chat-dunkel.png) |
+
+Mit einem eigenen Home-Assistant-Theme (hier „DORALAB“, nur Farben) übernimmt die App Akzent, Flächen und Schrift live, hell und dunkel:
+
+| Eigenes Theme, hell | Eigenes Theme, dunkel |
+|---|---|
+| ![HA Copilot mit eigenem Theme, hell](screenshots/ha-copilot-doralab.png) | ![HA Copilot mit eigenem Theme, dunkel](screenshots/ha-copilot-doralab-dunkel.png) |
 
 Englische Oberfläche (`language: en`):
 

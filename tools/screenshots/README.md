@@ -24,7 +24,10 @@ export SHOT_WORK=work
 python tools/screenshots/capture_ha.py docs/screenshots        # Seitenleiste, Dashboard, Chat in Home Assistant
 python tools/screenshots/capture_features.py docs/screenshots  # Einrichtungsprüfung, Suche, Geplant, Gedächtnis, Menü
 python tools/screenshots/capture_app.py docs/screenshots       # Chat allein, Handy, Englisch
+python tools/screenshots/capture_theme.py docs/screenshots     # dasselbe mit dem eigenen Theme DORALAB, hell und dunkel
 ```
+
+Das Theme „DORALAB“ liegt als `ha_config/themes/doralab.yaml` (nur Farben, kein Logo). `capture_theme.py` schaltet es für die Aufnahme mit dem Dienst `frontend.set_theme` ein und danach wieder aus. `capture_features.py` erzeugt zusätzlich Handy-Bilder von Home Assistant (`ha-handy-*.png`), die nicht in der Dokumentation verwendet werden.
 
 Die Bilder werden danach auf 256 Farben verkleinert (Pillow, `optimize=True`), das hält das Repository klein.
 

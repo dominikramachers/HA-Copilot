@@ -4,7 +4,7 @@ OUT = sys.argv[1]
 DEMO_ID = "0123456789abcdef0123456789abcdef"; H = {"X-Remote-User-Id": DEMO_ID}
 def open_chat(pg, project, chat):
     pg.locator(".project-row", has_text=project).first.click(); pg.wait_for_timeout(300)
-    pg.locator(".row.chat-item", has_text=chat).first.click(); pg.wait_for_timeout(1200)
+    pg.locator(".row.chat-item", has_text=chat).first.click(); pg.mouse.move(900, 400); pg.wait_for_timeout(1200)
 with sync_playwright() as p:
     b = p.chromium.launch()
     for scheme, name in (("light", "chat-hell"), ("dark", "chat-dunkel")):

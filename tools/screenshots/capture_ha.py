@@ -40,7 +40,7 @@ with sync_playwright() as p:
         pg.goto(HA + "/ha-copilot-panel"); pg.wait_for_timeout(5000)
         fr = pg.frame_locator("iframe")
         try:
-            fr.locator(".project-row", has_text="Haus").first.click(); pg.wait_for_timeout(400); fr.locator(".row.chat-item", has_text="Lichter").first.click(); pg.wait_for_timeout(1500)
+            fr.locator(".project-row", has_text="Haus").first.click(); pg.wait_for_timeout(400); fr.locator(".row.chat-item", has_text="Lichter").first.click(); pg.mouse.move(1000, 400); pg.wait_for_timeout(1500)
         except Exception as e:
             print("click chat failed", e)
         pg.screenshot(path=f"{OUT}/ha-copilot-im-panel{suffix}.png")

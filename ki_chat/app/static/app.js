@@ -116,13 +116,14 @@ function closeSheet(result) {
 // Ein Fenster von unten für drei Fälle: Bestätigen, Text eingeben, aus einer Liste wählen (``items``).
 // Ergebnis: ``null`` bei Abbruch, sonst true, der Text oder der ``value`` des gewählten Eintrags.
 let sheetMultiline = false;
-function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null }) {
+function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false }) {
   return new Promise((resolve) => {
     if (sheetDone) closeSheet(null);
     sheetDone = resolve;
     sheetOnOk = onOk;
     $("sheet-title").textContent = title;
     $("sheet-sub").textContent = sub;
+    $("sheet").dataset.plain = plain ? "1" : "";
     $("sheet").dataset.kind = panel ? "panel" : items ? "list" : multiline ? "multiline" : value !== null ? "input" : "confirm";
     const field = $("sheet-label");
     field.textContent = label;
@@ -142,7 +143,7 @@ function openSheet({ title, sub = "", label = "", value = null, placeholder = ""
     const list = $("sheet-list");
     list.replaceChildren();
     list.hidden = !items;
-    $("sheet-actions").hidden = !!items;
+    $("sheet-actions").hidden = !!items || plain;
     $("sheet-cancel").hidden = !!panel && !onOk;
     const body = $("sheet-panel");
     body.replaceChildren();
@@ -519,8 +520,48 @@ function chatRow(chat, meta = "") {
   }
   item.append(actionButton(tr("Aktionen"), "more", "more", (button) => chatMenu(chat, button)));
   activate(item, () => selectChat(chat.id));
+  hoverTip(item, () => ({ title: chat.title, sub: chat.updated_at ? tr("Letzte Aktivität: {0}", ago(Date.parse(chat.updated_at) / 1000)) : "" }));
   return item;
 }
+
+// Hover-Hinweis wie in Claude: bleibt die Maus etwa eine Sekunde auf einem Eintrag, erscheint rechts daneben der volle Name
+// mit dem Zeitpunkt der letzten Aktivität. Nur mit Maus (nicht am Touchscreen); jeder Klick, Scroll oder Menü schließt ihn.
+const TIP_DELAY = 800;
+let tipEl = null;
+let tipTimer = 0;
+
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipTimer = 0;
+  tipEl?.remove();
+  tipEl = null;
+}
+
+function hoverTip(item, describe) {
+  if (!window.matchMedia("(hover: hover)").matches) return;
+  item.addEventListener("mouseenter", () => {
+    hideTip();
+    tipTimer = setTimeout(() => {
+      if (pop || sheetDone || !item.isConnected) return;
+      const { title, sub } = describe();
+      tipEl = node("div", "hover-tip");
+      tipEl.setAttribute("role", "tooltip");
+      tipEl.append(node("div", "tip-title", title));
+      if (sub) tipEl.append(node("div", "tip-sub", sub));
+      document.body.append(tipEl);
+      const rect = item.getBoundingClientRect();
+      const box = tipEl.getBoundingClientRect();
+      const x = Math.min(rect.right + 8, window.innerWidth - box.width - 8);
+      const y = Math.max(8, Math.min(rect.top + (rect.height - box.height) / 2, window.innerHeight - box.height - 8));
+      tipEl.style.left = `${Math.max(8, x)}px`;
+      tipEl.style.top = `${y}px`;
+    }, TIP_DELAY);
+  });
+  item.addEventListener("mouseleave", hideTip);
+  item.addEventListener("click", hideTip);
+}
+document.addEventListener("scroll", hideTip, true);
+document.addEventListener("keydown", hideTip, true);
 
 function sectionHead(label, extra = null) {
   const head = node("div", "sec-head");
@@ -2358,6 +2399,80 @@ function useChatModel(chat) {
   markTools();
 }
 
+const MODEL_HINTS = { sonnet: tr("Am effizientesten für einfachere Aufgaben"), opus: tr("Für komplexe Arbeit und alltägliche Aufgaben"), haiku: tr("Am schnellsten für schnelle Antworten") };
+const modelHint = (id) => MODEL_HINTS[Object.keys(MODEL_HINTS).find((family) => id.includes(family))] || "";
+
+// Handy: Fenster „Modell auswählen“ wie in Claude (Modelle mit Kurzbeschreibung, „Aufwand“ als zweite Seite, Websuche).
+async function phoneToolsMenu() {
+  const me = state.me;
+  const models = me.models || [];
+  const current = effectiveModel();
+  const button = $("tools");
+  button.setAttribute("aria-expanded", "true");
+  let choice;
+  try {
+    choice = await openSheet({
+      title: tr("Modell auswählen"),
+      plain: true,
+      panel: (body) => {
+        const row = (cls, ...children) => {
+          const b = node("button", cls);
+          b.type = "button";
+          b.append(...children);
+          return b;
+        };
+        const pick = (value) => () => closeSheet(value);
+        const main = () => {
+          $("sheet-title").textContent = models.length > 1 ? tr("Modell auswählen") : tr("Modell, Aufwand und Websuche");
+          body.replaceChildren();
+          if (models.length > 1) {
+            const card = node("div", "mm-card");
+            for (const m of models) {
+              const text = node("span", "mm-text");
+              text.append(node("span", "mm-name", m.label));
+              if (modelHint(m.id)) text.append(node("span", "mm-hint", modelHint(m.id)));
+              const r = row("mm-row", text, ...(m.id === current ? [icon("check")] : []));
+              r.addEventListener("click", pick(`model:${m.id}`));
+              card.append(r);
+            }
+            body.append(card);
+          }
+          const effort = row("mm-link", node("span", "mm-name", tr("Aufwand")), node("span", "mm-detail", effortLabel(state.effort)), icon("chevron"));
+          effort.addEventListener("click", effortPage);
+          body.append(effort);
+          if (me.web) {
+            const sw = node("span", "pop-switch" + (state.web ? " on" : ""));
+            sw.setAttribute("aria-hidden", "true");
+            const web = row("mm-link", node("span", "mm-name", tr("Websuche")), sw);
+            web.setAttribute("role", "menuitemcheckbox");
+            web.setAttribute("aria-checked", String(state.web));
+            web.addEventListener("click", pick("web"));
+            body.append(web);
+          }
+        };
+        const effortPage = () => {
+          $("sheet-title").textContent = tr("Aufwand");
+          body.replaceChildren();
+          const back = row("mm-back", icon("chevron"), node("span", "", tr("Zurück")));
+          back.addEventListener("click", main);
+          const card = node("div", "mm-card");
+          for (const [value, label] of EFFORTS) {
+            const r = row("mm-row", node("span", "mm-text", label), ...(value === state.effort ? [icon("check")] : []));
+            r.firstChild.className = "mm-text mm-name";
+            r.addEventListener("click", pick(`effort:${value}`));
+            card.append(r);
+          }
+          body.append(back, card);
+        };
+        main();
+      },
+    });
+  } finally {
+    button.setAttribute("aria-expanded", "false");
+  }
+  return choice;
+}
+
 // Menü am Knopf unter dem Eingabefeld wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs, Websuche.
 // Auf dem Handy dieselben Punkte als flache Liste.
 async function toolsMenu() {
@@ -2365,28 +2480,25 @@ async function toolsMenu() {
   const models = me.models || [];
   const current = effectiveModel();
   const several = models.length > 1;
-  const entries = [];
-  if (wideScreen()) {
+  let choice;
+  if (!wideScreen()) {
+    choice = await phoneToolsMenu();
+  } else {
+    const entries = [];
     if (several) entries.push({ value: `model:${current}`, label: modelLabel(current), active: true });
     entries.push({ label: tr("Aufwand"), detail: effortLabel(state.effort), submenu: EFFORTS.map(([value, label]) => ({ value: `effort:${value}`, label, active: value === state.effort })) });
     if (several) entries.push({ label: tr("Weitere Modelle"), submenu: models.filter((m) => m.id !== current).map((m) => ({ value: `model:${m.id}`, label: m.label })) });
-  } else {
-    if (several) for (const m of models) entries.push({ value: `model:${m.id}`, label: m.label, active: m.id === current });
-    for (const [value, label] of EFFORTS) entries.push({ value: `effort:${value}`, label: tr("Aufwand: {0}", label), active: value === state.effort });
-  }
-  if (me.web) {
-    if (wideScreen()) entries.push({ divider: true });
-    entries.push({ value: "web", icon: "globe", label: tr("Websuche"), active: state.web, toggle: state.web });
-  }
-  const button = $("tools");
-  button.setAttribute("aria-expanded", "true");
-  let choice;
-  try {
-    choice = wideScreen()
-      ? await openPopover(button, entries, {})
-      : await openSheet({ title: tr("Modell, Aufwand und Websuche"), items: entries });
-  } finally {
-    button.setAttribute("aria-expanded", "false");
+    if (me.web) {
+      entries.push({ divider: true });
+      entries.push({ value: "web", icon: "globe", label: tr("Websuche"), active: state.web, toggle: state.web });
+    }
+    const button = $("tools");
+    button.setAttribute("aria-expanded", "true");
+    try {
+      choice = await openPopover(button, entries, {});
+    } finally {
+      button.setAttribute("aria-expanded", "false");
+    }
   }
   if (typeof choice === "string" && choice.startsWith("model:")) {
     state.model = choice.slice(6);
