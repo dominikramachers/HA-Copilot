@@ -160,7 +160,6 @@
  "Vollbild": "Full screen",
  "Schließen": "Close",
  "Vorschau (ohne Netzwerkzugriff)": "Preview (no network access)",
- "Als Datei": "As file",
  "antwort.md": "answer.md",
  "Kopieren": "Copy",
  "Kopiert": "Copied",
@@ -465,5 +464,7 @@
  "Diese Nachricht lässt sich gerade nicht bearbeiten.": "This message cannot be edited right now.",
  "Spätere Nachrichten in diesem Chat werden durch die neue Antwort ersetzt.": "Later messages in this chat will be replaced by the new answer.",
  "Angehängte Dateien werden nicht übernommen. Hänge sie bei Bedarf neu an.": "Attached files are not carried over. Attach them again if needed.",
- "Abbrechen": "Cancel"
+ "Abbrechen": "Cancel",
+ "Antwort kopieren": "Copy answer",
+ "Als Datei speichern": "Save as file"
 }

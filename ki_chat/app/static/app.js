@@ -1357,31 +1357,6 @@ async function togglePreview(pre, button, html) {
 
 window.kiFile = { save: saveFile, preview: togglePreview };
 
-function downloadButton(getText) {
-  const button = node("button", "tool-btn");
-  button.type = "button";
-  button.append(icon("download"), document.createTextNode(tr("Als Datei")));
-  button.addEventListener("click", () => { saveFile(tr("antwort.md"), getText(), "text/markdown").catch(() => toast(tr("Speichern hat nicht geklappt."))); });
-  return button;
-}
-
-function copyButton(getText) {
-  const button = node("button", "tool-btn");
-  button.type = "button";
-  const label = () => button.replaceChildren(icon("copy"), document.createTextNode(tr("Kopieren")));
-  label();
-  button.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(getText());
-      button.replaceChildren(icon("check"), document.createTextNode(tr("Kopiert")));
-    } catch {
-      button.replaceChildren(document.createTextNode(tr("Nicht möglich")));
-    }
-    setTimeout(label, 1600);
-  });
-  return button;
-}
-
 function fileChip(file, removable) {
   const chip = node("div", "file-chip");
   const thumb = node("span", "file-thumb");
@@ -1652,6 +1627,35 @@ async function stampMessages(chatId) {
   } catch { /* der Stift erscheint nach dem nächsten Laden */ }
 }
 
+// Unter einer Antwort: Kopieren und „Als Datei“ als dezente Symbole (nur bei der letzten Antwort dauerhaft, sonst beim
+// Darüberfahren) und, nur beim Darüberfahren, wann die Antwort fertig wurde.
+function answerMeta(text, el) {
+  const bar = node("div", "msg-meta answer-meta");
+  const copy = actionButton(tr("Antwort kopieren"), "copy", "msg-act", async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.replaceChildren(icon("check"));
+      setTimeout(() => copy.replaceChildren(icon("copy")), 1600);
+    } catch { toast(tr("Kopieren nicht möglich.")); }
+  });
+  const save = actionButton(tr("Als Datei speichern"), "download", "msg-act", () => {
+    saveFile(tr("antwort.md"), text, "text/markdown").catch(() => toast(tr("Speichern hat nicht geklappt.")));
+  });
+  const time = node("span", "msg-time");
+  const refresh = () => { time.textContent = sentAgo(el.dataset.at); time.title = exactTime(el.dataset.at); };
+  refresh();
+  el.addEventListener("pointerenter", refresh);
+  el.addEventListener("focusin", refresh);
+  bar.append(copy, save, time);
+  return bar;
+}
+
+// Nur die letzte Antwort zeigt ihre Symbole dauerhaft.
+function markLastAnswer() {
+  const all = $("thread").querySelectorAll(".msg.assistant:not(.pending)");
+  all.forEach((el, i) => el.classList.toggle("last-answer", i === all.length - 1));
+}
+
 function messageEl(role, text, files = [], actions = [], meta = {}) {
   if (role === "user") return userMessage(text, files, meta);
   const el = node("div", `msg ${role}`);
@@ -1659,9 +1663,14 @@ function messageEl(role, text, files = [], actions = [], meta = {}) {
     if (actions.length) el.append(actionsEl(actions));
     el.append(window.renderMarkdown(text));
     if (actions.some((a) => a.file)) el.append(fileCardsEl(actions));
-    const tools = node("div", "msg-tools");
-    tools.append(copyButton(() => text), downloadButton(() => text));
-    el.append(tools);
+    const at = meta.at || new Date().toISOString();
+    el.dataset.at = at;
+    el.append(answerMeta(text, el));
+    // Touchscreen: Antippen der Antwort blendet die Leiste mit dem Zeitpunkt ein oder aus.
+    el.addEventListener("click", (event) => {
+      if (!window.matchMedia("(hover: none)").matches || window.getSelection()?.toString() || event.target.closest("a, button, pre, table, summary")) return;
+      el.classList.toggle("show-meta");
+    });
   } else {
     el.textContent = text;
   }
@@ -1693,6 +1702,7 @@ function renderMessages(messages) {
     if (!m.summarized) seenLive = true;
     thread.append(messageEl(m.role, m.content, m.attachments || [], m.tools || [], { id: m.id, at: m.created_at }));
   }
+  markLastAnswer();
 }
 
 async function selectChat(id) {
@@ -2264,6 +2274,7 @@ async function settleRun(run, bubble, out, view = {}) {
   }
   if (out.answer) bubble.replaceWith(messageEl("assistant", out.answer, [], out.actions));
   else bubble.remove();
+  markLastAnswer();
   if (out.failure) {
     if (!out.answer) {
       // Nichts gespeichert: Frage samt Dateien zurück ins Eingabefeld.

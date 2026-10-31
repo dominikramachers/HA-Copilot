@@ -4,7 +4,7 @@ OUT = sys.argv[1]
 DEMO_ID = "0123456789abcdef0123456789abcdef"; H = {"X-Remote-User-Id": DEMO_ID}
 def open_chat(pg, project, chat):
     pg.locator(".project-row", has_text=project).first.click(); pg.wait_for_timeout(300)
-    pg.locator(".row.chat-item", has_text=chat).first.click(); pg.mouse.move(900, 400); pg.wait_for_timeout(1200)
+    pg.locator(".row.chat-item", has_text=chat).first.click(); pg.mouse.move(900, 620); pg.wait_for_timeout(1200)
 with sync_playwright() as p:
     b = p.chromium.launch()
     for scheme, name in (("light", "chat-hell"), ("dark", "chat-dunkel")):
@@ -20,6 +20,14 @@ with sync_playwright() as p:
             pg.screenshot(path=f"{OUT}/nachricht-zeit.png", clip=clip)
             pg.locator(".msg-edit-btn").first.click(); pg.wait_for_timeout(400)
             pg.screenshot(path=f"{OUT}/nachricht-bearbeiten.png", clip=clip)
+            pg.locator(".msg-edit .pill.ghost").click(); pg.wait_for_timeout(300)
+            # Antwort: Kopieren und „Als Datei“ (bei der letzten Antwort dauerhaft), der Zeitpunkt nur beim Darüberfahren
+            pg.mouse.move(5, 5); pg.wait_for_timeout(200)
+            pg.evaluate("document.querySelector('.msg.assistant').dataset.at = new Date(Date.now() - 31 * 60000).toISOString()")
+            answer = pg.locator(".msg.assistant").first
+            answer.hover(); pg.wait_for_timeout(500)
+            box = answer.bounding_box()
+            pg.screenshot(path=f"{OUT}/antwort-zeit.png", clip={"x": box["x"] - 20, "y": box["y"] + box["height"] - 120, "width": 700, "height": 150})
         c.close()
     c = b.new_context(viewport={"width": 390, "height": 800}, device_scale_factor=2, is_mobile=True, has_touch=True, locale="de-DE", extra_http_headers=H)
     pg = c.new_page(); pg.goto("http://127.0.0.1:8099/"); pg.wait_for_timeout(900)
