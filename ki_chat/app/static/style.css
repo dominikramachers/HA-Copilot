@@ -340,6 +340,41 @@
 .send.stop { background: var(--text); color: var(--bg); }
 .send:disabled { opacity: .4; cursor: default; }
 
+/* ---------- Handy (schmal): Eingabe wie in Claude ----------
+   Ein großes rundes Feld: oben der Text, unten in der Reihe Anhängen (und in HA das Chats-Symbol), Modell/Aufwand und rechts Senden.
+   Die Fußzeile liegt dafür über dem unteren Rand des Feldes; Klicks auf freie Stellen gehen durch. */
+@media (max-width: 639px) {
+  .composer { padding: 6px 12px calc(8px + env(safe-area-inset-bottom)); }
+  .composer-box { position: relative; padding: 8px 12px 52px 16px; border-radius: 26px; }
+  .composer textarea { padding: 6px 0; }
+  .composer-main .send { position: absolute; right: 9px; bottom: 9px; width: 40px; height: 40px; border-radius: 50%; margin: 0; }
+  .composer-foot { position: relative; z-index: 2; height: 40px; min-height: 0; margin: -49px auto 9px; padding: 0 9px; gap: 8px; pointer-events: none; }
+  .composer-foot > * { pointer-events: auto; }
+  .composer-foot .attach { width: 40px; height: 40px; border-radius: 50%; background: var(--chip); color: var(--text-2); }
+  .composer-foot .tools-btn { margin-left: 0; height: 40px; padding: 0 16px; border-radius: 999px; background: var(--chip); font-size: 15px; }
+  .composer-foot .tools-btn:hover, .composer-foot .tools-btn[aria-expanded="true"] { background: var(--panel-2); }
+}
+
+/* Handy: Fenster „Modell auswählen“ (Modelle mit Kurzbeschreibung, Aufwand, Websuche) */
+.sheet[data-plain="1"] .sheet-head { position: relative; justify-content: center; min-height: 44px; margin-bottom: 14px; }
+.sheet[data-plain="1"] .sheet-head h3 { position: absolute; left: 56px; right: 56px; text-align: center; font-size: 17px; flex: none; }
+.sheet[data-plain="1"] .sheet-close { display: grid; position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: 0; border-radius: 50%; background: var(--chip); color: var(--text); }
+.mm-card { border-radius: var(--r-3); background: var(--panel); border: 1px solid var(--line); overflow: hidden; }
+.mm-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; text-align: left; }
+.mm-row + .mm-row { border-top: 1px solid var(--line); }
+.mm-row:active, .mm-link:active { background: var(--chip); }
+.mm-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.mm-name { font-size: 17px; font-weight: 500; }
+.mm-hint { font-size: 14px; color: var(--text-2); }
+.mm-row > .icon { flex: none; width: 22px; height: 22px; color: var(--accent); }
+.mm-link { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 15px 16px; border-radius: var(--r-3); background: var(--panel); border: 1px solid var(--line); text-align: left; }
+.mm-link .mm-name { flex: 1; }
+.mm-detail { color: var(--muted); font-size: 16px; }
+.mm-link > .icon { flex: none; width: 17px; height: 17px; color: var(--muted); }
+.mm-link .pop-switch { flex: none; }
+.mm-back { display: flex; align-items: center; gap: 6px; margin: 0 0 10px -4px; padding: 6px 8px; border-radius: var(--r-1); color: var(--text-2); font-size: 15px; }
+.mm-back > .icon { width: 16px; height: 16px; transform: rotate(180deg); }
+
 /* ---------- Bottom-Sheet (wie die Popups der Dashboards) ---------- */
 .scrim { position: fixed; inset: 0; z-index: 40; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity .2s; }
 .scrim.show { opacity: 1; pointer-events: auto; }
@@ -485,6 +520,13 @@
   :root[data-embed="ha"] .sidebar > .grip { display: block; margin: 10px auto 2px; flex: none; }
   :root[data-embed="ha"] .side-head { padding: 6px 12px 4px; }
   :root[data-embed="ha"] .ic-menu { display: none; }
+}
+
+/* Handy im Web: Kopfzeile ohne Balken; nur runde Knöpfe (Chats links, Neuer Chat rechts) und, wenn vorhanden, der Titel dazwischen */
+@media (max-width: 639px) {
+  :root[data-embed="web"] .topbar { background: transparent; border-bottom: 0; min-height: 60px; }
+  :root[data-embed="web"] .round-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--panel); }
+  :root[data-embed="web"] .round-btn:hover { background: var(--chip); }
 }
 
 /* In HA liegt unter der Seite ein Streifen von Home Assistant selbst (iPhone: Bereich der Home-Anzeige).
