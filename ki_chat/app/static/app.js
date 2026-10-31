@@ -520,8 +520,48 @@ function chatRow(chat, meta = "") {
   }
   item.append(actionButton(tr("Aktionen"), "more", "more", (button) => chatMenu(chat, button)));
   activate(item, () => selectChat(chat.id));
+  hoverTip(item, () => ({ title: chat.title, sub: chat.updated_at ? tr("Letzte Aktivität: {0}", ago(Date.parse(chat.updated_at) / 1000)) : "" }));
   return item;
 }
+
+// Hover-Hinweis wie in Claude: bleibt die Maus etwa eine Sekunde auf einem Eintrag, erscheint rechts daneben der volle Name
+// mit dem Zeitpunkt der letzten Aktivität. Nur mit Maus (nicht am Touchscreen); jeder Klick, Scroll oder Menü schließt ihn.
+const TIP_DELAY = 800;
+let tipEl = null;
+let tipTimer = 0;
+
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipTimer = 0;
+  tipEl?.remove();
+  tipEl = null;
+}
+
+function hoverTip(item, describe) {
+  if (!window.matchMedia("(hover: hover)").matches) return;
+  item.addEventListener("mouseenter", () => {
+    hideTip();
+    tipTimer = setTimeout(() => {
+      if (pop || sheetDone || !item.isConnected) return;
+      const { title, sub } = describe();
+      tipEl = node("div", "hover-tip");
+      tipEl.setAttribute("role", "tooltip");
+      tipEl.append(node("div", "tip-title", title));
+      if (sub) tipEl.append(node("div", "tip-sub", sub));
+      document.body.append(tipEl);
+      const rect = item.getBoundingClientRect();
+      const box = tipEl.getBoundingClientRect();
+      const x = Math.min(rect.right + 8, window.innerWidth - box.width - 8);
+      const y = Math.max(8, Math.min(rect.top + (rect.height - box.height) / 2, window.innerHeight - box.height - 8));
+      tipEl.style.left = `${Math.max(8, x)}px`;
+      tipEl.style.top = `${y}px`;
+    }, TIP_DELAY);
+  });
+  item.addEventListener("mouseleave", hideTip);
+  item.addEventListener("click", hideTip);
+}
+document.addEventListener("scroll", hideTip, true);
+document.addEventListener("keydown", hideTip, true);
 
 function sectionHead(label, extra = null) {
   const head = node("div", "sec-head");

@@ -4,6 +4,7 @@
 - **Handy: Eingabe wie in Claude.** Ein großes rundes Feld: oben der Text, darunter in einer Reihe die runde Büroklammer (in Home Assistant davor das Chats-Symbol), der Knopf mit Modell und Aufwand und rechts der runde Senden-Knopf. Laptop und Tablet bleiben unverändert.
 - **Handy: Fenster „Modell auswählen“** wie in Claude: alle Modelle mit Kurzbeschreibung und Haken, darunter „Aufwand“ (zweite Seite mit Niedrig, Mittel, Hoch) und die Websuche.
 - **Handy im Web: Kopfzeile ohne Balken.** Nur noch runde Knöpfe für die Chat-Liste (links, Symbol wie in Claude) und „Neuer Chat“ (rechts). In der Home-Assistant-App bleibt das Chats-Symbol in der Eingabe.
+- **Chatliste:** Ein kleiner Kreisel hinter dem Namen zeigt, dass in diesem Chat gerade geantwortet wird (am Computer und am Handy; ein Punkt für „Wartet auf Bestätigung“ bzw. „Ungelesen“ wie bisher). Die drei Punkte erscheinen am Computer nur noch beim Darüberfahren, am Touchscreen bleiben sie sichtbar. Lange Namen enden nicht mehr mit „…“, sondern blenden in der Schriftfarbe aus. Bleibt die Maus etwa eine Sekunde auf einem Chat, zeigt ein Hinweis den vollen Namen und die letzte Aktivität.
 - Keine neuen Optionen, keine Änderung an bestehender Konfiguration.
 
 ## 0.27.4

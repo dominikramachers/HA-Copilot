@@ -290,6 +290,7 @@
  "{0} ist zu {1} % verbraucht.": "{0} is {1} % used up.",
  "{0} ist fast erreicht.": "{0} is almost reached.",
  "Modell": "Model",
+ "Letzte Aktivität: {0}": "Last activity: {0}",
  "Am schnellsten für schnelle Antworten": "Fastest for quick answers",
  "Für komplexe Arbeit und alltägliche Aufgaben": "For complex work and everyday tasks",
  "Am effizientesten für einfachere Aufgaben": "Most efficient for simpler tasks",

@@ -64,20 +64,26 @@
 .row { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 4px 0 12px; border-radius: var(--r-2); cursor: pointer; transition: background .15s; }
 .row:hover { background: var(--chip); }
 .row.active { background: var(--chip); }
-.row .name { flex: 1; min-width: 0; padding: 9px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 500; }
+.row .name { flex: 1; min-width: 0; padding: 9px 0; overflow: hidden; text-overflow: clip; white-space: nowrap; font-size: 15px; font-weight: 500; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent); }
 .row.active .name { font-weight: 600; }
 .row.menu-open { background: var(--chip); }
 .row.menu-open .more { opacity: 1; }
+/* Hover-Hinweis zu einem Chat: voller Name und letzte Aktivität */
+.hover-tip { position: fixed; z-index: 60; max-width: 340px; padding: 10px 14px; border-radius: var(--r-3); background: var(--sheet); border: 1px solid var(--line-2); box-shadow: 0 6px 24px rgba(0, 0, 0, .28); pointer-events: none; animation: tip-in .12s ease-out; }
+.tip-title { font-size: 14.5px; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
+.tip-sub { margin-top: 3px; font-size: 13px; color: var(--muted); }
+@keyframes tip-in { from { opacity: 0; transform: translateX(-3px); } }
 /* Ungelesen: Name kräftiger, Punkt in der Akzentfarbe vor den Aktionen */
 .row.unread .name { font-weight: 650; color: var(--text); }
-.run-spin { flex: none; width: 12px; height: 12px; margin: 0 5px 0 3px; border: 2px solid var(--line, rgba(128,128,128,.35)); border-top-color: var(--accent); border-radius: 50%; animation: run-spin 0.9s linear infinite; }
+.run-spin { flex: none; width: 14px; height: 14px; margin: 0 5px 0 3px; border: 2px solid var(--line, rgba(128,128,128,.35)); border-top-color: var(--accent); border-radius: 50%; animation: run-spin 0.9s linear infinite; }
 @keyframes run-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .run-spin { animation: none; border-color: var(--accent); } }
 .row.running .name { color: var(--text); }
 .unread-dot { flex: none; width: 8px; height: 8px; margin: 0 6px 0 4px; border-radius: 50%; background: var(--accent); }
 .row .meta { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
 .row .more { flex: none; width: 30px; height: 30px; border-radius: var(--r-1); opacity: 0; }
-.row:hover .more, .row.active .more, .row:focus-within .more, .row .more:focus-visible { opacity: 1; }
+.row:hover .more, .row:focus-within .more, .row .more:focus-visible { opacity: 1; }
+@media (hover: none) { .row .more { opacity: 1; } }
 .row .more .icon { stroke-width: 3; }
 .row .more .icon path[d^="M12 5"] { stroke-width: 2.2; }
 .project-row .more { width: 28px; }
@@ -491,7 +497,6 @@
   .thread { padding: 8px 16px 20px; }
   .thread.empty { padding-bottom: 4vh; }
   .hello h2 { font-size: 34px; }
-  .row .more { opacity: 1; }
 
   /* Im Web: ganz normales Seitenmenü von links */
   :root[data-embed="web"] .sidebar {

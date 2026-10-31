@@ -133,6 +133,9 @@ def test_page_has_dock_above_input_and_shortcut_hints(client):
     css = client.get("/static/style.css").text
     assert "margin: -49px auto 9px" in css and 'data-embed="web"] .topbar { background: transparent; border-bottom: 0;' in css
     assert "phoneToolsMenu" in script and "effortPage" in script
+    # Chatliste: Hover-Hinweis mit Name und letzter Aktivität, Namen blenden aus, Punkte nur beim Hovern
+    assert "function hoverTip" in script and "Letzte Aktivität: {0}" in script and "runningMark()" in script
+    assert "text-overflow: clip" in css and "mask-image: linear-gradient(to right" in css and ".row.active .more" not in css
 
 
 def test_page_knows_it_is_embedded_in_ha(client):
