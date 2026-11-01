@@ -547,7 +547,7 @@ Geprüft wurde der gesamte Code von Hand und mit Tests: Anmeldung über Entra un
 ## Tests
 
 ```
-cd ki_chat
+cd copilot
 pip install fastapi uvicorn httpx websockets 'pyjwt[crypto]' pypdf pytest pyyaml claude-agent-sdk -r requirements-files.txt  # die Office-Bibliotheken braucht ab 0.18.0 auch der Test der Dateierzeugung
 python -m pytest
 ```

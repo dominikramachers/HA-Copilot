@@ -75,7 +75,7 @@ Setze danach `backend` auf `claude`. Bis dahin läuft das Add-on im **Testmodus*
 
 Beides gehört **nur** in diese Konfiguration, nie in Chats, Repositories oder Screenshots. Die Felder sind maskiert.
 
-Mit einem Abo-Token die zusätzliche Nutzung („Extra usage“) in den Claude-Einstellungen ausgeschaltet lassen, damit nichts extra kostet. Mehr dazu in der [Dokumentation](../ki_chat/DOCS.md#abrechnung).
+Mit einem Abo-Token die zusätzliche Nutzung („Extra usage“) in den Claude-Einstellungen ausgeschaltet lassen, damit nichts extra kostet. Mehr dazu in der [Dokumentation](../copilot/DOCS.md#abrechnung).
 
 ## 5. Starten
 
@@ -106,7 +106,7 @@ Unten links im Konto-Menü des Chats steht **Einrichtungsprüfung**. Sie zeigt, 
 
 ## Updates
 
-Neue Versionen erscheinen als Release auf GitHub. Home Assistant zeigt sie im Add-on als **Update** an (bei Bedarf unter **Add-on-Store → ⋮ → Nach Updates suchen**). Ein Update ändert deine Konfiguration nie: Neue Optionen sind immer optional und haben einen Standardwert. Was neu ist, steht im Reiter **Änderungsprotokoll** und im [CHANGELOG](../ki_chat/CHANGELOG.md). Vor einem Update legt das Add-on bei neuer Datenbankversion automatisch einen Schnappschuss an. Du kannst in der Add-on-Info zusätzlich „Automatisch aktualisieren“ einschalten oder vorher eine Sicherung anlegen (empfohlen).
+Neue Versionen erscheinen als Release auf GitHub. Home Assistant zeigt sie im Add-on als **Update** an (bei Bedarf unter **Add-on-Store → ⋮ → Nach Updates suchen**). Ein Update ändert deine Konfiguration nie: Neue Optionen sind immer optional und haben einen Standardwert. Was neu ist, steht im Reiter **Änderungsprotokoll** und im [CHANGELOG](../copilot/CHANGELOG.md). Vor einem Update legt das Add-on bei neuer Datenbankversion automatisch einen Schnappschuss an. Du kannst in der Add-on-Info zusätzlich „Automatisch aktualisieren“ einschalten oder vorher eine Sicherung anlegen (empfohlen).
 
 Meldet Home Assistant beim Suchen nach Updates „Unknown error, see supervisor logs“, ist das ein Zeitlimit von Home Assistant beim Neuladen des Stores und kein Fehler des Add-ons. Das Update wird trotzdem gefunden.
 

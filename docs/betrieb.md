@@ -10,7 +10,7 @@
 | Sicherungen geänderter Automationen, Skripte, Szenen, Dashboards | `/data/ha-backups/` (die letzten 60) |
 | Eigenes Logo, Symbol, `custom.css`, Export-Datei | Ordner `addon_config`, in Home Assistant unter `/addon_configs/<Kennung>/` (Samba-Freigabe `addon_configs` oder Datei-Editor) |
 
-Anhänge: Mit der Option `files_edit` (Standard) liegt eine Kopie für `files_keep_days` Tage in `/data/outfiles` (und damit in der Sicherung); mit `files_edit: false` werden Anhänge **nie** gespeichert, siehe [Anhänge und Speicherplatz](../ki_chat/DOCS.md#anhänge-und-speicherplatz).
+Anhänge: Mit der Option `files_edit` (Standard) liegt eine Kopie für `files_keep_days` Tage in `/data/outfiles` (und damit in der Sicherung); mit `files_edit: false` werden Anhänge **nie** gespeichert, siehe [Anhänge und Speicherplatz](../copilot/DOCS.md#anhänge-und-speicherplatz).
 
 ## Sicherung
 
@@ -32,7 +32,7 @@ Zusätzlich legt das Add-on etwa einmal am Tag einen geprüften Schnappschuss an
 
 ## Updates
 
-Neue Versionen erscheinen als Release auf GitHub; Home Assistant zeigt sie im Add-on als Update. Vor dem Update empfiehlt sich eine Sicherung (im Update-Dialog ankreuzen). Konfiguration und Daten bleiben erhalten; neue Optionen sind immer optional. Was sich geändert hat, steht im Reiter **Änderungsprotokoll** und im [CHANGELOG](../ki_chat/CHANGELOG.md).
+Neue Versionen erscheinen als Release auf GitHub; Home Assistant zeigt sie im Add-on als Update. Vor dem Update empfiehlt sich eine Sicherung (im Update-Dialog ankreuzen). Konfiguration und Daten bleiben erhalten; neue Optionen sind immer optional. Was sich geändert hat, steht im Reiter **Änderungsprotokoll** und im [CHANGELOG](../copilot/CHANGELOG.md).
 
 Nach „Nach Updates suchen“ kann ein Dialog „Unknown error, see supervisor logs“ erscheinen. Das ist ein Zeitlimit von Home Assistant beim Neuladen des Stores und kein Fehler des Add-ons; das Update wird trotzdem gefunden.
 
@@ -88,9 +88,9 @@ Das Deinstallieren des Add-ons löscht seine Daten (Chats, Schnappschüsse). Vor
 ## Entwicklung und Tests
 
 ```bash
-cd ki_chat
+cd copilot
 pip install -r requirements.txt pytest pyyaml
 python -m pytest -q
 ```
 
-Die Tests laufen ohne Claude-Zugang. Jede Änderung muss in `ki_chat/config.yaml` die Version erhöhen und im [CHANGELOG](../ki_chat/CHANGELOG.md) stehen. Die Seite [Alle Einstellungen](einstellungen.md) wird aus `config.yaml` und `translations/de.yaml` erzeugt (`python tools/gen_options_doc.py`); ein Test schlägt fehl, wenn sie nicht mehr dazu passt.
+Die Tests laufen ohne Claude-Zugang. Jede Änderung muss in `copilot/config.yaml` die Version erhöhen und im [CHANGELOG](../copilot/CHANGELOG.md) stehen. Die Seite [Alle Einstellungen](einstellungen.md) wird aus `config.yaml` und `translations/de.yaml` erzeugt (`python tools/gen_options_doc.py`); ein Test schlägt fehl, wenn sie nicht mehr dazu passt.

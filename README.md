@@ -26,8 +26,8 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 | [Funktionen](docs/funktionen.md) | Chat, Projekte, Suche, Home Assistant, GitHub, Gedächtnis, geplante Aufgaben, Dateien |
 | [Domain-Zugang](docs/domain-zugang.md) | Entra-ID-Anmeldung, Cloudflare Tunnel, Anmeldung mit Home Assistant |
 | [Betrieb](docs/betrieb.md) | Sicherung, Wiederherstellung, Umzug, Protokoll, Fehlerbehebung |
-| [Ausführliche Referenz](ki_chat/DOCS.md) | Alles bis ins Einzelne (erscheint auch im Reiter „Dokumentation“ des Add-ons) |
-| [Änderungen](ki_chat/CHANGELOG.md) | Was sich in welcher Version geändert hat |
+| [Ausführliche Referenz](copilot/DOCS.md) | Alles bis ins Einzelne (erscheint auch im Reiter „Dokumentation“ des Add-ons) |
+| [Änderungen](copilot/CHANGELOG.md) | Was sich in welcher Version geändert hat |
 
 ## Funktionen
 
@@ -72,12 +72,12 @@ Du brauchst eigene Zugangsdaten. Sie werden nur in deiner Add-on-Konfiguration g
 - Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil der HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; nur bei Bildern von OpenAI oder Google (eigene Schlüssel nötig) gehen Bildwunsch und Referenzbild an den gewählten Anbieter; sonst an niemanden.
 - Dateianhänge: In der Datenbank stehen Name, Art und Größe. Mit der Option „Dateien bearbeiten“ (Standard) legt das Add-on außer bei Bildern eine Kopie für diesen Chat im Datenordner ab (`files_keep_days` Tage, mit dem Chat gelöscht); mit `files_edit: false` bleiben Anhänge nur im Arbeitsspeicher.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OIDC mit PKCE, serverseitige Sitzungen, Schutz gegen Cross-Site-Anfragen). Das Add-on gibt den Port der Domain-Seite nicht nach außen frei; ein Tunnel (z. B. Cloudflare) ist deine Entscheidung.
-- Das Add-on legt von sich aus keinen Zugang über das Internet an. Wer die Domain-Seite aktiviert, sollte vorher [docs/domain-zugang.md](docs/domain-zugang.md) und [ki_chat/DOCS.md](ki_chat/DOCS.md) lesen.
+- Das Add-on legt von sich aus keinen Zugang über das Internet an. Wer die Domain-Seite aktiviert, sollte vorher [docs/domain-zugang.md](docs/domain-zugang.md) und [copilot/DOCS.md](copilot/DOCS.md) lesen.
 
 ## Entwicklung
 
 ```bash
-cd ki_chat
+cd copilot
 pip install -r requirements.txt pytest pyyaml
 python -m pytest -q
 ```
@@ -86,4 +86,4 @@ Die Tests laufen ohne Claude-Zugang (Test-Backend). Der Testmodus des Add-ons (`
 
 ## Lizenz
 
-[MIT](LICENSE). Mitgelieferte Schriften: Roboto und Atkinson Hyperlegible Mono (jeweils SIL Open Font License 1.1, Lizenztexte unter `ki_chat/app/static/fonts/`).
+[MIT](LICENSE). Mitgelieferte Schriften: Roboto und Atkinson Hyperlegible Mono (jeweils SIL Open Font License 1.1, Lizenztexte unter `copilot/app/static/fonts/`).

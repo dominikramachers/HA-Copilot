@@ -8,9 +8,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
-pytestmark = pytest.mark.skipif(not DOCS.is_dir(), reason="docs/ liegt nicht neben ki_chat/")
+pytestmark = pytest.mark.skipif(not DOCS.is_dir(), reason="docs/ liegt nicht neben copilot/")
 
-PAGES = [ROOT / "README.md", *sorted(DOCS.glob("*.md")), *sorted((DOCS / "screenshots").glob("*.md")), ROOT / "ki_chat" / "DOCS.md"]
+PAGES = [ROOT / "README.md", *sorted(DOCS.glob("*.md")), *sorted((DOCS / "screenshots").glob("*.md")), ROOT / "copilot" / "DOCS.md"]
 LINK = re.compile(r"(?<!\!)\[[^\]]*\]\(([^)\s]+)\)")
 IMAGE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
 
@@ -41,7 +41,7 @@ def test_options_page_is_current():
 
 
 def test_every_option_is_documented():
-    cfg = yaml.safe_load((ROOT / "ki_chat" / "config.yaml").read_text(encoding="utf-8"))
+    cfg = yaml.safe_load((ROOT / "copilot" / "config.yaml").read_text(encoding="utf-8"))
     page = (DOCS / "einstellungen.md").read_text(encoding="utf-8")
     names = set(cfg["schema"]) | set(cfg["schema"]["profiles"][0])
     missing = sorted(n for n in names if f"`{n}`" not in page)
@@ -50,8 +50,8 @@ def test_every_option_is_documented():
 
 def test_every_option_has_a_description_in_both_languages():
     for lang in ("de", "en"):
-        tr = yaml.safe_load((ROOT / "ki_chat" / "translations" / f"{lang}.yaml").read_text(encoding="utf-8"))["configuration"]
-        cfg = yaml.safe_load((ROOT / "ki_chat" / "config.yaml").read_text(encoding="utf-8"))
+        tr = yaml.safe_load((ROOT / "copilot" / "translations" / f"{lang}.yaml").read_text(encoding="utf-8"))["configuration"]
+        cfg = yaml.safe_load((ROOT / "copilot" / "config.yaml").read_text(encoding="utf-8"))
         missing = [k for k in cfg["schema"] if k not in tr]
         assert not missing, f"{lang}.yaml ohne Beschriftung: {missing}"
 
@@ -70,7 +70,7 @@ def test_relative_links_and_images_exist(page):
 
 
 def test_absolute_doc_links_in_addon_docs_point_to_existing_pages():
-    text = (ROOT / "ki_chat" / "DOCS.md").read_text(encoding="utf-8")
+    text = (ROOT / "copilot" / "DOCS.md").read_text(encoding="utf-8")
     for name in re.findall(r"HA-Copilot/blob/main/docs/([\w-]+\.md)", text):
         assert (DOCS / name).exists(), name
 
@@ -86,9 +86,9 @@ def test_screenshots_referenced_exist_and_are_all_used():
 
 
 def test_docs_mention_current_version_and_slug_consistently():
-    cfg = yaml.safe_load((ROOT / "ki_chat" / "config.yaml").read_text(encoding="utf-8"))
-    assert f"Stand: {cfg['version']}" in (ROOT / "ki_chat" / "DOCS.md").read_text(encoding="utf-8")
-    assert re.search(rf"^## {re.escape(cfg['version'])}$", (ROOT / "ki_chat" / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)
+    cfg = yaml.safe_load((ROOT / "copilot" / "config.yaml").read_text(encoding="utf-8"))
+    assert f"Stand: {cfg['version']}" in (ROOT / "copilot" / "DOCS.md").read_text(encoding="utf-8")
+    assert re.search(rf"^## {re.escape(cfg['version'])}$", (ROOT / "copilot" / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)
     assert cfg["url"] in (DOCS / "installation.md").read_text(encoding="utf-8")
 
 
