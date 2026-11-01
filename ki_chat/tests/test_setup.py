@@ -98,6 +98,18 @@ def test_ha_access_row_follows_the_level(level, expected):
         assert "Assist" in row["detail"]  # Hinweis auf die Freigabe von Entitäten
 
 
+# ------------------------------------------------- Bilder
+
+
+def test_image_rows():
+    off = rows(make())["images"]
+    assert off["status"] == "off" and "SVG" in off["detail"] and "openai_api_key" in " ".join(off["steps"]) and "Abo reicht dafür nicht" in " ".join(off["steps"])
+    ok = rows(make(openai_api_key="sk-geheim", google_api_key="g-geheim", image_limit_month=12))["images"]
+    assert ok["status"] == "ok" and "OpenAI + Google" in ok["detail"] and "12 Bilder" in ok["detail"] and "geheim" not in str(ok)
+    assert "kein Monatslimit" in rows(make(openai_api_key="sk-x", image_limit_month=0))["images"]["detail"]
+    assert "images" not in rows(make(images_enabled=False))
+
+
 # ------------------------------------------------- GitHub
 
 

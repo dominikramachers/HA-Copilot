@@ -171,6 +171,27 @@ configuration:
   files_keep_days:
     name: Keep files (days)
     description: 'How long created, edited and attached files stay available in the chat (1 to 365, default 14). After that they are deleted; the chat stays. Files of a deleted chat are removed immediately.'
+  images_enabled:
+    name: Create images
+    description: 'On (default): The AI recognises when an image is wanted and creates it: simple graphics (diagrams, logos, icons, plans) it draws for free as SVG, photos and artwork it has OpenAI or Google generate (only with a key entered). Off: no images. Requires "Create files".'
+  openai_api_key:
+    name: OpenAI API key (images)
+    description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI; a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
+  google_api_key:
+    name: Google API key (images)
+    description: 'Key for the Gemini API from aistudio.google.com (Get API key) with billing enabled; a Google subscription is not enough. The image request and reference images are sent to Google. Empty: no images from Google.'
+  image_provider:
+    name: Image provider
+    description: 'auto (default): the AI chooses per image, Google for drafts and edits (cheaper), OpenAI for images with text or top quality. openai or google: always this provider. If only one key is entered, that one is used.'
+  image_model_openai:
+    name: OpenAI image model
+    description: 'Model name (default gpt-image-2.5-sunburst; gpt-image-2.5-flare is faster). Providers rename models quickly: on "model unknown" enter the current name from the OpenAI documentation.'
+  image_model_google:
+    name: Google image model
+    description: 'Model name in the Gemini API (default gemini-3.1-flash-image-preview, also known as "Nano Banana 2"). Names change quickly: on "model unknown" enter the current name from the Google documentation.'
+  image_limit_month:
+    name: Images per person and month
+    description: 'How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.'
   restore_snapshot:
     name: Restore database
     description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'

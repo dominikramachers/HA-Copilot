@@ -339,11 +339,11 @@ def test_level_none_and_missing_connection_offer_no_ha_tools(store):
         app, backend, seen = ha_app(store, offline, memory_enabled=False)
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert seen["tools"] == ["file_create", "file_edit", "file_list", "file_read", "web_fetch"]
+        assert seen["tools"] == ["file_create", "file_edit", "file_list", "file_read", "image_svg", "web_fetch"]
         app, backend, seen = ha_app(store, offline, memory_enabled=False, web_access_default="off")
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert seen["tools"] == ["file_create", "file_edit", "file_list", "file_read"]
+        assert seen["tools"] == ["file_create", "file_edit", "file_list", "file_read", "image_svg"]
         # ... und ohne das gar keine Werkzeuge
         app, backend, seen = ha_app(store, offline, memory_enabled=False, files_enabled=False, web_access_default="off")
         chat = await new_chat(app)

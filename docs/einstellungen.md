@@ -81,6 +81,20 @@ Gedächtnis, geplante Aufgaben, Dateien und Sprache.
 | `files_edit` | an/aus | an | **Dateien bearbeiten.** An (Standard): Angehängte Dateien (PDF, Word, Excel, PowerPoint, Text und Code) werden für diesen Chat aufbewahrt, und die KI kann sie lesen und bearbeiten, z. B. PDF-Felder ausfüllen oder sperren, Word-Texte ändern, Excel-Zellen setzen, Code anpassen. Die bearbeitete Fassung erscheint zum Herunterladen, das Original bleibt unverändert. Aus: Anhänge liegen nur für die eine Nachricht im Arbeitsspeicher und nichts davon wird gespeichert. Braucht „Dateien erzeugen“. |
 | `files_keep_days` | Zahl 1 bis 365 | `14` | **Dateien aufbewahren (Tage).** Wie lange erzeugte, bearbeitete und angehängte Dateien im Chat verfügbar bleiben (1 bis 365, Standard 14). Danach werden sie gelöscht; der Chat bleibt. Dateien eines gelöschten Chats werden sofort entfernt. |
 
+## Bilder
+
+Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../ki_chat/DOCS.md#bilder-ab-0280).
+
+| Option | Werte | Standard | Bedeutung |
+|---|---|---|---|
+| `images_enabled` | an/aus | an | **Bilder erzeugen.** An (Standard): Die KI erkennt selbst, wenn ein Bild gewünscht ist, und erzeugt es: einfache Grafiken (Diagramme, Logos, Symbole, Pläne) zeichnet sie kostenlos als SVG, Fotos und Kunstbilder lässt sie von OpenAI oder Google erzeugen (nur mit eingetragenem Schlüssel). Aus: keine Bilder. Braucht „Dateien erzeugen“. |
+| `openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Bilder).** Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI; ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI. |
+| `google_api_key` | Text (geheim) | leer | **Google-API-Schlüssel (Bilder).** Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google. |
+| `image_provider` | `auto` \| `openai` \| `google` | `auto` | **Bildanbieter.** auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen. |
+| `image_model_openai` | Text | `gpt-image-2.5-sunburst` | **Bildmodell von OpenAI.** Name des Modells (Standard gpt-image-2.5-sunburst; gpt-image-2.5-flare ist schneller). Die Namen ändern sich bei den Anbietern schnell: Bei der Meldung „Modell unbekannt“ hier den aktuellen Namen aus der Dokumentation von OpenAI eintragen. |
+| `image_model_google` | Text | `gemini-3.1-flash-image-preview` | **Bildmodell von Google.** Name des Modells in der Gemini-API (Standard gemini-3.1-flash-image-preview, auch „Nano Banana 2“). Die Namen ändern sich schnell: Bei der Meldung „Modell unbekannt“ den aktuellen Namen aus der Dokumentation von Google eintragen. |
+| `image_limit_month` | Zahl 0 bis 10000 | `30` | **Bilder je Person und Monat.** Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts. |
+
 ## Zugang über eine eigene Domain
 
 Optional, nur mit `public_enabled`. Ausführlich in [Domain-Zugang](domain-zugang.md).

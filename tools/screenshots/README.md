@@ -25,10 +25,11 @@ python tools/screenshots/capture_ha.py docs/screenshots        # Seitenleiste, D
 python tools/screenshots/capture_features.py docs/screenshots  # Einrichtungsprüfung, Suche, Geplant, Gedächtnis, Menü
 python tools/screenshots/capture_app.py docs/screenshots       # Chat allein, Handy, Englisch, Nachricht bearbeiten
 python tools/screenshots/capture_theme.py docs/screenshots     # dasselbe mit dem eigenen Theme DORALAB, hell und dunkel
+python tools/screenshots/capture_images.py docs/screenshots    # Bilder: Platzhalter, Fassungen, Bildvorschau, Rückfrage (Demo-App frisch starten; Limit der Demo: 2 Bilder)
 ```
 
 Das Theme „DORALAB“ liegt als `ha_config/themes/doralab.yaml` (nur Farben, kein Logo). `capture_theme.py` schaltet es für die Aufnahme mit dem Dienst `frontend.set_theme` ein und danach wieder aus. `capture_features.py` erzeugt zusätzlich Handy-Bilder von Home Assistant (`ha-handy-*.png`), die nicht in der Dokumentation verwendet werden.
 
-Die Bilder werden danach auf 256 Farben verkleinert (Pillow, `optimize=True`), das hält das Repository klein.
+Die Bilder der Bildfunktion kommen aus der Demo-App: Ihre nachgebildete KI ruft die echten Bildwerkzeuge auf, nur die Schnittstelle von Google ist durch einen Simulator ersetzt (ein mit Pillow gezeichnetes Beispielbild, `demo_addon.py`). Die Bilder werden danach auf 256 Farben verkleinert (Pillow, `optimize=True`), das hält das Repository klein.
 
 Die Skripte sind Hilfsmittel für die Dokumentation und gehören nicht zum Add-on; sie werden nicht ins Image gebaut und nicht in CI ausgeführt.

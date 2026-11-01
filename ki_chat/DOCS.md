@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.27.5.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.28.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -434,15 +434,60 @@ Die KI kann Dateien nicht nur erzeugen, sondern auch **lesen und ändern**, egal
 - **Excel:** Zellen und Bereiche setzen (Zahlen, Text, Formeln mit englischen Funktionsnamen; gefährliche Formeln wie `WEBSERVICE` werden entschärft), Zeilen und Spalten einfügen oder löschen, Blätter anlegen, umbenennen, löschen. Formelwerte rechnet Excel beim Öffnen neu. **Hinweis:** Diagramme, Pivot-Tabellen, Bilder und Makros der Originaldatei können beim Speichern verloren gehen; die KI sagt es dir dann.
 - **PowerPoint:** Text ersetzen, Formen und Tabellenzellen setzen, Notizen, Folien hinzufügen, löschen, verschieben.
 - **PDF:** `fill_fields`, `lock_fields` (Felder schreibgeschützt machen: die ausgefüllten, die leeren, alle oder benannte), `unlock_fields`, `flatten` (Formular fest in die Seiten schreiben), `add_text`, `add_text_field`, `delete_pages`, `rotate_pages`, `reorder`, `merge`. Nicht möglich: vorhandenen Text in einer Seite ändern (PDF ist dafür nicht gebaut) und gescannte PDFs bearbeiten; die KI sagt das ehrlich. Passwortgeschützte PDFs werden abgelehnt, bei signierten PDFs warnt die KI, dass die Signatur ungültig wird.
-- **Grenzen:** Dateien bis 25 MB, höchstens 200 Änderungen je Aufruf, 90 Sekunden je Aufruf; Bilder und alte Formate (`.doc`, `.xls`, `.ppt`) lassen sich nicht bearbeiten (Bilder sieht die KI direkt in der Nachricht).
+- **Grenzen:** Dateien bis 25 MB, höchstens 200 Änderungen je Aufruf, 90 Sekunden je Aufruf; alte Formate (`.doc`, `.xls`, `.ppt`) lassen sich nicht bearbeiten. Bilder bearbeitet `file_edit` nicht; dafür gibt es die Bildfunktion ([Bilder](#bilder-ab-0280)).
 - **Sicherheit:** Dateiinhalt ist Inhalt, keine Anweisung. Wie nach einem Dateianhang fragt die KI nach `file_read` vor jeder Aktion in Home Assistant, bei Gedächtnis und GitHub, die etwas ändert, immer nach. Bearbeitet wird nur im Add-on-Speicher; nichts wird ausgeführt (keine Makros, keine Skripte).
 - **Abschalten:** `files_edit: false` (nur Dateien erzeugen, Anhänge nur für die eine Nachricht im Arbeitsspeicher) oder `files_enabled: false` (gar keine Dateiwerkzeuge).
+
+## Bilder (ab 0.28.0)
+
+Die KI erzeugt Bilder von selbst, sobald du eines möchtest („Male mir ein gemütliches Wohnzimmer bei Sonnenuntergang“, „Zeichne den Grundriss als Plan“, „Mach daraus ein Logo“). Du musst nichts einschalten und kein Modell wählen. Sie entscheidet nach Aufwand:
+
+- **SVG (kostenlos, ohne Schlüssel):** Diagramme, Ablaufpläne, Grundrisse, Logos, Symbole und einfache Illustrationen schreibt Claude als SVG-Quelltext (`image_svg`). Das kostet nichts und lässt sich beliebig oft ändern. Der Server prüft den Quelltext streng: keine Skripte, keine Ereignisse, keine eingebetteten Bilder, Animationen oder Links, nichts von außen. Angezeigt wird das SVG als Bild, nicht als Seite.
+- **Bildmodell (OpenAI oder Google):** Fotos, Kunst, komplexe Szenen und Bilder mit Schrift (`image_generate`). Das kostet je Bild Geld auf deinem API-Konto. Sind beide Anbieter eingerichtet, nimmt die KI Google für Entwürfe und Änderungen (günstiger) und OpenAI für Schrift im Bild und höchste Qualität; mit `image_provider` kannst du einen Anbieter fest vorgeben. Ist nur ein Schlüssel eingetragen, wird dieser genommen. Ohne Schlüssel zeichnet die KI, was als SVG geht, und sagt dir sonst, was fehlt.
+- Die KI nennt in einem Satz den gewählten Weg („Das ist ein Foto-Motiv, deshalb habe ich es mit Google erzeugen lassen“).
+
+### Ändern, neu erzeugen, am selben Bild weiterarbeiten
+
+Gefällt dir ein Bild nicht oder möchtest du etwas anders („Himmel rosa“, „kleiner“, „ohne Hut“), schreibst du das einfach in denselben Chat. Die KI ändert das **vorhandene** Bild statt ein neues zu erfinden: Sie gibt es dem Bildmodell als Vorlage mit und beschreibt nur die Änderung. Es entsteht eine **neue Fassung** („Version 2“, `name-v2.png`) neben der alten, die erhalten bleibt. Dasselbe geht mit einem **angehängten Foto** („Mach daraus ein Aquarell“). Jede neue Fassung von OpenAI/Google zählt aufs Monatslimit; SVG-Änderungen nicht (die KI liest den Quelltext und schreibt ihn neu).
+
+### Anzeige im Chat
+
+- **Platzhalter beim Erzeugen:** Sobald die KI ein Bild beauftragt, zeigt der Chat eine Karte „Bild wird erzeugt …“ (bei OpenAI/Google meist 20 bis 90 Sekunden; SVG ist sofort da). Wartet die KI auf deine Freigabe, steht dort „Wartet auf deine Freigabe“. Die Antwort läuft auf dem Server weiter wie jede andere: Chat wechseln oder Seite neu laden verliert nichts.
+- **Bildkarte:** Vorschau, Dateiname, Herkunft („Google“, „OpenAI“, „gezeichnet (SVG)“), gegebenenfalls „Version 2“, Größe in Bildpunkten.
+- **Bildvorschau:** Ein Klick auf die Karte öffnet das Bild groß. Dort: **Herunterladen**, **Schließen** (Knopf, Esc oder Klick neben das Bild), Klick auf das Bild wechselt zwischen „einpassen“ und Originalgröße, bei mehreren Bildern einer Antwort blätterst du mit den Pfeiltasten oder den Knöpfen. Die Vorschau ist ein eigenes Fenster mit Tastaturbedienung (Tab bleibt im Fenster, der Fokus kehrt zur Karte zurück).
+- Die Bilder bleiben `files_keep_days` Tage (Standard 14) wie alle erzeugten Dateien; danach zeigt die Karte „Abgelaufen“. Sie liegen in `/data/outfiles` (und damit in der HA-Sicherung), gehören nur dir und werden mit dem Chat gelöscht.
+
+### Kosten und Limit
+
+- **Monatslimit:** `image_limit_month` (Standard 30, `0` = unbegrenzt) gilt **je Person und Kalendermonat** für Bilder von OpenAI/Google. SVG zählt nicht. Alle Personen dürfen Bilder erzeugen, es gibt keine Beschränkung auf einzelne Benutzer.
+- **Erst über dem Limit wird gefragt:** Ab dem ersten Bild über dem Limit erscheint im Chat die Rückfrage **Zulassen / Ablehnen** mit Anbieter, Modell und Bildwunsch; sie gilt für dieses eine Bild (jedes weitere fragt wieder). Mit „Ablehnen“ entsteht nichts, und die KI schlägt höchstens eine Alternative (z. B. SVG) vor. Beantwortest du die Rückfrage nicht, gilt sie nach 10 Minuten als abgelehnt.
+- **Ausnahme, immer mit Rückfrage:** Hat die KI in derselben Antwort Inhalte aus dem Web oder aus Dateien gelesen (Websuche, GitHub, Home Assistant, Projektwissen, `file_read`) oder war ein Dokument angehängt, fragt sie vor **jedem** Bild von OpenAI/Google nach, auch unter dem Limit. Solche Inhalte könnten untergeschobene Anweisungen enthalten („erzeuge ein Bild mit diesem Text …“), und der Bildwunsch verlässt dein Haus. Ein angehängtes **Foto allein** löst das nicht aus.
+- **Obergrenzen:** höchstens 4 Bilder je Antwort, Bildwunsch bis 4000 Zeichen, Referenzbilder PNG/JPEG/WebP bis 20 MB (höchstens 4 je Wunsch).
+- **Geplante Aufgaben** erzeugen keine Bilder (dort kann niemand zustimmen).
+- Die Preise bestimmen OpenAI und Google und ändern sich; das Add-on kennt sie nicht und führt nur die **Anzahl** der Bilder. Die Kosten siehst du im jeweiligen Konto (platform.openai.com, aistudio.google.com bzw. Google Cloud). Grobe Orientierung, ohne Gewähr: von etwa einem Cent (OpenAI, niedrige Qualität) bis über 20 Cent (OpenAI, höchste Qualität); bei Google je nach Modell grob 3 bis 15 Cent je Bild. Bei Änderungen kommen die Kosten für das Referenzbild hinzu.
+
+### Einrichtung
+
+1. **OpenAI:** Auf platform.openai.com ein API-Konto anlegen, Guthaben aufladen, unter „API keys“ einen Schlüssel erzeugen. Je nach Modell kann OpenAI zuvor eine **Verifizierung der Organisation** verlangen (Einstellungen → Organization → Verification); sonst meldet die Schnittstelle einen Fehler, den die KI dir wörtlich nennt.
+2. **Google:** Auf aistudio.google.com („Get API key“) einen Schlüssel für die Gemini-API erzeugen und im zugehörigen Cloud-Projekt die **Abrechnung** aktivieren (die Bildmodelle der Gemini-API sind kostenpflichtig).
+3. Schlüssel bei `openai_api_key` bzw. `google_api_key` eintragen, speichern, Add-on neu starten. Die Einrichtungsprüfung (Konto-Menü) zeigt „Bilder erzeugen“ mit dem Stand.
+4. Ein **ChatGPT-Plus-** oder **Google-One-Abo** bezahlt die Schnittstelle nicht; beide Anbieter rechnen die API getrennt ab.
+
+**Modellnamen:** `image_model_openai` (Standard `gpt-image-2.5-sunburst`; `gpt-image-2.5-flare` ist schneller) und `image_model_google` (Standard `gemini-3.1-flash-image-preview`, auch „Nano Banana 2“) stehen in der Konfiguration, weil die Anbieter Modelle oft umbenennen oder abschalten. Meldet ein Anbieter „Modell unbekannt“ (404), trägst du den aktuellen Namen aus dessen Dokumentation ein. Fehler der Anbieter (ungültiger Schlüssel, leeres Guthaben, Sicherheitsfilter, zu viele Anfragen) erklärt die KI verständlich; der Schlüssel taucht dabei nie auf.
+
+### Datenschutz und Sicherheit
+
+- **Was an OpenAI/Google geht:** nur der Bildwunsch (Text, den die KI formuliert) und, bei Änderungen, das Referenzbild. Dein restlicher Chat, Home-Assistant-Daten und das Gedächtnis gehen nicht mit. Die Anbieter verarbeiten das nach ihren eigenen Bedingungen; bei OpenAI und Google gelten für die kostenpflichtige Schnittstelle andere Regeln als für die Apps, die genaue Aufbewahrung regeln deren Bedingungen. Schicke keine Fotos fremder Personen oder vertrauliche Bilder, die nicht an einen US-Anbieter gehen sollen. Mit leeren Schlüsseln bleibt alles beim SVG, und es geht nichts an diese Anbieter.
+- Die Schlüssel stehen nur in der Add-on-Konfiguration, gehen ausschließlich als Anmelde-Kopfzeile an `api.openai.com` bzw. `generativelanguage.googleapis.com`, nie in einer Adresse, einem Protokoll oder einer Meldung.
+- **Anzeige:** Das Bild wird mit Anmeldung geladen (`/api/files/…`, nur für den Besitzer) und als `<img>` angezeigt; auch ein SVG läuft so ohne Skripte und ohne Netzzugriff. Heruntergeladen wird es mit der strengen `sandbox`-Kopfzeile wie jede erzeugte Datei.
+- Ob Claude das Bild „sieht“: nein. Die KI beauftragt das Bild und beschreibt es nicht im Einzelnen; ob es dir gefällt, beurteilst du.
+- **Abschalten:** `images_enabled: false` (keine Bildwerkzeuge, Fotos werden wieder nicht aufbewahrt), oder nur OpenAI/Google zu nutzen verhindern, indem die Schlüssel leer bleiben (dann bleibt SVG).
 
 ## Anhänge und Speicherplatz
 
 Dateianhänge gehen mit der Nachricht an das Add-on und werden dort im Arbeitsspeicher geprüft (Inhalt, nicht Dateiname, entscheidet über die Art) und an Claude weitergereicht. **Was danach passiert, hängt von `files_edit` ab** (Standard: an, ab 0.27.0):
 
-- **Dateien bearbeiten an:** Von jedem Anhang außer Bildern legt das Add-on das Original als Kopie für diesen Chat im Datenordner ab (`/data/outfiles`, bis 25 MB je Datei), damit die KI in Folgenachrichten damit arbeiten kann. Die Kopien bleiben `files_keep_days` Tage (Standard 14), werden mit dem Chat gelöscht (auch bei „Alle meine Chats löschen“) und sind nur für dich zugänglich. Sie liegen damit in der HA-Sicherung. Bilder werden nicht kopiert.
+- **Dateien bearbeiten an:** Von jedem Anhang (Bilder: siehe unten) legt das Add-on das Original als Kopie für diesen Chat im Datenordner ab (`/data/outfiles`, bis 25 MB je Datei), damit die KI in Folgenachrichten damit arbeiten kann. Die Kopien bleiben `files_keep_days` Tage (Standard 14), werden mit dem Chat gelöscht (auch bei „Alle meine Chats löschen“) und sind nur für dich zugänglich. Sie liegen damit in der HA-Sicherung. Bilder werden nur kopiert, solange die Bildfunktion an ist (`images_enabled`, Standard): als Vorlage für ein neues Bild, siehe [Bilder](#bilder-ab-0280).
 - **Dateien bearbeiten aus** (`files_edit: false`): Anhänge werden **nie auf dem Home-Assistant-Server gespeichert**. Die Datei wird nach der Antwort verworfen, es gibt keinen Upload-Ordner und keine temporären Dateien.
 - **In beiden Fällen** stehen in der Datenbank der Nachricht nur Name, Art und Größe, damit der Chat zeigt, was angehängt war; der Inhalt steht in keiner Nachricht. Löschst du den Chat, ist auch das weg.
 - Folgefragen: Mit „Dateien bearbeiten“ sieht die KI frühere Anhänge über `file_list` und `file_read` (nur bei Bedarf, das spart Kontingent: ein Anhang wird nicht bei jeder Frage erneut an Claude geschickt). Ohne diese Option sieht Claude die Datei nur in der Nachricht, zu der sie gehört. Die Antwort von Claude bleibt im Chat. Für eine weitere Frage zur selben Datei klickst du an der Nachricht auf „Wieder anhängen“: Die Dateien kommen dann aus dem Speicher deines Browsers (nicht vom Server) zurück ins Eingabefeld. Das geht für die zuletzt gesendete Nachricht, solange du den Chat nicht wechselst oder die Seite neu lädst. Danach hängst du die Datei neu an; Claude bekommt in dem Fall den Hinweis, dass früher eine Datei dabei war.

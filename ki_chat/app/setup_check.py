@@ -200,6 +200,24 @@ def static_items(
         mode = tr("lesen und schreiben") if github_level == "write" else tr("nur lesen")
         items.append(_item("github", "optional", "ok", "GitHub", tr("Eingerichtet, du darfst {mode}.", mode=mode) + scope))
 
+    # --- Bilder
+    if settings.images_enabled and settings.files_enabled:
+        names = [n for n, key in (("OpenAI", settings.openai_api_key), ("Google", settings.google_api_key)) if key]
+        if names:
+            limit = tr("{n} Bilder je Person und Monat", n=settings.image_limit_month) if settings.image_limit_month else tr("kein Monatslimit")
+            items.append(_item("images", "optional", "ok", tr("Bilder erzeugen"), tr("Fotos und Kunstbilder über {names} ({limit}); einfache Grafiken zeichnet die KI kostenlos als SVG.", names=" + ".join(names), limit=limit)))
+        else:
+            items.append(_item(
+                "images", "optional", "off", tr("Bilder erzeugen"),
+                tr("Einfache Grafiken (Diagramme, Logos, Pläne) zeichnet die KI schon jetzt als SVG. Für Fotos und Kunstbilder fehlt ein Schlüssel von OpenAI oder Google."),
+                [
+                    tr("Lege bei OpenAI (platform.openai.com) oder Google (aistudio.google.com) ein API-Konto mit Guthaben an und erzeuge einen API-Schlüssel. Ein ChatGPT- oder Google-Abo reicht dafür nicht."),
+                    tr(CONFIG_STEP),
+                    tr("Trage den Schlüssel bei `openai_api_key` oder `google_api_key` ein. Mit `image_limit_month` legst du fest, wie viele Bilder jede Person im Monat erzeugen darf, bevor der Chat nachfragt."),
+                    tr(RESTART_STEP),
+                ],
+            ))
+
     # --- Domain-Zugang
     if not settings.public_enabled:
         items.append(_item(

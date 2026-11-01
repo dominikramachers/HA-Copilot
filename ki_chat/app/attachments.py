@@ -195,23 +195,33 @@ def editable_bytes(att: Attachment) -> bytes | None:
 EDIT_MAX_BYTES = 25 * 1024 * 1024  # größere Anhänge werden nicht für das Bearbeiten aufbewahrt
 
 
-def persist(store, profile_id: str, chat_id: str, files: list[Attachment], keep_days: int, max_usage: int) -> tuple[list[str], list[str]]:
+def persist(
+    store, profile_id: str, chat_id: str, files: list[Attachment], keep_days: int, max_usage: int,
+    keep_images: bool = False, keep_files: bool = True,
+) -> tuple[list[str], list[str]]:
     """Originale der Anhänge für diesen Chat ablegen, damit die KI sie später lesen und bearbeiten kann.
 
-    Liefert (abgelegte Namen, nicht abgelegte mit Grund). Bilder werden nicht abgelegt (die KI sieht sie in der Nachricht)."""
+    Liefert (abgelegte Namen, nicht abgelegte mit Grund). Bilder sieht die KI direkt in der Nachricht; sie werden nur
+    abgelegt (``keep_images``), damit sie als Vorlage für ein neues Bild dienen können. ``keep_files``: Dokumente ablegen."""
     from .outbox import media_type
 
     stored: list[str] = []
     skipped: list[str] = []
     for att in files:
-        raw = editable_bytes(att)
-        if raw is None:
-            skipped.append(f"{att.name} (Bild: ansehen ja, bearbeiten nein)")
-        elif len(raw) > EDIT_MAX_BYTES:
+        if att.kind == "image":
+            raw, mime = (att.data, att.media_type) if keep_images else (None, "")
+            if raw is None:
+                skipped.append(f"{att.name} (Bild: ansehen ja, bearbeiten nein)")
+                continue
+        else:
+            if not keep_files:
+                continue
+            raw, mime = editable_bytes(att), media_type(att.name)
+        if len(raw) > EDIT_MAX_BYTES:
             skipped.append(f"{att.name} (zu groß zum Bearbeiten, über {EDIT_MAX_BYTES // 1024 // 1024} MB)")
         elif store.outfile_usage(profile_id) + len(raw) > max_usage:
             skipped.append(f"{att.name} (Speicher für Dateien voll)")
-        elif store.outfile_add(profile_id, chat_id, att.name, media_type(att.name), raw, keep_days, "attached") is None:
+        elif store.outfile_add(profile_id, chat_id, att.name, mime, raw, keep_days, "attached") is None:
             skipped.append(f"{att.name} (Chat nicht gefunden)")
         else:
             stored.append(att.name)
