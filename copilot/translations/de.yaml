@@ -197,7 +197,7 @@ configuration:
     description: 'Nur im Notfall: Name eines Snapshots, der beim nächsten Start eingespielt wird. Danach leeren.'
   export_database:
     name: Datenbank exportieren (Umzug)
-    description: 'Nur für den Umzug in ein anderes Add-on (z. B. vom lokalen Add-on zum GitHub-Add-on): Beim Start wird eine Kopie aller Chats als ki_chat-export.sqlite3 in den Config-Ordner des Add-ons gelegt. Danach ausschalten und die Datei löschen.'
+    description: 'Nur für den Umzug in ein anderes Add-on (z. B. vom lokalen Add-on zum GitHub-Add-on): Beim Start wird eine Kopie aller Chats als copilot-export.sqlite3 in den Config-Ordner des Add-ons gelegt. Danach ausschalten und die Datei löschen.'
   claude_token_expires:
     name: Claude-Token läuft ab am
     description: Datum (JJJJ-MM-TT) für die Erinnerung in der App.

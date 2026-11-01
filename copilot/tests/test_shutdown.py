@@ -28,11 +28,11 @@ def test_sigterm_shuts_down_cleanly_with_exit_code_zero(tmp_path):
     port = _free_port()
     env = {
         **os.environ,
-        "KI_CHAT_OPTIONS": str(options),
-        "KI_CHAT_DB": str(tmp_path / "ki.sqlite3"),
-        "KI_CHAT_BRANDING": str(tmp_path / "branding"),
-        "KI_CHAT_PORT": str(port),
-        "KI_CHAT_INGRESS_PEERS": "127.0.0.1",
+        "COPILOT_OPTIONS": str(options),
+        "COPILOT_DB": str(tmp_path / "ki.sqlite3"),
+        "COPILOT_BRANDING": str(tmp_path / "branding"),
+        "COPILOT_PORT": str(port),
+        "COPILOT_INGRESS_PEERS": "127.0.0.1",
     }
     env.pop("SUPERVISOR_TOKEN", None)
     proc = subprocess.Popen([sys.executable, "-m", "app.main"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

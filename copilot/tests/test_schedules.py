@@ -448,7 +448,7 @@ def test_notification_in_home_assistant(store):
     (call,) = notify_calls(ha)
     assert call["domain"] == "persistent_notification" and call["service"] == "create"
     data = call["service_data"]
-    assert data["title"] == "Morgenbericht" and data["message"].startswith("Ergebnis fertig.") and data["notification_id"] == f"ki_chat_{row['id']}"
+    assert data["title"] == "Morgenbericht" and data["message"].startswith("Ergebnis fertig.") and data["notification_id"] == f"copilot_{row['id']}"
 
 
 def test_notification_to_phone_with_link(store):

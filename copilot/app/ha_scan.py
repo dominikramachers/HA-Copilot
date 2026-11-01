@@ -24,7 +24,7 @@ from .context_tools import _SECRET, CONTENT_MAX, TOPIC_MAX
 from .db import AUTO_AUTHOR, AUTO_PREFIX, Store
 from .ha_client import HaApi, HaApiError
 
-log = logging.getLogger("ki_chat.scan")
+log = logging.getLogger("copilot.scan")
 
 STATE_KEY = "ha_overview"
 QUERY_TIMEOUT = 40.0

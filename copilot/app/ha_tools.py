@@ -25,7 +25,7 @@ from typing import Any
 from .i18n import tr
 from .ha_client import HaApi, HaApiError
 
-log = logging.getLogger("ki_chat.hatools")
+log = logging.getLogger("copilot.hatools")
 
 RANK = {"none": 0, "read": 1, "execute": 2, "write": 3}
 MAX_OUTPUT_CHARS = 30_000

@@ -23,7 +23,7 @@ from .i18n import language, tr
 from .attachments import Attachment, human_size, sweep_scratch, user_message, with_inline_text
 from .ha_tools import TOOL_NOTE, ToolError, ToolSpec
 
-log = logging.getLogger("ki_chat.backend")
+log = logging.getLogger("copilot.backend")
 
 EFFORTS = ("low", "medium", "high")
 WEB_TOOL = "WebSearch"  # eingebautes Suchwerkzeug von Claude (läuft bei Anthropic, nicht im Heimnetz)

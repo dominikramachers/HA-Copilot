@@ -39,7 +39,7 @@ from .limits import LimitState
 from .outbox import OutboxToolbox
 from .web_tools import WEB_NOTE, WebToolbox
 
-log = logging.getLogger("ki_chat.scheduler")
+log = logging.getLogger("copilot.scheduler")
 
 TICK_SECONDS = 30
 START_DELAY = 20  # nach dem Start Home Assistant erst hochfahren lassen
@@ -355,7 +355,7 @@ class Scheduler:
                 "type": "call_service", "domain": "persistent_notification", "service": "create",
                 "service_data": {
                     "title": title[:120], "message": (message or tr("Fertig.")) + tr("\n\nDas Ergebnis steht im {app_name}.", app_name=self.settings.app_name),
-                    "notification_id": f"ki_chat_{re.sub('[^a-z0-9_]', '', key.lower())[:40] or 'task'}",
+                    "notification_id": f"copilot_{re.sub('[^a-z0-9_]', '', key.lower())[:40] or 'task'}",
                 },
             }
         elif mode == "phone":

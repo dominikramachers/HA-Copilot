@@ -137,7 +137,7 @@ Normalerweise leer oder aus. Siehe [Betrieb](betrieb.md).
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
 | `restore_snapshot` | Text | leer | **Datenbank wiederherstellen.** Nur im Notfall: Name eines Snapshots, der beim nächsten Start eingespielt wird. Danach leeren. |
-| `export_database` | an/aus | aus | **Datenbank exportieren (Umzug).** Nur für den Umzug in ein anderes Add-on (z. B. vom lokalen Add-on zum GitHub-Add-on): Beim Start wird eine Kopie aller Chats als ki_chat-export.sqlite3 in den Config-Ordner des Add-ons gelegt. Danach ausschalten und die Datei löschen. |
+| `export_database` | an/aus | aus | **Datenbank exportieren (Umzug).** Nur für den Umzug in ein anderes Add-on (z. B. vom lokalen Add-on zum GitHub-Add-on): Beim Start wird eine Kopie aller Chats als copilot-export.sqlite3 in den Config-Ordner des Add-ons gelegt. Danach ausschalten und die Datei löschen. |
 | `claude_token_expires` | Text | leer | **Claude-Token läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. |
 | `entra_secret_expires` | Text | leer | **Entra-Schlüssel läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. |
 

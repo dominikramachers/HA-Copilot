@@ -27,7 +27,7 @@ def test_snapshot_is_consistent_and_pruned(tmp_path):
         safety.snapshot_live(store._conn, snaps, now=start + timedelta(days=day))
     names = [p.name for p in safety.list_snapshots(snaps)]
     assert len(names) == safety.KEEP_DAILY
-    assert names[0].startswith("ki_chat-2026-01-10")  # die neuesten bleiben
+    assert names[0].startswith("copilot-2026-01-10")  # die neuesten bleiben
     copy = sqlite3.connect(snaps / names[0])
     assert copy.execute("SELECT title FROM chats").fetchone()[0] == "Wichtig"
     copy.close()
@@ -105,7 +105,7 @@ def test_restore_rejects_bad_names(tmp_path, name):
 def test_restore_option_is_validated():
     with pytest.raises(ConfigError):
         parse_settings({**RAW, "restore_snapshot": "../x.sqlite3"})
-    assert parse_settings({**RAW, "restore_snapshot": "ki_chat-2026-10-27_030000.sqlite3"}).restore_snapshot
+    assert parse_settings({**RAW, "restore_snapshot": "copilot-2026-10-27_030000.sqlite3"}).restore_snapshot
 
 
 def test_expiry_notices():

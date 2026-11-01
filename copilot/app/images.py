@@ -30,7 +30,7 @@ from .db import Store
 from .ha_tools import Ask, ToolError, ToolSpec
 from .i18n import tr
 
-log = logging.getLogger("ki_chat.images")
+log = logging.getLogger("copilot.images")
 
 OPENAI_URL = "https://api.openai.com/v1/images"
 GOOGLE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
