@@ -106,7 +106,7 @@ Gefällt dir etwas nicht, schreibst du es einfach in denselben Chat: Die KI änd
 
 ![Rückfrage über dem Monatslimit](screenshots/bild-rueckfrage.png)
 
-Mehr: [Bilder (Einrichtung, Kosten, Datenschutz)](../copilot/DOCS.md#bilder-ab-0280).
+Mehr: [API-Konto und Schlüssel anlegen](bilder-konten.md), [Bilder (Einrichtung, Kosten, Datenschutz)](../copilot/DOCS.md#bilder-ab-0280).
 
 ## Geplante Aufgaben und Benachrichtigungen
 

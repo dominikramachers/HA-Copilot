@@ -468,6 +468,8 @@ Gefällt dir ein Bild nicht oder möchtest du etwas anders („Himmel rosa“, �
 
 ### Einrichtung
 
+Eine Schritt-für-Schritt-Anleitung zum Anlegen der Konten steht unter [API-Konto für Bilder anlegen](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/bilder-konten.md). Kurzfassung:
+
 1. **OpenAI:** Auf platform.openai.com ein API-Konto anlegen, Guthaben aufladen, unter „API keys“ einen Schlüssel erzeugen. Je nach Modell kann OpenAI zuvor eine **Verifizierung der Organisation** verlangen (Einstellungen → Organization → Verification); sonst meldet die Schnittstelle einen Fehler, den die KI dir wörtlich nennt.
 2. **Google:** Auf aistudio.google.com („Get API key“) einen Schlüssel für die Gemini-API erzeugen und im zugehörigen Cloud-Projekt die **Abrechnung** aktivieren (die Bildmodelle der Gemini-API sind kostenpflichtig).
 3. Schlüssel bei `openai_api_key` bzw. `google_api_key` eintragen, speichern, Add-on neu starten. Die Einrichtungsprüfung (Konto-Menü) zeigt „Bilder erzeugen“ mit dem Stand.
