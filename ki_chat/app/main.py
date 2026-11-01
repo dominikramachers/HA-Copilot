@@ -55,6 +55,7 @@ from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
 from .context_tools import RESERVED_TEXT, ContextToolbox, _RESERVED
 from .ha_tools import HaToolbox
+from .images import IMAGES_NOTE, ImageService, ImageToolbox
 from .outbox import FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox
 from . import exporter
 from . import limits as limitlib
@@ -136,7 +137,7 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Permissions-Policy": "geolocation=(), payment=(), usb=(), serial=(), bluetooth=()",
     "Content-Security-Policy": (
-        "default-src 'self'; img-src 'self' data:; frame-ancestors 'self'"
+        "default-src 'self'; img-src 'self' data: blob:; frame-ancestors 'self'"
     ),
 }
 
@@ -329,7 +330,7 @@ PUBLIC_SECURITY_HEADERS = {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Resource-Policy": "same-origin",
     "Content-Security-Policy": (
-        "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; "
+        "default-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'; "
         "base-uri 'self'; form-action 'self'"
     ),
     "Strict-Transport-Security": "max-age=31536000",
@@ -587,6 +588,7 @@ def register_chat_routes(
     scheduler: Scheduler | None = None,
     registry: Registry | None = None,
     public_peers: PeerLog | None = None,
+    images: ImageService | None = None,
 ) -> None:
     """Chat-API; für Ingress und Domain identisch, nur die Zuordnung der Person unterscheidet sich."""
     chat_allow: set[tuple[str, str]] = set()  # Chats, in denen Änderungen in Home Assistant dauerhaft erlaubt wurden (nur Arbeitsspeicher)
@@ -594,6 +596,7 @@ def register_chat_routes(
     limits = limitlib.shared(store)
     model_ids = {m["id"] for m in settings.model_choices()}
     github_policy = RepoPolicy(settings.github_repos)
+    images = images or ImageService(settings)
     title_lock = asyncio.Lock()  # Titel einzeln nacheinander, damit sie keine Antworten ausbremsen
     previews = PreviewStore()  # HTML-Vorschauen, nur im Arbeitsspeicher
     export_limit = RateLimiter(4, 600)  # ZIP-Export nicht im Sekundentakt
@@ -1213,12 +1216,17 @@ def register_chat_routes(
         async def ask_github(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("github", label, details, offer_chat)
 
+        async def ask_image(label: str, details: str, offer_chat: bool) -> str:
+            return await ask_about("image", label, details, offer_chat)
+
+        images_enabled = settings.files_enabled and settings.images_enabled
         stored_files: list[str] = []
         skipped_files: list[str] = []
-        if files and files_kept:
+        if files and (files_kept or images_enabled):
             stored_files, skipped_files = await asyncio.to_thread(
-                filelib.persist, store, profile.id, chat_id, files, settings.files_keep_days, MAX_PROFILE_BYTES
+                filelib.persist, store, profile.id, chat_id, files, settings.files_keep_days, MAX_PROFILE_BYTES, images_enabled, files_kept
             )
+        image_names = {f.name for f in files if f.kind == "image"}
 
         specs = []
         if level in ("read", "execute", "write") and ha is not None:
@@ -1252,6 +1260,15 @@ def register_chat_routes(
                 store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit,
             ).specs()
+        image_box = None
+        if images_enabled:
+            image_box = ImageToolbox(
+                store, profile.id, chat_id, images, record=run.push, next_id=run.next_tool_id,
+                keep_days=settings.files_keep_days, limit_month=settings.image_limit_month, ask=ask_image,
+                # Gelesene Web- oder Dateiinhalte (und angehängte Dokumente) können Anweisungen enthalten: dann vor jedem Bild nachfragen
+                tainted=lambda: any(f.kind != "image" for f in files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read") for a in run.actions.values()),
+            )
+            specs += image_box.specs()
         gh_level = github_level(profile)
         if gh_level != "none" and github is not None:
             def attachment_bytes(name: str) -> bytes | None:
@@ -1277,10 +1294,17 @@ def register_chat_routes(
         extra["note"] = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
         if any(s.name == "file_edit" for s in specs):
             extra["note"] += "\n" + FILES_NOTE
-            if stored_files:
-                extra["note"] += " In dieser Nachricht angehängt und im Chat abgelegt: " + ", ".join(stored_files) + "."
+            if [n for n in stored_files if n not in image_names]:
+                extra["note"] += " In dieser Nachricht angehängt und im Chat abgelegt: " + ", ".join(n for n in stored_files if n not in image_names) + "."
             if skipped_files:
                 extra["note"] += " Nicht bearbeitbar: " + "; ".join(skipped_files) + "."
+        if image_box is not None:
+            extra["note"] += "\n" + IMAGES_NOTE + image_box.usage_note()
+            attached_images = [n for n in stored_files if n in image_names]
+            if attached_images:
+                extra["note"] += " In dieser Nachricht angehängte Bilder (als reference nutzbar): " + ", ".join(attached_images) + "."
+            if not image_box.generate_enabled:
+                extra["note"] += " Für Fotos und Kunstbilder ist kein Bildanbieter eingerichtet (OpenAI- oder Google-Schlüssel fehlt in der Konfiguration); es geht nur SVG, und das sagst du der Person, wenn sie ein Foto möchte."
         if web_on:
             extra["note"] += "\n" + WEB_NOTE
         if any(s.name.startswith("github_") for s in specs):
@@ -1450,6 +1474,7 @@ def build_ingress_app(
     github: GithubApi | None = None,
     scheduler: Scheduler | None = None,
     public_peers: PeerLog | None = None,
+    images: ImageService | None = None,
 ) -> FastAPI:
     i18n.set_language(settings.language)
     registry = registry or Registry.from_settings(settings, store)
@@ -1510,7 +1535,7 @@ def build_ingress_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "ingress", "can_logout": False},
-        health, ha, "ingress", scanner, github, scheduler, registry, public_peers,
+        health, ha, "ingress", scanner, github, scheduler, registry, public_peers, images,
     )
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -1536,6 +1561,7 @@ def build_public_app(
     github: GithubApi | None = None,
     scheduler: Scheduler | None = None,
     public_peers: PeerLog | None = None,
+    images: ImageService | None = None,
 ) -> FastAPI:
     """Domain-Zugang (Cloudflare Tunnel): eigene Anmeldeseite, Entra-Login (und optional Home Assistant), Sitzungs-Cookie.
 
@@ -1747,7 +1773,7 @@ def build_public_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "domain", "can_logout": True},
-        health, ha, "public", scanner, github, scheduler, registry, public_peers,
+        health, ha, "public", scanner, github, scheduler, registry, public_peers, images,
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app

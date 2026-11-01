@@ -216,6 +216,44 @@
 .out-get { flex: none; color: var(--text-2); display: grid; place-items: center; }
 .out-get .icon { width: 20px; height: 20px; }
 .out-card:hover:not(:disabled) .out-get { color: var(--accent); }
+/* Bilder der KI: Vorschaukarte, Platzhalter beim Erzeugen, Bildvorschau */
+.img-card { display: grid; gap: 8px; width: min(100%, 360px); padding: 8px 8px 10px; border-radius: var(--r-3); background: var(--panel-2); border: 1px solid var(--line); text-align: left; transition: border-color .15s, background .15s; }
+button.img-card { cursor: zoom-in; }
+button.img-card:hover:not(:disabled) { border-color: var(--accent); background: var(--chip); }
+button.img-card:active:not(:disabled) { transform: scale(.99); }
+button.img-card:disabled { opacity: .55; cursor: default; }
+.img-frame { position: relative; display: grid; place-items: center; width: 100%; min-height: 120px; overflow: hidden; border-radius: var(--r-2); background: var(--chip); color: var(--muted); }
+.img-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .25s; }
+.img-frame.loaded img { opacity: 1; }
+.img-frame .icon { width: 30px; height: 30px; }
+.img-frame.loaded .icon { display: none; }
+.img-cap { display: grid; gap: 1px; padding: 0 4px; line-height: 1.25; min-width: 0; }
+.img-cap b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.img-cap small { font-size: 12.5px; color: var(--text-2); }
+.img-card.pending .img-frame { aspect-ratio: 3 / 2; min-height: 0; }
+.img-card.pending:not(.waiting) .img-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--accent) 16%, transparent) 50%, transparent 80%); transform: translateX(-100%); animation: img-shimmer 1.6s ease-in-out infinite; }
+.img-card.waiting .img-frame { background: var(--warn-bg); }
+@keyframes img-shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .img-card.pending .img-frame::after { animation: none; transform: none; opacity: .5; } .img-frame img { transition: none; } }
+.imgview { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; background: #0c0e12; color: #f2f4f7; animation: imgview-in .16s ease-out; }
+@keyframes imgview-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .imgview { animation: none; } }
+.imgview-open { overflow: hidden; }
+.imgview-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left)); }
+.imgview-title { flex: 1; min-width: 0; display: grid; gap: 1px; line-height: 1.25; }
+.imgview-title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; }
+.imgview-title small { font-size: 12.5px; color: rgba(242, 244, 247, .68); }
+.imgview-btn { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--r-2); color: #f2f4f7; transition: background .15s; }
+.imgview-btn:hover { background: rgba(255, 255, 255, .12); }
+.imgview-btn:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.imgview-btn .icon { width: 22px; height: 22px; }
+.imgview-btn.flip .icon { transform: scaleX(-1); }
+.imgview-stage { position: relative; flex: 1; min-height: 0; display: flex; padding: 0 calc(12px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left)); overflow: auto; }
+.imgview-stage img { margin: auto; max-width: 100%; max-height: 100%; border-radius: var(--r-1); cursor: zoom-in; user-select: none; }
+.imgview-stage img:not([src]) { display: none; }
+.imgview-stage.zoom img { max-width: none; max-height: none; margin: 0 auto auto; cursor: zoom-out; }
+.imgview-note { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); margin: 0; font-size: 14px; color: rgba(242, 244, 247, .7); }
+.imgview-note:empty { display: none; }
 /* Unter einer Antwort: Symbole nur bei der letzten Antwort dauerhaft, sonst beim Darüberfahren; der Zeitpunkt nur beim Darüberfahren */
 .msg-meta.answer-meta { justify-content: flex-start; margin: 4px 0 0 -7px; }
 .msg.assistant:hover .answer-meta, .msg.assistant:focus-within .answer-meta, .msg.assistant.show-meta .answer-meta, .msg.assistant.last-answer .answer-meta { opacity: 1; }

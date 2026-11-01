@@ -1395,6 +1395,7 @@ function actionsEl(list = [], open = false) {
     const made = items.filter((a) => a.kind === "file" && a.status === "ok").length;
     const edited = items.filter((a) => a.kind === "file-edit" && a.status === "ok").length;
     const looked = items.filter((a) => a.kind === "file-read").length;
+    const pics = items.filter((a) => a.kind === "image" && a.status === "ok").length;
     const gh = items.filter((a) => a.kind === "gh-read" || a.kind === "gh-write");
     const ghChanges = gh.filter((a) => a.kind === "gh-write" && a.status === "ok").length;
     const other = items.filter((a) => a.kind === "memory-read").length;
@@ -1414,6 +1415,8 @@ function actionsEl(list = [], open = false) {
     if (memory) parts.push(trn(memory, "Gedächtnis aktualisiert", "Gedächtnis {0}× aktualisiert"));
     if (made) parts.push(trn(made, "Datei erstellt", "{0} Dateien erstellt"));
     if (edited) parts.push(trn(edited, "Datei bearbeitet", "{0} Dateien bearbeitet"));
+    if (pics) parts.push(trn(pics, "Bild erzeugt", "{0} Bilder erzeugt"));
+    else if (items.some((a) => a.kind === "image")) parts.push(tr("Bild erzeugen"));
     const tried = items.filter((a) => a.kind === "file").length;
     if (!made && tried) parts.push(tr("Datei erstellen"));
     const triedEdit = items.filter((a) => a.kind === "file-edit").length;
@@ -1495,12 +1498,175 @@ function fileCard(file) {
   return card;
 }
 
+// ------------------------------------------------- Bilder
+// Bilder (von OpenAI, Google oder als SVG gezeichnet) erscheinen als Vorschaukarte; ein Klick öffnet die Bildvorschau.
+const imageUrls = new Map(); // Datei-ID -> Promise mit der Blob-Adresse (die Anfrage braucht den Header, ein <img src> kann ihn nicht senden)
+const IMAGE_CACHE = 40;
+
+function imageUrl(file) {
+  if (!imageUrls.has(file.id)) {
+    const loading = fetch(`api/files/${encodeURIComponent(file.id)}`, { credentials: "same-origin", headers: { "X-Requested-With": "ki-chat" } })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return URL.createObjectURL(await response.blob());
+      })
+      .catch((err) => { imageUrls.delete(file.id); throw err; });
+    imageUrls.set(file.id, loading);
+    if (imageUrls.size > IMAGE_CACHE) {
+      const [oldId, old] = imageUrls.entries().next().value;
+      imageUrls.delete(oldId);
+      old.then((url) => URL.revokeObjectURL(url), () => {});
+    }
+  }
+  return imageUrls.get(file.id);
+}
+
+const IMAGE_ENGINES = { openai: "OpenAI", google: "Google" };
+function imageInfo(file) {
+  const bits = [file.engine === "svg" ? tr("gezeichnet (SVG)") : IMAGE_ENGINES[file.engine] || ""];
+  if (file.version > 1) bits.push(tr("Version {0}", file.version));
+  if (file.w && file.h) bits.push(`${file.w}×${file.h}`);
+  return bits.filter(Boolean).join(" · ");
+}
+
+function imageCard(file, group) {
+  const card = node("button", `img-card${file.gone ? " gone" : ""}`);
+  card.type = "button";
+  card.disabled = !!file.gone;
+  card.setAttribute("aria-label", file.gone ? tr("{0} (abgelaufen)", file.name) : tr("Bildvorschau öffnen: {0}", file.name));
+  const frame = node("span", "img-frame");
+  if (file.w && file.h) {
+    frame.style.aspectRatio = `${file.w} / ${file.h}`;
+    frame.style.width = `min(100%, 360px, ${Math.round((320 * file.w) / file.h)}px)`;
+  }
+  const pic = document.createElement("img");
+  pic.alt = "";
+  pic.decoding = "async";
+  frame.append(pic);
+  const caption = node("span", "img-cap");
+  caption.append(node("b", "", file.name), node("small", "", file.gone ? tr("Abgelaufen") : imageInfo(file)));
+  card.append(frame, caption);
+  if (file.gone) frame.classList.add("failed");
+  else {
+    imageUrl(file).then((url) => { pic.src = url; frame.classList.add("loaded"); }, () => frame.classList.add("failed"));
+    card.addEventListener("click", () => openImageView(card.group(), file.id, card));
+  }
+  card.group = () => group();
+  card.fileId = file.id;
+  return card;
+}
+
+function imagePending(action) {
+  const drawing = action.label.startsWith(tr("Bild zeichnen"));
+  const waiting = action.status === "waiting";
+  const card = node("div", `img-card pending${waiting ? " waiting" : ""}`);
+  card.setAttribute("role", "status");
+  const frame = node("span", "img-frame");
+  frame.append(icon("picture"));
+  const caption = node("span", "img-cap");
+  caption.append(
+    node("b", "", waiting ? tr("Wartet auf deine Freigabe") : drawing ? tr("Bild wird gezeichnet …") : tr("Bild wird erzeugt …")),
+    node("small", "", action.label.replace(/^[^:]*:\s*/, "")),
+  );
+  card.append(frame, caption);
+  return card;
+}
+
+let imageView = null;
+
+function closeImageView() {
+  if (!imageView) return;
+  const { back, onKey, opener } = imageView;
+  document.removeEventListener("keydown", onKey, true);
+  document.body.classList.remove("imgview-open");
+  back.remove();
+  imageView = null;
+  if (opener?.isConnected) opener.focus();
+}
+
+// Bildvorschau: das Bild groß, Herunterladen, Schließen; bei mehreren Bildern einer Antwort blättern (Pfeiltasten).
+function openImageView(files, id, opener) {
+  closeImageView();
+  let index = Math.max(0, files.findIndex((f) => f.id === id));
+  const back = node("div", "imgview");
+  back.setAttribute("role", "dialog");
+  back.setAttribute("aria-modal", "true");
+  back.setAttribute("aria-label", tr("Bildvorschau"));
+  const bar = node("div", "imgview-bar");
+  const title = node("div", "imgview-title");
+  const name = node("b");
+  const info = node("small");
+  title.append(name, info);
+  const tool = (label, iconName, cls = "") => {
+    const b = node("button", `imgview-btn ${cls}`.trim());
+    b.type = "button";
+    b.title = label;
+    b.setAttribute("aria-label", label);
+    b.append(icon(iconName));
+    return b;
+  };
+  const prev = tool(tr("Vorheriges Bild"), "chevron", "flip");
+  const next = tool(tr("Nächstes Bild"), "chevron");
+  const save = tool(tr("Herunterladen"), "download");
+  const close = tool(tr("Schließen"), "close");
+  bar.append(title, ...(files.length > 1 ? [prev, next] : []), save, close);
+  const stage = node("div", "imgview-stage");
+  const pic = document.createElement("img");
+  pic.alt = "";
+  pic.draggable = false;
+  const note = node("p", "imgview-note");
+  stage.append(pic, note);
+  back.append(bar, stage);
+  const show = (i) => {
+    index = (i + files.length) % files.length;
+    const file = files[index];
+    name.textContent = file.name;
+    info.textContent = files.length > 1 ? `${imageInfo(file)} · ${index + 1}/${files.length}` : imageInfo(file);
+    stage.classList.remove("zoom", "failed");
+    pic.removeAttribute("src");
+    note.textContent = tr("Bild wird geladen …");
+    imageUrl(file).then((url) => { if (files[index] === file) { pic.src = url; note.textContent = ""; } }, () => { stage.classList.add("failed"); note.textContent = tr("Das Bild ist nicht mehr verfügbar."); });
+  };
+  prev.addEventListener("click", () => show(index - 1));
+  next.addEventListener("click", () => show(index + 1));
+  save.addEventListener("click", () => downloadOutFile(files[index], save));
+  close.addEventListener("click", closeImageView);
+  // Klick auf das Bild: Originalgröße (zum Verschieben scrollbar) und zurück; Klick daneben schließt.
+  pic.addEventListener("click", () => stage.classList.toggle("zoom"));
+  stage.addEventListener("click", (event) => { if (event.target === stage) closeImageView(); });
+  const onKey = (event) => {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeImageView(); }
+    else if (event.key === "ArrowLeft" && files.length > 1) { event.preventDefault(); show(index - 1); }
+    else if (event.key === "ArrowRight" && files.length > 1) { event.preventDefault(); show(index + 1); }
+    else if (event.key === "Tab") {
+      const stops = [...back.querySelectorAll("button")];
+      const at = stops.indexOf(document.activeElement);
+      event.preventDefault();
+      stops[(at + (event.shiftKey ? -1 : 1) + stops.length) % stops.length].focus();
+    }
+  };
+  document.addEventListener("keydown", onKey, true);
+  document.body.classList.add("imgview-open");
+  document.body.append(back);
+  imageView = { back, onKey, opener };
+  show(index);
+  close.focus();
+}
+
 function fileCardsEl(actions) {
   const box = node("div", "out-cards");
+  const made = new Map(); // Bildkarten behalten, damit sie bei jeder neuen Aktion nicht neu geladen werden
+  let images = [];
   box.update = (items) => {
     const files = items.filter((a) => a.file && a.status === "ok").map((a) => a.file);
-    box.hidden = files.length === 0;
-    box.replaceChildren(...files.map(fileCard));
+    const pending = items.filter((a) => a.kind === "image" && (a.status === "running" || a.status === "waiting"));
+    images = files.filter((f) => f.image);
+    const cards = images.map((f) => {
+      if (!made.has(f.id)) made.set(f.id, imageCard(f, () => images));
+      return made.get(f.id);
+    });
+    box.hidden = files.length === 0 && pending.length === 0;
+    box.replaceChildren(...cards, ...pending.map(imagePending), ...files.filter((f) => !f.image).map(fileCard));
   };
   box.update(actions);
   return box;
@@ -2208,7 +2374,7 @@ function approvalCard(chatId, ev) {
   const card = node("div", "ask-card");
   card.setAttribute("role", "group");
   card.setAttribute("aria-label", tr("Rückfrage"));
-  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
+  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), image: tr("Soll dieses Bild erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
   card.append(node("div", "ask-title", question), node("div", "ask-what", ev.label));
   if (ev.details) {
     const more = document.createElement("details");

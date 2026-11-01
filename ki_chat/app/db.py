@@ -136,6 +136,15 @@ CREATE TABLE IF NOT EXISTS outfiles (
 CREATE INDEX IF NOT EXISTS idx_outfiles_profile ON outfiles(profile_id, created_at);
 """
 
+IMAGE_USAGE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS image_usage (
+    profile_id  TEXT NOT NULL,
+    month       TEXT NOT NULL,
+    count       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (profile_id, month)
+);
+"""
+
 SCHEDULES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS schedules (
     id           TEXT PRIMARY KEY,
@@ -198,7 +207,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 13  # 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 14  # 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id"
 
@@ -254,6 +263,11 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
         file = i.get("file")
         if isinstance(file, dict) and _FILE_ID.match(str(file.get("id", ""))):
             entry["file"] = {"id": str(file["id"]), "name": str(file.get("name", ""))[:150], "size": int(file.get("size", 0) or 0)}
+            if file.get("image") is True:  # Bild: Maße, Fassung und Herkunft für die Vorschau
+                entry["file"].update(
+                    image=True, w=int(file.get("w", 0) or 0), h=int(file.get("h", 0) or 0), version=int(file.get("version", 1) or 1),
+                    engine=str(file.get("engine", ""))[:10],
+                )
         link = str(i.get("link", ""))
         if link.startswith("https://github.com/") and len(link) < 400:
             entry["link"] = link
@@ -361,6 +375,7 @@ class Store:
         outfile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(outfiles)")}
         if "origin" not in outfile_columns:
             self._conn.execute("ALTER TABLE outfiles ADD COLUMN origin TEXT NOT NULL DEFAULT 'ai'")  # 'ai' = erzeugt/bearbeitet, 'attached' = von der Person angehängt
+        self._conn.executescript(IMAGE_USAGE_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -1109,6 +1124,23 @@ class Store:
         with self._lock:
             row = self._conn.execute("SELECT COALESCE(SUM(size), 0) AS n FROM outfiles WHERE profile_id = ? AND expires_at > ?", (profile_id, _now())).fetchone()
         return int(row["n"])
+
+    def image_usage(self, profile_id: str, month: str) -> int:
+        """Wie viele Bilder von OpenAI oder Google diese Person in diesem Monat (``JJJJ-MM``) erzeugt hat."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT count FROM image_usage WHERE profile_id = ? AND month = ?", (profile_id, month)).fetchone()
+        return int(row["count"]) if row else 0
+
+    def image_usage_add(self, profile_id: str, month: str) -> int:
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO image_usage (profile_id, month, count) VALUES (?, ?, 1) ON CONFLICT(profile_id, month) DO UPDATE SET count = count + 1",
+                (profile_id, month),
+            )
+            row = self._conn.execute("SELECT count FROM image_usage WHERE profile_id = ? AND month = ?", (profile_id, month)).fetchone()
+        return int(row["count"])
 
     def outfile_sweep(self, grace_seconds: int = 900) -> int:
         """Abgelaufene Dateien entfernen sowie Dateien ohne Eintrag (Chat gelöscht); liefert die Anzahl entfernter Dateien."""

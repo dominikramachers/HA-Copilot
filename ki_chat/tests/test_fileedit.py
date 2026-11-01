@@ -475,7 +475,7 @@ def test_old_database_gets_origin_column(tmp_path):
         first._conn.execute("PRAGMA user_version = 12")
     first.close()
     second = Store(path)
-    assert second._conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 13
+    assert second._conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 14
     assert second.outfile_list("adm01", chat)[0]["origin"] == "ai"
     second.close()
     raw = sqlite3.connect(path)

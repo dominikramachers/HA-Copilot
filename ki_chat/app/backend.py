@@ -54,7 +54,7 @@ SYSTEM_PROMPT = (
     "HTML) deshalb in einem eigenen Codeblock und nenne den Dateinamen in der Eröffnungszeile, etwa "
     "```yaml datei=automations.yaml. Eine vollständige, in sich geschlossene HTML-Seite (CSS und JavaScript "
     "inline, keine externen Bibliotheken, Schriften oder Bilder, kein Netzwerkzugriff) zeigt die Oberfläche "
-    "auf Wunsch als Vorschau an. Ohne die Werkzeuge file_create und file_edit kannst du keine Dateien erzeugen, ändern oder speichern; sag dann nicht, dass du es getan hättest, du lieferst Text."
+    "auf Wunsch als Vorschau an. Ohne die Werkzeuge file_create und file_edit kannst du keine Dateien erzeugen, ändern oder speichern; sag dann nicht, dass du es getan hättest, du lieferst Text. Bilder kannst du nur mit den Werkzeugen image_svg und image_generate erzeugen; ohne sie beschreibst du höchstens, was man zeichnen könnte."
 )
 
 

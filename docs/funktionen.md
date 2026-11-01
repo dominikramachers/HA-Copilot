@@ -22,7 +22,7 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 - Lange Chats werden **automatisch zusammengefasst**, statt abgeschnitten zu werden.
 - Ein kurzer **Titel** entsteht automatisch (`title_model`), und jeder Chat lässt sich umbenennen.
 
-Mehr: [Oberfläche](../ki_chat/DOCS.md#oberfläche), [So arbeitet die KI](../ki_chat/DOCS.md#so-arbeitet-die-ki), [Dateien bearbeiten](../ki_chat/DOCS.md#dateien-bearbeiten-ab-0270), [Anhänge und Speicherplatz](../ki_chat/DOCS.md#anhänge-und-speicherplatz).
+Mehr: [Bilder](../ki_chat/DOCS.md#bilder-ab-0280), [Oberfläche](../ki_chat/DOCS.md#oberfläche), [So arbeitet die KI](../ki_chat/DOCS.md#so-arbeitet-die-ki), [Dateien bearbeiten](../ki_chat/DOCS.md#dateien-bearbeiten-ab-0270), [Anhänge und Speicherplatz](../ki_chat/DOCS.md#anhänge-und-speicherplatz).
 
 ## Projekte, Suche, Export
 
@@ -92,6 +92,22 @@ Auf Wunsch legt die KI **Word, Excel, PowerPoint, PDF** und Skripte (PowerShell,
 
 Mehr: [Dateien erzeugen](../ki_chat/DOCS.md#dateien-erzeugen-ab-0180).
 
+## Bilder
+
+Die KI erkennt selbst, wenn du ein Bild möchtest, und erzeugt es: **einfache Grafiken** (Diagramme, Pläne, Logos, Symbole) zeichnet sie kostenlos als **SVG**, **Fotos und Kunst** lässt sie von **OpenAI oder Google** erzeugen (eigener API-Schlüssel nötig). Sie sagt dir, welchen Weg sie gewählt hat. Das Bild erscheint als Karte unter der Antwort; ein Klick öffnet die **Bildvorschau** (groß, Herunterladen, Schließen). Solange ein Bild entsteht, zeigt eine Platzhalterkarte „Bild wird erzeugt …“.
+
+Gefällt dir etwas nicht, schreibst du es einfach in denselben Chat: Die KI ändert das vorhandene Bild (oder ein angehängtes Foto) und legt eine neue Fassung („Version 2“) daneben. Jede Person darf je Monat `image_limit_month` Bilder von OpenAI/Google erzeugen (Standard 30); erst darüber fragt der Chat vor jedem weiteren Bild nach. SVG kostet nichts und zählt nicht. Nach dem Lesen von Web- oder Dateiinhalten fragt die KI vor jedem Bild von OpenAI/Google immer nach. In geplanten Aufgaben entstehen keine Bilder.
+
+![Zwei Fassungen eines Bildes im Chat](screenshots/bild-fassungen.png)
+
+| | |
+|---|---|
+| ![Platzhalter, während das Bild entsteht](screenshots/bild-erzeugen.png) | ![Bildvorschau](screenshots/bild-vorschau.png) |
+
+![Rückfrage über dem Monatslimit](screenshots/bild-rueckfrage.png)
+
+Mehr: [Bilder (Einrichtung, Kosten, Datenschutz)](../ki_chat/DOCS.md#bilder-ab-0280).
+
 ## Geplante Aufgaben und Benachrichtigungen
 
 ![Geplante Aufgaben](screenshots/geplant.png)
@@ -136,7 +152,7 @@ Im Konto-Menü zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Sc
 
 ## Sicherheit und Datenschutz
 
-- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic, sonst an niemanden. Kopien von Anhängen (für das Bearbeiten) liegen für `files_keep_days` Tage im Datenordner des Add-ons und verschwinden mit dem Chat.
+- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; nur wenn du Bilder von OpenAI oder Google erzeugen lässt (eigene Schlüssel nötig), gehen der Bildwunsch und ein Referenzbild an den gewählten Anbieter, sonst an niemanden. Kopien von Anhängen (für das Bearbeiten) liegen für `files_keep_days` Tage im Datenordner des Add-ons und verschwinden mit dem Chat.
 - Jede Abfrage ist auf das Profil gefiltert; Benutzer sehen nie die Chats anderer.
 - Rechte setzt der Server durch, nicht die KI. Alles, was von außen kommt (Home Assistant, Web, GitHub, Dateien), gilt für die KI als Information und nicht als Anweisung; nach dem Lesen fremder Inhalte fragt jede Änderung im Chat nach.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OpenID Connect mit PKCE), Sitzungen liegen serverseitig, Cookies sind `Secure` und `HttpOnly`.

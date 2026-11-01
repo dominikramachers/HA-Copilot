@@ -123,6 +123,14 @@ class Settings:
     files_enabled: bool = True
     files_edit: bool = True  # Anhänge im Chat aufbewahren; die KI kann Dateien lesen und bearbeiten
     files_keep_days: int = 14  # so lange bleiben erzeugte Dateien zum Herunterladen verfügbar
+    # Bilder (SVG von Claude; Fotos und Kunst über OpenAI oder Google)
+    images_enabled: bool = True
+    openai_api_key: str = field(default="", repr=False)
+    google_api_key: str = field(default="", repr=False)
+    image_model_openai: str = "gpt-image-2.5-sunburst"
+    image_model_google: str = "gemini-3.1-flash-image-preview"
+    image_provider: str = "auto"  # auto = die KI wählt je Bild; openai oder google = immer dieser Anbieter
+    image_limit_month: int = 30  # Bilder von OpenAI/Google je Person und Monat, danach fragt der Chat vor jedem weiteren nach (0 = kein Limit)
     # Domain-Zugang (nur relevant, wenn public_enabled)
     public_base_url: str = ""
     entra_tenant_id: str = ""
@@ -312,6 +320,20 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("files_keep_days muss eine Zahl von 1 bis 365 sein") from None
     if not 1 <= files_keep_days <= 365:
         raise ConfigError("files_keep_days muss eine Zahl von 1 bis 365 sein")
+    try:
+        image_limit_month = int(raw.get("image_limit_month", 30))
+    except (TypeError, ValueError):
+        raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
+    if not 0 <= image_limit_month <= 10000:
+        raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)")
+    image_provider = str(raw.get("image_provider") or "auto").strip().lower()
+    if image_provider not in ("auto", "openai", "google"):
+        raise ConfigError("image_provider muss auto, openai oder google sein")
+    image_models = {}
+    for option, default in (("image_model_openai", "gpt-image-2.5-sunburst"), ("image_model_google", "gemini-3.1-flash-image-preview")):
+        image_models[option] = str(raw.get(option) or default).strip()
+        if not re.match(r"^[A-Za-z0-9._-]{3,64}$", image_models[option]):
+            raise ConfigError(f"Ungültiger Modellname bei {option}")
     model = str(raw.get("model") or "claude-sonnet-5-5").strip()
     if not re.match(r"^[A-Za-z0-9._-]{3,64}$", model):
         raise ConfigError("Ungültiger Modellname")
@@ -443,6 +465,13 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         files_enabled=bool(raw.get("files_enabled", True)),
         files_edit=bool(raw.get("files_edit", True)),
         files_keep_days=files_keep_days,
+        images_enabled=bool(raw.get("images_enabled", True)),
+        openai_api_key=str(raw.get("openai_api_key") or "").strip(),
+        google_api_key=str(raw.get("google_api_key") or "").strip(),
+        image_model_openai=image_models["image_model_openai"],
+        image_model_google=image_models["image_model_google"],
+        image_provider=image_provider,
+        image_limit_month=image_limit_month,
     )
 
 

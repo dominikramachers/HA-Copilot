@@ -466,5 +466,20 @@
  "Angehängte Dateien werden nicht übernommen. Hänge sie bei Bedarf neu an.": "Attached files are not carried over. Attach them again if needed.",
  "Abbrechen": "Cancel",
  "Antwort kopieren": "Copy answer",
- "Als Datei speichern": "Save as file"
+ "Als Datei speichern": "Save as file",
+ "gezeichnet (SVG)": "drawn (SVG)",
+ "Version {0}": "Version {0}",
+ "Bildvorschau öffnen: {0}": "Open image preview: {0}",
+ "Bild zeichnen": "Draw image",
+ "Bild erzeugen": "Create image",
+ "Bild wird gezeichnet …": "Drawing image …",
+ "Bild wird erzeugt …": "Creating image …",
+ "Bildvorschau": "Image preview",
+ "Vorheriges Bild": "Previous image",
+ "Nächstes Bild": "Next image",
+ "Bild wird geladen …": "Loading image …",
+ "Das Bild ist nicht mehr verfügbar.": "The image is no longer available.",
+ "Soll dieses Bild erzeugt werden?": "Should this image be created?",
+ "Bild erzeugt": "image created",
+ "{0} Bilder erzeugt": "{0} images created"
 }

@@ -8,6 +8,7 @@ Alle Bilder zeigen eine Test-Instanz von Home Assistant mit Demo-Geräten und di
 | `ha-copilot-im-panel.png`, `…-dunkel.png` | HA Copilot im Home-Assistant-Rahmen, mit dem Theme von Home Assistant |
 | `ha-copilot-doralab.png`, `…-dunkel.png` | Dasselbe mit einem eigenen Theme („DORALAB“, nur Farben) statt dem Standard-Theme von Home Assistant |
 | `nachricht-zeit.png`, `nachricht-bearbeiten.png`, `antwort-zeit.png` | Eigene Nachricht mit Zeitpunkt, Bearbeiten und Kopieren; der Editor; Antwort mit Kopieren, „Als Datei“ und Zeitpunkt |
+| `bild-fassungen.png`, `bild-erzeugen.png`, `bild-vorschau.png`, `bild-rueckfrage.png` | Zwei Fassungen eines erzeugten Bildes im Chat; Platzhalter „Bild wird erzeugt …“; die Bildvorschau; Rückfrage über dem Monatslimit |
 | `einrichtungspruefung.png` | Einrichtungsprüfung im Konto-Menü |
 | `suche.png` | Suche über alle eigenen Chats |
 | `geplant.png` | Geplante Aufgaben |

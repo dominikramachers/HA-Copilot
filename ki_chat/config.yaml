@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.27.5"
+version: "0.28.0"
 slug: ki_chat
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -78,6 +78,13 @@ options:
   files_enabled: true
   files_edit: true
   files_keep_days: 14
+  images_enabled: true
+  openai_api_key: ""
+  google_api_key: ""
+  image_provider: auto
+  image_model_openai: gpt-image-2.5-sunburst
+  image_model_google: gemini-3.1-flash-image-preview
+  image_limit_month: 30
   restore_snapshot: ""
   export_database: false
   claude_token_expires: ""
@@ -143,6 +150,13 @@ schema:
   files_enabled: bool?
   files_edit: bool?
   files_keep_days: int(1,365)?
+  images_enabled: bool?
+  openai_api_key: password?
+  google_api_key: password?
+  image_provider: list(auto|openai|google)?
+  image_model_openai: str?
+  image_model_google: str?
+  image_limit_month: int(0,10000)?
   restore_snapshot: str?
   export_database: bool?
   claude_token_expires: str?
