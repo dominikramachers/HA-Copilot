@@ -83,7 +83,7 @@ Gedächtnis, geplante Aufgaben, Dateien und Sprache.
 
 ## Bilder
 
-Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../ki_chat/DOCS.md#bilder-ab-0280).
+Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
@@ -112,7 +112,7 @@ Optional, nur mit `public_enabled`. Ausführlich in [Domain-Zugang](domain-zugan
 
 ## Aussehen und Name
 
-Alles optional. Ausführlich in der [Dokumentation](../ki_chat/DOCS.md#personalisierung-name-logo-texte-farben).
+Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben).
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|

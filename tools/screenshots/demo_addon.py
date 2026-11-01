@@ -1,6 +1,6 @@
 """Demo-Add-on für die Doku-Screenshots: echte App, neutrale Beispieldaten, nachgebildete KI (kein Claude-Zugang)."""
 import os, sys, tempfile, pathlib
-ROOT = os.environ.get("KI_ROOT", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "ki_chat"))
+ROOT = os.environ.get("KI_ROOT", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "copilot"))
 sys.path.insert(0, ROOT); sys.path.insert(0, ROOT + "/tests")
 import asyncio, base64, io, json, re
 import httpx, uvicorn

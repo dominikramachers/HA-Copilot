@@ -71,7 +71,7 @@ Die Stufen gelten **je Benutzer** und werden vom Server durchgesetzt, nicht von 
 | `execute` | zusätzlich Geräte bedienen (Licht, Klima, Rollos, Szenen …) | (nicht vorhanden) |
 | `write` | zusätzlich Automationen, Skripte, Szenen, Dashboards, Helfer anlegen und ändern | zusätzlich Dateien einchecken, Zweige, Pull Requests, Issues |
 
-Voreinstellung ohne eigenen Eintrag: Home Assistant `read` (`ha_access_default`), GitHub `none` (`github_access_default`). Änderungen an der Konfiguration von Home Assistant und GitHub fragen standardmäßig im Chat nach (`ha_write_confirm`, `github_write_confirm`), Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung von Home Assistant sind nie möglich. Alle Einzelheiten: [Zugriff auf Home Assistant](../ki_chat/DOCS.md#zugriff-auf-home-assistant-ab-0150) und [GitHub](../ki_chat/DOCS.md#github-ab-0190).
+Voreinstellung ohne eigenen Eintrag: Home Assistant `read` (`ha_access_default`), GitHub `none` (`github_access_default`). Änderungen an der Konfiguration von Home Assistant und GitHub fragen standardmäßig im Chat nach (`ha_write_confirm`, `github_write_confirm`), Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung von Home Assistant sind nie möglich. Alle Einzelheiten: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant-ab-0150) und [GitHub](../copilot/DOCS.md#github-ab-0190).
 
 ## Alle Home-Assistant-Benutzer zulassen
 

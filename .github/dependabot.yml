@@ -6,13 +6,13 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: pip
-    directory: /ki_chat
+    directory: /copilot
     schedule:
       interval: weekly
     groups:
       python-abhaengigkeiten:
         patterns: ["*"]
   - package-ecosystem: docker
-    directory: /ki_chat
+    directory: /copilot
     schedule:
       interval: weekly

@@ -3,14 +3,14 @@
 Die Bilder in `docs/screenshots/` zeigen **echte Oberflächen mit Demo-Daten**, keine Mock-ups und keine privaten Daten:
 
 - **Home Assistant:** eine frische Test-Instanz von Home Assistant Core (`pip install homeassistant`, Version 2026.2.3) mit der eingebauten `demo`-Integration, einem Demo-Benutzer und einem Platzhalter-Dashboard „Zuhause“ (`ha_dashboard.py`).
-- **HA Copilot:** die echte App aus diesem Repository (`ki_chat/`), gestartet mit Beispiel-Chats, -Gedächtnis und -Aufgaben (`demo_addon.py`) und einer **nachgebildeten KI** (keine Verbindung zu Claude, keine Zugangsdaten).
+- **HA Copilot:** die echte App aus diesem Repository (`copilot/`), gestartet mit Beispiel-Chats, -Gedächtnis und -Aufgaben (`demo_addon.py`) und einer **nachgebildeten KI** (keine Verbindung zu Claude, keine Zugangsdaten).
 - **Einbettung:** Die Test-Instanz hat keinen Supervisor. Das Panel „HA Copilot“ ist deshalb ein kleines eigenes Panel (`ha_config/www/copilot-panel.js`), das die App wie der Ingress des Supervisors in einem Frame gleicher Herkunft einbettet; die Aufnahme leitet die Ingress-Adresse auf die Demo-App um. Die Oberfläche der App (Seitenleiste, Dialoge, Farben aus dem Home-Assistant-Theme) ist dieselbe wie in einer echten Installation. Nicht abgebildet sind Dinge, die nur der Supervisor liefert (Add-on-Store, Konfigurationsseite des Add-ons).
 
 ## Ablauf
 
 ```bash
 python -m venv venv && venv/bin/pip install homeassistant==2026.2.3 numpy pymicro-vad pyspeex-noise
-pip install -r ki_chat/requirements.txt playwright && playwright install chromium
+pip install -r copilot/requirements.txt playwright && playwright install chromium
 
 mkdir work && cp -r tools/screenshots/ha_config work/hademo
 venv/bin/hass -c work/hademo &                      # Test-Instanz auf Port 8123

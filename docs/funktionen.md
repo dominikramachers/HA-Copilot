@@ -1,6 +1,6 @@
 # Funktionen
 
-Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazugehören. Jeder Abschnitt verweist auf die ausführliche Beschreibung in der [Add-on-Dokumentation](../ki_chat/DOCS.md). Alle Optionen mit Standardwerten stehen in [Alle Einstellungen](einstellungen.md).
+Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazugehören. Jeder Abschnitt verweist auf die ausführliche Beschreibung in der [Add-on-Dokumentation](../copilot/DOCS.md). Alle Optionen mit Standardwerten stehen in [Alle Einstellungen](einstellungen.md).
 
 ![Der Chat in Home Assistant, dunkel](screenshots/ha-copilot-im-panel-dunkel.png)
 
@@ -22,7 +22,7 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 - Lange Chats werden **automatisch zusammengefasst**, statt abgeschnitten zu werden.
 - Ein kurzer **Titel** entsteht automatisch (`title_model`), und jeder Chat lässt sich umbenennen.
 
-Mehr: [Bilder](../ki_chat/DOCS.md#bilder-ab-0280), [Oberfläche](../ki_chat/DOCS.md#oberfläche), [So arbeitet die KI](../ki_chat/DOCS.md#so-arbeitet-die-ki), [Dateien bearbeiten](../ki_chat/DOCS.md#dateien-bearbeiten-ab-0270), [Anhänge und Speicherplatz](../ki_chat/DOCS.md#anhänge-und-speicherplatz).
+Mehr: [Bilder](../copilot/DOCS.md#bilder-ab-0280), [Oberfläche](../copilot/DOCS.md#oberfläche), [So arbeitet die KI](../copilot/DOCS.md#so-arbeitet-die-ki), [Dateien bearbeiten](../copilot/DOCS.md#dateien-bearbeiten-ab-0270), [Anhänge und Speicherplatz](../copilot/DOCS.md#anhänge-und-speicherplatz).
 
 ## Projekte, Suche, Export
 
@@ -38,7 +38,7 @@ Mehr: [Bilder](../ki_chat/DOCS.md#bilder-ab-0280), [Oberfläche](../ki_chat/DOCS
 
 - Unter **Meine Daten** (Konto-Menü) exportierst du alle Chats als ZIP oder löschst sie unwiderruflich.
 
-Mehr: [Suche, Export und eigene Daten](../ki_chat/DOCS.md#suche-export-und-eigene-daten-ab-0220).
+Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigene-daten-ab-0220).
 
 ## Zugriff auf Home Assistant
 
@@ -53,7 +53,7 @@ Was erlaubt ist, hängt von der **Stufe je Benutzer** ab (`none`, `read`, `execu
 
 Standardmäßig sieht und bedient die KI nur Entitäten, die du in Home Assistant für Assist freigegeben hast (`ha_limit_to_exposed`).
 
-Mehr: [Zugriff auf Home Assistant](../ki_chat/DOCS.md#zugriff-auf-home-assistant-ab-0150), [Smarthome-Überblick](../ki_chat/DOCS.md#smarthome-überblick-ab-0170).
+Mehr: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant-ab-0150), [Smarthome-Überblick](../copilot/DOCS.md#smarthome-überblick-ab-0170).
 
 ## Gedächtnis
 
@@ -63,7 +63,7 @@ Die KI merkt sich dauerhafte Dinge in kurzen Einträgen, getrennt in **Haushalt*
 
 Zusätzlich liest das Add-on selbst einen **Smarthome-Überblick** (Bereiche, Entitäten je Typ, Integrationen, Namen von Automationen) ein und legt ihn als schreibgeschützte Einträge ab. Das kostet keine KI-Nachricht. `ha_scan_days: 0` schaltet es ab.
 
-Mehr: [Projektwissen und Gedächtnis](../ki_chat/DOCS.md#projektwissen-und-gedächtnis-ab-0160).
+Mehr: [Projektwissen und Gedächtnis](../copilot/DOCS.md#projektwissen-und-gedächtnis-ab-0160).
 
 ## GitHub
 
@@ -76,7 +76,7 @@ Einrichtung in vier Schritten:
 3. Bei den Benutzern `github_access` (oder `github_access_default`) auf `read` oder `write` setzen. Standard ist `none`.
 4. Speichern, Add-on neu starten.
 
-Mehr: [GitHub](../ki_chat/DOCS.md#github-ab-0190).
+Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 
 ## Websuche und Modelle
 
@@ -84,13 +84,13 @@ Mehr: [GitHub](../ki_chat/DOCS.md#github-ab-0190).
 - `model` ist das Standardmodell, `models` legt fest, welche weiteren im Chat wählbar sind.
 - Ist ein Limit deines Abos fast erreicht, erscheint oben im Chat ein Hinweis mit der Zeit der Rücksetzung.
 
-Mehr: [Web, Modell und Nutzungslimit](../ki_chat/DOCS.md#web-modell-und-nutzungslimit-ab-0200).
+Mehr: [Web, Modell und Nutzungslimit](../copilot/DOCS.md#web-modell-und-nutzungslimit-ab-0200).
 
 ## Dateien erzeugen
 
 Auf Wunsch legt die KI **Word, Excel, PowerPoint, PDF** und Skripte (PowerShell, Shell, Python …) an. Unter der Antwort erscheint eine Karte mit Download. Die Dateien bleiben `files_keep_days` Tage (Standard 14) und gehören nur dir. Abschalten mit `files_enabled: false`.
 
-Mehr: [Dateien erzeugen](../ki_chat/DOCS.md#dateien-erzeugen-ab-0180).
+Mehr: [Dateien erzeugen](../copilot/DOCS.md#dateien-erzeugen-ab-0180).
 
 ## Bilder
 
@@ -106,7 +106,7 @@ Gefällt dir etwas nicht, schreibst du es einfach in denselben Chat: Die KI änd
 
 ![Rückfrage über dem Monatslimit](screenshots/bild-rueckfrage.png)
 
-Mehr: [Bilder (Einrichtung, Kosten, Datenschutz)](../ki_chat/DOCS.md#bilder-ab-0280).
+Mehr: [Bilder (Einrichtung, Kosten, Datenschutz)](../copilot/DOCS.md#bilder-ab-0280).
 
 ## Geplante Aufgaben und Benachrichtigungen
 
@@ -116,7 +116,7 @@ Unter **Geplant** legst du Aufgaben an, die die KI zu festen Zeiten erledigt (t�
 
 Dauert eine normale Antwort länger als etwa 45 Sekunden und niemand sieht mehr zu, bekommt die Person ebenfalls eine Handy-Benachrichtigung (`notify_long_answers`). `schedules_enabled: false` schaltet die Seite ab.
 
-Mehr: [Geplante Aufgaben](../ki_chat/DOCS.md#geplante-aufgaben-ab-0210).
+Mehr: [Geplante Aufgaben](../copilot/DOCS.md#geplante-aufgaben-ab-0210).
 
 ## Aussehen und Sprache
 
@@ -138,7 +138,7 @@ Englische Oberfläche (`language: en`):
 
 ![Englische Oberfläche](screenshots/chat-en.png)
 
-Mehr: [Personalisierung](../ki_chat/DOCS.md#personalisierung-name-logo-texte-farben), [Sprache](../ki_chat/DOCS.md#sprache-ab-0260).
+Mehr: [Personalisierung](../copilot/DOCS.md#personalisierung-name-logo-texte-farben), [Sprache](../copilot/DOCS.md#sprache-ab-0260).
 
 ## Auf dem Handy
 
@@ -157,4 +157,4 @@ Im Konto-Menü zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Sc
 - Rechte setzt der Server durch, nicht die KI. Alles, was von außen kommt (Home Assistant, Web, GitHub, Dateien), gilt für die KI als Information und nicht als Anweisung; nach dem Lesen fremder Inhalte fragt jede Änderung im Chat nach.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OpenID Connect mit PKCE), Sitzungen liegen serverseitig, Cookies sind `Secure` und `HttpOnly`.
 
-Mehr: [Sicherheit in Kürze](../ki_chat/DOCS.md#sicherheit-in-kürze), [SECURITY.md](../SECURITY.md).
+Mehr: [Sicherheit in Kürze](../copilot/DOCS.md#sicherheit-in-kürze), [SECURITY.md](../SECURITY.md).

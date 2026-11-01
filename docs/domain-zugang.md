@@ -88,7 +88,7 @@ Im Handy-Browser über **Zum Home-Bildschirm** ablegen. Name (`app_name`) und Sy
 - Der Zugriff der KI auf Home Assistant über die Domain lässt sich mit `ha_access_via_domain: false` ganz abschalten.
 - Das **Entra-Geheimnis läuft ab**. Trage das Ablaufdatum bei `entra_secret_expires` ein (`JJJJ-MM-TT`); 30 Tage vorher erscheint ein Hinweis im Chat.
 
-Alle Einzelheiten: [Sicherheit in Kürze](../ki_chat/DOCS.md#sicherheit-in-kürze) und [SECURITY.md](../SECURITY.md).
+Alle Einzelheiten: [Sicherheit in Kürze](../copilot/DOCS.md#sicherheit-in-kürze) und [SECURITY.md](../SECURITY.md).
 
 ## Probleme
 
