@@ -74,10 +74,10 @@ from . import setup_check
 from .setup_check import PeerLog, subscription_shared
 from .ratelimit import RateLimiter
 
-log = logging.getLogger("ki_chat")
+log = logging.getLogger("copilot")
 
 STATIC_DIR = Path(__file__).parent / "static"
-INGRESS_PORT = int(os.environ.get("KI_CHAT_PORT", "8099"))
+INGRESS_PORT = int(os.environ.get("COPILOT_PORT", "8099"))
 PUBLIC_PORT = 8100
 
 MAX_PARALLEL = 2  # gleichzeitige KI-Anfragen insgesamt (jede startet einen eigenen Prozess)

@@ -22,7 +22,7 @@ import httpx
 
 from .ha_client import HaApi, HaApiError
 
-log = logging.getLogger("ki_chat.ha_login")
+log = logging.getLogger("copilot.ha_login")
 
 
 class HaLoginError(Exception):

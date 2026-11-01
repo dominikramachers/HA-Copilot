@@ -19,7 +19,7 @@ from urllib.parse import urlencode
 import httpx
 import jwt
 
-log = logging.getLogger("ki_chat.oidc")
+log = logging.getLogger("copilot.oidc")
 
 AUTHORITY = "https://login.microsoftonline.com"
 SCOPES = "openid profile email"

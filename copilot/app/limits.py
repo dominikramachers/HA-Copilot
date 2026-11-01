@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 from .db import Store
 
-log = logging.getLogger("ki_chat.limits")
+log = logging.getLogger("copilot.limits")
 
 STATE_KEY = "usage_limits"
 STALE_SECONDS = 6 * 3600  # ohne bekannte Rücksetzzeit gilt eine Warnung höchstens so lange

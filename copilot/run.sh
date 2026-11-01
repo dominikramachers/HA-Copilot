@@ -1,3 +1,3 @@
 #!/bin/sh
-cd /opt/ki_chat
+cd /opt/copilot
 exec python3 -m app.main

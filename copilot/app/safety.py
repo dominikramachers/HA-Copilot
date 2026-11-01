@@ -18,13 +18,13 @@ from pathlib import Path
 from .i18n import tr
 from .db import SCHEMA_VERSION
 
-log = logging.getLogger("ki_chat.safety")
+log = logging.getLogger("copilot.safety")
 
 KEEP_DAILY = 7  # tägliche Schnappschüsse
 KEEP_SPECIAL = 3  # je Art: vor einem Update, vor einer Wiederherstellung
 SNAPSHOT_EVERY = timedelta(hours=20)
 
-DAILY = "ki_chat-"
+DAILY = "copilot-"
 BEFORE_UPDATE = "vor-update-"
 BEFORE_RESTORE = "vor-wiederherstellung-"
 MARKER = ".letzte-wiederherstellung"
@@ -92,7 +92,7 @@ def snapshot_live(conn: sqlite3.Connection, snap_dir: Path, prefix: str = DAILY,
     return dest
 
 
-EXPORT_NAME = "ki_chat-export.sqlite3"
+EXPORT_NAME = "copilot-export.sqlite3"
 
 
 def export_database(db_path: Path, dest_dir: Path) -> Path:

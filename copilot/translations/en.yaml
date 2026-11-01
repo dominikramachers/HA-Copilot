@@ -197,7 +197,7 @@ configuration:
     description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'
   export_database:
     name: Export database (migration)
-    description: 'Only for moving to another add-on (e.g. from the local add-on to the GitHub add-on): on start, a copy of all chats is written to the add-on’s config folder as ki_chat-export.sqlite3. Switch it off afterwards and delete the file.'
+    description: 'Only for moving to another add-on (e.g. from the local add-on to the GitHub add-on): on start, a copy of all chats is written to the add-on’s config folder as copilot-export.sqlite3. Switch it off afterwards and delete the file.'
   claude_token_expires:
     name: Claude token expires on
     description: Date (YYYY-MM-DD) for the reminder in the app.

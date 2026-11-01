@@ -33,10 +33,10 @@ Der Tunnel leitet `chat.example.org` auf den Port **8100** des Add-ons. Mit dem 
 ```yaml
 additional_hosts:
   - hostname: chat.example.org
-    service: http://f472b445-ki-chat:8100
+    service: http://f472b445-copilot:8100
 ```
 
-Der Hostname im `service` ist der Name des Add-ons im internen Netz von Home Assistant. Bei HA Copilot aus diesem Repository lautet er `f472b445-ki-chat`. **Die Einrichtungsprüfung nennt dir den genauen Namen**, sobald der Domain-Zugang eingeschaltet ist. Läuft der Tunnel auf einem anderen Gerät, gib den Port unter **Netzwerk** in der Add-on-Konfiguration frei und richte den Tunnel auf die IP-Adresse von Home Assistant.
+Der Hostname im `service` ist der Name des Add-ons im internen Netz von Home Assistant. Bei HA Copilot aus diesem Repository lautet er `f472b445-copilot`. **Die Einrichtungsprüfung nennt dir den genauen Namen**, sobald der Domain-Zugang eingeschaltet ist. Läuft der Tunnel auf einem anderen Gerät, gib den Port unter **Netzwerk** in der Add-on-Konfiguration frei und richte den Tunnel auf die IP-Adresse von Home Assistant.
 
 ## 3. Konfiguration
 

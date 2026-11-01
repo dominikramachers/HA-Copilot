@@ -15,16 +15,16 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-log = logging.getLogger("ki_chat.config")
+log = logging.getLogger("copilot.config")
 
-OPTIONS_PATH = Path(os.environ.get("KI_CHAT_OPTIONS", "/data/options.json"))
+OPTIONS_PATH = Path(os.environ.get("COPILOT_OPTIONS", "/data/options.json"))
 # Ordner „addon_config“ des Add-ons (in Home Assistant unter /addon_configs/<Ordner>/ erreichbar, z. B. per Samba):
 # hier liegen optional logo.png, logo-full.png und custom.css.
-BRANDING_DIR = Path(os.environ.get("KI_CHAT_BRANDING", "/config"))
+BRANDING_DIR = Path(os.environ.get("COPILOT_BRANDING", "/config"))
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
-HA_WEBSOCKET_URL = os.environ.get("KI_CHAT_HA_WS", "ws://supervisor/core/websocket")
-HA_REST_URL = os.environ.get("KI_CHAT_HA_REST", "http://supervisor/core/api")
-DB_PATH = Path(os.environ.get("KI_CHAT_DB", "/data/ki_chat.sqlite3"))
+HA_WEBSOCKET_URL = os.environ.get("COPILOT_HA_WS", "ws://supervisor/core/websocket")
+HA_REST_URL = os.environ.get("COPILOT_HA_REST", "http://supervisor/core/api")
+DB_PATH = Path(os.environ.get("COPILOT_DB", "/data/copilot.sqlite3"))
 SNAPSHOT_DIR = DB_PATH.parent / "snapshots"
 
 # Quelladresse des Supervisor-Ingress-Proxys. Nur von dort werden die
@@ -500,7 +500,7 @@ def load_settings(path: Path = OPTIONS_PATH) -> Settings:
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigError(f"Optionen nicht lesbar: {exc}") from exc
 
-    override = os.environ.get("KI_CHAT_INGRESS_PEERS")
+    override = os.environ.get("COPILOT_INGRESS_PEERS")
     peers = (
         frozenset(p.strip() for p in override.split(",") if p.strip()) if override else None
     )

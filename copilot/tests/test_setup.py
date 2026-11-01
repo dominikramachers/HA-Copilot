@@ -28,7 +28,7 @@ def make(**extra):
 
 
 def rows(settings, profile=None, **kw):
-    defaults = dict(ha_enabled=True, github_enabled=False, ha_level="read", github_level="none", hostname="abc-ki-chat")
+    defaults = dict(ha_enabled=True, github_enabled=False, ha_level="read", github_level="none", hostname="abc-copilot")
     defaults.update(kw)
     items = sc.static_items(settings, profile or settings.profiles[0], **defaults)
     return {i["id"]: i for i in items}
@@ -157,7 +157,7 @@ def test_domain_off_lists_the_steps_with_the_hostname():
     row = rows(make())["domain"]
     assert row["status"] == "off"
     steps = " ".join(row["steps"])
-    assert "abc-ki-chat:8100" in steps and "public_base_url" in steps and "/auth/callback" in steps
+    assert "abc-copilot:8100" in steps and "public_base_url" in steps and "/auth/callback" in steps
 
 
 def domain_settings(**extra):
@@ -169,7 +169,7 @@ def domain_settings(**extra):
 
 def test_domain_on_without_trusted_proxy_names_the_seen_address():
     found = rows(domain_settings(), public_peers=["172.30.33.5"])
-    assert found["domain"]["status"] == "ok" and "abc-ki-chat:8100" in found["domain"]["detail"]
+    assert found["domain"]["status"] == "ok" and "abc-copilot:8100" in found["domain"]["detail"]
     warn = found["domain_proxies"]
     assert warn["status"] == "warn" and warn["level"] == "recommended" and "172.30.33.5" in " ".join(warn["steps"])
     nothing_seen = rows(domain_settings())["domain_proxies"]

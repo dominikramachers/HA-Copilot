@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-log = logging.getLogger("ki_chat.github")
+log = logging.getLogger("copilot.github")
 
 BASE_URL = "https://api.github.com"
 API_VERSION = "2022-11-28"
@@ -90,7 +90,7 @@ class GithubApi:
             "Authorization": f"Bearer {self._token}",
             "Accept": accept,
             "X-GitHub-Api-Version": API_VERSION,
-            "User-Agent": "ki-chat-addon",
+            "User-Agent": "ha-copilot-addon",
         }
         try:
             async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport, follow_redirects=False) as client:

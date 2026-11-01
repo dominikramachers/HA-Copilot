@@ -20,7 +20,7 @@ from pathlib import Path
 from . import office
 from .i18n import tr
 
-log = logging.getLogger("ki_chat.attachments")
+log = logging.getLogger("copilot.attachments")
 
 MAX_FILES = 5
 MAX_FILE_BYTES = 50 * 1024 * 1024  # PDF, Word, Excel je Datei

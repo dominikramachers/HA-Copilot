@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 from websockets.asyncio.client import connect
 
-log = logging.getLogger("ki_chat.ha")
+log = logging.getLogger("copilot.ha")
 
 THEME_TTL = 60.0
 MAX_MESSAGE = 32 * 1024 * 1024

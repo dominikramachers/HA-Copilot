@@ -380,7 +380,7 @@ class Store:
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
-    def snapshot(self, snap_dir: Path, prefix: str = "ki_chat-") -> Path:
+    def snapshot(self, snap_dir: Path, prefix: str = "copilot-") -> Path:
         """Konsistenter Schnappschuss der laufenden Datenbank (siehe safety.py)."""
         from .safety import snapshot_live
 
