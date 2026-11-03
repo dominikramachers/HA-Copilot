@@ -541,3 +541,50 @@ def test_xlsx_formats_override_and_totals_true():
     ws = _xlsx(data).active
     assert ws["C2"].number_format == outbox.EURO_FORMAT and ws["B2"].number_format == '0 "Stk"'
     assert ws["B4"].value == "=SUM(B2:B3)" and ws["C4"].value == "=SUM(C2:C3)" and ws["A4"].value == "Summe"
+
+
+# ----------------------------------------------------------------------------- Deckblatt, Seitenumbruch, Kopf- und Fußzeile
+
+DOC_MD = (
+    "# Jahresbericht\n\nUntertitel 2026\n\n[DECKBLATT]\n\n[KOPFZEILE: Kopf Text]\n[FUSSZEILE: Fuß Text]\n\n[TOC]\n\n"
+    "## Einleitung\n\nText.\n\n[SEITENUMBRUCH]\n\n## Ergebnisse\n\nMehr.\n"
+)
+
+
+def test_blocks_cover_pagebreak_and_running_text():
+    blocks = md.parse(DOC_MD)
+    kinds = [b[0] for b in blocks]
+    assert "cover" in kinds and "pagebreak" in kinds
+    assert ("header", "Kopf Text") in blocks and ("footer", "Fuß Text") in blocks
+    assert ("footer", "x") in md.parse("[Fußzeile: x]") and ("header", "y") in md.parse("[header: y]")
+
+
+def test_docx_cover_page_header_footer_and_break():
+    from docx import Document
+
+    doc = Document(io.BytesIO(outbox.render("d.docx", DOC_MD, "T")[0]))
+    section = doc.sections[0]
+    assert section.different_first_page_header_footer
+    assert section.header.paragraphs[0].text == "Kopf Text" and "Fuß Text" in section.footer.paragraphs[0].text
+    assert doc.paragraphs[0].style.name == "Title" and doc.paragraphs[0].text == "Jahresbericht"
+    breaks = [r for p in doc.paragraphs for r in p.runs if 'w:br w:type="page"' in r._r.xml or "w:type=\"page\"" in r._r.xml]
+    assert len(breaks) == 2  # nach dem Deckblatt und der eigene Seitenumbruch
+    assert "[DECKBLATT]" not in "\n".join(p.text for p in doc.paragraphs)
+
+
+def test_pdf_cover_has_no_footer_and_pagebreak_adds_a_page():
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(outbox.render("d.pdf", DOC_MD, "T")[0])
+    texts = [pdf[i].get_textpage().get_text_range() for i in range(len(pdf))]
+    assert len(pdf) >= 4
+    assert "Jahresbericht" in texts[0] and "Fuß Text" not in texts[0] and "Kopf Text" not in texts[0]
+    assert all("Fuß Text" in t and "Kopf Text" in t for t in texts[1:])
+
+
+def test_pptx_ignores_document_only_markers():
+    from pptx import Presentation
+
+    prs = Presentation(io.BytesIO(outbox.render("d.pptx", "# T\n\nS\n\n[SEITENUMBRUCH]\n\n[FUSSZEILE: x]\n\n## A\n\n- b\n", "T")[0]))
+    assert len(prs.slides) == 2
+    assert not any("SEITENUMBRUCH" in t or "FUSSZEILE" in t for texts in _slide_texts(prs) for t in texts)

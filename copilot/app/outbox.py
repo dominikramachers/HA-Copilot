@@ -421,9 +421,20 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
         style.paragraph_format.space_after = Pt(6)
         style.paragraph_format.keep_with_next = True
 
+    parsed = md.parse(content)
+    cover_at = next((i for i, b in enumerate(parsed) if b[0] == "cover"), None)
+    running = {b[0]: b[1] for b in reversed(parsed) if b[0] in ("header", "footer")}
+    if cover_at is not None:
+        section.different_first_page_header_footer = True  # Deckblatt ohne Kopf- und Fußzeile
+    if running.get("header"):
+        top = section.header.paragraphs[0]
+        top.alignment = 2  # rechts
+        top_run = top.add_run(running["header"])
+        top_run.font.size, top_run.font.color.rgb = Pt(8.5), RGBColor(*grey)
+        _border(top, "bottom", theme.accent, size=4, space=3)
     footer = section.footer.paragraphs[0]  # kleine Fußzeile: Titel links, Seitenzahl rechts
     footer.paragraph_format.tab_stops.add_tab_stop(Cm(16.4), alignment=2)  # 2 = rechts
-    run = footer.add_run(title)
+    run = footer.add_run(running.get("footer") or title)
     run.font.size, run.font.color.rgb = Pt(8.5), RGBColor(*grey)
     footer.add_run("\t\t")  # die Standard-Fußzeile hat einen Mitteltabulator; der zweite Tabulator führt an den rechten Rand
     _page_field(footer, 8.5, grey)
@@ -447,10 +458,32 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
             run.italic = True
             run.font.size, run.font.color.rgb = Pt(9.5), RGBColor(*grey)
 
-    parsed = md.parse(content)
+    cover_title_done = False
     for position, block in enumerate(parsed):
         kind = block[0]
-        if kind == "image":
+        on_cover = cover_at is not None and position < cover_at
+        if kind in ("header", "footer"):
+            continue
+        if kind == "pagebreak":
+            doc.add_page_break()
+        elif kind == "cover":
+            doc.add_page_break()
+        elif on_cover and kind == "h" and not cover_title_done:
+            cover_title_done = True
+            par = doc.add_paragraph(style="Title")
+            par.paragraph_format.space_before = Cm(6.5)
+            par.paragraph_format.space_after = Pt(14)
+            par.style.font.name = theme.heading_font
+            runs_in(par, block[2], bold=True, color=head_rgb, size=34)
+            _border(par, "bottom", theme.accent, size=18, space=8)
+        elif on_cover and kind == "p":
+            par = doc.add_paragraph()
+            if not cover_title_done:
+                par.paragraph_format.space_before = Cm(6.5)
+                cover_title_done = True
+            par.paragraph_format.space_after = Pt(6)
+            runs_in(par, block[1], color=grey, size=14)
+        elif kind == "image":
             add_picture(_picture(images, block[2]), block[1])
         elif kind == "chart":
             chart = _chart_of(block[1])
@@ -862,12 +895,34 @@ def render_pdf(content: str, title: str, author: str, theme: design.Theme = desi
 
     fonts = find_fonts()
 
+    parsed = md.parse(content)
+    cover_at = next((i for i, b in enumerate(parsed) if b[0] == "cover"), None)
+    running = {b[0]: b[1] for b in reversed(parsed) if b[0] in ("header", "footer")}
+
     class Doc(FPDF):
+        def header(self) -> None:
+            if running.get("header") and not (cover_at is not None and self.page_no() == 1):
+                self.set_y(8)
+                self.set_font(body, "", 8.5)
+                self.set_text_color(130, 138, 146)
+                self.cell(0, 5, fix(running["header"]), align="R")
+                self.set_draw_color(*design.rgb(theme.accent))
+                self.set_line_width(0.25)
+                self.line(self.l_margin, 14, self.w - self.r_margin, 14)
+                self.set_y(self.t_margin)
+
         def footer(self) -> None:
+            if cover_at is not None and self.page_no() == 1:  # Deckblatt ohne Fußzeile
+                return
             self.set_y(-12)
             self.set_font(body, "", 8.5)
             self.set_text_color(130, 138, 146)
-            self.cell(0, 6, f"Seite {self.page_no()}", align="C")
+            if running.get("footer"):
+                self.cell(0, 6, fix(running["footer"]), align="L")
+                self.set_x(self.l_margin)
+                self.cell(0, 6, f"Seite {self.page_no()}", align="R")
+            else:
+                self.cell(0, 6, f"Seite {self.page_no()}", align="C")
 
     pdf = Doc(format="A4")
     pdf.set_auto_page_break(True, 18)
@@ -940,12 +995,32 @@ def render_pdf(content: str, title: str, author: str, theme: design.Theme = desi
             pdf.multi_cell(0, 4.5, fix(alt), align="C", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(5)
 
-    parsed = md.parse(content)
     last_level = 0
+    cover_started = False
     for position, block in enumerate(parsed):
         kind = block[0]
+        on_cover = cover_at is not None and position < cover_at
         pdf.set_x(left)
-        if kind == "image":
+        if on_cover and not cover_started and kind in ("h", "p"):
+            cover_started = True
+            pdf.set_y(80)
+        if kind in ("header", "footer"):
+            continue
+        if kind in ("pagebreak", "cover"):
+            pdf.add_page()
+        elif on_cover and kind == "h" and block[1] == 1:
+            pdf.start_section(md.plain(block[2]), level=0)
+            last_level = 0
+            runs_out(block[2], 32, 15, base="B", color=head_rgb)
+            pdf.ln(18)
+            pdf.set_draw_color(*accent_rgb)
+            pdf.set_line_width(1.2)
+            pdf.line(left, pdf.get_y() - 3, left + 40, pdf.get_y() - 3)
+            pdf.ln(5)
+        elif on_cover and kind == "p":
+            runs_out(block[1], 14, 7.5, color=design.rgb(theme.grey))
+            pdf.ln(10)
+        elif kind == "image":
             place(_picture(images, block[2]), block[1])
         elif kind == "chart":
             chart = _chart_of(block[1])
@@ -1086,6 +1161,8 @@ def _split_slides(blocks: list[md.Block]) -> list[dict]:
         if block[0] == "h" and block[1] <= 2:
             current = start(md.plain(block[2]))
             continue
+        if block[0] in ("cover", "pagebreak", "header", "footer"):
+            continue  # nur für Word und PDF
         if current is None:
             current = start(None)
         if block[0] == "p" and re.match(r"^(notizen|notes|sprechernotizen|speaker notes)\s*:", md.plain(block[1]), re.I):

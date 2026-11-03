@@ -14,6 +14,8 @@ Ergebnis von :func:`parse`: eine Liste von Blöcken (Tupel):
 * ``("hr",)``
 * ``("image", Beschreibung, Verweis)``   (eigene Zeile ``![Beschreibung](dateiname.png)``; mit ``{vollbild}`` dahinter
   kommt als viertes Element ``True``: Bild füllt eine ganze Folie)
+* ``("cover",)``, ``("pagebreak",)``     (eigene Zeile ``[DECKBLATT]`` / ``[SEITENUMBRUCH]``)
+* ``("header", Text)``, ``("footer", Text)``  (eigene Zeile ``[KOPFZEILE: …]`` / ``[FUSSZEILE: …]``)
 * ``("split",)``                        (eigene Zeile ``+++``: Folie in zwei Spalten teilen)
 * ``("chart", JSON-Text)``              (Codeblock mit der Sprache ``chart``, siehe ``charts.py``)
 * ``("toc",)``                          (eigene Zeile ``[TOC]`` oder ``[Inhaltsverzeichnis]``)
@@ -45,6 +47,9 @@ _ITEM = re.compile(r"^(\s*)([-*+•]|\d{1,3}[.)])\s+(.*)$")
 _IMAGE = re.compile(r"^\s*!\[(?P<alt>[^\]]*)\]\(\s*<?(?P<ref>[^)>]+?)>?(?:\s+\"[^\"]*\")?\s*\)(?:\{(?P<flag>[^}]*)\})?\s*$")
 _FULL = {"vollbild", "fullbleed", "full", "cover"}
 _SPLIT = re.compile(r"^\s*\+{3}\s*$")
+_COVER = re.compile(r"^\s*\[{1,2}\s*(deckblatt|titelseite|cover)\s*\]{1,2}\s*$", re.I)
+_PAGEBREAK = re.compile(r"^\s*\[{1,2}\s*(seitenumbruch|seitenwechsel|page ?break)\s*\]{1,2}\s*$", re.I)
+_RUNNING = re.compile(r"^\s*\[{1,2}\s*(?P<kind>kopfzeile|header|fu(?:ß|ss)zeile|footer)\s*:\s*(?P<text>.+?)\s*\]{1,2}\s*$", re.I)
 _TOC = re.compile(r"^\s*\[{1,2}\s*(toc|inhaltsverzeichnis|table of contents)\s*\]{1,2}\s*$", re.I)
 _QUOTE = re.compile(r"^\s{0,3}>\s?(.*)$")
 _TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
@@ -129,6 +134,22 @@ def parse(text: str) -> list[Block]:
             if (picture.group("flag") or "").strip().lower() in _FULL:
                 block += (True,)  # {vollbild}: das Bild füllt eine ganze Folie
             blocks.append(block)
+            i += 1
+            continue
+        running = _RUNNING.match(line)
+        if running:
+            flush()
+            blocks.append(("header" if running.group("kind").lower() in ("kopfzeile", "header") else "footer", running.group("text")))
+            i += 1
+            continue
+        if _COVER.match(line):
+            flush()
+            blocks.append(("cover",))
+            i += 1
+            continue
+        if _PAGEBREAK.match(line):
+            flush()
+            blocks.append(("pagebreak",))
             i += 1
             continue
         if _SPLIT.match(line):
