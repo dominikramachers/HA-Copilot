@@ -233,14 +233,14 @@ def test_keynote_mode_uses_mac_fonts_and_no_autofit():
     assert inspect("powerpoint")[1] == fonts_pp
     with pytest.raises(ToolError, match="target muss"):
         outbox.render("a.pptx", deck, "T", target="pages")
-    other, _ = outbox.render("a.docx", "# T\n\nText", "T", target="keynote")  # für andere Formate ohne Wirkung
-    assert other[:2] == b"PK"
+    other, _ = outbox.render("a.pdf", "# T\n\nText", "T", target="keynote")  # für Formate ohne Apple-Variante ohne Wirkung
+    assert other[:4] == b"%PDF"
 
 
 def test_file_create_offers_keynote_target(store):
     box, _, _ = make_box(store)
     spec = next(s for s in box.specs() if s.name == "file_create")
-    assert spec.schema["properties"]["target"]["enum"] == ["powerpoint", "keynote"]
+    assert spec.schema["properties"]["target"]["enum"] == ["powerpoint", "keynote", "word", "pages", "excel", "numbers"]
     assert "Keynote" in outbox.DESIGN_NOTE and "target=keynote" in outbox.FILE_TOOL_TEXT
     run(box.file_create({"name": "k.pptx", "content": "# T\n\nU\n\n## A\n\n- x", "target": "keynote"}))
 
@@ -588,3 +588,30 @@ def test_pptx_ignores_document_only_markers():
     prs = Presentation(io.BytesIO(outbox.render("d.pptx", "# T\n\nS\n\n[SEITENUMBRUCH]\n\n[FUSSZEILE: x]\n\n## A\n\n- b\n", "T")[0]))
     assert len(prs.slides) == 2
     assert not any("SEITENUMBRUCH" in t or "FUSSZEILE" in t for texts in _slide_texts(prs) for t in texts)
+
+
+# ----------------------------------------------------------------------------- Pages und Numbers
+
+
+def test_docx_for_pages_uses_mac_fonts_and_menlo():
+    from docx import Document
+
+    md_text = "# T\n\nText mit `code`\n"
+    normal = Document(io.BytesIO(outbox.render("p.docx", md_text, "T")[0]))
+    pages = Document(io.BytesIO(outbox.render("p.docx", md_text, "T", target="pages")[0]))
+    assert normal.styles["Normal"].font.name == "Calibri" and pages.styles["Normal"].font.name == "Helvetica Neue"
+    assert [r.font.name for p in pages.paragraphs for r in p.runs if r.text == "code"] == ["Menlo"]
+    assert [r.font.name for p in normal.paragraphs for r in p.runs if r.text == "code"] == ["Consolas"]
+
+
+def test_xlsx_for_numbers_uses_mac_font_and_target_is_validated():
+    import openpyxl
+
+    data = json.dumps({"rows": [["A", "B"], [1, 2]]})
+    ws = openpyxl.load_workbook(io.BytesIO(outbox.render("n.xlsx", data, "T", target="numbers")[0])).active
+    assert ws["A1"].font.name == "Helvetica Neue" and ws["B2"].font.name == "Helvetica Neue"
+    assert openpyxl.load_workbook(io.BytesIO(outbox.render("n.xlsx", data, "T")[0])).active["B2"].font.name != "Helvetica Neue"
+    with pytest.raises(ToolError, match="target muss word oder pages"):
+        outbox.render("n.docx", "# T\n\nx", "T", target="numbers")
+    with pytest.raises(ToolError, match="target muss excel oder numbers"):
+        outbox.render("n.xlsx", data, "T", target="keynote")

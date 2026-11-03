@@ -129,7 +129,7 @@ def _shade(cell_or_par, fill: str) -> None:
     props.append(shd)
 
 
-def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tuple[int, int, int] | None = None, size: float | None = None, link_color: tuple[int, int, int] = (0x1F, 0x5F, 0xBF)) -> None:
+def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tuple[int, int, int] | None = None, size: float | None = None, link_color: tuple[int, int, int] = (0x1F, 0x5F, 0xBF), code_font: str = "Consolas") -> None:
     from docx.shared import Pt, RGBColor
 
     for item in runs:
@@ -139,7 +139,7 @@ def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tupl
         run.bold = bold or "b" in style or None
         run.italic = "i" in style or None
         if "c" in style:
-            run.font.name = "Consolas"
+            run.font.name = code_font
             run.font.size = Pt(10)
         elif size:
             run.font.size = Pt(size)
@@ -381,7 +381,10 @@ def _toc_field(doc, entries: list[tuple[int, str]], color: tuple[int, int, int])
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
 
-def render_docx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, images: ImageSource | None = None) -> bytes:
+def render_docx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, images: ImageSource | None = None, pages: bool = False) -> bytes:
+    """Word-Datei. ``pages=True``: für Apple Pages ausgelegt (Mac-Schriften statt Calibri, Menlo für Code; Pages ersetzt unbekannte Schriften)."""
+    if pages:
+        theme = dataclasses.replace(theme, heading_font=APPLE_FONTS.get(theme.heading_font, theme.heading_font), body_font=APPLE_FONTS.get(theme.body_font, theme.body_font))
     try:
         from docx import Document
         from docx.enum.text import WD_BREAK  # noqa: F401
@@ -395,7 +398,7 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
     head_rgb = head
 
     def runs_in(paragraph, runs, **kw):
-        _docx_runs(paragraph, runs, link_color=accent, **kw)
+        _docx_runs(paragraph, runs, link_color=accent, code_font="Menlo" if pages else "Consolas", **kw)
 
     level_color = {1: dark, 2: head, 3: accent, 4: grey}
     doc = Document()
@@ -731,7 +734,8 @@ def _conditional_rules(ws, rules: Any, column_of, first: int, last: int, theme: 
             raise FileError(f"Blatt „{sheet}“: Regel type muss gt, lt, gte, lte, eq, ne, between, databar oder colorscale sein.")
 
 
-def render_xlsx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
+def render_xlsx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, numbers: bool = False) -> bytes:
+    """Excel-Datei. ``numbers=True``: für Apple Numbers ausgelegt (Mac-Schrift statt Calibri; Numbers ersetzt unbekannte Schriften)."""
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -852,6 +856,17 @@ def render_xlsx(content: str, title: str, author: str, theme: design.Theme = des
             ws.freeze_panes = "A2"
             if len(rows) > 2 and widths:
                 ws.auto_filter.ref = f"A1:{get_column_letter(max(widths))}{min(len(rows), 20000)}"
+    if numbers:
+        from copy import copy
+
+        face = APPLE_FONTS.get(theme.body_font, theme.body_font)
+        for ws in wb.worksheets:
+            for row in ws.iter_rows():
+                for cell in row:
+                    if cell.value is not None:
+                        font = copy(cell.font)
+                        font.name = face
+                        cell.font = font
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()
@@ -1639,6 +1654,9 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
 
 # ----------------------------------------------------------------- Zusammenfassung
 
+TARGETS = {"pptx": ("powerpoint", "keynote"), "docx": ("word", "pages"), "xlsx": ("excel", "numbers")}
+
+
 def render(name: str, content: str, author: str = "HA Copilot", theme: str | None = None, accent: str | None = None, images: ImageSource | None = None, target: str | None = None) -> tuple[bytes, str]:
     """Datei erzeugen: ``(Bytes, Medientyp)``. Wirft :class:`FileError`. ``theme``/``accent`` wirken nur bei Office- und PDF-Dateien."""
     name = clean_name(name)
@@ -1652,17 +1670,18 @@ def render(name: str, content: str, author: str = "HA Copilot", theme: str | Non
         look = design.resolve(theme, accent)
     except ValueError as exc:
         raise FileError(str(exc)) from None
-    if target not in (None, "", "powerpoint", "keynote"):
-        raise FileError("target muss powerpoint oder keynote sein (nur für .pptx).")
+    wanted = str(target or "").strip().lower()
+    if ext in TARGETS and wanted and wanted not in TARGETS[ext]:
+        raise FileError(f"target muss {' oder '.join(TARGETS[ext])} sein (für .{ext}).")
     try:
         if ext == "docx":
-            data = render_docx(content, title, author, look, images)
+            data = render_docx(content, title, author, look, images, pages=wanted == "pages")
         elif ext == "xlsx":
-            data = render_xlsx(content, title, author, look)
+            data = render_xlsx(content, title, author, look, numbers=wanted == "numbers")
         elif ext == "pdf":
             data = render_pdf(content, title, author, look, images)
         elif ext == "pptx":
-            data = render_pptx(content, title, author, look, images, keynote=str(target or "").strip().lower() == "keynote")
+            data = render_pptx(content, title, author, look, images, keynote=wanted == "keynote")
         else:
             data = render_text(name, content)
     except FileError:
@@ -1741,7 +1760,7 @@ FILE_TOOL_TEXT = (
     "plane danach und rufe file_create erneut auf. Mit theme wählst du ein Farbthema "
     "(klar, ozean, wald, terrakotta, schiefer, beere, sand; ohne Angabe klar), mit accent eine eigene Markenfarbe wie #C2410C. "
     "Soll eine Präsentation in Apple Keynote laufen (Mac, iPad, iPhone, „für Keynote“), setzt du target=keynote bei einer .pptx: Keynote öffnet sie direkt, "
-    "eine echte .key-Datei kannst du nicht erzeugen (Keynote speichert sie auf Wunsch selbst). "
+    "eine echte .key-Datei kannst du nicht erzeugen (Keynote speichert sie auf Wunsch selbst). Ebenso target=pages bei .docx (Apple Pages) und target=numbers bei .xlsx (Apple Numbers). "
     "Erzeuge nur auf Wunsch eine Datei; eine Datei je Aufruf; schreibe den Inhalt vollständig, keine Platzhalter."
 )
 
@@ -1768,7 +1787,8 @@ DESIGN_NOTE = (
     "Bilder, Diagramme und ein Inhaltsverzeichnis kannst du einbetten, wenn sie etwas zeigen, das Text schlechter sagt; Zeichnungen machst du mit image_svg. "
     "Nach einer neuen Präsentation oder einem längeren Dokument siehst du dir das Ergebnis mit file_preview an und behebst klare Layoutfehler (einmal). "
     "Die Antwort von file_create kann Gestaltungshinweise enthalten: behebe sie nur, wenn es die Datei klar besser macht, und höchstens einmal. "
-    "Für Apple Keynote erzeugst du eine .pptx mit target=keynote und sagst der Person, dass Keynote sie öffnet und als .key sichern kann. "
+    "Für Apple Keynote erzeugst du eine .pptx mit target=keynote und sagst der Person, dass Keynote sie öffnet und als .key sichern kann; "
+    "für Apple Pages eine .docx mit target=pages, für Apple Numbers eine .xlsx mit target=numbers (sie öffnen die Dateien direkt). "
     "Beim Bearbeiten vorhandener Dateien behältst du deren Gestaltung bei."
 )
 
@@ -2076,7 +2096,7 @@ class OutboxToolbox:
                 "content": {"type": "string", "description": "Inhalt (Format abhängig von der Endung, siehe Beschreibung)"},
                 "theme": {"type": "string", "enum": list(design.THEMES), "description": "Farbthema für Word, PDF, PowerPoint und Excel (Standard: klar)"},
                 "accent": {"type": "string", "description": "Optional: eigene Markenfarbe als Hexwert, z. B. #C2410C; ersetzt die Akzentfarbe des Themas"},
-                "target": {"type": "string", "enum": ["powerpoint", "keynote"], "description": "Nur .pptx: keynote, wenn die Präsentation in Apple Keynote (Mac, iPad, iPhone) gezeigt wird; sonst weglassen"},
+                "target": {"type": "string", "enum": ["powerpoint", "keynote", "word", "pages", "excel", "numbers"], "description": "Nur für Apple-Programme: keynote bei .pptx, pages bei .docx, numbers bei .xlsx, wenn die Datei auf Mac, iPad oder iPhone in Keynote, Pages oder Numbers geöffnet wird; sonst weglassen"},
             }, "required": ["name", "content"]},
             self.file_create, "execute",
         ), ToolSpec(
