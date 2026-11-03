@@ -534,6 +534,11 @@ _DANGEROUS_FORMULA = re.compile(r"(\|)|\b(WEBSERVICE|DDE|DDEAUTO|EXEC|REGISTER|C
 _PLAIN_NUMBER = re.compile(r"^-?(0|[1-9]\d{0,14})([.,]\d{1,12})?$")
 _DE_NUMBER = re.compile(r"^-?\d{1,3}(\.\d{3})+,\d{1,12}$")
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_EURO = re.compile(r"^(-?\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|-?\d+(?:,\d{1,2})?)\s?(?:€|EUR)$")
+_PERCENT = re.compile(r"^(-?\d+(?:,\d+)?)\s?%$")
+EURO_FORMAT, PERCENT_FORMAT = '#,##0.00 "€"', "0.0%"
+NUMBER_FORMATS = {"euro": EURO_FORMAT, "währung": EURO_FORMAT, "prozent": PERCENT_FORMAT, "zahl": "#,##0.00", "dezimal": "#,##0.00",
+                  "ganzzahl": "#,##0", "datum": "DD.MM.YYYY", "zeit": "HH:MM", "text": "@"}
 _DE_DATE = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{4})$")
 
 
@@ -550,6 +555,12 @@ def _cell_value(value: Any) -> tuple[Any, str | None]:
         return None, None
     if text.startswith("="):
         return (text, None) if not _DANGEROUS_FORMULA.search(text) else ("'" + text, None)
+    money = _EURO.match(text)
+    if money:  # „12,50 €“ wird eine Zahl mit Euro-Format (rechnen und sortieren geht dann)
+        return float(money.group(1).replace(".", "").replace(",", ".")), EURO_FORMAT
+    share = _PERCENT.match(text)
+    if share:
+        return float(share.group(1).replace(",", ".")) / 100, PERCENT_FORMAT
     if _DE_NUMBER.match(text):
         return float(text.replace(".", "").replace(",", ".")), None
     if _PLAIN_NUMBER.match(text):
@@ -632,11 +643,67 @@ def _sheet_charts(content: str) -> list[list[dict]]:
     return [[c for c in (sheet.get("charts") or []) if isinstance(c, dict)] if isinstance(sheet, dict) and isinstance(sheet.get("charts") or [], list) else [] for sheet in sheets]
 
 
+def _sheet_extras(content: str) -> list[dict]:
+    """Zusatzangaben je Blatt (``formats``, ``totals``, ``rules``), parallel zu ``_sheets_from``; leer bei CSV und Markdown."""
+    stripped = content.strip()
+    if stripped[:1] != "{":
+        return []
+    try:
+        data = json.loads(stripped)
+    except ValueError:
+        return []
+    sheets = data.get("sheets") if isinstance(data.get("sheets"), list) else [data] if ("rows" in data or "data" in data) else []
+    return [sheet if isinstance(sheet, dict) else {} for sheet in sheets]
+
+
+RULE_STYLES = {"good": ("C6EFCE", "006100"), "bad": ("FFC7CE", "9C0006"), "warn": ("FFEB9C", "7F4F00")}  # Excel-Standardtöne: gut, schlecht, Warnung
+RULE_OPERATORS = {"gt": "greaterThan", "lt": "lessThan", "gte": "greaterThanOrEqual", "lte": "lessThanOrEqual", "eq": "equal", "ne": "notEqual", "between": "between"}
+
+
+def _conditional_rules(ws, rules: Any, column_of, first: int, last: int, theme: design.Theme, sheet: str) -> None:
+    """Bedingte Formatierung: ``[{"column", "type": gt|lt|gte|lte|eq|ne|between|databar|colorscale, "value", "value2", "style": good|bad|warn}]``."""
+    from openpyxl.formatting.rule import CellIsRule, ColorScaleRule, DataBarRule
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    if not isinstance(rules, list):
+        raise FileError(f"Blatt „{sheet}“: rules muss eine Liste sein.")
+    if last < first:
+        return
+    for rule in rules[:12]:
+        if not isinstance(rule, dict):
+            raise FileError(f"Blatt „{sheet}“: Jede Regel in rules ist ein Objekt mit column und type.")
+        letter = get_column_letter(column_of(rule.get("column"), "rules"))
+        area = f"{letter}{first}:{letter}{last}"
+        kind = str(rule.get("type") or "").strip().lower()
+        if kind == "databar":
+            ws.conditional_formatting.add(area, DataBarRule(start_type="min", end_type="max", color=theme.accent, showValue=True))
+        elif kind == "colorscale":
+            ws.conditional_formatting.add(area, ColorScaleRule(start_type="min", start_color=design.mix(theme.accent, "FFFFFF", 0.88), end_type="max", end_color=theme.accent))
+        elif kind in RULE_OPERATORS:
+            def literal(value: Any) -> str:
+                if isinstance(value, bool) or value is None:
+                    raise FileError(f"Blatt „{sheet}“: Regel {kind} braucht value (Zahl oder Text).")
+                if isinstance(value, (int, float)):
+                    return repr(value)
+                text = str(value).strip()
+                return text if _PLAIN_NUMBER.match(text) and "," not in text else '"' + text.replace('"', '""') + '"'
+
+            formulas = [literal(rule.get("value"))]
+            if kind == "between":
+                formulas.append(literal(rule.get("value2")))
+            fill_hex, font_hex = RULE_STYLES.get(str(rule.get("style") or "warn").lower(), RULE_STYLES["warn"])
+            ws.conditional_formatting.add(area, CellIsRule(operator=RULE_OPERATORS[kind], formula=formulas, fill=PatternFill("solid", bgColor=fill_hex, fgColor=fill_hex), font=Font(color=font_hex, bold=True)))
+        else:
+            raise FileError(f"Blatt „{sheet}“: Regel type muss gt, lt, gte, lte, eq, ne, between, databar oder colorscale sein.")
+
+
 def render_xlsx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, PatternFill
-        from openpyxl.utils import get_column_letter
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.utils import column_index_from_string, get_column_letter
+        from openpyxl.worksheet.properties import PageSetupProperties
     except ImportError:
         raise _missing("Excel (.xlsx)") from None
 
@@ -649,6 +716,7 @@ def render_xlsx(content: str, title: str, author: str, theme: design.Theme = des
     wb.properties.creator = author
     used: set[str] = set()
     sheet_charts = _sheet_charts(content)
+    extras = _sheet_extras(content)
     head_fill = PatternFill("solid", fgColor=theme.head)
     band_fill = PatternFill("solid", fgColor=theme.surface)
     for index, (raw_name, rows) in enumerate(sheets, 1):
@@ -660,9 +728,13 @@ def render_xlsx(content: str, title: str, author: str, theme: design.Theme = des
         used.add(name.lower())
         ws = wb.create_sheet(name)
         widths: dict[int, int] = {}
+        extra = extras[index - 1] if index <= len(extras) else {}
+        kinds: dict[int, set[str]] = {}
         for r, row in enumerate(rows[:20000], 1):
             for c, raw in enumerate(row[:200], 1):
                 value, fmt = _cell_value(raw)
+                if r > 1 and value is not None:
+                    kinds.setdefault(c, set()).add("num" if (isinstance(value, (int, float)) and not isinstance(value, bool)) or (isinstance(value, str) and value.startswith("=")) else "other")
                 cell = ws.cell(row=r, column=c)
                 if isinstance(value, str) and value.startswith("'="):
                     cell.value = value[1:]
@@ -682,6 +754,63 @@ def render_xlsx(content: str, title: str, author: str, theme: design.Theme = des
                     widths[c] = max(widths.get(c, 0), length)
         for c, width in widths.items():
             ws.column_dimensions[get_column_letter(c)].width = max(8, min(width + 2, 60))
+        last_row = min(len(rows), 20000)
+        ncols = min(max((len(r) for r in rows), default=0), 200)
+        header = ["" if v is None else str(v).strip() for v in (rows[0] if rows else [])]
+        numeric = {c for c in range(1, ncols + 1) if kinds.get(c) == {"num"}}
+
+        def column_of(ref: Any, what: str) -> int:
+            text = str(ref if ref is not None else "").strip()
+            for i, h in enumerate(header, 1):
+                if h.lower() == text.lower() and text:
+                    return i
+            if re.fullmatch(r"[A-Za-z]{1,2}", text) and column_index_from_string(text.upper()) <= ncols:
+                return column_index_from_string(text.upper())
+            raise FileError(f"Blatt „{name}“: {what}: Spalte „{text}“ gibt es nicht (Kopfzeile: {', '.join(header)}).")
+
+        if numeric and len(rows) > 1:  # Zahlen rechtsbündig, auch in der Kopfzeile; Spalten breit genug für Euro, Prozent und Summe
+            for c in numeric:
+                ws.cell(row=1, column=c).alignment = Alignment(horizontal="right", vertical="top")
+                letter = get_column_letter(c)
+                ws.column_dimensions[letter].width = max(ws.column_dimensions[letter].width or 0, 15)
+        formats = extra.get("formats")
+        if formats:
+            if not isinstance(formats, dict):
+                raise FileError(f"Blatt „{name}“: formats ist ein Objekt {{Spalte: Format}} mit euro, prozent, zahl, ganzzahl, datum oder einem Excel-Format.")
+            for ref, spec in formats.items():
+                code = NUMBER_FORMATS.get(str(spec).strip().lower(), str(spec))
+                for r in range(2, last_row + 1):
+                    cell = ws.cell(row=r, column=column_of(ref, "formats"))
+                    if isinstance(cell.value, (int, float, datetime)) or (isinstance(cell.value, str) and cell.value.startswith("=")):
+                        cell.number_format = code
+        totals = extra.get("totals")
+        if totals and len(rows) > 1:
+            wanted = sorted(numeric) if totals is True else [column_of(ref, "totals") for ref in (totals if isinstance(totals, list) else [totals])]
+            if wanted:
+                total_row = last_row + 1
+                line = Border(top=Side(style="medium", color=theme.head))
+                for c in range(1, ncols + 1):
+                    cell = ws.cell(row=total_row, column=c)
+                    cell.font = Font(bold=True)
+                    cell.border = line
+                    cell.fill = band_fill
+                    if c in wanted:
+                        letter = get_column_letter(c)
+                        cell.value = f"=SUM({letter}2:{letter}{last_row})"
+                        cell.number_format = ws.cell(row=last_row, column=c).number_format
+                        cell.alignment = Alignment(horizontal="right")
+                if 1 not in wanted:
+                    ws.cell(row=total_row, column=1).value = str(extra.get("totals_label") or "Summe")
+        if extra.get("rules"):
+            _conditional_rules(ws, extra["rules"], column_of, 2, last_row, theme, name)
+        ws.page_setup.orientation = "landscape" if ncols > 6 else "portrait"  # Druck: A4, auf Seitenbreite, Kopfzeile auf jeder Seite
+        ws.page_setup.paperSize = 9
+        ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+        ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
+        if len(rows) > 1:
+            ws.print_title_rows = "1:1"
+        ws.oddFooter.left.text = "&A"
+        ws.oddFooter.right.text = "Seite &P von &N"
         for spec in (sheet_charts[index - 1] if index <= len(sheet_charts) else [])[:4]:
             problem = charts.add_xlsx_chart(ws, spec, min(len(rows), 20000), max((len(r) for r in rows), default=0))
             if problem:

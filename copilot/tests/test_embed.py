@@ -482,3 +482,62 @@ def test_split_marker_is_ignored_in_word_and_pdf():
     data, _ = outbox.render("s.docx", "# T\n\nA\n\n+++\n\nB\n", "T")
     assert "+++" not in "\n".join(p.text for p in Document(io.BytesIO(data)).paragraphs)
     assert outbox.render("s.pdf", "# T\n\nA\n\n+++\n\nB\n", "T")[0][:4] == b"%PDF"
+
+
+# ----------------------------------------------------------------------------- Excel: Formate, Summen, Regeln, Druck
+
+BUDGET = {
+    "sheets": [{
+        "name": "Budget",
+        "rows": [["Posten", "Betrag", "Anteil", "Status"], ["Miete", "900,00 €", "45 %", "ok"], ["Strom", "85,5 €", "4 %", "hoch"], ["Internet", 40, 0.02, "ok"]],
+        "formats": {"Anteil": "prozent"},
+        "totals": ["Betrag"],
+        "rules": [{"column": "Betrag", "type": "gt", "value": 100, "style": "bad"}, {"column": "C", "type": "databar"}],
+    }]
+}
+
+
+def _xlsx(content):
+    import openpyxl
+
+    return openpyxl.load_workbook(io.BytesIO(outbox.render("b.xlsx", json.dumps(content), "B")[0]))
+
+
+def test_xlsx_euro_and_percent_text_become_numbers_with_formats():
+    ws = _xlsx(BUDGET)["Budget"]
+    assert ws["B2"].value == 900 and ws["B2"].number_format == outbox.EURO_FORMAT
+    assert ws["B3"].value == 85.5
+    assert ws["C2"].value == 0.45 and ws["C2"].number_format == "0.0%" and ws["C4"].number_format == "0.0%"
+
+
+def test_xlsx_totals_row_and_alignment():
+    ws = _xlsx(BUDGET)["Budget"]
+    assert ws["A5"].value == "Summe" and ws["B5"].value == "=SUM(B2:B4)" and ws["B5"].font.bold
+    assert ws["B5"].number_format == ws["B4"].number_format
+    assert ws["B1"].alignment.horizontal == "right" and ws.column_dimensions["B"].width >= 15
+    assert ws.auto_filter.ref == "A1:D4"  # Filter schließt die Summenzeile aus
+
+
+def test_xlsx_conditional_formatting_and_print_setup():
+    ws = _xlsx(BUDGET)["Budget"]
+    ranges = {str(r.sqref): [x.type for x in r.rules] for r in ws.conditional_formatting}
+    assert ranges == {"B2:B4": ["cellIs"], "C2:C4": ["dataBar"]}
+    assert ws.print_title_rows == "$1:$1" and ws.page_setup.orientation == "portrait" and ws.page_setup.fitToHeight == 0
+    assert ws.sheet_properties.pageSetUpPr.fitToPage and "&P" in ws.oddFooter.right.text
+
+
+def test_xlsx_wide_sheet_prints_landscape_and_unknown_column_is_reported():
+    wide = {"rows": [[f"S{i}" for i in range(8)], list(range(8))]}
+    assert _xlsx(wide).active.page_setup.orientation == "landscape"
+    bad = {"rows": [["A", "B"], [1, 2]], "totals": ["Nope"]}
+    with pytest.raises(outbox.FileError, match="Nope.*Kopfzeile"):
+        outbox.render("b.xlsx", json.dumps(bad), "B")
+    with pytest.raises(outbox.FileError, match="type muss"):
+        outbox.render("b.xlsx", json.dumps({"rows": [["A"], [1]], "rules": [{"column": "A", "type": "wild"}]}), "B")
+
+
+def test_xlsx_formats_override_and_totals_true():
+    data = {"rows": [["Name", "Menge", "Preis"], ["a", 2, 1.5], ["b", 3, 2.25]], "formats": {"Preis": "euro", "Menge": "0 \"Stk\""}, "totals": True}
+    ws = _xlsx(data).active
+    assert ws["C2"].number_format == outbox.EURO_FORMAT and ws["B2"].number_format == '0 "Stk"'
+    assert ws["B4"].value == "=SUM(B2:B3)" and ws["C4"].value == "=SUM(C2:C3)" and ws["A4"].value == "Summe"
