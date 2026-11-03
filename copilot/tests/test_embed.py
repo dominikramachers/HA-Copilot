@@ -213,6 +213,38 @@ def test_hints_for_media_slides():
     assert any("Bild oder Diagramm" in h for h in outbox.design_hints("pptx", deck))
 
 
+def test_keynote_mode_uses_mac_fonts_and_no_autofit():
+    from pptx import Presentation
+    from pptx.enum.text import MSO_AUTO_SIZE
+
+    deck = "# Titel\n\nSub\n\n## Eins\n\n" + "\n".join(f"- Punkt {i} mit etwas längerem Text, damit es breiter wird" for i in range(8)) + "\n\n`code` hier"
+
+    def inspect(target):
+        prs = Presentation(io.BytesIO(outbox.render("a.pptx", deck, "T", theme="sand", target=target)[0]))
+        fonts = {r.font.name for sl in prs.slides for sh in sl.shapes if sh.has_text_frame for p in sh.text_frame.paragraphs for r in p.runs}
+        autos = {sh.text_frame.auto_size for sl in prs.slides for sh in sl.shapes if sh.has_text_frame}
+        return len(prs.slides), fonts, autos
+
+    slides_pp, fonts_pp, autos_pp = inspect(None)
+    slides_kn, fonts_kn, autos_kn = inspect("keynote")
+    assert "Consolas" in fonts_pp and MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE in autos_pp
+    assert fonts_kn <= {"Georgia", "Helvetica Neue", "Menlo"} and "Menlo" in fonts_kn
+    assert MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE not in autos_kn and slides_kn >= slides_pp  # knapper: gleich viele oder mehr Folien
+    assert inspect("powerpoint")[1] == fonts_pp
+    with pytest.raises(ToolError, match="target muss"):
+        outbox.render("a.pptx", deck, "T", target="pages")
+    other, _ = outbox.render("a.docx", "# T\n\nText", "T", target="keynote")  # für andere Formate ohne Wirkung
+    assert other[:2] == b"PK"
+
+
+def test_file_create_offers_keynote_target(store):
+    box, _, _ = make_box(store)
+    spec = next(s for s in box.specs() if s.name == "file_create")
+    assert spec.schema["properties"]["target"]["enum"] == ["powerpoint", "keynote"]
+    assert "Keynote" in outbox.DESIGN_NOTE and "target=keynote" in outbox.FILE_TOOL_TEXT
+    run(box.file_create({"name": "k.pptx", "content": "# T\n\nU\n\n## A\n\n- x", "target": "keynote"}))
+
+
 # ----------------------------------------------------------------------- Vorschau
 
 def test_parse_pages():

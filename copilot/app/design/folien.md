@@ -26,6 +26,8 @@ Eine Folie ist ein Plakat, kein Dokument. Wer sie sieht, soll sie in wenigen Sek
 - Ablauf, Aufbau, Grundriss oder Logo: als SVG zeichnen (`image_svg`) und mit `![…](name.svg)` einbetten; Fotos und Kunst mit `image_generate`. Quer- oder Breitformat, ruhiger Hintergrund, wenig Text im Bild.
 - Danach `file_preview` aufrufen und prüfen, ob Text und Bild sich nicht stören.
 
+**Für Apple Keynote:** Läuft die Präsentation auf Mac, iPad oder iPhone („für Keynote“, „mit Keynote zeigen“), setze bei `file_create` für die `.pptx` `target: keynote`. Keynote öffnet `.pptx` direkt, die Person sichert sie bei Bedarf selbst als `.key`; eine echte `.key`-Datei erzeugst du nicht. Der Keynote-Modus nimmt Mac-Schriften (Helvetica Neue, Georgia), schaltet die automatische Schrumpfung aus, die Keynote nicht kennt, und setzt etwas weniger Text je Folie. Halte die Folien darum noch knapper, nutze Säulen-, Balken-, Linien- und Kreisdiagramme (Keynote macht daraus eigene, bearbeitbare Diagramme) und verzichte auf Sonderschriften. Sag der Person kurz, dass du es für Keynote ausgelegt, aber nicht in Keynote selbst geprüft hast.
+
 **Notizen:** Alles, was die Folie überladen würde (Hintergrund, Quellen, Redetext), kommt als Zeile `Notizen: …` unter die Folie. Es erscheint nur in der Referentenansicht.
 
 **Gestaltung steuerst du so**

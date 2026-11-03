@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import dataclasses
 import io
 import json
 import math
@@ -909,7 +910,20 @@ def _paginate(blocks: list[md.Block], factor: float = 1.0) -> list[list[md.Block
     return pages
 
 
-def render_pptx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, images: ImageSource | None = None) -> bytes:
+# Schriften, die auf jedem Mac vorhanden sind (Keynote ersetzt unbekannte Schriften, und Calibri gibt es nur mit Microsoft Office)
+APPLE_FONTS = {"Calibri": "Helvetica Neue", "Arial": "Helvetica Neue", "Georgia": "Georgia"}
+
+
+def render_pptx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, images: ImageSource | None = None, keynote: bool = False) -> bytes:
+    """PowerPoint-Datei. ``keynote=True``: für Keynote ausgelegt (.pptx, das Keynote ohne Umbau öffnet).
+
+    Laut Apple unterstützt Keynote beim Import keinen überlaufenden Text und ersetzt unbekannte Schriften. Darum: Mac-Schriften
+    (Helvetica Neue, Georgia, Menlo), keine automatische Schrumpfung (``normAutofit``) und etwas knappere Folien mit kleineren Schriftgraden,
+    damit nichts über den Rand läuft. Säulen-, Balken-, Linien- und Kreisdiagramme importiert Keynote als eigene, bearbeitbare Diagramme.
+    """
+    if keynote:
+        theme = dataclasses.replace(theme, heading_font=APPLE_FONTS.get(theme.heading_font, theme.heading_font), body_font=APPLE_FONTS.get(theme.body_font, theme.body_font))
+    code_font = "Menlo" if keynote else "Consolas"
     try:
         from pptx import Presentation
         from pptx.dml.color import RGBColor
@@ -948,7 +962,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             run.font.bold = bold or "b" in style or None
             run.font.italic = "i" in style or None
             run.font.color.rgb = color
-            run.font.name = "Consolas" if "c" in style else (font or theme.body_font)
+            run.font.name = code_font if "c" in style else (font or theme.body_font)
 
     def bullet(paragraph, level: int, ordered: bool, size: float) -> None:
         pPr = paragraph._p.get_or_add_pPr()
@@ -1045,7 +1059,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             continue
         media_kinds = ("image", "chart")
         beside = any(b[0] in media_kinds for b in blocks) and any(b[0] not in media_kinds for b in blocks)  # Text links, Bild rechts
-        pages = _paginate(blocks, 1.7 if beside else 1.0) if blocks else [[]]
+        pages = _paginate(blocks, (1.7 if beside else 1.0) * (1.2 if keynote else 1.0)) if blocks else [[]]
         for part, page in enumerate(pages):
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             total += 1
@@ -1067,7 +1081,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             split = bool(media) and any(b[0] not in media_kinds for b in page)
             col_w = 6.5 if split else 11.8
             cost = sum(_block_cost(b) for b in page if b[0] != "table") * (1.7 if split else 1.0)
-            size = 24 if cost <= 7 else 20 if cost <= 11 else 18
+            size = (22 if cost <= 6 else 18 if cost <= 9 else 16) if keynote else (24 if cost <= 7 else 20 if cost <= 11 else 18)
             top = 1.7
             text_blocks = [b for b in page if b[0] not in ("table", *media_kinds)]
             if text_blocks:
@@ -1076,7 +1090,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
                 box = slide.shapes.add_textbox(Inches(0.75), Inches(top), Inches(col_w), Inches(max(height, 1.2)))
                 frame = box.text_frame
                 frame.word_wrap = True
-                frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+                frame.auto_size = MSO_AUTO_SIZE.NONE if keynote else MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
                 first = True
 
                 def para():
@@ -1106,7 +1120,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
                             par = para()
                             run = par.add_run()
                             run.text = line.replace("\t", "    ") or " "
-                            run.font.name, run.font.size = "Consolas", Pt(14)
+                            run.font.name, run.font.size = code_font, Pt(14)
                             run.font.color.rgb = RGBColor(0x37, 0x41, 0x51)
                     elif kind == "quote":
                         par = para()
@@ -1148,7 +1162,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
 
 # ----------------------------------------------------------------- Zusammenfassung
 
-def render(name: str, content: str, author: str = "HA Copilot", theme: str | None = None, accent: str | None = None, images: ImageSource | None = None) -> tuple[bytes, str]:
+def render(name: str, content: str, author: str = "HA Copilot", theme: str | None = None, accent: str | None = None, images: ImageSource | None = None, target: str | None = None) -> tuple[bytes, str]:
     """Datei erzeugen: ``(Bytes, Medientyp)``. Wirft :class:`FileError`. ``theme``/``accent`` wirken nur bei Office- und PDF-Dateien."""
     name = clean_name(name)
     if not isinstance(content, str) or not content.strip():
@@ -1161,6 +1175,8 @@ def render(name: str, content: str, author: str = "HA Copilot", theme: str | Non
         look = design.resolve(theme, accent)
     except ValueError as exc:
         raise FileError(str(exc)) from None
+    if target not in (None, "", "powerpoint", "keynote"):
+        raise FileError("target muss powerpoint oder keynote sein (nur für .pptx).")
     try:
         if ext == "docx":
             data = render_docx(content, title, author, look, images)
@@ -1169,7 +1185,7 @@ def render(name: str, content: str, author: str = "HA Copilot", theme: str | Non
         elif ext == "pdf":
             data = render_pdf(content, title, author, look, images)
         elif ext == "pptx":
-            data = render_pptx(content, title, author, look, images)
+            data = render_pptx(content, title, author, look, images, keynote=str(target or "").strip().lower() == "keynote")
         else:
             data = render_text(name, content)
     except FileError:
@@ -1246,6 +1262,8 @@ FILE_TOOL_TEXT = (
     "Alle anderen Endungen (.ps1, .sh, .py, .bat, .csv, .json, .yaml, .html, .md, .txt …): content ist der vollständige Dateitext. "
     "Gestaltung: Bei neuen Word-, PDF-, PowerPoint- und Excel-Dateien rufst du vorher design_guide auf. Mit theme wählst du ein Farbthema "
     "(klar, ozean, wald, terrakotta, schiefer, beere, sand; ohne Angabe klar), mit accent eine eigene Markenfarbe wie #C2410C. "
+    "Soll eine Präsentation in Apple Keynote laufen (Mac, iPad, iPhone, „für Keynote“), setzt du target=keynote bei einer .pptx: Keynote öffnet sie direkt, "
+    "eine echte .key-Datei kannst du nicht erzeugen (Keynote speichert sie auf Wunsch selbst). "
     "Erzeuge nur auf Wunsch eine Datei; eine Datei je Aufruf; schreibe den Inhalt vollständig, keine Platzhalter."
 )
 
@@ -1269,6 +1287,7 @@ DESIGN_NOTE = (
     "Bilder, Diagramme und ein Inhaltsverzeichnis kannst du einbetten, wenn sie etwas zeigen, das Text schlechter sagt; Zeichnungen machst du mit image_svg. "
     "Nach einer neuen Präsentation oder einem längeren Dokument siehst du dir das Ergebnis mit file_preview an und behebst klare Layoutfehler (einmal). "
     "Die Antwort von file_create kann Gestaltungshinweise enthalten: behebe sie nur, wenn es die Datei klar besser macht, und höchstens einmal. "
+    "Für Apple Keynote erzeugst du eine .pptx mit target=keynote und sagst der Person, dass Keynote sie öffnet und als .key sichern kann. "
     "Beim Bearbeiten vorhandener Dateien behältst du deren Gestaltung bei."
 )
 
@@ -1376,7 +1395,7 @@ class OutboxToolbox:
             name = clean_name(raw_name)
             self._check_room()
             data, mime = await asyncio.wait_for(
-                asyncio.to_thread(render, name, args.get("content"), self.author, args.get("theme"), args.get("accent"), self._image_bytes), RENDER_TIMEOUT  # type: ignore[arg-type]
+                asyncio.to_thread(render, name, args.get("content"), self.author, args.get("theme"), args.get("accent"), self._image_bytes, args.get("target")), RENDER_TIMEOUT  # type: ignore[arg-type]
             )
             meta = self.store.outfile_add(self.profile_id, self.chat_id, name, mime, data, self.keep_days)
             if meta is None:
@@ -1543,6 +1562,7 @@ class OutboxToolbox:
                 "content": {"type": "string", "description": "Inhalt (Format abhängig von der Endung, siehe Beschreibung)"},
                 "theme": {"type": "string", "enum": list(design.THEMES), "description": "Farbthema für Word, PDF, PowerPoint und Excel (Standard: klar)"},
                 "accent": {"type": "string", "description": "Optional: eigene Markenfarbe als Hexwert, z. B. #C2410C; ersetzt die Akzentfarbe des Themas"},
+                "target": {"type": "string", "enum": ["powerpoint", "keynote"], "description": "Nur .pptx: keynote, wenn die Präsentation in Apple Keynote (Mac, iPad, iPhone) gezeigt wird; sonst weglassen"},
             }, "required": ["name", "content"]},
             self.file_create, "execute",
         ), ToolSpec(
