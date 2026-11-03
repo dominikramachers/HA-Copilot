@@ -227,7 +227,7 @@ def test_keynote_mode_uses_mac_fonts_and_no_autofit():
 
     slides_pp, fonts_pp, autos_pp = inspect(None)
     slides_kn, fonts_kn, autos_kn = inspect("keynote")
-    assert "Consolas" in fonts_pp and MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE in autos_pp
+    assert "Consolas" in fonts_pp and MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE not in autos_pp  # Schrift wird vorab gemessen, nie automatisch geschrumpft
     assert fonts_kn <= {"Georgia", "Helvetica Neue", "Menlo"} and "Menlo" in fonts_kn
     assert MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE not in autos_kn and slides_kn >= slides_pp  # knapper: gleich viele oder mehr Folien
     assert inspect("powerpoint")[1] == fonts_pp
@@ -675,3 +675,92 @@ def test_pptx_metadata_is_current_and_subtitle_placeholder_is_not_left_empty():
     assert not [sh for sh in prs.slides[0].placeholders if sh.placeholder_format.type == 4]  # SUBTITLE
     app = zipfile.ZipFile(io.BytesIO(data)).read("docProps/app.xml").decode()
     assert "<Slides>2</Slides>" in app and "4:3" not in app
+
+
+# ------------------------------------------------------------- Folien-Gestaltung (0.31.0)
+
+def _deck(content, target=None, **kwargs):
+    from pptx import Presentation
+
+    data = outbox.render("d.pptx", content, "T", target=target, **kwargs)[0]
+    assert outbox.pptx_problems(data) == []
+    return Presentation(io.BytesIO(data))
+
+
+def _sizes(slide):
+    return [r.font.size.pt for sh in slide.shapes if sh.has_text_frame for p in sh.text_frame.paragraphs for r in p.runs if r.font.size]
+
+
+def _inside(prs):
+    """Alle Formen liegen auf der Folie (nichts ragt heraus)."""
+    for slide in prs.slides:
+        for sh in slide.shapes:
+            if sh.name.startswith("Oval"):  # Dekokreise der Titelfolie ragen absichtlich über den Rand
+                continue
+            assert sh.left >= 0 and sh.top >= 0, sh.name
+            assert sh.left + sh.width <= prs.slide_width + 10 and sh.top + sh.height <= prs.slide_height + 10, (sh.name, sh.left + sh.width)
+
+
+CARD_DECK = "# T\n\nS\n\n## Drei Zeiten\n\n- **Gestern:** Verbrenner prägt die Mobilität\n- **Heute:** Elektro erreicht den Massenmarkt\n- **Morgen:** Fahrzeuge laden und lernen\n"
+
+
+@pytest.mark.parametrize("target", [None, "keynote"])
+def test_pptx_bold_lead_list_becomes_cards(target):
+    from pptx.enum.shapes import MSO_SHAPE
+
+    prs = _deck(CARD_DECK, target)
+    slide = prs.slides[1]
+    cards = [sh for sh in slide.shapes if sh.shape_type == 1 and sh.auto_shape_type == MSO_SHAPE.ROUNDED_RECTANGLE]
+    assert len(cards) == 3
+    texts = " ".join(_slide_texts(prs)[1])
+    assert "Gestern" in texts and "Verbrenner prägt die Mobilität" in texts and "Gestern:" not in texts  # Doppelpunkt entfällt, Stichwort ist Titel
+    assert max(_sizes(slide)) >= 26 and min(sh.height for sh in cards) > 2_000_000  # große Schrift, echte Karten
+    _inside(prs)
+    # ohne durchgehend fette Stichworte bleibt es eine gewöhnliche Liste
+    plain = _deck("# T\n\nS\n\n## Liste\n\n- **Eins:** a\n- zwei\n- drei\n", target).slides[1]
+    assert not [sh for sh in plain.shapes if sh.shape_type == 1 and sh.auto_shape_type == MSO_SHAPE.ROUNDED_RECTANGLE]
+
+
+def test_pptx_shapes_carry_no_theme_style_and_no_autofit():
+    prs = _deck(CARD_DECK)
+    for slide in prs.slides:
+        for sh in slide.shapes:
+            assert sh._element.find("{http://schemas.openxmlformats.org/presentationml/2006/main}style") is None  # sonst Schatten aus dem Design
+            if sh.has_text_frame:
+                assert sh.text_frame.auto_size != 2  # normAutofit schrumpft in LibreOffice zu früh und fehlt in Keynote
+
+
+def test_pptx_picture_beside_text_bleeds_to_the_right_edge():
+    prs = _deck("# T\n\nS\n\n## Laden\n\n![Wallbox](a.png)\n\n- Eins\n- Zwei\n", images=lambda n: _png(1200, 800))
+    pic = next(sh for sh in prs.slides[1].shapes if sh.shape_type == 13)
+    assert pic.left + pic.width == prs.slide_width and pic.top == 0 and pic.height == prs.slide_height
+    assert pic.left > prs.slide_width * 0.5  # Text bleibt links
+    texts = [sh for sh in prs.slides[1].shapes if sh.has_text_frame and sh.text_frame.text]
+    assert all(sh.left + sh.width <= pic.left for sh in texts)  # nichts liegt auf dem Bild, auch die Foliennummer nicht
+    _inside(prs)
+
+
+def test_pptx_section_slide_has_big_number_and_stats_share_one_size():
+    prs = _deck("# T\n\nS\n\n## Eins\n\nText\n\n## Teil zwei\n\n## Zahlen\n\n**1886**\nJahr\n\n**19,1 %**\nAnteil\n\n**49,5 Mio.**\nPkw\n")
+    section = prs.slides[2]
+    assert "01" in _slide_texts(prs)[2] and max(_sizes(section)) >= 100
+    stats = prs.slides[3]
+    values = {r.font.size.pt for sh in stats.shapes if sh.has_text_frame for p in sh.text_frame.paragraphs for r in p.runs if r.font.bold and r.font.size and r.font.size.pt > 40}
+    assert len(values) == 1  # alle Kennzahlen gleich groß
+
+
+def test_pptx_long_words_and_headings_do_not_overflow():
+    deck = "# Ein sehr langer Titel, der in mehreren Zeilen umbrochen werden muss, weil er so lang ist\n\nS\n\n## Eine Überschrift, die so lang ist, dass sie über zwei Zeilen läuft und trotzdem Platz haben muss\n\n- **Donaudampfschifffahrtsgesellschaft:** Kapitän\n- **Zwei:** kurz\n"
+    for target in (None, "keynote"):
+        prs = _deck(deck, target)
+        _inside(prs)
+        assert max(_sizes(prs.slides[1])) >= 16
+
+
+def test_pptx_long_lists_stay_large_by_paginating():
+    items = "\n".join(f"- Punkt {i}: ein ziemlich ausführlicher Satz, der zeigt, wie sich viel Text auf einer Folie verhält" for i in range(1, 10))
+    prs = _deck(f"# T\n\nS\n\n## Lange Liste\n\n{items}\n")
+    assert len(prs.slides) >= 3
+    assert all(sorted(_sizes(sl))[-1] >= 20 for sl in list(prs.slides)[1:])  # Fließtext bleibt groß (Fußzeile ist kleiner)
+    assert "(Forts.)" in " ".join(_slide_texts(prs)[2])
+    _inside(prs)

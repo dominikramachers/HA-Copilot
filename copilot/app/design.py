@@ -137,6 +137,7 @@ TOPICS = {
     "dokument": "Word (.docx): Briefe, Berichte, Angebote, Anleitungen, Lebenslauf",
     "tabelle": "Excel (.xlsx): Kopfzeile, Formeln, Zahlen, Blätter",
     "pdf": "PDF (.pdf): Seitenaufbau, Länge, Tabellen",
+    "html": "HTML (.html): Präsentationen im Browser, Berichte, Seiten: Technik, Schrift, Rhythmus, Bausteine",
     "themen": "Farbthemen und wann welches passt",
 }
 
