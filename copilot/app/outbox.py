@@ -26,7 +26,7 @@ import math
 import os
 import re
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -1274,6 +1274,179 @@ def _paginate(blocks: list[md.Block], factor: float = 1.0) -> list[list[md.Block
 APPLE_FONTS = {"Calibri": "Helvetica Neue", "Arial": "Helvetica Neue", "Georgia": "Georgia"}
 
 
+# ----------------------------------------------------------- PowerPoint-Paket bereinigen (Keynote ist strenger als PowerPoint)
+
+_P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
+_R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_C_NS = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+_CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
+_APP_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
+    'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><TotalTime>0</TotalTime><Words>0</Words>'
+    "<Application>Microsoft Office PowerPoint</Application><PresentationFormat>Widescreen</PresentationFormat><Paragraphs>0</Paragraphs>"
+    "<Slides>{slides}</Slides><Notes>{notes}</Notes><HiddenSlides>0</HiddenSlides><MMClips>0</MMClips><ScaleCrop>false</ScaleCrop>"
+    "<LinksUpToDate>false</LinksUpToDate><SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>16.0000</AppVersion></Properties>"
+)
+
+
+def polish_pptx(data: bytes) -> bytes:
+    """Das von python-pptx geschriebene Paket so bereinigen, dass auch Apple Keynote es öffnet.
+
+    PowerPoint verzeiht vieles, Keynote meldet „Das Dateiformat ist ungültig“. Behoben werden:
+
+    * ``notesMasterIdLst`` fehlt, obwohl Notizen und ein Notizmaster vorhanden sind (python-pptx lässt den Eintrag weg),
+    * die Foliengröße trägt ``type="screen4x3"``, obwohl sie 16:9 ist,
+    * Diagramme tragen negative Achsen-Kennungen (laut Schema nur positive Zahlen) und leere ``scaling``-Elemente,
+    * veraltete Beigaben der Standardvorlage: Vorschaubild, Druckereinstellungen, Dokumenteigenschaften mit „0 Folien“ und 4:3.
+    """
+    import zipfile
+
+    from lxml import etree
+
+    src = zipfile.ZipFile(io.BytesIO(data))
+    parts = {info.filename: src.read(info.filename) for info in src.infolist()}
+    order = [info.filename for info in src.infolist()]
+
+    def xml(name: str):
+        return etree.fromstring(parts[name])
+
+    def put(name: str, root) -> None:
+        parts[name] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+    def rels(name: str):
+        return xml(name) if name in parts else None
+
+    # Vorschaubild und Druckereinstellungen entfernen (stammen aus der Standardvorlage und zeigen nicht diese Folien)
+    for rels_name, kinds in (("_rels/.rels", ("metadata/thumbnail",)), ("ppt/_rels/presentation.xml.rels", ("/printerSettings",))):
+        root = rels(rels_name)
+        if root is None:
+            continue
+        base = rels_name.split("_rels/")[0]
+        for rel in list(root):
+            if any(rel.get("Type", "").endswith(kind) for kind in kinds):
+                parts.pop(base + rel.get("Target", "").lstrip("/") if not rel.get("Target", "").startswith("/") else rel.get("Target", "")[1:], None)
+                root.remove(rel)
+        put(rels_name, root)
+
+    # Präsentation: Foliengröße und Notizmaster
+    pres = xml("ppt/presentation.xml")
+    size = pres.find(f"{{{_P_NS}}}sldSz")
+    if size is not None and size.get("type") and abs(int(size.get("cx", "0")) * 9 - int(size.get("cy", "0")) * 16) < 16 * 20000:
+        del size.attrib["type"]
+    if size is not None and abs(int(size.get("cx", "0")) - 12192000) < 1000 and size.get("cy") == "6858000":
+        size.set("cx", "12192000")
+    pres_rels = rels("ppt/_rels/presentation.xml.rels")
+    notes_rid = next((r.get("Id") for r in pres_rels if r.get("Type", "").endswith("/notesMaster")), None) if pres_rels is not None else None
+    if notes_rid and pres.find(f"{{{_P_NS}}}notesMasterIdLst") is None:
+        holder = etree.Element(f"{{{_P_NS}}}notesMasterIdLst")
+        etree.SubElement(holder, f"{{{_P_NS}}}notesMasterId").set(f"{{{_R_NS}}}id", notes_rid)
+        anchor = pres.find(f"{{{_P_NS}}}sldMasterIdLst")
+        anchor.addnext(holder) if anchor is not None else pres.insert(0, holder)
+    put("ppt/presentation.xml", pres)
+
+    # Diagramme: positive Achsen-Kennungen, vollständiges scaling
+    for name in [n for n in parts if n.startswith("ppt/charts/chart") and n.endswith(".xml")]:
+        root = xml(name)
+        changed = False
+        for tag in ("axId", "crossAx"):
+            for node in root.iter(f"{{{_C_NS}}}{tag}"):
+                value = node.get("val", "")
+                if value.startswith("-"):
+                    node.set("val", value[1:])
+                    changed = True
+        for node in root.iter(f"{{{_C_NS}}}scaling"):
+            if node.find(f"{{{_C_NS}}}orientation") is None:
+                etree.SubElement(node, f"{{{_C_NS}}}orientation").set("val", "minMax")
+                changed = True
+        if changed:
+            put(name, root)
+
+    # Dokumenteigenschaften passend zur Datei
+    slides = len([n for n in parts if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)])
+    notes = len([n for n in parts if re.fullmatch(r"ppt/notesSlides/notesSlide\d+\.xml", n)])
+    parts["docProps/app.xml"] = _APP_XML.format(slides=slides, notes=notes).encode("utf-8")
+
+    # Inhaltstypen: nur noch, was gebraucht wird
+    types = xml("[Content_Types].xml")
+    remaining = {n.rsplit(".", 1)[-1].lower() for n in parts if "." in n.rsplit("/", 1)[-1]}
+    for node in list(types.findall(f"{{{_CT_NS}}}Default")):
+        if node.get("Extension", "").lower() not in remaining:
+            types.remove(node)
+    for node in list(types.findall(f"{{{_CT_NS}}}Override")):
+        if node.get("PartName", "").lstrip("/") not in parts:
+            types.remove(node)
+    put("[Content_Types].xml", types)
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name in sorted(parts, key=lambda n: (n != "[Content_Types].xml", order.index(n) if n in order else len(order))):
+            zf.writestr(name, parts[name])
+    return out.getvalue()
+
+
+def pptx_problems(data: bytes) -> list[str]:
+    """Prüft ein .pptx auf die Dinge, an denen Keynote scheitert (siehe :func:`polish_pptx`). Leere Liste = unauffällig."""
+    import posixpath
+    import zipfile
+
+    from lxml import etree
+
+    out: list[str] = []
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        return ["keine gültige ZIP-Datei"]
+    names = z.namelist()
+    if len(set(names)) != len(names):
+        out.append("doppelte Einträge im Paket")
+    if names[:1] != ["[Content_Types].xml"]:
+        out.append("[Content_Types].xml steht nicht an erster Stelle")
+    types = etree.fromstring(z.read("[Content_Types].xml"))
+    defaults = {d.get("Extension", "").lower() for d in types.findall(f"{{{_CT_NS}}}Default")}
+    overrides = {o.get("PartName", "") for o in types.findall(f"{{{_CT_NS}}}Override")}
+    for name in names:
+        if name != "[Content_Types].xml" and "/" + name not in overrides and name.rsplit(".", 1)[-1].lower() not in defaults:
+            out.append(f"ohne Inhaltstyp: {name}")
+    for part in overrides:
+        if part.lstrip("/") not in names:
+            out.append(f"Inhaltstyp ohne Teil: {part}")
+    for name in names:
+        if name.endswith((".xml", ".rels")):
+            try:
+                root = etree.fromstring(z.read(name))
+            except etree.XMLSyntaxError as exc:
+                out.append(f"{name}: kein gültiges XML ({exc})")
+                continue
+            if name.endswith(".rels"):
+                base = posixpath.dirname(posixpath.dirname(name))
+                for rel in root:
+                    target = rel.get("Target", "")
+                    if rel.get("TargetMode") == "External":
+                        continue
+                    path = target[1:] if target.startswith("/") else posixpath.normpath(posixpath.join(base, target))
+                    if path not in names:
+                        out.append(f"{name}: Ziel fehlt: {target}")
+    if "docProps/thumbnail.jpeg" in names:
+        out.append("Vorschaubild der Standardvorlage vorhanden")
+    pres = etree.fromstring(z.read("ppt/presentation.xml"))
+    prels = etree.fromstring(z.read("ppt/_rels/presentation.xml.rels"))
+    if any(r.get("Type", "").endswith("/notesMaster") for r in prels) and pres.find(f"{{{_P_NS}}}notesMasterIdLst") is None:
+        out.append("Notizmaster ohne notesMasterIdLst in presentation.xml")
+    size = pres.find(f"{{{_P_NS}}}sldSz")
+    if size is not None and size.get("type") == "screen4x3" and int(size.get("cx", "0")) * 3 != int(size.get("cy", "0")) * 4:
+        out.append("Foliengröße trägt type=screen4x3, ist aber nicht 4:3")
+    for name in names:
+        if name.startswith("ppt/charts/chart") and name.endswith(".xml"):
+            chart = etree.fromstring(z.read(name))
+            if any(n.get("val", "").startswith("-") for tag in ("axId", "crossAx") for n in chart.iter(f"{{{_C_NS}}}{tag}")):
+                out.append(f"{name}: negative Achsen-Kennung")
+            if any(n.find(f"{{{_C_NS}}}orientation") is None for n in chart.iter(f"{{{_C_NS}}}scaling")):
+                out.append(f"{name}: scaling ohne orientation")
+    return out
+
+
 def render_pptx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, images: ImageSource | None = None, keynote: bool = False) -> bytes:
     """PowerPoint-Datei. ``keynote=True``: für Keynote ausgelegt (.pptx, das Keynote ohne Umbau öffnet).
 
@@ -1290,7 +1463,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
         from pptx.enum.shapes import MSO_SHAPE
         from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
         from pptx.oxml.ns import qn
-        from pptx.util import Inches, Pt
+        from pptx.util import Emu, Inches, Pt
     except ImportError:
         raise _missing("PowerPoint (.pptx)") from None
     from lxml import etree
@@ -1306,9 +1479,11 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             data["blocks"] = [b for b in data["blocks"] if b[0] != "toc"] + ([("list", False, [(0, [(n, "")]) for n in names])] if names else [])
             data["title"] = data["title"] or "Agenda"
     prs = Presentation()
-    prs.slide_width, prs.slide_height = Inches(SLIDE_W), Inches(SLIDE_H)
-    prs.core_properties.title = title
-    prs.core_properties.author = author
+    prs.slide_width, prs.slide_height = Emu(12192000), Emu(6858000)  # genau 16:9 (13,333 Zoll gerundet ergäbe 12191695)
+    cp = prs.core_properties
+    cp.title, cp.author, cp.last_modified_by, cp.comments = title, author, author, ""  # python-pptx trägt sonst „Steve Canny“ und 2013 ein
+    cp.created = cp.modified = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
+    cp.revision = 1
     dark, accent, grey = (RGBColor(*design.rgb(c)) for c in (theme.dark, theme.accent, theme.grey))
     head, surface, white = RGBColor(*design.rgb(theme.head)), RGBColor(*design.rgb(theme.surface)), RGBColor(255, 255, 255)
     accent_light, on_head_muted = RGBColor(*design.rgb(theme.accent_light)), RGBColor(*design.rgb(theme.on_head_muted))
@@ -1497,7 +1672,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
         """Bild füllt die ganze Folie (zugeschnitten); der Titel steht auf einem halbtransparenten Balken."""
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         pic = _picture(images, block[2])
-        shape = slide.shapes.add_picture(io.BytesIO(pic.data), 0, 0, Inches(SLIDE_W), Inches(SLIDE_H))
+        shape = slide.shapes.add_picture(io.BytesIO(pic.data), 0, 0, prs.slide_width, prs.slide_height)
         shape._element.nvPicPr.cNvPr.set("descr", block[1])
         want, have = SLIDE_W / SLIDE_H, pic.width / pic.height
         if have > want:
@@ -1507,7 +1682,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
         captions = [b for b in slide_data["blocks"] if b[0] == "p"]
         if slide_data["title"] or captions:
             bar_h = 1.2 + (0.5 if captions else 0)
-            bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(SLIDE_H - bar_h), Inches(SLIDE_W), Inches(bar_h))
+            bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(SLIDE_H - bar_h), prs.slide_width, Inches(bar_h))
             bar.fill.solid()
             bar.fill.fore_color.rgb = head
             bar.line.fill.background()
@@ -1580,6 +1755,8 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             sub = slide.placeholders[1]
             sub.left, sub.top, sub.width, sub.height = Inches(0.9), Inches(4.25), Inches(11.5), Inches(1.6)
             sub.text_frame.word_wrap = True
+            if not blocks:  # leerer Untertitel-Platzhalter: Keynote zeigt dafür „Text hinzufügen“, also entfernen
+                sub._element.getparent().remove(sub._element)
             first = True
             for block in blocks:
                 par = sub.text_frame.paragraphs[0] if first else sub.text_frame.add_paragraph()
@@ -1649,7 +1826,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
     _pptx_theme(prs, theme)
     out = io.BytesIO()
     prs.save(out)
-    return out.getvalue()
+    return polish_pptx(out.getvalue())
 
 
 # ----------------------------------------------------------------- Zusammenfassung

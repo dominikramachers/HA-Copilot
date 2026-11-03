@@ -615,3 +615,63 @@ def test_xlsx_for_numbers_uses_mac_font_and_target_is_validated():
         outbox.render("n.docx", "# T\n\nx", "T", target="numbers")
     with pytest.raises(ToolError, match="target muss excel oder numbers"):
         outbox.render("n.xlsx", data, "T", target="keynote")
+
+
+# ----------------------------------------------------------------------------- PowerPoint-Paket für Keynote bereinigen
+
+KN_CHART = "```chart\n" + json.dumps({"type": "column", "title": "CO2", "labels": ["a", "b"], "series": [{"name": "x", "values": [1, 2]}]}) + "\n```"
+KEYNOTE_DECKS = {
+    "einfach": "# T\n\nU\n\n## A\n\n- b\n",
+    "nur_titel": "# T\n\n## A\n\n- b\n",
+    "notizen_diagramm": f"# T\n\nU\n\n## A\n\n- b\n\nNotizen: Hinweis\n\n## D\n\n{KN_CHART}\n\nNotizen: noch eins\n",
+    "bild_vollbild": "# T\n\nU\n\n## B\n\n![x](foto.png){vollbild}\n\n## C\n\n![x](foto.png)\n\n- a\n",
+    "folientypen": "# T\n\nU\n\n## L\n\n- a\n\n+++\n\n- b\n\n## Z\n\n> Zitat\n\n— Q\n\n## K\n\n**5 %**\nWert\n\n## Link\n\n[x](https://x.de)\n",
+}
+
+
+@pytest.mark.parametrize("target", ["keynote", "powerpoint", None])
+@pytest.mark.parametrize("name", list(KEYNOTE_DECKS))
+def test_generated_pptx_passes_the_keynote_checks(name, target):
+    data = outbox.render("k.pptx", KEYNOTE_DECKS[name], "T", images=lambda n: _png(), target=target)[0]
+    assert outbox.pptx_problems(data) == []
+
+
+def test_polish_repairs_what_python_pptx_leaves_behind():
+    from pptx import Presentation
+    from pptx.chart.data import CategoryChartData
+    from pptx.enum.chart import XL_CHART_TYPE
+    from pptx.util import Inches
+
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)  # 16:9, aber type="screen4x3" bleibt stehen
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    slide.notes_slide.notes_text_frame.text = "Notiz"
+    chart_data = CategoryChartData()
+    chart_data.categories = ["a", "b"]
+    chart_data.add_series("S", (1, 2))
+    slide.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, 0, 0, Inches(4), Inches(3), chart_data)
+    raw = io.BytesIO()
+    prs.save(raw)
+    before = outbox.pptx_problems(raw.getvalue())
+    assert any("notesMasterIdLst" in p for p in before) and any("screen4x3" in p for p in before)
+    assert any("Achsen" in p for p in before) and any("Vorschaubild" in p for p in before)
+    fixed = outbox.polish_pptx(raw.getvalue())
+    assert outbox.pptx_problems(fixed) == []
+    assert outbox.polish_pptx(fixed) and outbox.pptx_problems(outbox.polish_pptx(fixed)) == []  # idempotent
+    reopened = Presentation(io.BytesIO(fixed))
+    assert len(reopened.slides) == 1 and reopened.slides[0].has_notes_slide and reopened.slide_width == 12192000
+    assert reopened.slides[0].shapes[-1].has_chart
+
+
+def test_pptx_metadata_is_current_and_subtitle_placeholder_is_not_left_empty():
+    import zipfile
+
+    from pptx import Presentation
+
+    data = outbox.render("m.pptx", "# T\n\n## A\n\n- b\n", "Dominik")[0]
+    prs = Presentation(io.BytesIO(data))
+    assert prs.core_properties.author == "Dominik" and prs.core_properties.last_modified_by == "Dominik"
+    assert prs.core_properties.created.year >= 2026 and "python-pptx" not in (prs.core_properties.comments or "")
+    assert not [sh for sh in prs.slides[0].placeholders if sh.placeholder_format.type == 4]  # SUBTITLE
+    app = zipfile.ZipFile(io.BytesIO(data)).read("docProps/app.xml").decode()
+    assert "<Slides>2</Slides>" in app and "4:3" not in app
