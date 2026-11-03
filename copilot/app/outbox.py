@@ -149,6 +149,91 @@ def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tupl
             run.font.color.rgb = RGBColor(*color)
 
 
+def _pptx_theme(prs, theme: design.Theme) -> None:
+    """Farben und Schriften des Themas in die Vorlage schreiben (theme1.xml).
+
+    Ohne das stünde in der Datei das Office-Standardthema: Neue Folien, Formen und Diagramme, die die Person selbst hinzufügt,
+    kämen dann in Blau und Rot statt in den Farben des Dokuments.
+    """
+    from lxml import etree
+    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+
+    from . import charts
+
+    master = prs.slide_masters[0]
+    part = next((r.target_part for r in master.part.rels.values() if r.reltype == RT.THEME), None)
+    if part is None:
+        return
+    ns = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    root = etree.fromstring(part.blob)
+    colors = {"dk1": theme.dark, "lt1": "FFFFFF", "dk2": theme.head, "lt2": theme.surface, "accent1": theme.accent, "accent2": theme.head,
+              "accent3": charts.palette(theme, 8)[2], "accent4": charts.palette(theme, 8)[3], "accent5": charts.palette(theme, 8)[4],
+              "accent6": theme.grey, "hlink": theme.accent, "folHlink": theme.grey}
+    scheme = root.find(f".//{{{ns}}}clrScheme")
+    if scheme is None:
+        return
+    scheme.set("name", theme.label)
+    for name, value in colors.items():
+        node = scheme.find(f"{{{ns}}}{name}")
+        if node is None:
+            continue
+        for child in list(node):
+            node.remove(child)
+        etree.SubElement(node, f"{{{ns}}}srgbClr").set("val", value)
+    for tag, face in (("majorFont", theme.heading_font), ("minorFont", theme.body_font)):
+        latin = root.find(f".//{{{ns}}}{tag}/{{{ns}}}latin")
+        if latin is not None:
+            latin.set("typeface", face)
+    root.set("name", theme.label)
+    part._blob = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def _docx_numbering(doc, accent: str):
+    """Echte Word-Listen: Aufzählung und Nummerierung mit drei Ebenen, Marker im Akzent.
+
+    Rückgabe: ``(bullet_num_id, new_ordered_num_id)``. Jede nummerierte Liste bekommt eine eigene Nummerierungsinstanz, die bei 1 beginnt.
+    """
+    from docx.oxml import parse_xml
+
+    root = doc.part.numbering_part.element
+    w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    abstract_ids = [int(a.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}abstractNumId")) for a in root.findall(f"{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}abstractNum")]
+    num_ids = [int(n.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numId")) for n in root.findall(f"{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}num")]
+    bullet_abs, ordered_abs = max(abstract_ids, default=0) + 1, max(abstract_ids, default=0) + 2
+    next_num = [max(num_ids, default=0) + 1]
+
+    def levels(kind: str) -> str:
+        out = []
+        fmts = ["bullet", "bullet", "bullet"] if kind == "bullet" else ["decimal", "lowerLetter", "lowerRoman"]
+        texts = ["\u2022", "\u2013", "\u00b7"] if kind == "bullet" else ["%1.", "%2.", "%3."]
+        for i in range(3):
+            left = 357 * (i + 1)
+            font = '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:hint="default"/>' if kind == "bullet" else ""
+            out.append(
+                f'<w:lvl w:ilvl="{i}"><w:start w:val="1"/><w:numFmt w:val="{fmts[i]}"/><w:lvlText w:val="{texts[i]}"/><w:lvlJc w:val="left"/>'
+                f'<w:pPr><w:ind w:left="{left}" w:hanging="357"/></w:pPr><w:rPr>{font}<w:b w:val="0"/><w:color w:val="{accent}"/></w:rPr></w:lvl>'
+            )
+        return "".join(out)
+
+    first_num = root.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}num")
+    for abstract_id, kind in ((bullet_abs, "bullet"), (ordered_abs, "ordered")):
+        node = parse_xml(f'<w:abstractNum {w} w:abstractNumId="{abstract_id}"><w:multiLevelType w:val="hybridMultilevel"/>{levels(kind)}</w:abstractNum>')
+        if first_num is not None:
+            first_num.addprevious(node)  # laut Schema stehen alle abstractNum vor den num
+        else:
+            root.append(node)
+
+    def new_num(abstract_id: int, restart: bool) -> int:
+        num_id = next_num[0]
+        next_num[0] += 1
+        overrides = "".join(f'<w:lvlOverride w:ilvl="{i}"><w:startOverride w:val="1"/></w:lvlOverride>' for i in range(3)) if restart else ""
+        root.append(parse_xml(f'<w:num {w} w:numId="{num_id}"><w:abstractNumId w:val="{abstract_id}"/>{overrides}</w:num>'))
+        return num_id
+
+    bullet_id = new_num(bullet_abs, False)
+    return bullet_id, lambda: new_num(ordered_abs, True)
+
+
 def _hyperlink(paragraph, run, url: str, color: tuple[int, int, int]) -> None:
     """Lauf in einen echten, klickbaren Word-Link verwandeln (blau, unterstrichen)."""
     from docx.opc.constants import RELATIONSHIP_TYPE as RT
@@ -314,6 +399,7 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
 
     level_color = {1: dark, 2: head, 3: accent, 4: grey}
     doc = Document()
+    bullet_num, new_ordered = _docx_numbering(doc, theme.accent)
     doc.core_properties.title = title
     doc.core_properties.author = author
     section = doc.sections[0]
@@ -388,19 +474,14 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
             runs_in(doc.add_paragraph(), block[1])
         elif kind == "list":
             _, ordered, items = block
-            counters = [0, 0, 0, 0]
+            num_id = new_ordered() if ordered else bullet_num
             for level, runs in items:
-                counters[level] += 1
-                for deeper in range(level + 1, 4):
-                    counters[deeper] = 0
-                par = doc.add_paragraph()
-                indent = 0.63 * (level + 1)
-                par.paragraph_format.left_indent = Cm(indent)
-                par.paragraph_format.first_line_indent = Cm(-0.63)
+                level = min(level, 2)
+                par = doc.add_paragraph(style="List Number" if ordered else "List Bullet")
+                numPr = par._p.get_or_add_pPr().get_or_add_numPr()
+                numPr.get_or_add_ilvl().val = level
+                numPr.get_or_add_numId().val = num_id
                 par.paragraph_format.space_after = Pt(2)
-                par.paragraph_format.tab_stops.add_tab_stop(Cm(indent))
-                marker = par.add_run(f"{counters[level]}.\t" if ordered else "•\t")
-                marker.font.color.rgb = RGBColor(*accent)
                 runs_in(par, runs)
             doc.paragraphs[-1].paragraph_format.space_after = Pt(8)
         elif kind == "table":
@@ -1189,6 +1270,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
                 top += row_h * len(rows) + 0.2
             if media:
                 place_media(slide, media, split)
+    _pptx_theme(prs, theme)
     out = io.BytesIO()
     prs.save(out)
     return out.getvalue()

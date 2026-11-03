@@ -91,8 +91,8 @@ def test_docx_roundtrip():
     doc = Document(io.BytesIO(data))
     texts = [p.text for p in doc.paragraphs]
     assert "Bericht" in texts and "Hallo Welt äöü ß €." in texts
-    assert any(t.startswith("•") and "Punkt eins" in t for t in texts)
-    assert any(t.startswith("2.") and "Dann" in t for t in texts)
+    styles = {p.text: p.style.name for p in doc.paragraphs}
+    assert styles["Punkt eins"] == "List Bullet" and styles["Dann"] == "List Number"  # echte Word-Listen statt getippter Marker
     assert doc.tables[0].cell(1, 0).text == "Küche" and doc.tables[0].cell(0, 1).text == "Wert"
     assert "Get-Date" in texts
     bold = [r for p in doc.paragraphs for r in p.runs if r.text == "Welt"][0]

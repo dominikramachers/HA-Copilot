@@ -378,3 +378,32 @@ def test_pptx_runs_carry_hyperlinks():
     found = [r.hyperlink.address for s in prs.slides for sh in s.shapes if sh.has_text_frame
              for pa in sh.text_frame.paragraphs for r in pa.runs if r.hyperlink.address]
     assert found == ["https://x.de"]
+
+
+# ----------------------------------------------------------------------------- Vorlage: Thema und Listen
+
+
+def test_pptx_theme_colors_and_fonts_are_in_the_template():
+    from pptx import Presentation
+    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+
+    theme = design.THEMES["wald"]
+    key = theme.key
+    prs = Presentation(io.BytesIO(outbox.render("t.pptx", "# T\n\nS\n\n## A\n\n- x", "T", theme=key)[0]))
+    part = next(r.target_part for r in prs.slide_masters[0].part.rels.values() if r.reltype == RT.THEME)
+    xml = part.blob.decode()
+    assert f'<a:accent1><a:srgbClr val="{theme.accent}"/>' in xml and f'<a:dk2><a:srgbClr val="{theme.head}"/>' in xml
+    assert f'<a:minorFont><a:latin typeface="{theme.body_font}"/>' in xml and "4F81BD" not in xml
+
+
+def test_docx_lists_are_real_and_numbering_restarts():
+    from docx import Document
+
+    data, _ = outbox.render("l.docx", "# T\n\n1. a\n2. b\n\nText\n\n1. c\n\n- x\n  - y\n", "T")
+    doc = Document(io.BytesIO(data))
+    lists = [p for p in doc.paragraphs if p.style.name.startswith("List")]
+    ids = [p._p.pPr.numPr.numId.val for p in lists]
+    assert ids[0] == ids[1] and ids[2] != ids[0]  # zweite nummerierte Liste = eigene Instanz (beginnt wieder bei 1)
+    assert [p._p.pPr.numPr.ilvl.val for p in lists[-2:]] == [0, 1]
+    numbering = doc.part.numbering_part.element
+    assert numbering.xpath(f'count(w:num[@w:numId="{ids[2]}"]/w:lvlOverride/w:startOverride)') >= 1
