@@ -407,3 +407,78 @@ def test_docx_lists_are_real_and_numbering_restarts():
     assert [p._p.pPr.numPr.ilvl.val for p in lists[-2:]] == [0, 1]
     numbering = doc.part.numbering_part.element
     assert numbering.xpath(f'count(w:num[@w:numId="{ids[2]}"]/w:lvlOverride/w:startOverride)') >= 1
+
+
+# ----------------------------------------------------------------------------- Folientypen
+
+
+def _png(width=1600, height=900):
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), (60, 120, 180)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+def _slide_texts(prs):
+    return [[sh.text_frame.text for sh in s.shapes if sh.has_text_frame] for s in prs.slides]
+
+
+def test_blocks_split_and_full_bleed_flag():
+    blocks = md.parse("a\n\n+++\n\nb\n\n![Haus](foto.png){vollbild}\n\n![Normal](x.png)\n")
+    assert ("split",) in blocks
+    assert ("image", "Haus", "foto.png", True) in blocks and ("image", "Normal", "x.png") in blocks
+
+
+def test_pptx_two_columns_stay_on_one_slide():
+    from pptx import Presentation
+
+    content = "# T\n\nS\n\n## Vergleich\n\n- a\n- b\n\n+++\n\n- c\n- d\n"
+    prs = Presentation(io.BytesIO(outbox.render("s.pptx", content, "T")[0]))
+    assert len(prs.slides) == 2
+    texts = _slide_texts(prs)[1]
+    left = [sh for sh in prs.slides[1].shapes if sh.has_text_frame and "a" in sh.text_frame.text.split("\n")]
+    right = [sh for sh in prs.slides[1].shapes if sh.has_text_frame and "c" in sh.text_frame.text.split("\n")]
+    assert left and right and left[0].left < right[0].left
+    assert "+++" not in " ".join(texts)
+
+
+def test_pptx_quote_and_statistic_slides():
+    from pptx import Presentation
+
+    content = (
+        "# T\n\nS\n\n## Stimme\n\n> Das Haus denkt mit.\n\n— Familie M.\n\n"
+        "## Zahlen\n\n**4,2 Mio. €**\nUmsatz\n\n**+18 %**\ngegenüber Vorjahr\n"
+    )
+    prs = Presentation(io.BytesIO(outbox.render("s.pptx", content, "T")[0]))
+    assert len(prs.slides) == 3
+    quote = _slide_texts(prs)[1]
+    assert "Das Haus denkt mit." in quote and "— Familie M." in quote
+    stats = _slide_texts(prs)[2]
+    assert "4,2 Mio. €" in stats and "+18 %" in stats and "Umsatz" in stats and "gegenüber Vorjahr" in stats
+    assert max(r.font.size.pt for sh in prs.slides[2].shapes if sh.has_text_frame for p in sh.text_frame.paragraphs for r in p.runs) >= 40
+
+
+def test_plain_bold_paragraph_without_digit_is_not_a_statistic():
+    assert outbox._stats(md.parse("**Wichtig**\n\nText")) is None
+    assert outbox._stats(md.parse("**12**\n\nA\n\nB")) is None
+
+
+def test_pptx_full_bleed_picture_fills_the_slide():
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    content = "# T\n\nS\n\n## Haus\n\n![Das Haus](foto.png){vollbild}\n\nNeubau 2026\n"
+    prs = Presentation(io.BytesIO(outbox.render("s.pptx", content, "T", images=lambda name: _png(1000, 1000))[0]))
+    pictures = [sh for sh in prs.slides[1].shapes if sh.shape_type == 13]
+    assert len(pictures) == 1 and pictures[0].width == prs.slide_width and pictures[0].height == prs.slide_height
+    assert pictures[0].crop_top > 0  # quadratisches Bild wird auf das Folienformat zugeschnitten
+    assert "Haus" in " ".join(_slide_texts(prs)[1])
+
+
+def test_split_marker_is_ignored_in_word_and_pdf():
+    from docx import Document
+
+    data, _ = outbox.render("s.docx", "# T\n\nA\n\n+++\n\nB\n", "T")
+    assert "+++" not in "\n".join(p.text for p in Document(io.BytesIO(data)).paragraphs)
+    assert outbox.render("s.pdf", "# T\n\nA\n\n+++\n\nB\n", "T")[0][:4] == b"%PDF"

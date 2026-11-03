@@ -12,7 +12,9 @@ Ergebnis von :func:`parse`: eine Liste von Blöcken (Tupel):
 * ``("code", Text)``
 * ``("quote", Runs)``
 * ``("hr",)``
-* ``("image", Beschreibung, Verweis)``   (eigene Zeile ``![Beschreibung](dateiname.png)``)
+* ``("image", Beschreibung, Verweis)``   (eigene Zeile ``![Beschreibung](dateiname.png)``; mit ``{vollbild}`` dahinter
+  kommt als viertes Element ``True``: Bild füllt eine ganze Folie)
+* ``("split",)``                        (eigene Zeile ``+++``: Folie in zwei Spalten teilen)
 * ``("chart", JSON-Text)``              (Codeblock mit der Sprache ``chart``, siehe ``charts.py``)
 * ``("toc",)``                          (eigene Zeile ``[TOC]`` oder ``[Inhaltsverzeichnis]``)
 
@@ -40,7 +42,9 @@ _FENCE = re.compile(r"^\s*(```|~~~)")
 _HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
 _RULE = re.compile(r"^\s{0,3}([-*_])(\s*\1){2,}\s*$")
 _ITEM = re.compile(r"^(\s*)([-*+•]|\d{1,3}[.)])\s+(.*)$")
-_IMAGE = re.compile(r"^\s*!\[(?P<alt>[^\]]*)\]\(\s*<?(?P<ref>[^)>]+?)>?(?:\s+\"[^\"]*\")?\s*\)\s*$")
+_IMAGE = re.compile(r"^\s*!\[(?P<alt>[^\]]*)\]\(\s*<?(?P<ref>[^)>]+?)>?(?:\s+\"[^\"]*\")?\s*\)(?:\{(?P<flag>[^}]*)\})?\s*$")
+_FULL = {"vollbild", "fullbleed", "full", "cover"}
+_SPLIT = re.compile(r"^\s*\+{3}\s*$")
 _TOC = re.compile(r"^\s*\[{1,2}\s*(toc|inhaltsverzeichnis|table of contents)\s*\]{1,2}\s*$", re.I)
 _QUOTE = re.compile(r"^\s{0,3}>\s?(.*)$")
 _TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
@@ -121,7 +125,15 @@ def parse(text: str) -> list[Block]:
         picture = _IMAGE.match(line)
         if picture:
             flush()
-            blocks.append(("image", picture.group("alt").strip(), picture.group("ref").strip()))
+            block = ("image", picture.group("alt").strip(), picture.group("ref").strip())
+            if (picture.group("flag") or "").strip().lower() in _FULL:
+                block += (True,)  # {vollbild}: das Bild füllt eine ganze Folie
+            blocks.append(block)
+            i += 1
+            continue
+        if _SPLIT.match(line):
+            flush()
+            blocks.append(("split",))
             i += 1
             continue
         if _TOC.match(line):

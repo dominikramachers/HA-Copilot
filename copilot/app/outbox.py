@@ -966,6 +966,34 @@ def _split_slides(blocks: list[md.Block]) -> list[dict]:
     return [s for s in slides if s["title"] or s["blocks"]]
 
 
+def _stats(blocks: list[md.Block]) -> list | None:
+    """Kennzahlen-Folie erkennen: nur Absätze; eine fette Kurzzahl (höchstens 18 Zeichen, mit Ziffer) ist die Zahl.
+
+    Die Erklärung steht entweder im selben Absatz hinter der fetten Zahl (aufeinanderfolgende Zeilen gehören in Markdown zu einem Absatz)
+    oder im Absatz danach. Ein bis vier Zahlen.
+    """
+    if not blocks or any(b[0] != "p" for b in blocks):
+        return None
+    stats: list = []
+    for block in blocks:
+        runs = list(block[1])
+        lead = 0
+        while lead < len(runs) and "b" in runs[lead][1] and "c" not in runs[lead][1]:
+            lead += 1
+        value = runs[:lead]
+        text = md.plain(value).strip()
+        if lead and text and len(text) <= 18 and re.search(r"\d", text):
+            rest = runs[lead:]
+            if rest:
+                rest[0] = (rest[0][0].lstrip(), rest[0][1])
+            stats.append([value, rest if md.plain(rest).strip() else None])
+        elif stats and stats[-1][1] is None:
+            stats[-1][1] = runs
+        else:
+            return None
+    return stats if 1 <= len(stats) <= 4 else None
+
+
 def _block_cost(block: md.Block) -> float:
     kind = block[0]
     if kind == "p":
@@ -980,7 +1008,7 @@ def _block_cost(block: md.Block) -> float:
         return math.ceil(len(md.plain(block[1])) / 80) + 0.5
     if kind == "table":
         return 1.6 * len(block[1]) + 0.4
-    if kind in ("image", "chart"):
+    if kind in ("image", "chart", "split"):
         return 0.0  # Bilder und Diagramme stehen in einer eigenen Spalte oder füllen die Folie allein
     return 0.5
 
@@ -1112,14 +1140,19 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
         foot.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
         style_runs(foot.text_frame.paragraphs[0], [(deck_title[:70], "")], 11, grey)
 
-    def place_media(slide, items: list[md.Block], split: bool) -> None:
-        """Bilder und Diagramme auf die Folie setzen: allein = mittig in voller Breite, neben Text = rechte Spalte, untereinander."""
-        x, y, w, h = (7.55, 1.7, 5.0, 4.9) if split else (0.75, 1.65, 11.8, 5.0)
+    def add_rule(slide, left: float, top: float, width: float, color=accent) -> None:
+        rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(left), Inches(top), Inches(width), Inches(0.07))
+        rule.fill.solid()
+        rule.fill.fore_color.rgb = color
+        rule.line.fill.background()
+
+    def place_media(slide, items: list[md.Block], x: float, y: float, w: float, h: float, vertical: bool) -> None:
+        """Bilder und Diagramme in ein Rechteck setzen: nebeneinander oder (vertical) untereinander, höchstens drei."""
         n = len(items[:3])
         gap = 0.25
-        cell_w, cell_h = (w, (h - gap * (n - 1)) / n) if split else ((w - gap * (n - 1)) / n, h)
+        cell_w, cell_h = (w, (h - gap * (n - 1)) / n) if vertical else ((w - gap * (n - 1)) / n, h)
         for i, block in enumerate(items[:3]):
-            cx, cy = (x, y + i * (cell_h + gap)) if split else (x + i * (cell_w + gap), y)
+            cx, cy = (x, y + i * (cell_h + gap)) if vertical else (x + i * (cell_w + gap), y)
             if block[0] == "chart":
                 add_chart = _chart_of(block[1])
                 charts.add_pptx_chart(slide, add_chart, theme, Inches(cx), Inches(cy), Inches(cell_w), Inches(cell_h))
@@ -1128,6 +1161,186 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             fw, fh = _fit(pic.width, pic.height, cell_w, cell_h)
             shape = slide.shapes.add_picture(io.BytesIO(pic.data), Inches(cx + (cell_w - fw) / 2), Inches(cy + (cell_h - fh) / 2), Inches(fw), Inches(fh))
             shape._element.nvPicPr.cNvPr.set("descr", block[1])
+
+    media_kinds = ("image", "chart")
+
+    def pick_size(cost: float) -> int:
+        return (22 if cost <= 6 else 18 if cost <= 9 else 16) if keynote else (24 if cost <= 7 else 20 if cost <= 11 else 18)
+
+    def content_slide(heading: str, n: int):
+        slide = prs.slides.add_slide(prs.slide_layouts[5])
+        holder = slide.shapes.title
+        holder.left, holder.top, holder.width, holder.height = Inches(0.75), Inches(0.45), Inches(11.8), Inches(1.0)
+        frame = holder.text_frame
+        frame.word_wrap = True
+        frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+        style_runs(frame.paragraphs[0], [(heading, "")], 30 if len(heading) < 50 else 24, dark, bold=True, font=theme.heading_font)
+        add_bar(slide, 0.5, 0.58, 0.74)
+        number(slide, n)
+        return slide
+
+    def textbox(slide, x: float, y: float, w: float, h: float, anchor=MSO_ANCHOR.TOP):
+        box = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
+        frame = box.text_frame
+        frame.word_wrap = True
+        frame.auto_size = MSO_AUTO_SIZE.NONE
+        frame.vertical_anchor = anchor
+        return frame
+
+    def fill(slide, page: list[md.Block], x0: float, width: float, size: int, column: bool = False) -> None:
+        """Text, Tabellen, Bilder und Diagramme einer Folie (oder einer Spalte) setzen."""
+        media = [b for b in page if b[0] in media_kinds]
+        split = bool(media) and any(b[0] not in media_kinds for b in page)
+        beside = split and not column  # Text links, Bild rechts; in einer Spalte steht das Bild unter dem Text
+        col_w = 6.5 if beside else width
+        top = 1.7
+        text_blocks = [b for b in page if b[0] not in ("table", *media_kinds)]
+        tables_cost = sum(_block_cost(b) for b in page if b[0] == "table")
+        if text_blocks:
+            height = SLIDE_H - top - 0.7 - (tables_cost * 0.27 + 0.2 if tables_cost else 0)
+            if column and media:
+                height = 2.3
+            frame = textbox(slide, x0, top, col_w, max(height, 1.2))
+            frame.auto_size = MSO_AUTO_SIZE.NONE if keynote else MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            first = True
+
+            def para():
+                nonlocal first
+                par = frame.paragraphs[0] if first else frame.add_paragraph()
+                first = False
+                return par
+
+            for block in text_blocks:
+                kind = block[0]
+                if kind == "p":
+                    par = para()
+                    par.space_after = Pt(10)
+                    style_runs(par, block[1], size)
+                elif kind == "h":
+                    par = para()
+                    par.space_before, par.space_after = Pt(6), Pt(6)
+                    style_runs(par, block[2], size + 1, accent, bold=True, font=theme.heading_font)
+                elif kind == "list":
+                    for level, runs in block[2]:
+                        par = para()
+                        par.space_after = Pt(6)
+                        bullet(par, level, block[1], size)
+                        style_runs(par, runs, size - 2 * level)
+                elif kind == "code":
+                    for line in (block[1] or " ").split("\n"):
+                        par = para()
+                        run = par.add_run()
+                        run.text = line.replace("\t", "    ") or " "
+                        run.font.name, run.font.size = code_font, Pt(14)
+                        run.font.color.rgb = RGBColor(0x37, 0x41, 0x51)
+                elif kind == "quote":
+                    par = para()
+                    par.space_after = Pt(8)
+                    style_runs(par, [(t, s + "i") for t, s in block[1]], size, grey)
+            top += max(height, 1.2) + 0.1
+        for block in page:
+            if block[0] != "table":
+                continue
+            rows = block[1]
+            cols = len(rows[0])
+            row_h = 0.42 if len(rows) > 7 else 0.5
+            shape = slide.shapes.add_table(len(rows), cols, Inches(x0), Inches(top), Inches(col_w), Inches(row_h * len(rows)))
+            table = shape.table
+            weights = [max(min(len(md.plain(r[c])), 40) + 4 for r in rows) for c in range(cols)]
+            for c in range(cols):
+                table.columns[c].width = Inches(col_w * weights[c] / sum(weights))
+            for r, row in enumerate(rows):
+                table.rows[r].height = Inches(row_h)
+                for c, runs in enumerate(row):
+                    cell = table.cell(r, c)
+                    cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+                    par = cell.text_frame.paragraphs[0]
+                    cell.fill.solid()
+                    if r == 0:
+                        cell.fill.fore_color.rgb = head
+                        style_runs(par, runs, 15 if not column else 13, RGBColor(255, 255, 255), bold=True)
+                    else:
+                        cell.fill.fore_color.rgb = surface if r % 2 else white
+                        style_runs(par, runs, 14 if not column else 12)
+            top += row_h * len(rows) + 0.2
+        if media:
+            if beside:
+                place_media(slide, media, 7.55, 1.7, 5.0, 4.9, True)
+            elif column:
+                place_media(slide, media, x0, top, width, max(SLIDE_H - 0.75 - top, 1.4), False)
+            else:
+                place_media(slide, media, 0.75, 1.65, 11.8, 5.0, False)
+
+    def full_bleed(slide_data: dict, block: md.Block, n: int) -> None:
+        """Bild füllt die ganze Folie (zugeschnitten); der Titel steht auf einem halbtransparenten Balken."""
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        pic = _picture(images, block[2])
+        shape = slide.shapes.add_picture(io.BytesIO(pic.data), 0, 0, Inches(SLIDE_W), Inches(SLIDE_H))
+        shape._element.nvPicPr.cNvPr.set("descr", block[1])
+        want, have = SLIDE_W / SLIDE_H, pic.width / pic.height
+        if have > want:
+            shape.crop_left = shape.crop_right = (1 - want / have) / 2
+        elif have < want:
+            shape.crop_top = shape.crop_bottom = (1 - have / want) / 2
+        captions = [b for b in slide_data["blocks"] if b[0] == "p"]
+        if slide_data["title"] or captions:
+            bar_h = 1.2 + (0.5 if captions else 0)
+            bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, Inches(SLIDE_H - bar_h), Inches(SLIDE_W), Inches(bar_h))
+            bar.fill.solid()
+            bar.fill.fore_color.rgb = head
+            bar.line.fill.background()
+            etree.SubElement(bar.fill._xPr.find(qn("a:solidFill"))[0], qn("a:alpha")).set("val", "82000")
+            frame = textbox(slide, 0.75, SLIDE_H - bar_h + 0.1, 11.8, bar_h - 0.2, MSO_ANCHOR.MIDDLE)
+            first = True
+            if slide_data["title"]:
+                style_runs(frame.paragraphs[0], [(slide_data["title"], "")], 32 if len(slide_data["title"]) < 50 else 26, white, bold=True, font=theme.heading_font)
+                first = False
+            for cap in captions[:1]:
+                par = frame.paragraphs[0] if first else frame.add_paragraph()
+                style_runs(par, cap[1], 18, on_head_muted)
+        if slide_data["notes"]:
+            slide.notes_slide.notes_text_frame.text = "\n".join(slide_data["notes"])
+
+    def quote_slide(slide_data: dict, n: int) -> None:
+        """Nur ein Zitat (und eine Quelle): großes Zitat auf heller Fläche."""
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background(slide, surface)
+        quote = slide_data["blocks"][0][1]
+        source = slide_data["blocks"][1][1] if len(slide_data["blocks"]) > 1 else None
+        mark = textbox(slide, 0.8, 0.45, 1.6, 1.6)
+        style_runs(mark.paragraphs[0], [("\u201c", "")], 110, accent, bold=True, font=theme.heading_font)
+        if slide_data["title"]:
+            label = textbox(slide, 2.3, 0.75, 9.5, 0.5, MSO_ANCHOR.MIDDLE)
+            style_runs(label.paragraphs[0], [(slide_data["title"], "")], 16, accent, bold=True)
+        length = len(md.plain(quote))
+        frame = textbox(slide, 1.4, 1.9, 10.5, 3.3, MSO_ANCHOR.MIDDLE)
+        style_runs(frame.paragraphs[0], [(t, st + "i") for t, st in quote], 34 if length < 120 else 28 if length < 220 else 22, dark, font=theme.heading_font)
+        if source:
+            attribution = textbox(slide, 1.4, 5.35, 10.5, 0.6)
+            style_runs(attribution.paragraphs[0], source, 18, grey)
+        number(slide, n)
+        if slide_data["notes"]:
+            slide.notes_slide.notes_text_frame.text = "\n".join(slide_data["notes"])
+
+    def stat_slide(slide_data: dict, stats: list, n: int) -> None:
+        """Ein bis vier Kennzahlen: große Zahl mit kurzer Erklärung darunter."""
+        slide = content_slide(slide_data["title"] or "", n)
+        count = len(stats)
+        gap = 0.5
+        width = (11.8 - gap * (count - 1)) / count
+        for i, (value, caption) in enumerate(stats):
+            x = 0.75 + i * (width + gap)
+            longest = len(md.plain(value))
+            size = (66 if count <= 2 else 54 if count == 3 else 44) - (10 if longest > 9 else 0) - (8 if keynote else 0)
+            add_rule(slide, x + 0.1, 2.35, 0.9)
+            frame = textbox(slide, x, 2.55, width, 1.5, MSO_ANCHOR.MIDDLE)
+            style_runs(frame.paragraphs[0], [(t, "") for t, _ in value], size, accent, bold=True, font=theme.heading_font)
+            if caption:
+                note = textbox(slide, x, 4.15, width, 1.7)
+                style_runs(note.paragraphs[0], caption, 20 if count <= 2 else 18, dark)
+        if slide_data["notes"]:
+            slide.notes_slide.notes_text_frame.text = "\n".join(slide_data["notes"])
 
     total = 0
     for position, data in enumerate(slides):
@@ -1172,104 +1385,46 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             if data["notes"]:
                 slide.notes_slide.notes_text_frame.text = "\n".join(data["notes"])
             continue
-        media_kinds = ("image", "chart")
+        flagged = next((b for b in blocks if b[0] == "image" and len(b) > 3 and b[3]), None)
+        if flagged:
+            total += 1
+            full_bleed(data, flagged, total)
+            continue
+        if position > 0 and blocks and blocks[0][0] == "quote" and all(b[0] == "p" for b in blocks[1:]) and len(blocks) <= 2:
+            total += 1
+            quote_slide(data, total)
+            continue
+        stats = _stats(blocks)
+        if stats and position > 0:
+            total += 1
+            stat_slide(data, stats, total)
+            continue
+        has_split = any(b[0] == "split" for b in blocks)
         beside = any(b[0] in media_kinds for b in blocks) and any(b[0] not in media_kinds for b in blocks)  # Text links, Bild rechts
-        pages = _paginate(blocks, (1.7 if beside else 1.0) * (1.2 if keynote else 1.0)) if blocks else [[]]
+        if has_split:
+            pages = [blocks]  # zwei Spalten bleiben auf einer Folie
+        else:
+            pages = _paginate(blocks, (1.7 if beside else 1.0) * (1.2 if keynote else 1.0)) if blocks else [[]]
         for part, page in enumerate(pages):
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
             total += 1
             heading = data["title"] or ""
             if part:
                 heading = (heading + " (Forts.)").strip()
-            holder = slide.shapes.title
-            holder.left, holder.top, holder.width, holder.height = Inches(0.75), Inches(0.45), Inches(11.8), Inches(1.0)
-            frame = holder.text_frame
-            frame.word_wrap = True
-            frame.vertical_anchor = MSO_ANCHOR.MIDDLE
-            frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-            style_runs(frame.paragraphs[0], [(heading, "")], 30 if len(heading) < 50 else 24, dark, bold=True, font=theme.heading_font)
-            add_bar(slide, 0.5, 0.58, 0.74)
-            number(slide, total)
+            slide = content_slide(heading, total)
             if part == 0 and data["notes"]:
                 slide.notes_slide.notes_text_frame.text = "\n".join(data["notes"])
-            media = [b for b in page if b[0] in media_kinds]
-            split = bool(media) and any(b[0] not in media_kinds for b in page)
-            col_w = 6.5 if split else 11.8
+            if has_split:
+                at = next(i for i, b in enumerate(page) if b[0] == "split")
+                halves = [page[:at], [b for b in page[at + 1:] if b[0] != "split"]]
+                gap = 0.5
+                width = (11.8 - gap) / 2
+                cost = max(sum(_block_cost(b) for b in half if b[0] != "table") for half in halves) * 1.4
+                for k, half in enumerate(halves):
+                    fill(slide, half, 0.75 + k * (width + gap), width, pick_size(cost), column=True)
+                continue
+            split = any(b[0] in media_kinds for b in page) and any(b[0] not in media_kinds for b in page)
             cost = sum(_block_cost(b) for b in page if b[0] != "table") * (1.7 if split else 1.0)
-            size = (22 if cost <= 6 else 18 if cost <= 9 else 16) if keynote else (24 if cost <= 7 else 20 if cost <= 11 else 18)
-            top = 1.7
-            text_blocks = [b for b in page if b[0] not in ("table", *media_kinds)]
-            if text_blocks:
-                tables_cost = sum(_block_cost(b) for b in page if b[0] == "table")
-                height = SLIDE_H - top - 0.7 - (tables_cost * 0.27 + 0.2 if tables_cost else 0)
-                box = slide.shapes.add_textbox(Inches(0.75), Inches(top), Inches(col_w), Inches(max(height, 1.2)))
-                frame = box.text_frame
-                frame.word_wrap = True
-                frame.auto_size = MSO_AUTO_SIZE.NONE if keynote else MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-                first = True
-
-                def para():
-                    nonlocal first
-                    par = frame.paragraphs[0] if first else frame.add_paragraph()
-                    first = False
-                    return par
-
-                for block in text_blocks:
-                    kind = block[0]
-                    if kind == "p":
-                        par = para()
-                        par.space_after = Pt(10)
-                        style_runs(par, block[1], size)
-                    elif kind == "h":
-                        par = para()
-                        par.space_before, par.space_after = Pt(6), Pt(6)
-                        style_runs(par, block[2], size + 1, accent, bold=True, font=theme.heading_font)
-                    elif kind == "list":
-                        for level, runs in block[2]:
-                            par = para()
-                            par.space_after = Pt(6)
-                            bullet(par, level, block[1], size)
-                            style_runs(par, runs, size - 2 * level)
-                    elif kind == "code":
-                        for line in (block[1] or " ").split("\n"):
-                            par = para()
-                            run = par.add_run()
-                            run.text = line.replace("\t", "    ") or " "
-                            run.font.name, run.font.size = code_font, Pt(14)
-                            run.font.color.rgb = RGBColor(0x37, 0x41, 0x51)
-                    elif kind == "quote":
-                        par = para()
-                        par.space_after = Pt(8)
-                        style_runs(par, [(t, s + "i") for t, s in block[1]], size, grey)
-                top += max(height, 1.2) + 0.1
-            for block in page:
-                if block[0] != "table":
-                    continue
-                rows = block[1]
-                cols = len(rows[0])
-                row_h = 0.42 if len(rows) > 7 else 0.5
-                shape = slide.shapes.add_table(len(rows), cols, Inches(0.75), Inches(top), Inches(col_w), Inches(row_h * len(rows)))
-                table = shape.table
-                weights = [max(min(len(md.plain(r[c])), 40) + 4 for r in rows) for c in range(cols)]
-                for c in range(cols):
-                    table.columns[c].width = Inches(col_w * weights[c] / sum(weights))
-                for r, row in enumerate(rows):
-                    table.rows[r].height = Inches(row_h)
-                    for c, runs in enumerate(row):
-                        cell = table.cell(r, c)
-                        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
-                        par = cell.text_frame.paragraphs[0]
-                        if r == 0:
-                            cell.fill.solid()
-                            cell.fill.fore_color.rgb = head
-                            style_runs(par, runs, 15, RGBColor(255, 255, 255), bold=True)
-                        else:
-                            cell.fill.solid()
-                            cell.fill.fore_color.rgb = surface if r % 2 else white
-                            style_runs(par, runs, 14)
-                top += row_h * len(rows) + 0.2
-            if media:
-                place_media(slide, media, split)
+            fill(slide, page, 0.75, 11.8, pick_size(cost))
     _pptx_theme(prs, theme)
     out = io.BytesIO()
     prs.save(out)
