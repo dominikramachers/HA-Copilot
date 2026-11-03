@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.29.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.30.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -417,12 +417,23 @@ Bittest du die KI um eine Datei („Mach daraus ein Word-Dokument“, „Schreib
 
 - **Formate:** Word `.docx`, Excel `.xlsx`, PowerPoint `.pptx`, PDF `.pdf` sowie Textdateien (`.ps1`, `.sh`, `.bat`, `.py`, `.csv`, `.json`, `.yaml`, `.html`, `.md`, `.txt`, `.xml`, `.ini`, `.sql` und weitere). Ausführbare Dateien (`.exe`, `.dll`, Archive) erzeugt die KI nicht.
 - **Word, PDF, PowerPoint:** aus Markdown. Überschriften, Absätze mit fett/kursiv/Code, Listen (auch verschachtelt), Tabellen, Codeblöcke, Zitate, Trennlinien. Bei PowerPoint beginnt jede Überschrift der Ebene 1 oder 2 (oder eine Linie `---`) eine neue Folie; die erste Folie mit Titel und Untertitel wird die Titelfolie; eine Zeile „Notizen: …“ wird zur Sprechernotiz; zu lange Folien werden automatisch geteilt („Forts.“). Format 16:9.
-- **Excel:** aus JSON (mehrere Blätter möglich), CSV oder Markdown-Tabellen. Erste Zeile = Kopfzeile (fett, Farbe, fixiert, Filter). Zahlen und Datumsangaben werden echte Zellwerte (auch „1.234,5“ und „2026-03-01“; Werte mit führender Null wie „007“ bleiben Text). Zellen mit `=` werden Formeln (englische Funktionsnamen, z. B. `=SUM(B2:B10)`).
+- **Excel:** aus JSON (mehrere Blätter möglich), CSV oder Markdown-Tabellen. Erste Zeile = Kopfzeile (fett, Themenfarbe, fixiert, Filter, getönte Wechselzeilen). Zahlen und Datumsangaben werden echte Zellwerte (auch „1.234,5“ und „2026-03-01“; Werte mit führender Null wie „007“ bleiben Text). Zellen mit `=` werden Formeln (englische Funktionsnamen, z. B. `=SUM(B2:B10)`).
 - **Windows-tauglich:** `.ps1`, `.psm1` und `.csv` werden als UTF-8 mit BOM gespeichert (sonst zeigen PowerShell 5 und Excel Umlaute falsch an), `.bat` und `.cmd` mit Windows-Zeilenenden.
 - **Aufbewahrung:** `files_keep_days` (Standard 14 Tage). Danach löscht das Add-on die Datei; die Karte im Chat zeigt dann „Abgelaufen“. Löschst du einen Chat, werden seine Dateien sofort mit gelöscht. Die Dateien liegen in `/data/outfiles` (und damit in der HA-Sicherung). Grenzen: 12 Dateien je Antwort, 12 MB je Datei, 300 MB je Person.
 - **Rechte und Sicherheit:** Eine Datei kann nur die Person laden, für die sie erzeugt wurde (andere erhalten „nicht gefunden“). Der Download braucht die Anmeldung, wird als Anhang mit `sandbox`-Kopfzeile ausgeliefert und nie im Browser ausgeführt. Excel-Formeln mit externen Aufrufen (`WEBSERVICE`, DDE, `|` …) werden als Text abgelegt. Die KI darf Dateien ohne Rückfrage erzeugen, weil das nichts in Home Assistant ändert; sie landen nur bei dir.
 - **Abschalten:** `files_enabled: false`.
 - **Bibliotheken:** python-docx, openpyxl, python-pptx und fpdf2 werden beim Bauen des Add-ons installiert, dazu die Schrift „Liberation“ für PDF (Umlaute, €, Typografie). Ohne diese Pakete bleibt das Add-on voll nutzbar, die KI kann dann nur Textdateien erzeugen und sagt das, wenn man etwas anderes möchte.
+
+### Gestaltung der Dateien (ab 0.30.0)
+
+Neue Word-, PowerPoint-, Excel- und PDF-Dateien gestaltet die KI nach festen Regeln statt nach Gefühl.
+
+- **Leitfäden:** Das Werkzeug `design_guide` liefert kurze Texte zu `allgemein`, `folien`, `dokument`, `tabelle`, `pdf` und `themen`. Die KI ruft es vor dem Erstellen einer neuen Datei auf (nicht beim Bearbeiten vorhandener Dateien, nicht bei Code). Die Texte liegen unter `app/design/*.md` und sind eigene, kurze Regeln: eine Aussage je Folie, höchstens sechs kurze Punkte, Überschriften als Aussagen, genug Weißraum, ein Farbthema je Datei, Zahlen einheitlich, Kopfzeile bei Tabellen.
+- **Themen:** `klar` (Standard, sachlich), `ozean` (ruhig, technisch), `wald` (natürlich), `terrakotta` (warm), `schiefer` (kräftig, nüchtern), `beere` (kreativ), `sand` (zurückhaltend, mit Serifenschrift). Sag einfach, wofür die Datei ist („für die Geschäftsführung“, „Einladung zum Sommerfest“); die KI wählt. Mit einer Markenfarbe („in unserem Orange #C2410C“) nutzt sie `accent`; zu helle Farben werden für Text und Linien automatisch abgedunkelt.
+- **Was sich ändert:** PowerPoint hat farbige Titel- und Zwischenfolien (eine Folie nur mit `##`-Überschrift), Foliennummer und Titel in der Fußzeile. Word hat eine Fußzeile mit Seitenzahl, helle Tabellenlinien, farbigen Tabellenkopf und Zebrazeilen. Excel hat farbige Kopfzeile und getönte Wechselzeilen. PDF hat Themenfarben und Zebrazeilen in Tabellen.
+- **Selbstkontrolle:** `file_create` meldet der KI Auffälligkeiten (z. B. mehr als sechs Punkte auf einer Folie, Tabelle mit mehr als fünf Spalten, übersprungene Überschriftenebenen); sie darf einmal nachbessern.
+- **Grenzen:** Bilder, Diagramme und Inhaltsverzeichnisse lassen sich noch nicht einbetten, und die KI sieht das fertige Ergebnis nicht als Bild. Wer ein bestimmtes Aussehen braucht, bearbeitet die Datei danach in Word, PowerPoint oder Excel.
+- **Herkunft:** Anregungen aus den frei lizenzierten Skills `theme-factory` (Apache-2.0) und `frontend-slides` (MIT); es sind keine Texte oder Code übernommen. Die Office-Skills von Anthropic sind nicht frei lizenziert und deshalb nicht enthalten.
 
 ## Dateien bearbeiten (ab 0.27.0)
 

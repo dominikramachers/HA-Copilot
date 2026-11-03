@@ -29,7 +29,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from . import fileedit
+from . import design, fileedit
 from . import mdblocks as md
 from .i18n import tr
 from .db import Store
@@ -112,10 +112,8 @@ def render_text(name: str, content: str) -> bytes:
 
 # ------------------------------------------------------------------------ Word
 
-DARK = (0x1F, 0x29, 0x37)
-ACCENT = (0x2F, 0x6F, 0xED)
-HEAD_FILL = "1F3A5F"
 MONO_FILL = "F1F3F5"
+TABLE_LINE = "C9D1DA"
 
 
 def _shade(cell_or_par, fill: str) -> None:
@@ -146,7 +144,60 @@ def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tupl
             run.font.color.rgb = RGBColor(*color)
 
 
-def render_docx(content: str, title: str, author: str) -> bytes:
+def _border(paragraph, side: str, color: str, size: int = 6, space: int = 1) -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    borders = OxmlElement("w:pBdr")
+    line = OxmlElement(f"w:{side}")
+    for key, value in (("val", "single"), ("sz", str(size)), ("space", str(space)), ("color", color)):
+        line.set(qn(f"w:{key}"), value)
+    borders.append(line)
+    paragraph._p.get_or_add_pPr().append(borders)
+
+
+def _table_lines(table, color: str) -> None:
+    """Feine, helle Tabellenlinien statt des schwarzen Standardgitters."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    props = table._tbl.tblPr
+    for old in props.findall(qn("w:tblBorders")):
+        props.remove(old)
+    borders = OxmlElement("w:tblBorders")
+    for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        line = OxmlElement(f"w:{side}")
+        for key, value in (("val", "single"), ("sz", "4"), ("space", "0"), ("color", color)):
+            line.set(qn(f"w:{key}"), value)
+        borders.append(line)
+    props.append(borders)
+
+
+def _page_field(paragraph, size: float, color: tuple[int, int, int]) -> None:
+    """Feld „Seite n“ (Word rechnet es beim Öffnen und Drucken aus)."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt, RGBColor
+
+    run = paragraph.add_run("Seite ")
+    run.font.size, run.font.color.rgb = Pt(size), RGBColor(*color)
+    for kind, text in (("begin", None), (None, " PAGE "), ("separate", None), (None, "1"), ("end", None)):
+        run = paragraph.add_run()  # jeder Feldteil in einem eigenen Lauf mit gleicher Formatierung
+        run.font.size, run.font.color.rgb = Pt(size), RGBColor(*color)
+        if kind:
+            el = OxmlElement("w:fldChar")
+            el.set(qn("w:fldCharType"), kind)
+        elif text.strip() == "PAGE":
+            el = OxmlElement("w:instrText")
+            el.set(qn("xml:space"), "preserve")
+            el.text = text
+        else:
+            el = OxmlElement("w:t")
+            el.text = text
+        run._r.append(el)
+
+
+def render_docx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
     try:
         from docx import Document
         from docx.enum.text import WD_BREAK  # noqa: F401
@@ -156,6 +207,8 @@ def render_docx(content: str, title: str, author: str) -> bytes:
     except ImportError:
         raise _missing("Word (.docx)") from None
 
+    dark, head, accent, grey = (design.rgb(c) for c in (theme.dark, theme.head, theme.accent, theme.grey))
+    level_color = {1: dark, 2: head, 3: accent, 4: grey}
     doc = Document()
     doc.core_properties.title = title
     doc.core_properties.author = author
@@ -164,26 +217,35 @@ def render_docx(content: str, title: str, author: str) -> bytes:
     section.left_margin = section.right_margin = Cm(2.3)
     section.top_margin = section.bottom_margin = Cm(2.2)
     normal = doc.styles["Normal"]
-    normal.font.name = "Calibri"
+    normal.font.name = theme.body_font
     normal.font.size = Pt(11)
     normal.paragraph_format.space_after = Pt(6)
     normal.paragraph_format.line_spacing = 1.12
     for level, size in ((1, 22), (2, 17), (3, 14), (4, 12)):
         style = doc.styles[f"Heading {level}"]
-        style.font.name = "Calibri"
+        style.font.name = theme.heading_font
         style.font.size = Pt(size)
         style.font.bold = True
-        style.font.color.rgb = RGBColor(*DARK)
+        style.font.color.rgb = RGBColor(*level_color[level])
         style.paragraph_format.space_before = Pt(16 if level < 3 else 12)
         style.paragraph_format.space_after = Pt(6)
         style.paragraph_format.keep_with_next = True
+
+    footer = section.footer.paragraphs[0]  # kleine Fußzeile: Titel links, Seitenzahl rechts
+    footer.paragraph_format.tab_stops.add_tab_stop(Cm(16.4), alignment=2)  # 2 = rechts
+    run = footer.add_run(title)
+    run.font.size, run.font.color.rgb = Pt(8.5), RGBColor(*grey)
+    footer.add_run("\t\t")  # die Standard-Fußzeile hat einen Mitteltabulator; der zweite Tabulator führt an den rechten Rand
+    _page_field(footer, 8.5, grey)
 
     for block in md.parse(content):
         kind = block[0]
         if kind == "h":
             level = min(block[1], 4)
             par = doc.add_heading(level=level)
-            _docx_runs(par, block[2], bold=True, color=DARK)
+            _docx_runs(par, block[2], bold=True, color=level_color[level])
+            if level == 1:
+                _border(par, "bottom", theme.accent, size=8, space=4)
         elif kind == "p":
             _docx_runs(doc.add_paragraph(), block[1])
         elif kind == "list":
@@ -199,22 +261,26 @@ def render_docx(content: str, title: str, author: str) -> bytes:
                 par.paragraph_format.first_line_indent = Cm(-0.63)
                 par.paragraph_format.space_after = Pt(2)
                 par.paragraph_format.tab_stops.add_tab_stop(Cm(indent))
-                par.add_run(f"{counters[level]}.\t" if ordered else "•\t")
+                marker = par.add_run(f"{counters[level]}.\t" if ordered else "•\t")
+                marker.font.color.rgb = RGBColor(*accent)
                 _docx_runs(par, runs)
             doc.paragraphs[-1].paragraph_format.space_after = Pt(8)
         elif kind == "table":
             rows = block[1]
             table = doc.add_table(rows=len(rows), cols=len(rows[0]))
             table.style = "Table Grid"
+            _table_lines(table, TABLE_LINE)
             for r, row in enumerate(rows):
                 for c, runs in enumerate(row):
                     cell = table.cell(r, c)
                     par = cell.paragraphs[0]
                     par.paragraph_format.space_after = Pt(2)
                     if r == 0:
-                        _shade(cell, HEAD_FILL)
+                        _shade(cell, theme.head)
                         _docx_runs(par, runs, bold=True, color=(0xFF, 0xFF, 0xFF), size=10.5)
                     else:
+                        if r % 2 == 0:
+                            _shade(cell, theme.surface)
                         _docx_runs(par, runs, size=10.5)
             doc.add_paragraph().paragraph_format.space_after = Pt(4)
         elif kind == "code":
@@ -231,23 +297,13 @@ def render_docx(content: str, title: str, author: str) -> bytes:
         elif kind == "quote":
             par = doc.add_paragraph()
             par.paragraph_format.left_indent = Cm(0.8)
-            borders = OxmlElement("w:pBdr")
-            left = OxmlElement("w:left")
-            for key, value in (("val", "single"), ("sz", "18"), ("space", "8"), ("color", "9AA5B1")):
-                left.set(qn(f"w:{key}"), value)
-            borders.append(left)
-            par._p.get_or_add_pPr().append(borders)
+            _border(par, "left", theme.accent, size=18, space=8)
             _docx_runs(par, block[1], color=(0x52, 0x60, 0x6D))
             for run in par.runs:
                 run.italic = True
         elif kind == "hr":
             par = doc.add_paragraph()
-            borders = OxmlElement("w:pBdr")
-            bottom = OxmlElement("w:bottom")
-            for key, value in (("val", "single"), ("sz", "6"), ("space", "1"), ("color", "C4CCD4")):
-                bottom.set(qn(f"w:{key}"), value)
-            borders.append(bottom)
-            par._p.get_or_add_pPr().append(borders)
+            _border(par, "bottom", "C4CCD4")
     out = io.BytesIO()
     doc.save(out)
     return out.getvalue()
@@ -344,7 +400,7 @@ def _sheets_from_json(data: Any) -> list[tuple[str, list[list[Any]]]]:
     return [("Tabelle1", rows_of(data))]
 
 
-def render_xlsx(content: str, title: str, author: str) -> bytes:
+def render_xlsx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Font, PatternFill
@@ -360,7 +416,8 @@ def render_xlsx(content: str, title: str, author: str) -> bytes:
     wb.properties.title = title
     wb.properties.creator = author
     used: set[str] = set()
-    head_fill = PatternFill("solid", fgColor=HEAD_FILL)
+    head_fill = PatternFill("solid", fgColor=theme.head)
+    band_fill = PatternFill("solid", fgColor=theme.surface)
     for index, (raw_name, rows) in enumerate(sheets, 1):
         name = re.sub(r"[\[\]:*?/\\]", " ", raw_name).strip()[:31] or f"Tabelle{index}"
         base, n = name, 2
@@ -385,6 +442,8 @@ def render_xlsx(content: str, title: str, author: str) -> bytes:
                 if r == 1 and len(rows) > 1:
                     cell.font = Font(bold=True, color="FFFFFF")
                     cell.fill = head_fill
+                elif r % 2 == 1 and len(rows) > 2:  # Bänderung: jede zweite Datenzeile leicht getönt
+                    cell.fill = band_fill
                 length = len(str(value)) if value is not None and not (isinstance(value, str) and value.startswith("=")) else 8
                 if r <= 300:
                     widths[c] = max(widths.get(c, 0), length)
@@ -428,7 +487,7 @@ def find_fonts() -> tuple[dict[str, Path], Path | None] | None:
     return None
 
 
-def render_pdf(content: str, title: str, author: str) -> bytes:
+def render_pdf(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
     try:
         from fpdf import FPDF
         from fpdf.fonts import FontFace
@@ -467,7 +526,8 @@ def render_pdf(content: str, title: str, author: str) -> bytes:
 
     pdf.add_page()
     left = pdf.l_margin
-    dark = DARK
+    dark, accent_rgb, head_rgb = design.rgb(theme.dark), design.rgb(theme.accent), design.rgb(theme.head)
+    text_rgb = (40, 46, 54)
 
     def runs_out(runs: list[md.Run], size: float, height: float, *, base: str = "", color: tuple[int, int, int] = (40, 46, 54)) -> None:
         for text, style in runs:
@@ -501,8 +561,13 @@ def render_pdf(content: str, title: str, author: str) -> bytes:
             pdf.ln(5 if block[1] > 1 else 2)
             if pdf.get_y() > pdf.h - 45:
                 pdf.add_page()
-            runs_out(block[2], size, size * 0.52, base="B", color=dark)
+            runs_out(block[2], size, size * 0.52, base="B", color=dark if block[1] < 3 else head_rgb if block[1] == 3 else accent_rgb)
             pdf.ln(size * 0.52 + (3.5 if block[1] < 3 else 2))
+            if block[1] == 1:  # kurzer Akzentstrich unter der Hauptüberschrift
+                pdf.set_draw_color(*accent_rgb)
+                pdf.set_line_width(0.9)
+                pdf.line(left, pdf.get_y() - 1.5, left + 24, pdf.get_y() - 1.5)
+                pdf.ln(2.5)
         elif kind == "p":
             runs_out(block[1], 10.5, 5.3)
             pdf.ln(7.2)
@@ -531,10 +596,13 @@ def render_pdf(content: str, title: str, author: str) -> bytes:
             pdf.set_text_color(40, 46, 54)
             lengths = [max(min(len(md.plain(r[c])), 40) + 4 for r in rows) for c in range(len(rows[0]))]
             total = sum(lengths)
+            pdf.set_draw_color(*design.rgb(TABLE_LINE))
+            pdf.set_line_width(0.2)
             with pdf.table(
                 col_widths=[width * n / total for n in lengths], width=width, text_align="LEFT", line_height=5,
-                markdown=True, headings_style=FontFace(emphasis="BOLD", color=(255, 255, 255), fill_color=(31, 58, 95)),
+                markdown=True, headings_style=FontFace(emphasis="BOLD", color=(255, 255, 255), fill_color=head_rgb),
                 borders_layout="ALL", padding=1.6,
+                cell_fill_color=design.rgb(theme.surface), cell_fill_mode="ROWS",
             ) as table:
                 for row in rows:
                     cells = table.row()
@@ -652,7 +720,7 @@ def _paginate(blocks: list[md.Block]) -> list[list[md.Block]]:
     return pages
 
 
-def render_pptx(content: str, title: str, author: str) -> bytes:
+def render_pptx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
     try:
         from pptx import Presentation
         from pptx.dml.color import RGBColor
@@ -671,9 +739,12 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
     prs.slide_width, prs.slide_height = Inches(SLIDE_W), Inches(SLIDE_H)
     prs.core_properties.title = title
     prs.core_properties.author = author
-    dark, accent, grey = RGBColor(*DARK), RGBColor(*ACCENT), RGBColor(0x6B, 0x75, 0x80)
+    dark, accent, grey = (RGBColor(*design.rgb(c)) for c in (theme.dark, theme.accent, theme.grey))
+    head, surface, white = RGBColor(*design.rgb(theme.head)), RGBColor(*design.rgb(theme.surface)), RGBColor(255, 255, 255)
+    accent_light, on_head_muted = RGBColor(*design.rgb(theme.accent_light)), RGBColor(*design.rgb(theme.on_head_muted))
+    deck_title = slides[0]["title"] or title
 
-    def style_runs(paragraph, runs: list[md.Run], size: float, color=dark, bold: bool = False) -> None:
+    def style_runs(paragraph, runs: list[md.Run], size: float, color=dark, bold: bool = False, font: str | None = None) -> None:
         for text, style in runs:
             run = paragraph.add_run()
             run.text = text
@@ -681,8 +752,7 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
             run.font.bold = bold or "b" in style or None
             run.font.italic = "i" in style or None
             run.font.color.rgb = color
-            if "c" in style:
-                run.font.name = "Consolas"
+            run.font.name = "Consolas" if "c" in style else (font or theme.body_font)
 
     def bullet(paragraph, level: int, ordered: bool, size: float) -> None:
         pPr = paragraph._p.get_or_add_pPr()
@@ -697,17 +767,25 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
         else:
             etree.SubElement(pPr, qn("a:buChar")).set("char", "•" if level == 0 else "–")
 
-    def add_bar(slide, left: float, top: float, height: float) -> None:
+    def add_bar(slide, left: float, top: float, height: float, color=accent) -> None:
         bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(left), Inches(top), Inches(0.09), Inches(height))
         bar.fill.solid()
-        bar.fill.fore_color.rgb = accent
+        bar.fill.fore_color.rgb = color
         bar.line.fill.background()
+
+    def background(slide, color) -> None:
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = color
 
     def number(slide, n: int) -> None:
         box = slide.shapes.add_textbox(Inches(SLIDE_W - 1.4), Inches(SLIDE_H - 0.55), Inches(0.9), Inches(0.35))
         par = box.text_frame.paragraphs[0]
         par.alignment = PP_ALIGN.RIGHT
         style_runs(par, [(str(n), "")], 11, grey)
+        foot = slide.shapes.add_textbox(Inches(0.75), Inches(SLIDE_H - 0.55), Inches(8), Inches(0.35))  # Foliensatz-Titel unten links
+        foot.text_frame.word_wrap = True
+        foot.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+        style_runs(foot.text_frame.paragraphs[0], [(deck_title[:70], "")], 11, grey)
 
     total = 0
     for position, data in enumerate(slides):
@@ -721,7 +799,8 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
             frame.word_wrap = True
             frame.vertical_anchor = MSO_ANCHOR.BOTTOM
             frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-            style_runs(frame.paragraphs[0], [(data["title"], "")], 44 if len(data["title"]) < 40 else 34, dark, bold=True)
+            background(slide, head)
+            style_runs(frame.paragraphs[0], [(data["title"], "")], 44 if len(data["title"]) < 40 else 34, white, bold=True, font=theme.heading_font)
             sub = slide.placeholders[1]
             sub.left, sub.top, sub.width, sub.height = Inches(0.9), Inches(4.25), Inches(11.5), Inches(1.6)
             sub.text_frame.word_wrap = True
@@ -729,12 +808,27 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
             for block in blocks:
                 par = sub.text_frame.paragraphs[0] if first else sub.text_frame.add_paragraph()
                 par.alignment = PP_ALIGN.LEFT
-                style_runs(par, block[1], 22, grey)
+                style_runs(par, block[1], 22, on_head_muted)
                 first = False
-            add_bar(slide, 0.6, 2.5, 3.4)
+            add_bar(slide, 0.6, 2.5, 3.4, accent_light)
             if data["notes"]:
                 slide.notes_slide.notes_text_frame.text = "\n".join(data["notes"])
             total += 1
+            continue
+        if position > 0 and data["title"] and not blocks:  # Zwischenfolie: nur eine Überschrift, volle Farbe
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            total += 1
+            background(slide, head)
+            holder = slide.shapes.title
+            holder.left, holder.top, holder.width, holder.height = Inches(0.9), Inches(2.6), Inches(11.5), Inches(2.0)
+            frame = holder.text_frame
+            frame.word_wrap = True
+            frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+            frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+            style_runs(frame.paragraphs[0], [(data["title"], "")], 40 if len(data["title"]) < 40 else 32, white, bold=True, font=theme.heading_font)
+            add_bar(slide, 0.6, 2.8, 1.6, accent_light)
+            if data["notes"]:
+                slide.notes_slide.notes_text_frame.text = "\n".join(data["notes"])
             continue
         pages = _paginate(blocks) if blocks else [[]]
         for part, page in enumerate(pages):
@@ -749,7 +843,7 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
             frame.word_wrap = True
             frame.vertical_anchor = MSO_ANCHOR.MIDDLE
             frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-            style_runs(frame.paragraphs[0], [(heading, "")], 30 if len(heading) < 50 else 24, dark, bold=True)
+            style_runs(frame.paragraphs[0], [(heading, "")], 30 if len(heading) < 50 else 24, dark, bold=True, font=theme.heading_font)
             add_bar(slide, 0.5, 0.58, 0.74)
             number(slide, total)
             if part == 0 and data["notes"]:
@@ -760,7 +854,7 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
             text_blocks = [b for b in page if b[0] != "table"]
             if text_blocks:
                 tables_cost = sum(_block_cost(b) for b in page if b[0] == "table")
-                height = SLIDE_H - top - 0.7 - (tables_cost * 0.27 if tables_cost else 0)
+                height = SLIDE_H - top - 0.7 - (tables_cost * 0.27 + 0.2 if tables_cost else 0)
                 box = slide.shapes.add_textbox(Inches(0.75), Inches(top), Inches(11.8), Inches(max(height, 1.2)))
                 frame = box.text_frame
                 frame.word_wrap = True
@@ -782,7 +876,7 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
                     elif kind == "h":
                         par = para()
                         par.space_before, par.space_after = Pt(6), Pt(6)
-                        style_runs(par, block[2], size + 1, accent, bold=True)
+                        style_runs(par, block[2], size + 1, accent, bold=True, font=theme.heading_font)
                     elif kind == "list":
                         for level, runs in block[2]:
                             par = para()
@@ -820,11 +914,11 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
                         par = cell.text_frame.paragraphs[0]
                         if r == 0:
                             cell.fill.solid()
-                            cell.fill.fore_color.rgb = RGBColor(0x1F, 0x3A, 0x5F)
+                            cell.fill.fore_color.rgb = head
                             style_runs(par, runs, 15, RGBColor(255, 255, 255), bold=True)
                         else:
                             cell.fill.solid()
-                            cell.fill.fore_color.rgb = RGBColor(0xF3, 0xF5, 0xF8) if r % 2 else RGBColor(255, 255, 255)
+                            cell.fill.fore_color.rgb = surface if r % 2 else white
                             style_runs(par, runs, 14)
                 top += row_h * len(rows) + 0.2
     out = io.BytesIO()
@@ -834,8 +928,8 @@ def render_pptx(content: str, title: str, author: str) -> bytes:
 
 # ----------------------------------------------------------------- Zusammenfassung
 
-def render(name: str, content: str, author: str = "HA Copilot") -> tuple[bytes, str]:
-    """Datei erzeugen: ``(Bytes, Medientyp)``. Wirft :class:`FileError`."""
+def render(name: str, content: str, author: str = "HA Copilot", theme: str | None = None, accent: str | None = None) -> tuple[bytes, str]:
+    """Datei erzeugen: ``(Bytes, Medientyp)``. Wirft :class:`FileError`. ``theme``/``accent`` wirken nur bei Office- und PDF-Dateien."""
     name = clean_name(name)
     if not isinstance(content, str) or not content.strip():
         raise FileError("content fehlt oder ist leer.")
@@ -844,14 +938,18 @@ def render(name: str, content: str, author: str = "HA Copilot") -> tuple[bytes, 
     ext = name.rsplit(".", 1)[-1].lower()
     title = name.rsplit(".", 1)[0]
     try:
+        look = design.resolve(theme, accent)
+    except ValueError as exc:
+        raise FileError(str(exc)) from None
+    try:
         if ext == "docx":
-            data = render_docx(content, title, author)
+            data = render_docx(content, title, author, look)
         elif ext == "xlsx":
-            data = render_xlsx(content, title, author)
+            data = render_xlsx(content, title, author, look)
         elif ext == "pdf":
-            data = render_pdf(content, title, author)
+            data = render_pdf(content, title, author, look)
         elif ext == "pptx":
-            data = render_pptx(content, title, author)
+            data = render_pptx(content, title, author, look)
         else:
             data = render_text(name, content)
     except FileError:
@@ -863,6 +961,57 @@ def render(name: str, content: str, author: str = "HA Copilot") -> tuple[bytes, 
     return data, media_type(name)
 
 
+def design_hints(ext: str, content: str) -> list[str]:
+    """Gestaltungshinweise zum gerade erzeugten Inhalt (höchstens sechs), damit die KI nachbessern kann. Leer = nichts aufgefallen."""
+    out: list[str] = []
+    try:
+        blocks = md.parse(content)
+        if ext == "pptx":
+            slides = _split_slides(blocks)
+            if not slides:
+                return out
+            first = slides[0]
+            if not (first["title"] and all(b[0] == "p" for b in first["blocks"]) and len(first["blocks"]) <= 2):
+                out.append("Die erste Folie ist keine Titelfolie: beginne mit einer Überschrift und höchstens einer Untertitelzeile.")
+            if len(slides) > 14:
+                out.append(f"{len(slides)} Folien sind viel; trage nur das Wesentliche vor und verlagere Details in Notizen oder eine zweite Datei.")
+            for number, slide in enumerate(slides, 1):
+                name = slide["title"] or f"Folie {number}"
+                if slide["title"] and len(slide["title"].split()) > 10:
+                    out.append(f"Folie {number} „{name[:40]}“: Titel mit mehr als 10 Wörtern; formuliere kürzer.")
+                for block in slide["blocks"]:
+                    if block[0] == "list":
+                        if len(block[2]) > 6:
+                            out.append(f"Folie {number} „{name[:40]}“: {len(block[2])} Aufzählungspunkte; höchstens 6, besser aufteilen.")
+                        if any(len(md.plain(runs).split()) > 16 for _, runs in block[2]):
+                            out.append(f"Folie {number} „{name[:40]}“: Punkte mit mehr als 16 Wörtern; kürzen, Ausführliches in die Notizen.")
+                    elif block[0] == "table" and len(block[1][0]) > 5:
+                        out.append(f"Folie {number} „{name[:40]}“: Tabelle mit {len(block[1][0])} Spalten; höchstens 5.")
+                if slide["blocks"] and len(_paginate(slide["blocks"])) > 1:
+                    out.append(f"Folie {number} „{name[:40]}“ ist zu voll und wurde auf mehrere Folien verteilt; teile sie selbst sinnvoll auf.")
+        elif ext in ("docx", "pdf"):
+            words = len(re.findall(r"\S+", content))
+            headings = [b for b in blocks if b[0] == "h"]
+            if words > 400 and len([h for h in headings if h[1] >= 2]) < 2:
+                out.append("Langer Text ohne Zwischenüberschriften (##); gliedere ihn in Abschnitte.")
+            if len([h for h in headings if h[1] == 1]) > 1:
+                out.append("Mehrere Überschriften der Ebene 1; eine einzige Hauptüberschrift (#) als Titel, darunter ## für Abschnitte.")
+            levels = [h[1] for h in headings]
+            if any(b - a > 1 for a, b in zip(levels, levels[1:])):
+                out.append("Überschriftenebenen werden übersprungen (z. B. # direkt gefolgt von ###); keine Ebene auslassen.")
+            if any(b[0] == "p" and len(md.plain(b[1]).split()) > 120 for b in blocks):
+                out.append("Absatz mit mehr als 120 Wörtern; teile ihn oder nutze eine Liste.")
+            if any(b[0] == "table" and len(b[1][0]) > 6 for b in blocks):
+                out.append("Tabelle mit mehr als 6 Spalten; sie wird eng. Reduziere Spalten oder teile die Tabelle.")
+    except Exception:  # Hinweise sind nur Zugabe und dürfen das Erzeugen nie verhindern
+        return []
+    seen: list[str] = []
+    for hint in out:
+        if hint not in seen:
+            seen.append(hint)
+    return seen[:6]
+
+
 FILE_TOOL_TEXT = (
     "Erstellt eine Datei zum Herunterladen und zeigt sie unter deiner Antwort als Karte an. Die Endung von name bestimmt das Format. "
     "Word (.docx), PDF (.pdf) und PowerPoint (.pptx): content ist Markdown (# Überschriften, **fett**, *kursiv*, Listen, | Tabellen |, Codeblöcke); "
@@ -870,7 +1019,23 @@ FILE_TOOL_TEXT = (
     "eine Zeile „Notizen: …“ wird zur Sprechernotiz. Excel (.xlsx): content ist JSON {\"sheets\":[{\"name\":\"…\",\"rows\":[[Kopf1,Kopf2],[1,2]]}]} "
     "(erste Zeile = Kopfzeile; Formeln als Text mit =, englische Funktionsnamen, Komma als Trenner, z. B. \"=SUM(B2:B10)\") oder CSV. "
     "Alle anderen Endungen (.ps1, .sh, .py, .bat, .csv, .json, .yaml, .html, .md, .txt …): content ist der vollständige Dateitext. "
+    "Gestaltung: Bei neuen Word-, PDF-, PowerPoint- und Excel-Dateien rufst du vorher design_guide auf. Mit theme wählst du ein Farbthema "
+    "(klar, ozean, wald, terrakotta, schiefer, beere, sand; ohne Angabe klar), mit accent eine eigene Markenfarbe wie #C2410C. "
     "Erzeuge nur auf Wunsch eine Datei; eine Datei je Aufruf; schreibe den Inhalt vollständig, keine Platzhalter."
+)
+
+DESIGN_GUIDE_TEXT = (
+    "Liefert kurze Gestaltungsregeln für Dateien, die du mit file_create erzeugst. Rufe es auf, bevor du eine neue Präsentation, ein Word-Dokument, "
+    "eine Tabelle oder ein PDF schreibst (nicht beim Bearbeiten vorhandener Dateien und nicht bei Code oder Textdateien). "
+    "topic: allgemein (Grundregeln für jede Datei), folien, dokument, tabelle, pdf oder themen (Farbthemen und wann welches passt). "
+    "Für eine Datei genügt meist allgemein plus das Thema der Dateiart; einmal je Chat reicht."
+)
+
+DESIGN_NOTE = (
+    "Gestaltung: Bevor du eine neue Präsentation, ein Word-Dokument, eine Excel-Tabelle oder ein PDF erzeugst, rufst du design_guide auf "
+    "(allgemein und das Thema der Dateiart) und folgst den Regeln; wähle mit theme ein passendes Farbthema. "
+    "Die Antwort von file_create kann Gestaltungshinweise enthalten: behebe sie nur, wenn es die Datei klar besser macht, und höchstens einmal. "
+    "Beim Bearbeiten vorhandener Dateien behältst du deren Gestaltung bei."
 )
 
 
@@ -977,7 +1142,7 @@ class OutboxToolbox:
             name = clean_name(raw_name)
             self._check_room()
             data, mime = await asyncio.wait_for(
-                asyncio.to_thread(render, name, args.get("content"), self.author), RENDER_TIMEOUT  # type: ignore[arg-type]
+                asyncio.to_thread(render, name, args.get("content"), self.author, args.get("theme"), args.get("accent")), RENDER_TIMEOUT  # type: ignore[arg-type]
             )
             meta = self.store.outfile_add(self.profile_id, self.chat_id, name, mime, data, self.keep_days)
             if meta is None:
@@ -990,10 +1155,20 @@ class OutboxToolbox:
             raise
         self.created += 1
         self._event(tid, tr("Datei erstellt: {name}", name=name), "ok", file={"id": meta["id"], "name": name, "size": meta["size"]})
-        return (
+        text = (
             f"Datei {name} erstellt ({_size(meta['size'])}). Sie erscheint als Karte mit Download-Knopf unter deiner Antwort "
             f"und bleibt {self.keep_days} Tage verfügbar. Erwähne sie kurz mit Namen, ohne Link oder Pfad."
         )
+        hints = design_hints(name.rsplit(".", 1)[-1].lower(), str(args.get("content") or ""))
+        if hints:
+            text += "\nGestaltungshinweise (behebe sie nur, wenn es klar besser wird, höchstens einmal neu erzeugen):\n" + "\n".join(f"- {h}" for h in hints)
+        return text
+
+    async def design_guide(self, args: dict) -> str:
+        try:
+            return design.guide(str(args.get("topic") or "allgemein"))
+        except ValueError as exc:
+            raise FileError(str(exc)) from None
 
     # ------------------------------------------------------ lesen und bearbeiten
 
@@ -1096,8 +1271,16 @@ class OutboxToolbox:
             {"type": "object", "properties": {
                 "name": {"type": "string", "description": "Dateiname mit Endung, z. B. angebot.docx, auswertung.xlsx, backup.ps1"},
                 "content": {"type": "string", "description": "Inhalt (Format abhängig von der Endung, siehe Beschreibung)"},
+                "theme": {"type": "string", "enum": list(design.THEMES), "description": "Farbthema für Word, PDF, PowerPoint und Excel (Standard: klar)"},
+                "accent": {"type": "string", "description": "Optional: eigene Markenfarbe als Hexwert, z. B. #C2410C; ersetzt die Akzentfarbe des Themas"},
             }, "required": ["name", "content"]},
             self.file_create, "execute",
+        ), ToolSpec(
+            "design_guide", DESIGN_GUIDE_TEXT,
+            {"type": "object", "properties": {
+                "topic": {"type": "string", "enum": list(design.TOPICS), "description": "Thema des Leitfadens"},
+            }, "required": ["topic"]},
+            self.design_guide, "read",
         )]
         if self.edit:
             name = {"type": "string", "description": "Dateiname wie in file_list"}
