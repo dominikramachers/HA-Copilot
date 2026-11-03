@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.30.1
+- **Keynote öffnet die Dateien jetzt (Korrektur).** Eine mit 0.30.0 erzeugte `.pptx` mit Notizen und Diagramm ließ sich in Keynote nicht importieren („Das Dateiformat ist ungültig“). Ursache sind Eigenheiten des Paketes, die PowerPoint verzeiht, Keynote aber nicht: fehlender `notesMasterIdLst`-Eintrag bei vorhandenen Notizen, Foliengröße als „4:3“ bei 16:9 (und um 305 EMU zu schmal), negative Achsen-Kennungen in Diagrammen, ein Vorschaubild und Druckereinstellungen aus der Standardvorlage sowie Dokumenteigenschaften mit „0 Folien“. Jede `.pptx` wird nach dem Schreiben bereinigt (`polish_pptx`) und im Test mit einer Prüfung (`pptx_problems`) gegen diese Fehler abgesichert; ein leerer Untertitel-Platzhalter auf der Titelfolie entfällt, Autor und Datum stehen korrekt in den Eigenschaften. Nicht auf einem Apple-Gerät geprüft.
+- Keine neuen Optionen, kein neues Datenbankschema.
+
 ## 0.30.0
 - **Die KI gestaltet Dateien jetzt mit Designwissen.** Bevor sie eine neue Präsentation, ein Word-Dokument, eine Excel-Tabelle oder ein PDF schreibt, ruft sie das neue Werkzeug `design_guide` auf und liest kurze Leitfäden dazu (Aufbau, Schrift, Farbe, Weißraum, Zahlen, Folien nicht überladen, Überschriften als Aussagen). Die Leitfäden sind eigene Texte und stehen im Add-on unter `app/design/`.
 - **Sieben Farbthemen** für alle vier Formate: `klar` (Standard), `ozean`, `wald`, `terrakotta`, `schiefer`, `beere`, `sand`. Die KI wählt eines nach Anlass (`theme`) oder setzt mit `accent` eine eigene Markenfarbe; diese wird automatisch so abgedunkelt, dass Text lesbar bleibt. Alle Themen halten den Kontrast ein (Test).
@@ -18,7 +22,6 @@
 - **Mehr Folientypen:** zwei Spalten (`+++`), große Zitatfolie, Kennzahlen-Folie (ein bis vier große Zahlen mit Erklärung) und Vollbild-Bild (`{vollbild}` hinter dem Bild, Titel auf halbtransparentem Balken).
 - **Excel:** Zahlenformate je Spalte (`formats`: Euro, Prozent, Zahl, Datum oder eigenes Format; „12,50 €“ und „18 %“ als Text werden automatisch Zahlen), Summenzeile (`totals`, SUM-Formeln), bedingte Formatierung (`rules`: Schwellen, Bereiche, Datenbalken, Farbverlauf; gut/schlecht/Warnung), Zahlenspalten rechtsbündig, Druckeinstellungen (A4, auf Seitenbreite, Kopfzeile auf jeder Seite, Querformat ab 7 Spalten, Seitenzahl).
 - **Word und PDF:** Deckblatt (`[DECKBLATT]`, ohne Kopf- und Fußzeile), `[SEITENUMBRUCH]`, eigene `[KOPFZEILE: …]` und `[FUSSZEILE: …]`. Fußnoten gibt es nicht.
-- **Keynote öffnet die Dateien jetzt (Korrektur).** Eine erzeugte `.pptx` mit Notizen und Diagramm ließ sich in Keynote nicht importieren („Das Dateiformat ist ungültig“). Ursache sind Eigenheiten des Paketes, die PowerPoint verzeiht, Keynote aber nicht: fehlender `notesMasterIdLst`-Eintrag bei vorhandenen Notizen, Foliengröße als „4:3“ bei 16:9 (und um 305 EMU zu schmal), negative Achsen-Kennungen in Diagrammen, ein Vorschaubild und Druckereinstellungen aus der Standardvorlage sowie Dokumenteigenschaften mit „0 Folien“. Jede `.pptx` wird nach dem Schreiben bereinigt (`polish_pptx`) und im Test mit einer Prüfung (`pptx_problems`) gegen diese Fehler abgesichert; ein leerer Untertitel-Platzhalter auf der Titelfolie entfällt, Autor und Datum stehen korrekt in den Eigenschaften. Nicht auf einem Apple-Gerät geprüft.
 - **Apple Pages und Numbers:** `target: pages` (.docx) und `target: numbers` (.xlsx) setzen Mac-Schriften, wie bei Keynote nach Apples Hinweisen zum Import (Schriften werden sonst ersetzt). Nicht auf einem Apple-Gerät geprüft.
 - Keine neuen Optionen, kein neues Datenbankschema.
 
