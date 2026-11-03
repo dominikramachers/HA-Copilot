@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.30.1.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.31.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -426,9 +426,11 @@ Bittest du die KI um eine Datei („Mach daraus ein Word-Dokument“, „Schreib
 
 ### Gestaltung der Dateien (ab 0.30.0)
 
+**Neu in 0.31.0:** Der Folien-Renderer setzt Präsentationen mit großer Schrift, Karten (Liste mit fetten Stichworten), Bild über die halbe Folie, Zwischenfolien mit Ziffer, dunklem Zitat und Kennzahlenkarten. Für HTML-Seiten und -Präsentationen gibt es den Leitfaden `html`, der beim ersten `.html` automatisch geladen wird.
+
 Neue Word-, PowerPoint-, Excel- und PDF-Dateien gestaltet die KI nach festen Regeln statt nach Gefühl.
 
-- **Leitfäden:** Das Werkzeug `design_guide` liefert kurze Texte zu `allgemein`, `folien`, `dokument`, `tabelle`, `pdf` und `themen`. Die KI ruft es vor dem Erstellen einer neuen Datei auf (nicht beim Bearbeiten vorhandener Dateien, nicht bei Code). Die Texte liegen unter `app/design/*.md` und sind eigene, kurze Regeln: eine Aussage je Folie, höchstens sechs kurze Punkte, Überschriften als Aussagen, genug Weißraum, ein Farbthema je Datei, Zahlen einheitlich, Kopfzeile bei Tabellen.
+- **Leitfäden:** Das Werkzeug `design_guide` liefert kurze Texte zu `allgemein`, `folien`, `dokument`, `tabelle`, `pdf`, `html` und `themen`. Die KI ruft es vor dem Erstellen einer neuen Datei auf (nicht beim Bearbeiten vorhandener Dateien, nicht bei Code). Die Texte liegen unter `app/design/*.md` und sind eigene, kurze Regeln: eine Aussage je Folie, höchstens sechs kurze Punkte, Überschriften als Aussagen, genug Weißraum, ein Farbthema je Datei, Zahlen einheitlich, Kopfzeile bei Tabellen.
 - **Themen:** `klar` (Standard, sachlich), `ozean` (ruhig, technisch), `wald` (natürlich), `terrakotta` (warm), `schiefer` (kräftig, nüchtern), `beere` (kreativ), `sand` (zurückhaltend, mit Serifenschrift). Sag einfach, wofür die Datei ist („für die Geschäftsführung“, „Einladung zum Sommerfest“); die KI wählt. Mit einer Markenfarbe („in unserem Orange #C2410C“) nutzt sie `accent`; zu helle Farben werden für Text und Linien automatisch abgedunkelt.
 - **Was sich ändert:** PowerPoint hat farbige Titel- und Zwischenfolien (eine Folie nur mit `##`-Überschrift), Foliennummer und Titel in der Fußzeile. Word hat eine Fußzeile mit Seitenzahl, helle Tabellenlinien, farbigen Tabellenkopf und Zebrazeilen. Excel hat farbige Kopfzeile und getönte Wechselzeilen. PDF hat Themenfarben und Zebrazeilen in Tabellen.
 - **Selbstkontrolle:** `file_create` meldet der KI Auffälligkeiten (z. B. mehr als sechs Punkte auf einer Folie, Tabelle mit mehr als fünf Spalten, übersprungene Überschriftenebenen); sie darf einmal nachbessern.
@@ -436,7 +438,7 @@ Neue Word-, PowerPoint-, Excel- und PDF-Dateien gestaltet die KI nach festen Reg
 - **Inhaltsverzeichnis:** In PDF mit Seitenzahlen und Links, in Word als echtes Verzeichnis (Seitenzahlen nach Rechtsklick „Feld aktualisieren“), in PowerPoint als Agenda-Folie.
 - **Keynote:** Für Präsentationen auf Mac, iPad und iPhone sagst du einfach „für Keynote“. Die KI erzeugt dann eine `.pptx` im Keynote-Modus (Mac-Schriften, keine automatische Schrumpfung, knappere Folien), die Keynote direkt öffnet; als `.key` sicherst du sie in Keynote selbst. Eine echte `.key`-Datei kann das Add-on nicht erzeugen. Die Anpassungen folgen Apples Hinweisen zum Import von PowerPoint-Dateien. Jede `.pptx` wird nach dem Erzeugen so bereinigt, dass Keynote sie nicht als „ungültig“ ablehnt (Notizmaster-Eintrag, Foliengröße, Diagramm-Kennungen, Vorlagenreste); ein Test in Keynote selbst steht aus. Lässt sich eine Datei trotzdem nicht importieren, sag der KI die Fehlermeldung und ob die Datei Notizen, Diagramme oder Bilder enthält.
 - **Selbstkontrolle mit Bild:** Mit dem Werkzeug `file_preview` sieht die KI ihr Ergebnis (Folien, Seiten, Zeichnungen) und bessert klare Layoutfehler einmal nach. Word und PowerPoint wandelt dafür LibreOffice um (im Add-on enthalten, rund 400 MB; wer den Platz sparen will, entfernt den Block im Dockerfile, dann meldet `file_preview` ehrlich, dass LibreOffice fehlt). Excel-Dateien gibt es nicht als Bild.
-- **Automatisch:** Die Leitfäden muss die KI nicht selbst abrufen: Beim ersten neuen Word-, PowerPoint-, Excel- oder PDF-Dokument einer Antwort liefert `file_create` zuerst die passenden Regeln und die Themenliste, die KI plant danach und erzeugt die Datei im zweiten Anlauf (du siehst davon nichts außer einem Werkzeugaufruf mehr).
+- **Automatisch:** Die Leitfäden muss die KI nicht selbst abrufen: Beim ersten neuen Word-, PowerPoint-, Excel-, PDF- oder HTML-Dokument einer Antwort liefert `file_create` zuerst die passenden Regeln und die Themenliste, die KI plant danach und erzeugt die Datei im zweiten Anlauf (du siehst davon nichts außer einem Werkzeugaufruf mehr).
 - **Links:** `[Text](Adresse)`, nackte Webadressen und `mailto:` sind in Word, PDF und PowerPoint anklickbar.
 - **Folientypen:** Zwei Spalten (`+++`), Zitatfolie (nur ein Zitat), Kennzahlen (ein bis vier fette Zahlen mit Erklärung) und Vollbild-Bild (`{vollbild}`). Die PowerPoint-Vorlage trägt außerdem Farben und Schriften des Themas, damit von dir hinzugefügte Folien und Diagramme passen.
 - **Word und PDF:** Deckblatt (`[DECKBLATT]`), `[SEITENUMBRUCH]`, `[KOPFZEILE: …]`, `[FUSSZEILE: …]`; Word-Listen sind echte Listen (nummerierte beginnen je Liste bei 1).

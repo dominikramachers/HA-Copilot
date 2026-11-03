@@ -232,3 +232,14 @@ def test_design_guide_call_counts_as_reading_the_rules():
     for topic in ("allgemein", "tabelle"):
         run(box.design_guide({"topic": topic}))
     assert "erstellt" in run(box.file_create({"name": "z.xlsx", "content": '{"sheets":[{"name":"A","rows":[["a"],[1]]}]}'}))
+
+
+def test_html_files_get_their_own_guide_automatically():
+    box, _ = make_box()
+    box.auto_guides = True
+    with pytest.raises(ToolError) as first:
+        run(box.file_create({"name": "vortrag.html", "content": "<!doctype html><title>x</title>"}))
+    text = str(first.value)
+    assert design.guide("html")[:60] in text and design.guide("allgemein")[:60] in text and "scroll-snap" in text
+    assert "erstellt" in run(box.file_create({"name": "vortrag.html", "content": "<!doctype html><title>x</title>"}))
+    assert "erstellt" in run(box.file_create({"name": "zweite.htm", "content": "<p>x</p>"}))  # Regel kommt nur einmal
