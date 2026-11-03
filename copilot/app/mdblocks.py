@@ -12,6 +12,13 @@ Ergebnis von :func:`parse`: eine Liste von Blöcken (Tupel):
 * ``("code", Text)``
 * ``("quote", Runs)``
 * ``("hr",)``
+* ``("image", Beschreibung, Verweis)``   (eigene Zeile ``![Beschreibung](dateiname.png)``; mit ``{vollbild}`` dahinter
+  kommt als viertes Element ``True``: Bild füllt eine ganze Folie)
+* ``("cover",)``, ``("pagebreak",)``     (eigene Zeile ``[DECKBLATT]`` / ``[SEITENUMBRUCH]``)
+* ``("header", Text)``, ``("footer", Text)``  (eigene Zeile ``[KOPFZEILE: …]`` / ``[FUSSZEILE: …]``)
+* ``("split",)``                        (eigene Zeile ``+++``: Folie in zwei Spalten teilen)
+* ``("chart", JSON-Text)``              (Codeblock mit der Sprache ``chart``, siehe ``charts.py``)
+* ``("toc",)``                          (eigene Zeile ``[TOC]`` oder ``[Inhaltsverzeichnis]``)
 
 Ein *Run* ist ``(Text, Stil)`` mit Stil als Zeichenkette aus ``b`` (fett), ``i`` (kursiv), ``c`` (Code).
 """
@@ -22,20 +29,38 @@ import re
 Run = tuple[str, str]
 Block = tuple
 
+
+class LinkRun(tuple):
+    """Run eines Links: verhält sich wie ``(Text, Stil)``, trägt aber zusätzlich die Adresse in ``url``."""
+
+    url: str
+
+    def __new__(cls, text: str, style: str, url: str) -> "LinkRun":
+        obj = super().__new__(cls, (text, style))
+        obj.url = url
+        return obj
+
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
 _RULE = re.compile(r"^\s{0,3}([-*_])(\s*\1){2,}\s*$")
 _ITEM = re.compile(r"^(\s*)([-*+•]|\d{1,3}[.)])\s+(.*)$")
+_IMAGE = re.compile(r"^\s*!\[(?P<alt>[^\]]*)\]\(\s*<?(?P<ref>[^)>]+?)>?(?:\s+\"[^\"]*\")?\s*\)(?:\{(?P<flag>[^}]*)\})?\s*$")
+_FULL = {"vollbild", "fullbleed", "full", "cover"}
+_SPLIT = re.compile(r"^\s*\+{3}\s*$")
+_COVER = re.compile(r"^\s*\[{1,2}\s*(deckblatt|titelseite|cover)\s*\]{1,2}\s*$", re.I)
+_PAGEBREAK = re.compile(r"^\s*\[{1,2}\s*(seitenumbruch|seitenwechsel|page ?break)\s*\]{1,2}\s*$", re.I)
+_RUNNING = re.compile(r"^\s*\[{1,2}\s*(?P<kind>kopfzeile|header|fu(?:ß|ss)zeile|footer)\s*:\s*(?P<text>.+?)\s*\]{1,2}\s*$", re.I)
+_TOC = re.compile(r"^\s*\[{1,2}\s*(toc|inhaltsverzeichnis|table of contents)\s*\]{1,2}\s*$", re.I)
 _QUOTE = re.compile(r"^\s{0,3}>\s?(.*)$")
 _TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
 _INLINE = re.compile(
     r"(\*\*\*(?P<bi>.+?)\*\*\*)|(\*\*(?P<b>.+?)\*\*)|(__(?P<b2>.+?)__)|(`(?P<c>[^`]+)`)|"
-    r"(\[(?P<lt>[^\]]+)\]\((?P<lu>[^)\s]+)\))|(\*(?P<i>[^*\s][^*]*?)\*)|(?<![A-Za-z0-9_])_(?P<i2>[^_\s][^_]*?)_(?![A-Za-z0-9_])"
+    r"(\[(?P<lt>[^\]]+)\]\((?P<lu>[^)\s]+)\))|(?P<bare>https?://[^\s<>()\[\]]*[^\s<>()\[\].,;:!?'\"])|(\*(?P<i>[^*\s][^*]*?)\*)|(?<![A-Za-z0-9_])_(?P<i2>[^_\s][^_]*?)_(?![A-Za-z0-9_])"
 )
 
 
 def inline(text: str) -> list[Run]:
-    """Zeichenformate eines Textes in Runs zerlegen (Links erscheinen als „Text (Adresse)“)."""
+    """Zeichenformate eines Textes in Runs zerlegen. Links (http, https, mailto) und nackte Webadressen werden :class:`LinkRun`."""
     runs: list[Run] = []
     pos = 0
     for m in _INLINE.finditer(text):
@@ -49,7 +74,9 @@ def inline(text: str) -> list[Run]:
             runs.append((m.group("c"), "c"))
         elif m.group("lt"):
             label, url = m.group("lt"), m.group("lu")
-            runs.append((label if label == url else f"{label} ({url})", ""))
+            runs.append(LinkRun(label, "", url) if re.match(r"(https?://|mailto:)", url) else (f"{label} ({url})" if label != url else label, ""))
+        elif m.group("bare"):
+            runs.append(LinkRun(m.group("bare"), "", m.group("bare")))
         else:
             runs.append((m.group("i") or m.group("i2"), "i"))
         pos = m.end()
@@ -93,10 +120,46 @@ def parse(text: str) -> list[Block]:
                 code.append(lines[i])
                 i += 1
             i += 1
-            blocks.append(("code", "\n".join(code)))
+            language = line.strip()[len(marker):].strip().split(" ")[0].lower()
+            blocks.append(("chart", "\n".join(code)) if language == "chart" else ("code", "\n".join(code)))
             continue
         if not line.strip():
             flush()
+            i += 1
+            continue
+        picture = _IMAGE.match(line)
+        if picture:
+            flush()
+            block = ("image", picture.group("alt").strip(), picture.group("ref").strip())
+            if (picture.group("flag") or "").strip().lower() in _FULL:
+                block += (True,)  # {vollbild}: das Bild füllt eine ganze Folie
+            blocks.append(block)
+            i += 1
+            continue
+        running = _RUNNING.match(line)
+        if running:
+            flush()
+            blocks.append(("header" if running.group("kind").lower() in ("kopfzeile", "header") else "footer", running.group("text")))
+            i += 1
+            continue
+        if _COVER.match(line):
+            flush()
+            blocks.append(("cover",))
+            i += 1
+            continue
+        if _PAGEBREAK.match(line):
+            flush()
+            blocks.append(("pagebreak",))
+            i += 1
+            continue
+        if _SPLIT.match(line):
+            flush()
+            blocks.append(("split",))
+            i += 1
+            continue
+        if _TOC.match(line):
+            flush()
+            blocks.append(("toc",))
             i += 1
             continue
         heading = _HEADING.match(line)

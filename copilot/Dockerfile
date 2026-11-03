@@ -18,6 +18,15 @@ COPY requirements-files.txt .
 RUN pip install -r requirements-files.txt \
     || echo "Hinweis: Office-Bibliotheken nicht installiert, es sind nur Textdateien moeglich"
 
+# Bilder in Dateien (SVG zeichnen) und Vorschau der erzeugten Dateien fuer die KI. Zwei getrennte, optionale Schritte:
+# * libcairo2 zeichnet SVG-Zeichnungen (cairosvg). Fehlt es, lassen sich nur PNG/JPEG einbetten.
+# * LibreOffice (Writer + Impress, ohne Java) macht aus Word und PowerPoint ein PDF fuer die Vorschau. Es braucht rund 400 MB Platz im Image.
+#   Wer das nicht moechte, entfernt den Block: alles andere laeuft weiter, nur file_preview meldet dann ehrlich, dass LibreOffice fehlt.
+RUN (apt-get update && apt-get install -y --no-install-recommends libcairo2 && rm -rf /var/lib/apt/lists/*) \
+    || echo "Hinweis: libcairo2 nicht installiert, SVG-Bilder lassen sich nicht in Dateien einbetten"
+RUN (apt-get update && apt-get install -y --no-install-recommends libreoffice-writer libreoffice-impress fonts-crosextra-carlito fonts-dejavu-core && rm -rf /var/lib/apt/lists/*) \
+    || echo "Hinweis: LibreOffice nicht installiert, die Vorschau gibt es dann nur fuer PDF und Bilder"
+
 COPY app ./app
 COPY run.sh /run.sh
 RUN chmod +x /run.sh

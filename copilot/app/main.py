@@ -56,7 +56,7 @@ from . import knowledge as knowlib
 from .context_tools import RESERVED_TEXT, ContextToolbox, _RESERVED
 from .ha_tools import HaToolbox
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
-from .outbox import FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox
+from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox
 from . import exporter
 from . import limits as limitlib
 from . import schedule as sched
@@ -1258,7 +1258,7 @@ def register_chat_routes(
         if settings.files_enabled:
             specs += OutboxToolbox(
                 store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
-                keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit,
+                keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit, auto_guides=True,
             ).specs()
         image_box = None
         if images_enabled:
@@ -1292,6 +1292,8 @@ def register_chat_routes(
         if specs:
             extra["tools"] = specs
         extra["note"] = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
+        if any(s.name == "design_guide" for s in specs):
+            extra["note"] += "\n" + DESIGN_NOTE
         if any(s.name == "file_edit" for s in specs):
             extra["note"] += "\n" + FILES_NOTE
             if [n for n in stored_files if n not in image_names]:

@@ -36,7 +36,7 @@ from .ha_client import HaApi, HaApiError
 from .ha_tools import HaToolbox
 from .identity import Registry
 from .limits import LimitState
-from .outbox import OutboxToolbox
+from .outbox import DESIGN_NOTE, OutboxToolbox
 from .web_tools import WEB_NOTE, WebToolbox
 
 log = logging.getLogger("copilot.scheduler")
@@ -259,7 +259,7 @@ class Scheduler:
         if settings.files_enabled:
             specs += OutboxToolbox(
                 self.store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
-                keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit,
+                keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit, auto_guides=True,
             ).specs()
         gh = self.github_level(profile)
         if gh != "none":
@@ -274,6 +274,8 @@ class Scheduler:
             extra.update(web=True, record=run.push, next_id=run.next_tool_id)
         note = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
         note += "\n" + SCHEDULED_NOTE
+        if any(s.name == "design_guide" for s in specs):
+            note += "\n" + DESIGN_NOTE
         if web:
             note += "\n" + WEB_NOTE
         if gh != "none":

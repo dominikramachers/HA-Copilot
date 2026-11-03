@@ -17,7 +17,7 @@ import logging
 import re
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -75,11 +75,19 @@ class ToolError(Exception):
 
 
 @dataclass
+class ToolResult:
+    """Ergebnis eines Werkzeugs mit Bildern (z. B. Vorschau einer Datei): Text plus ``(Bytes, Medientyp)`` je Bild."""
+
+    text: str
+    images: list[tuple[bytes, str]] = field(default_factory=list)
+
+
+@dataclass
 class ToolSpec:
     name: str
     description: str
     schema: dict[str, Any]
-    handler: Callable[[dict[str, Any]], Awaitable[str]]
+    handler: Callable[[dict[str, Any]], Awaitable[str | ToolResult]]
     level: str = "read"
     big: bool = False  # darf ein sehr großes Ergebnis liefern (Dashboards)
 

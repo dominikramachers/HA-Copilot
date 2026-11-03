@@ -11,6 +11,7 @@ sind abgeschaltet – die KI kann nur Text antworten, nichts auf dem System tun.
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import logging
 import os
@@ -21,7 +22,7 @@ from typing import Protocol
 
 from .i18n import language, tr
 from .attachments import Attachment, human_size, sweep_scratch, user_message, with_inline_text
-from .ha_tools import TOOL_NOTE, ToolError, ToolSpec
+from .ha_tools import TOOL_NOTE, ToolError, ToolResult, ToolSpec
 
 log = logging.getLogger("copilot.backend")
 
@@ -109,6 +110,16 @@ def clean_title(raw: str | None) -> str | None:
     if len(line) > TITLE_MAX:
         line = line[:TITLE_MAX].rsplit(" ", 1)[0].rstrip(" .:;,-–—") or line[:TITLE_MAX]
     return line
+
+
+
+def tool_content(result: "str | ToolResult") -> list[dict]:
+    """Inhalt der Werkzeugantwort für das Modell: Text, bei Vorschauen zusätzlich Bilder."""
+    if isinstance(result, ToolResult):
+        blocks: list[dict] = [{"type": "text", "text": result.text}]
+        blocks += [{"type": "image", "data": base64.b64encode(data).decode("ascii"), "mimeType": mime} for data, mime in result.images]
+        return blocks
+    return [{"type": "text", "text": result}]
 
 
 class BackendError(Exception):
@@ -377,8 +388,7 @@ class ClaudeSdkBackend:
         def wrap(spec: ToolSpec):
             async def handler(args: dict) -> dict:
                 try:
-                    text = await spec.handler(args if isinstance(args, dict) else {})
-                    return {"content": [{"type": "text", "text": text}]}
+                    return {"content": tool_content(await spec.handler(args if isinstance(args, dict) else {}))}
                 except ToolError as exc:
                     return {"content": [{"type": "text", "text": str(exc)}], "is_error": True}
                 except asyncio.CancelledError:

@@ -540,7 +540,7 @@ def test_attached_pdf_is_read_edited_and_offered_for_download(store):
 
 def test_edit_tools_follow_the_option(store):
     async def scenario():
-        for options, expected in (({"files_edit": False}, ["file_create"]), ({"files_enabled": False}, [])):
+        for options, expected in (({"files_edit": False}, ["file_create", "file_preview"]), ({"files_enabled": False}, [])):
             app, seen = file_app(store, [], **options)
             chat = await new_chat(app)
             await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hallo", "files": [{"name": "a.txt", "data": b64(b"inhalt")}]})
