@@ -15,4 +15,6 @@ Ein PDF ist fertig und unveränderlich: gedacht zum Lesen, Drucken und Versenden
 
 **Formulare:** Neue ausfüllbare Formulare entstehen mit `file_edit` an einem vorhandenen PDF (Felder anlegen, ausfüllen, sperren), nicht mit `file_create`.
 
-**Grenzen:** Bilder, Logos und Diagramme lassen sich nicht einbetten; Sonderzeichen außerhalb der Schrift (Emojis) fallen weg. Sag das offen.
+**Bilder, Diagramme, Verzeichnis:** `![Beschreibung](name.png)`, `chart`-Block und `[TOC]` (mit Seitenzahlen, Links und Lesezeichen im PDF) wie in allgemein beschrieben. Bilder stehen mittig, werden nicht auf mehrere Seiten geteilt und rücken im Zweifel auf die nächste.
+
+**Grenzen:** Sonderzeichen außerhalb der Schrift (Emojis) fallen weg, keine Spalten. Sag das offen.

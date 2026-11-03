@@ -337,6 +337,8 @@
 "Datei bearbeitet: {name}": "File edited: {name}",
 "Datei lesen": "Read file",
 "Datei lesen: {name}": "Read file: {name}",
+"Vorschau ansehen": "View preview",
+"Vorschau ansehen: {name}": "View preview: {name}",
 "Dateien dieses Chats ansehen": "Look at the files of this chat",
 "(wird an {who} übertragen)": "(will be sent to {who})",
 "Anbieter: {who} ({model})": "Provider: {who} ({model})",

@@ -21,6 +21,8 @@ Ein Dokument wird gelesen, überflogen und wiedergefunden. Mach es überflieg- u
 - Angebote und Rechnungen: Positionen als Tabelle (Position, Menge, Einzelpreis, Summe), darunter Summe, Steuer, Zahlungsziel. Beträge deutsch mit 2 Dezimalstellen und Einheit.
 - Lebenslauf: Kontaktzeile, Kurzprofil in 2 Sätzen, dann Stationen rückwärts chronologisch mit Zeitraum, Rolle, Ort und 2 bis 3 Ergebnissen je Station. Höchstens 2 Seiten.
 
-**Was die Vorlage schon tut:** Calibri bzw. Georgia, ausreichend Zeilenabstand, Überschriften mit Abstand, Tabellenkopf in der Markenfarbe, Seitenzahl unten. Du musst nichts davon nachbauen. Eigene Leerzeilen, Tabulatoren und Trennlinien aus Strichen sind unnötig; `---` setzt eine feine Trennlinie.
+**Bilder, Diagramme, Verzeichnis:** Bild als eigene Zeile `![Beschreibung](name.png)` (Beschreibung wird Bildunterschrift), Diagramm als `chart`-Block (siehe allgemein), Inhaltsverzeichnis mit `[TOC]` nach dem Titel bei langen Berichten. Bilder stehen mittig, höchstens etwa 16 cm breit.
+
+**Was die Vorlage schon tut:** Calibri bzw. Georgia, ausreichend Zeilenabstand, Überschriften mit Abstand, Tabellenkopf in der Markenfarbe, Seitenzahl und Titel in der Fußzeile. Du musst nichts davon nachbauen. Eigene Leerzeilen, Tabulatoren und Trennlinien aus Strichen sind unnötig; `---` setzt eine feine Trennlinie.
 
 **Länge:** Schreib so kurz, wie der Zweck erlaubt. Streiche Füllsätze, Wiederholungen und Einleitungen, die nur ankündigen.

@@ -18,4 +18,6 @@ Eine Tabelle ist eine Arbeitsfläche: Man soll Zahlen vergleichen, sortieren, fi
 - Sortiere sinnvoll vor (neueste oder größte zuerst, je nach Zweck).
 - Keine Farbcodes als Bedeutungsträger. Wenn etwas auffallen soll, schreib eine eigene Spalte „Status“ mit Wort („offen“, „erledigt“).
 
-**Nicht möglich mit `file_create`:** Diagramme, bedingte Formatierung, Dropdown-Listen, Pivot-Tabellen und Makros. Sag das ehrlich, wenn die Person es erwartet, und beschreibe, wie sie es in Excel selbst ergänzt (Daten markieren, Einfügen, Diagramm).
+**Diagramme:** Im Blatt-Objekt `"charts":[{"type":"column","title":"Umsatz je Quartal","series":["2025","2026"]}]`. Rubriken = erste Spalte, `series` = Namen von Spalten der Kopfzeile (ohne Angabe alle Spalten mit Zahlen); `type` column, bar, line oder pie. Das Diagramm erscheint rechts neben den Daten als echtes Excel-Diagramm. Höchstens 4 je Blatt.
+
+**Nicht möglich mit `file_create`:** bedingte Formatierung, Dropdown-Listen, Pivot-Tabellen, Makros und Bilder in Zellen. Sag das ehrlich, wenn die Person es erwartet, und beschreibe, wie sie es in Excel selbst ergänzt.

@@ -4,7 +4,7 @@ Eine Folie ist ein Plakat, kein Dokument. Wer sie sieht, soll sie in wenigen Sek
 
 **Aufbau des Vortrags**
 1. **Titelfolie:** erste Folie mit Überschrift und höchstens zwei kurzen Zeilen darunter (Untertitel, Datum oder Name). Sie bekommt automatisch den farbigen Hintergrund.
-2. **Kernaussage früh:** zweite Folie nennt Ergebnis oder Empfehlung, nicht die Gliederung. Eine Agenda nur bei mehr als 10 Folien.
+2. **Kernaussage früh:** zweite Folie nennt Ergebnis oder Empfehlung, nicht die Gliederung. Eine Agenda (`## Agenda` mit der Zeile `[TOC]` darunter, die Folie füllt sich selbst) nur bei mehr als 10 Folien.
 3. **Abschnitte:** Bei mehr als 8 Folien trenne Abschnitte mit einer Folie, die nur aus einer `##`-Überschrift besteht (kein Text darunter). Sie wird als farbige Zwischenfolie gesetzt.
 4. **Schluss:** eine Folie mit Entscheidung, nächsten Schritten, Zuständigen und Terminen. Kein „Danke für Ihre Aufmerksamkeit“.
 - Grobe Länge: 1 bis 2 Minuten je Folie. 10 Minuten ≈ 6 bis 8 Folien, 20 Minuten ≈ 12 bis 15.
@@ -19,6 +19,12 @@ Eine Folie ist ein Plakat, kein Dokument. Wer sie sieht, soll sie in wenigen Sek
 - Eine Tabelle hat höchstens 5 Spalten und 6 Zeilen auf einer Folie; erste Zeile = Kopfzeile. Mehr Zeilen verteilt `file_create` selbst auf Folgefolien „(Forts.)“: besser vorher kürzen oder nach Wichtigkeit auf mehrere Folien teilen.
 - Gleiche Einheit pro Spalte, Zahlen gleich gerundet, Einheit in die Kopfzeile statt in jede Zelle.
 - Eine einzelne wichtige Zahl gehört in die Überschrift („Umsatz 2026: 4,2 Mio. €“) und darunter höchstens zwei Stützpunkte.
+
+**Bilder und Diagramme**
+- Eine Folie mit Bild oder Diagramm braucht höchstens 3 kurze Stichpunkte; das Bild trägt die Aussage. Ohne Text füllt ein einzelnes Bild oder Diagramm die Folie, zwei oder drei stehen nebeneinander.
+- Zahlenreihen als Diagramm (`chart`, siehe allgemein), nicht als Tabelle mit 12 Zeilen. Ein Diagramm, ein Gedanke; Überschrift sagt die Aussage („Umsatz wächst seit Q2“).
+- Ablauf, Aufbau, Grundriss oder Logo: als SVG zeichnen (`image_svg`) und mit `![…](name.svg)` einbetten; Fotos und Kunst mit `image_generate`. Quer- oder Breitformat, ruhiger Hintergrund, wenig Text im Bild.
+- Danach `file_preview` aufrufen und prüfen, ob Text und Bild sich nicht stören.
 
 **Notizen:** Alles, was die Folie überladen würde (Hintergrund, Quellen, Redetext), kommt als Zeile `Notizen: …` unter die Folie. Es erscheint nur in der Referentenansicht.
 

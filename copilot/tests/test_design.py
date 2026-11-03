@@ -52,7 +52,7 @@ def test_custom_accent_is_made_readable():
 def test_every_topic_has_a_bounded_guide():
     for topic in design.TOPICS:
         text = design.guide(topic)
-        assert 40 < len(text) < 4500, topic  # kurz genug, um nicht jede Antwort zu verteuern
+        assert 40 < len(text) < 6500, topic  # kurz genug, um nicht jede Antwort zu verteuern
     assert "klar" in design.guide("themen") and "Kopfton" in design.guide("themen")
     assert design.guide(" Folien ") == design.guide("folien")
     with pytest.raises(ValueError, match="Verfügbar"):
@@ -187,10 +187,10 @@ def make_box():
 def test_design_guide_tool_is_offered_with_and_without_edit_and_returns_text():
     box, _ = make_box()
     names = [s.name for s in box.specs()]
-    assert names[:2] == ["file_create", "design_guide"]
+    assert names[:3] == ["file_create", "file_preview", "design_guide"]
     box.edit = False
     specs = {s.name: s for s in box.specs()}
-    assert set(specs) == {"file_create", "design_guide"} and specs["design_guide"].level == "read"
+    assert set(specs) == {"file_create", "file_preview", "design_guide"} and specs["design_guide"].level == "read"
     assert "theme" in specs["file_create"].schema["properties"] and "accent" in specs["file_create"].schema["properties"]
     assert specs["file_create"].schema["properties"]["theme"]["enum"] == list(design.THEMES)
     text = run(specs["design_guide"].handler({"topic": "folien"}))

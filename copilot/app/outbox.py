@@ -29,11 +29,11 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from . import design, fileedit
+from . import charts, design, fileedit, pictures, preview
 from . import mdblocks as md
 from .i18n import tr
 from .db import Store
-from .ha_tools import ToolError, ToolSpec
+from .ha_tools import ToolError, ToolResult, ToolSpec
 
 MAX_CONTENT_CHARS = 600_000
 MAX_FILE_BYTES = 12 * 1024 * 1024
@@ -144,6 +144,51 @@ def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tupl
             run.font.color.rgb = RGBColor(*color)
 
 
+# ------------------------------------------------- Bilder, Diagramme, Inhaltsverzeichnis
+
+ImageSource = Callable[[str], "bytes | None"]
+
+
+def _picture(source: ImageSource | None, ref: str) -> pictures.Picture:
+    """Bild aus dem Chat holen und für die Datei vorbereiten (Word, PDF, PowerPoint)."""
+    if source is None:
+        raise FileError("Bilder lassen sich hier nicht einbetten.")
+    data = source(ref)
+    if data is None:
+        raise FileError(f"Das Bild „{ref}“ gibt es in diesem Chat nicht. Mit file_list siehst du die Bilder; erzeuge es vorher (image_svg, image_generate) oder bitte die Person, es anzuhängen.")
+    try:
+        return pictures.prepare(data, ref)
+    except pictures.PictureError as exc:
+        raise FileError(str(exc)) from None
+
+
+def _chart_of(text: str) -> charts.Chart:
+    try:
+        return charts.parse(text)
+    except charts.ChartError as exc:
+        raise FileError(str(exc)) from None
+
+
+def _chart_picture(chart: charts.Chart, theme: design.Theme) -> pictures.Picture:
+    fonts = find_fonts()
+    paths = (fonts[0][""], fonts[0]["B"]) if fonts else (None, None)
+    try:
+        data = charts.draw_png(chart, theme, paths)
+    except ImportError:
+        raise FileError("Diagramme lassen sich hier nicht zeichnen (Pillow fehlt).") from None
+    return pictures.Picture(data, "png", 1600, 900)
+
+
+def _fit(width: float, height: float, box_w: float, box_h: float) -> tuple[float, float]:
+    """Bild in einen Rahmen einpassen, ohne zu strecken und ohne zu vergrößern, was kleiner ist (Maße in beliebiger, gleicher Einheit)."""
+    scale = min(box_w / width, box_h / height)
+    return width * scale, height * scale
+
+
+def _headings_after(blocks: list[md.Block], index: int) -> list[tuple[int, str]]:
+    return [(min(b[1], 3), md.plain(b[2])) for b in blocks[index + 1:] if b[0] == "h" and b[1] <= 3 and md.plain(b[2]).strip()]
+
+
 def _border(paragraph, side: str, color: str, size: int = 6, space: int = 1) -> None:
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -197,7 +242,40 @@ def _page_field(paragraph, size: float, color: tuple[int, int, int]) -> None:
         run._r.append(el)
 
 
-def render_docx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
+def _toc_field(doc, entries: list[tuple[int, str]], color: tuple[int, int, int]) -> None:
+    """Echtes Word-Inhaltsverzeichnis (Feld TOC), vorab mit den Überschriften gefüllt; Word rechnet Seitenzahlen nach „Feld aktualisieren“ (F9)."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Cm, Pt, RGBColor
+
+    def mark(par, kind: str, text: str | None = None) -> None:
+        run = par.add_run()
+        if kind == "instr":
+            el = OxmlElement("w:instrText")
+            el.set(qn("xml:space"), "preserve")
+            el.text = text
+        else:
+            el = OxmlElement("w:fldChar")
+            el.set(qn("w:fldCharType"), kind)
+        run._r.append(el)
+
+    for n, (level, text) in enumerate(entries):
+        par = doc.add_paragraph()
+        par.paragraph_format.left_indent = Cm(0.6 * (level - 1))
+        par.paragraph_format.space_after = Pt(3)
+        if n == 0:
+            mark(par, "begin")
+            mark(par, "instr", ' TOC \\o "1-3" \\h \\z \\u ')
+            mark(par, "separate")
+        run = par.add_run(text)
+        run.font.size = Pt(11)
+        run.bold = level == 1 or None
+        if n == len(entries) - 1:
+            mark(par, "end")
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+
+def render_docx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, images: ImageSource | None = None) -> bytes:
     try:
         from docx import Document
         from docx.enum.text import WD_BREAK  # noqa: F401
@@ -208,6 +286,7 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
         raise _missing("Word (.docx)") from None
 
     dark, head, accent, grey = (design.rgb(c) for c in (theme.dark, theme.head, theme.accent, theme.grey))
+    head_rgb = head
     level_color = {1: dark, 2: head, 3: accent, 4: grey}
     doc = Document()
     doc.core_properties.title = title
@@ -238,9 +317,43 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
     footer.add_run("\t\t")  # die Standard-Fußzeile hat einen Mitteltabulator; der zweite Tabulator führt an den rechten Rand
     _page_field(footer, 8.5, grey)
 
-    for block in md.parse(content):
+    def add_picture(pic: pictures.Picture, alt: str, caption: bool = True) -> None:
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        w_cm, h_cm = _fit(pic.width, pic.height, 16.4, 11.5)
+        w_cm, h_cm = (w_cm, h_cm) if pic.width / 96 * 2.54 > w_cm else _fit(pic.width, pic.height, pic.width / 96 * 2.54, pic.height / 96 * 2.54)
+        par = doc.add_paragraph()
+        par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        par.paragraph_format.keep_with_next = bool(alt and caption)
+        par.paragraph_format.space_before = Pt(6)
+        shape = par.add_run().add_picture(io.BytesIO(pic.data), width=Cm(w_cm))
+        shape._inline.docPr.set("descr", alt)
+        if alt and caption:
+            cap = doc.add_paragraph()
+            cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cap.paragraph_format.space_after = Pt(10)
+            run = cap.add_run(alt)
+            run.italic = True
+            run.font.size, run.font.color.rgb = Pt(9.5), RGBColor(*grey)
+
+    parsed = md.parse(content)
+    for position, block in enumerate(parsed):
         kind = block[0]
-        if kind == "h":
+        if kind == "image":
+            add_picture(_picture(images, block[2]), block[1])
+        elif kind == "chart":
+            chart = _chart_of(block[1])
+            add_picture(_chart_picture(chart, theme), chart.title or "Diagramm", caption=False)
+        elif kind == "toc":
+            entries = _headings_after(parsed, position)
+            head = doc.add_paragraph()
+            head.paragraph_format.space_before = Pt(10)
+            run = head.add_run("Inhaltsverzeichnis")
+            run.bold, run.font.size, run.font.name = True, Pt(14), theme.heading_font
+            run.font.color.rgb = RGBColor(*head_rgb)
+            if entries:
+                _toc_field(doc, entries, grey)
+        elif kind == "h":
             level = min(block[1], 4)
             par = doc.add_heading(level=level)
             _docx_runs(par, block[2], bold=True, color=level_color[level])
@@ -400,6 +513,19 @@ def _sheets_from_json(data: Any) -> list[tuple[str, list[list[Any]]]]:
     return [("Tabelle1", rows_of(data))]
 
 
+def _sheet_charts(content: str) -> list[list[dict]]:
+    """Diagrammangaben je Blatt (``"charts": [{"type", "title", "series"}]`` im Blatt-Objekt), parallel zu ``_sheets_from``."""
+    stripped = content.strip()
+    if stripped[:1] != "{":
+        return []
+    try:
+        data = json.loads(stripped)
+    except ValueError:
+        return []
+    sheets = data.get("sheets") if isinstance(data.get("sheets"), list) else [data] if ("rows" in data or "data" in data) else []
+    return [[c for c in (sheet.get("charts") or []) if isinstance(c, dict)] if isinstance(sheet, dict) and isinstance(sheet.get("charts") or [], list) else [] for sheet in sheets]
+
+
 def render_xlsx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
     try:
         from openpyxl import Workbook
@@ -416,6 +542,7 @@ def render_xlsx(content: str, title: str, author: str, theme: design.Theme = des
     wb.properties.title = title
     wb.properties.creator = author
     used: set[str] = set()
+    sheet_charts = _sheet_charts(content)
     head_fill = PatternFill("solid", fgColor=theme.head)
     band_fill = PatternFill("solid", fgColor=theme.surface)
     for index, (raw_name, rows) in enumerate(sheets, 1):
@@ -449,6 +576,10 @@ def render_xlsx(content: str, title: str, author: str, theme: design.Theme = des
                     widths[c] = max(widths.get(c, 0), length)
         for c, width in widths.items():
             ws.column_dimensions[get_column_letter(c)].width = max(8, min(width + 2, 60))
+        for spec in (sheet_charts[index - 1] if index <= len(sheet_charts) else [])[:4]:
+            problem = charts.add_xlsx_chart(ws, spec, min(len(rows), 20000), max((len(r) for r in rows), default=0))
+            if problem:
+                raise FileError(f"Blatt „{name}“: {problem}")
         if len(rows) > 1:
             ws.freeze_panes = "A2"
             if len(rows) > 2 and widths:
@@ -487,7 +618,7 @@ def find_fonts() -> tuple[dict[str, Path], Path | None] | None:
     return None
 
 
-def render_pdf(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
+def render_pdf(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, images: ImageSource | None = None) -> bytes:
     try:
         from fpdf import FPDF
         from fpdf.fonts import FontFace
@@ -553,14 +684,68 @@ def render_pdf(content: str, title: str, author: str, theme: design.Theme = desi
             out.append(f"**{text}**" if "b" in style and text.strip() else f"__{text}__" if "i" in style and text.strip() else text)
         return "".join(out)
 
-    for block in md.parse(content):
+    def place(pic: pictures.Picture, alt: str, caption: bool = True) -> None:
+        width = pdf.w - pdf.l_margin - pdf.r_margin
+        w, h = _fit(pic.width, pic.height, min(width, pic.width * 25.4 / 96), 120)
+        if pdf.get_y() + h + (8 if alt and caption else 2) > pdf.h - 18:
+            pdf.add_page()
+        y = pdf.get_y() + 1
+        pdf.image(io.BytesIO(pic.data), x=left + (width - w) / 2, y=y, w=w, h=h, alt_text=alt or None)
+        pdf.set_y(y + h + 2)
+        if alt and caption:
+            pdf.set_font(body, "I", 9)
+            pdf.set_text_color(*design.rgb(theme.grey))
+            pdf.set_x(left)
+            pdf.multi_cell(0, 4.5, fix(alt), align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
+
+    parsed = md.parse(content)
+    last_level = 0
+    for position, block in enumerate(parsed):
         kind = block[0]
         pdf.set_x(left)
-        if kind == "h":
+        if kind == "image":
+            place(_picture(images, block[2]), block[1])
+        elif kind == "chart":
+            chart = _chart_of(block[1])
+            place(_chart_picture(chart, theme), chart.title or "Diagramm", caption=False)
+        elif kind == "toc":
+            entries = _headings_after(parsed, position)
+            if entries:
+                pdf.set_font(body, "B", 14)
+                pdf.set_text_color(*head_rgb)
+                pdf.ln(2)
+                pdf.cell(0, 8, "Inhaltsverzeichnis", new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(2)
+
+                skip = len([b for b in parsed[:position] if b[0] == "h" and b[1] <= 3])  # Überschriften vor dem Verzeichnis (z. B. der Titel) nicht auflisten
+
+                def render_toc(doc_, outline) -> None:
+                    for section in outline[skip:]:
+                        link = doc_.add_link(page=section.page_number)
+                        indent = 5 * section.level
+                        doc_.set_x(left + indent)
+                        doc_.set_font(body, "B" if section.level == 0 else "", 10.5)
+                        doc_.set_text_color(40, 46, 54)
+                        label = fix(section.name)
+                        number = str(section.page_number)
+                        room = doc_.w - doc_.r_margin - left - indent
+                        while label and doc_.get_string_width(label) > room - 18:
+                            label = label[:-1]
+                        doc_.cell(doc_.get_string_width(label) + 1, 6, label, link=link)
+                        dots = max(0, int((room - doc_.get_string_width(label) - doc_.get_string_width(number) - 4) / max(doc_.get_string_width("."), 0.1)))
+                        doc_.set_text_color(150, 158, 166)
+                        doc_.cell(room - doc_.get_string_width(label) - 1, 6, "." * dots + " " + number, align="R", link=link, new_x="LMARGIN", new_y="NEXT")
+
+                pdf.insert_toc_placeholder(render_toc, pages=1 if len(entries) <= 36 else 2)
+        elif kind == "h":
             size = {1: 21, 2: 16, 3: 13.5, 4: 12}.get(block[1], 11.5)
             pdf.ln(5 if block[1] > 1 else 2)
             if pdf.get_y() > pdf.h - 45:
                 pdf.add_page()
+            if block[1] <= 3:  # Lesezeichen und Quelle des Inhaltsverzeichnisses
+                last_level = min(block[1] - 1, last_level + 1)
+                pdf.start_section(md.plain(block[2]), level=last_level)
             runs_out(block[2], size, size * 0.52, base="B", color=dark if block[1] < 3 else head_rgb if block[1] == 3 else accent_rgb)
             pdf.ln(size * 0.52 + (3.5 if block[1] < 3 else 2))
             if block[1] == 1:  # kurzer Akzentstrich unter der Hauptüberschrift
@@ -683,36 +868,40 @@ def _block_cost(block: md.Block) -> float:
         return math.ceil(len(md.plain(block[1])) / 80) + 0.5
     if kind == "table":
         return 1.6 * len(block[1]) + 0.4
+    if kind in ("image", "chart"):
+        return 0.0  # Bilder und Diagramme stehen in einer eigenen Spalte oder füllen die Folie allein
     return 0.5
 
 
-def _paginate(blocks: list[md.Block]) -> list[list[md.Block]]:
+def _paginate(blocks: list[md.Block], factor: float = 1.0) -> list[list[md.Block]]:
+    """Auf Folien verteilen. ``factor`` > 1: schmale Textspalte (neben einem Bild), jede Zeile braucht mehr Platz."""
+    budget = LINE_BUDGET / factor
     pages: list[list[md.Block]] = [[]]
     used = 0.0
     pieces: list[md.Block] = []
     for block in blocks:  # große Listen und Tabellen in Teile zerlegen
-        if block[0] == "list" and _block_cost(block) > LINE_BUDGET:
+        if block[0] == "list" and _block_cost(block) > budget:
             chunk: list = []
             cost = 0.0
             for item in block[2]:
                 c = math.ceil(len(md.plain(item[1])) / 96) + 0.25
-                if chunk and cost + c > LINE_BUDGET:
+                if chunk and cost + c > budget:
                     pieces.append(("list", block[1], chunk))
                     chunk, cost = [], 0.0
                 chunk.append(item)
                 cost += c
             if chunk:
                 pieces.append(("list", block[1], chunk))
-        elif block[0] == "table" and _block_cost(block) > LINE_BUDGET:
+        elif block[0] == "table" and _block_cost(block) > budget:
             head, rows = block[1][0], block[1][1:]
-            size = max(3, int((LINE_BUDGET - 0.4) / 1.6) - 1)
+            size = max(3, int((budget - 0.4) / 1.6) - 1)
             for i in range(0, len(rows), size):
                 pieces.append(("table", [head] + rows[i:i + size]))
         else:
             pieces.append(block)
     for block in pieces:
         cost = _block_cost(block)
-        if pages[-1] and used + cost > LINE_BUDGET:
+        if pages[-1] and used + cost > budget:
             pages.append([])
             used = 0.0
         pages[-1].append(block)
@@ -720,7 +909,7 @@ def _paginate(blocks: list[md.Block]) -> list[list[md.Block]]:
     return pages
 
 
-def render_pptx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME) -> bytes:
+def render_pptx(content: str, title: str, author: str, theme: design.Theme = design.DEFAULT_THEME, images: ImageSource | None = None) -> bytes:
     try:
         from pptx import Presentation
         from pptx.dml.color import RGBColor
@@ -735,6 +924,13 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
     slides = _split_slides(md.parse(content))
     if not slides:
         raise FileError("content enthält keinen Inhalt für Folien.")
+    for index, data in enumerate(slides):  # [TOC] wird zur Agenda-Folie: Zwischenfolien, sonst alle Folientitel
+        if any(b[0] == "toc" for b in data["blocks"]):
+            others = [x for i, x in enumerate(slides) if i not in (0, index) and x["title"]]
+            sections = [x for x in others if not x["blocks"]]
+            names = [x["title"] for x in (sections if len(sections) >= 3 else others)][:9]
+            data["blocks"] = [b for b in data["blocks"] if b[0] != "toc"] + ([("list", False, [(0, [(n, "")]) for n in names])] if names else [])
+            data["title"] = data["title"] or "Agenda"
     prs = Presentation()
     prs.slide_width, prs.slide_height = Inches(SLIDE_W), Inches(SLIDE_H)
     prs.core_properties.title = title
@@ -787,6 +983,23 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
         foot.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
         style_runs(foot.text_frame.paragraphs[0], [(deck_title[:70], "")], 11, grey)
 
+    def place_media(slide, items: list[md.Block], split: bool) -> None:
+        """Bilder und Diagramme auf die Folie setzen: allein = mittig in voller Breite, neben Text = rechte Spalte, untereinander."""
+        x, y, w, h = (7.55, 1.7, 5.0, 4.9) if split else (0.75, 1.65, 11.8, 5.0)
+        n = len(items[:3])
+        gap = 0.25
+        cell_w, cell_h = (w, (h - gap * (n - 1)) / n) if split else ((w - gap * (n - 1)) / n, h)
+        for i, block in enumerate(items[:3]):
+            cx, cy = (x, y + i * (cell_h + gap)) if split else (x + i * (cell_w + gap), y)
+            if block[0] == "chart":
+                add_chart = _chart_of(block[1])
+                charts.add_pptx_chart(slide, add_chart, theme, Inches(cx), Inches(cy), Inches(cell_w), Inches(cell_h))
+                continue
+            pic = _picture(images, block[2])
+            fw, fh = _fit(pic.width, pic.height, cell_w, cell_h)
+            shape = slide.shapes.add_picture(io.BytesIO(pic.data), Inches(cx + (cell_w - fw) / 2), Inches(cy + (cell_h - fh) / 2), Inches(fw), Inches(fh))
+            shape._element.nvPicPr.cNvPr.set("descr", block[1])
+
     total = 0
     for position, data in enumerate(slides):
         blocks = data["blocks"]
@@ -830,7 +1043,9 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             if data["notes"]:
                 slide.notes_slide.notes_text_frame.text = "\n".join(data["notes"])
             continue
-        pages = _paginate(blocks) if blocks else [[]]
+        media_kinds = ("image", "chart")
+        beside = any(b[0] in media_kinds for b in blocks) and any(b[0] not in media_kinds for b in blocks)  # Text links, Bild rechts
+        pages = _paginate(blocks, 1.7 if beside else 1.0) if blocks else [[]]
         for part, page in enumerate(pages):
             slide = prs.slides.add_slide(prs.slide_layouts[5])
             total += 1
@@ -848,14 +1063,17 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             number(slide, total)
             if part == 0 and data["notes"]:
                 slide.notes_slide.notes_text_frame.text = "\n".join(data["notes"])
-            cost = sum(_block_cost(b) for b in page if b[0] != "table")
+            media = [b for b in page if b[0] in media_kinds]
+            split = bool(media) and any(b[0] not in media_kinds for b in page)
+            col_w = 6.5 if split else 11.8
+            cost = sum(_block_cost(b) for b in page if b[0] != "table") * (1.7 if split else 1.0)
             size = 24 if cost <= 7 else 20 if cost <= 11 else 18
             top = 1.7
-            text_blocks = [b for b in page if b[0] != "table"]
+            text_blocks = [b for b in page if b[0] not in ("table", *media_kinds)]
             if text_blocks:
                 tables_cost = sum(_block_cost(b) for b in page if b[0] == "table")
                 height = SLIDE_H - top - 0.7 - (tables_cost * 0.27 + 0.2 if tables_cost else 0)
-                box = slide.shapes.add_textbox(Inches(0.75), Inches(top), Inches(11.8), Inches(max(height, 1.2)))
+                box = slide.shapes.add_textbox(Inches(0.75), Inches(top), Inches(col_w), Inches(max(height, 1.2)))
                 frame = box.text_frame
                 frame.word_wrap = True
                 frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -901,11 +1119,11 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
                 rows = block[1]
                 cols = len(rows[0])
                 row_h = 0.42 if len(rows) > 7 else 0.5
-                shape = slide.shapes.add_table(len(rows), cols, Inches(0.75), Inches(top), Inches(11.8), Inches(row_h * len(rows)))
+                shape = slide.shapes.add_table(len(rows), cols, Inches(0.75), Inches(top), Inches(col_w), Inches(row_h * len(rows)))
                 table = shape.table
                 weights = [max(min(len(md.plain(r[c])), 40) + 4 for r in rows) for c in range(cols)]
                 for c in range(cols):
-                    table.columns[c].width = Inches(11.8 * weights[c] / sum(weights))
+                    table.columns[c].width = Inches(col_w * weights[c] / sum(weights))
                 for r, row in enumerate(rows):
                     table.rows[r].height = Inches(row_h)
                     for c, runs in enumerate(row):
@@ -921,6 +1139,8 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
                             cell.fill.fore_color.rgb = surface if r % 2 else white
                             style_runs(par, runs, 14)
                 top += row_h * len(rows) + 0.2
+            if media:
+                place_media(slide, media, split)
     out = io.BytesIO()
     prs.save(out)
     return out.getvalue()
@@ -928,7 +1148,7 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
 
 # ----------------------------------------------------------------- Zusammenfassung
 
-def render(name: str, content: str, author: str = "HA Copilot", theme: str | None = None, accent: str | None = None) -> tuple[bytes, str]:
+def render(name: str, content: str, author: str = "HA Copilot", theme: str | None = None, accent: str | None = None, images: ImageSource | None = None) -> tuple[bytes, str]:
     """Datei erzeugen: ``(Bytes, Medientyp)``. Wirft :class:`FileError`. ``theme``/``accent`` wirken nur bei Office- und PDF-Dateien."""
     name = clean_name(name)
     if not isinstance(content, str) or not content.strip():
@@ -943,13 +1163,13 @@ def render(name: str, content: str, author: str = "HA Copilot", theme: str | Non
         raise FileError(str(exc)) from None
     try:
         if ext == "docx":
-            data = render_docx(content, title, author, look)
+            data = render_docx(content, title, author, look, images)
         elif ext == "xlsx":
             data = render_xlsx(content, title, author, look)
         elif ext == "pdf":
-            data = render_pdf(content, title, author, look)
+            data = render_pdf(content, title, author, look, images)
         elif ext == "pptx":
-            data = render_pptx(content, title, author, look)
+            data = render_pptx(content, title, author, look, images)
         else:
             data = render_text(name, content)
     except FileError:
@@ -985,6 +1205,8 @@ def design_hints(ext: str, content: str) -> list[str]:
                             out.append(f"Folie {number} „{name[:40]}“: {len(block[2])} Aufzählungspunkte; höchstens 6, besser aufteilen.")
                         if any(len(md.plain(runs).split()) > 16 for _, runs in block[2]):
                             out.append(f"Folie {number} „{name[:40]}“: Punkte mit mehr als 16 Wörtern; kürzen, Ausführliches in die Notizen.")
+                    elif block[0] in ("image", "chart") and any(b[0] == "list" and len(b[2]) > 3 for b in slide["blocks"]):
+                        out.append(f"Folie {number} „{name[:40]}“: Bild oder Diagramm mit mehr als 3 Punkten daneben; kürzen, das Bild trägt die Aussage.")
                     elif block[0] == "table" and len(block[1][0]) > 5:
                         out.append(f"Folie {number} „{name[:40]}“: Tabelle mit {len(block[1][0])} Spalten; höchstens 5.")
                 if slide["blocks"] and len(_paginate(slide["blocks"])) > 1:
@@ -1016,12 +1238,22 @@ FILE_TOOL_TEXT = (
     "Erstellt eine Datei zum Herunterladen und zeigt sie unter deiner Antwort als Karte an. Die Endung von name bestimmt das Format. "
     "Word (.docx), PDF (.pdf) und PowerPoint (.pptx): content ist Markdown (# Überschriften, **fett**, *kursiv*, Listen, | Tabellen |, Codeblöcke); "
     "bei .pptx beginnt jede Überschrift der Ebene 1 oder 2 eine neue Folie (erste Folie mit Titel und Untertitel = Titelfolie), "
-    "eine Zeile „Notizen: …“ wird zur Sprechernotiz. Excel (.xlsx): content ist JSON {\"sheets\":[{\"name\":\"…\",\"rows\":[[Kopf1,Kopf2],[1,2]]}]} "
-    "(erste Zeile = Kopfzeile; Formeln als Text mit =, englische Funktionsnamen, Komma als Trenner, z. B. \"=SUM(B2:B10)\") oder CSV. "
+    "eine Zeile „Notizen: …“ wird zur Sprechernotiz. Zusätzlich in diesen drei Formaten: ein Bild dieses Chats als eigene Zeile ![Beschreibung](dateiname.png) "
+    "(erzeugte Bilder, SVG-Zeichnungen, angehängte Fotos), ein Diagramm als Codeblock mit der Sprache chart und JSON "
+    "{\"type\":\"column|bar|line|pie\",\"title\":\"…\",\"labels\":[…],\"series\":[{\"name\":\"…\",\"values\":[…]}]} und ein Inhaltsverzeichnis (Agenda-Folie) als eigene Zeile [TOC]. "
+    "Excel (.xlsx): content ist JSON {\"sheets\":[{\"name\":\"…\",\"rows\":[[Kopf1,Kopf2],[1,2]]}]} "
+    "(erste Zeile = Kopfzeile; Formeln als Text mit =, englische Funktionsnamen, Komma als Trenner, z. B. \"=SUM(B2:B10)\"; Diagramm je Blatt mit \"charts\":[{\"type\":\"column\",\"title\":\"…\"}]) oder CSV. "
     "Alle anderen Endungen (.ps1, .sh, .py, .bat, .csv, .json, .yaml, .html, .md, .txt …): content ist der vollständige Dateitext. "
     "Gestaltung: Bei neuen Word-, PDF-, PowerPoint- und Excel-Dateien rufst du vorher design_guide auf. Mit theme wählst du ein Farbthema "
     "(klar, ozean, wald, terrakotta, schiefer, beere, sand; ohne Angabe klar), mit accent eine eigene Markenfarbe wie #C2410C. "
     "Erzeuge nur auf Wunsch eine Datei; eine Datei je Aufruf; schreibe den Inhalt vollständig, keine Platzhalter."
+)
+
+FILE_PREVIEW_TEXT = (
+    "Zeigt dir eine Datei dieses Chats als Bild, damit du dein Ergebnis siehst: Word, PowerPoint und PDF (jede Seite oder Folie), Bilder und SVG-Zeichnungen. "
+    "Mehrere Seiten kommen als eine Übersicht, ein bis zwei Seiten einzeln und größer (mit pages wählst du, z. B. \"3\" für eine Folie in voller Größe). "
+    "Nutze es nach dem Erstellen von Präsentationen und längeren Dokumenten, um Layoutfehler zu finden, und bei Zeichnungen, die du mit image_svg gemacht hast. "
+    "Excel-Dateien und Text gibt es nicht als Bild: dafür file_read."
 )
 
 DESIGN_GUIDE_TEXT = (
@@ -1034,6 +1266,8 @@ DESIGN_GUIDE_TEXT = (
 DESIGN_NOTE = (
     "Gestaltung: Bevor du eine neue Präsentation, ein Word-Dokument, eine Excel-Tabelle oder ein PDF erzeugst, rufst du design_guide auf "
     "(allgemein und das Thema der Dateiart) und folgst den Regeln; wähle mit theme ein passendes Farbthema. "
+    "Bilder, Diagramme und ein Inhaltsverzeichnis kannst du einbetten, wenn sie etwas zeigen, das Text schlechter sagt; Zeichnungen machst du mit image_svg. "
+    "Nach einer neuen Präsentation oder einem längeren Dokument siehst du dir das Ergebnis mit file_preview an und behebst klare Layoutfehler (einmal). "
     "Die Antwort von file_create kann Gestaltungshinweise enthalten: behebe sie nur, wenn es die Datei klar besser macht, und höchstens einmal. "
     "Beim Bearbeiten vorhandener Dateien behältst du deren Gestaltung bei."
 )
@@ -1142,7 +1376,7 @@ class OutboxToolbox:
             name = clean_name(raw_name)
             self._check_room()
             data, mime = await asyncio.wait_for(
-                asyncio.to_thread(render, name, args.get("content"), self.author, args.get("theme"), args.get("accent")), RENDER_TIMEOUT  # type: ignore[arg-type]
+                asyncio.to_thread(render, name, args.get("content"), self.author, args.get("theme"), args.get("accent"), self._image_bytes), RENDER_TIMEOUT  # type: ignore[arg-type]
             )
             meta = self.store.outfile_add(self.profile_id, self.chat_id, name, mime, data, self.keep_days)
             if meta is None:
@@ -1159,10 +1393,38 @@ class OutboxToolbox:
             f"Datei {name} erstellt ({_size(meta['size'])}). Sie erscheint als Karte mit Download-Knopf unter deiner Antwort "
             f"und bleibt {self.keep_days} Tage verfügbar. Erwähne sie kurz mit Namen, ohne Link oder Pfad."
         )
-        hints = design_hints(name.rsplit(".", 1)[-1].lower(), str(args.get("content") or ""))
+        ext = name.rsplit(".", 1)[-1].lower()
+        if ext in ("pptx", "docx", "pdf"):
+            text += " Das Ergebnis siehst du mit file_preview."
+        hints = design_hints(ext, str(args.get("content") or ""))
         if hints:
             text += "\nGestaltungshinweise (behebe sie nur, wenn es klar besser wird, höchstens einmal neu erzeugen):\n" + "\n".join(f"- {h}" for h in hints)
         return text
+
+    async def file_preview(self, args: dict) -> ToolResult:
+        tid = self._next_id()
+        raw_name = str(args.get("name") or "")
+        label = tr("Vorschau ansehen: {name}", name=raw_name[:60]) if raw_name else tr("Vorschau ansehen")
+        self._event(tid, label, "running", kind="file-read")
+        try:
+            meta = self._find(raw_name)
+            data = self.store.outfile_bytes(self.profile_id, self.chat_id, meta["name"])
+            if data is None:
+                raise FileError("Die Datei ist nicht mehr vorhanden.")
+            try:
+                images, note = await preview.preview(meta["name"], data, args.get("pages"))
+            except preview.PreviewError as exc:
+                raise FileError(str(exc)) from None
+        except ToolError as exc:
+            self._event(tid, label, "error", str(exc)[:200], kind="file-read")
+            raise
+        self._event(tid, label, "ok", kind="file-read")
+        return ToolResult(
+            f"Vorschau von {meta['name']}: {note}. Sieh genau hin: abgeschnittener oder überlappender Text, leere Flächen, zu kleine Schrift, "
+            "schiefe Bilder, unleserliche Diagramme. Behebe nur klare Fehler und erzeuge die Datei dann höchstens einmal neu; "
+            "was ein Mensch nicht bemerken würde, lässt du.",
+            images,
+        )
 
     async def design_guide(self, args: dict) -> str:
         try:
@@ -1185,6 +1447,14 @@ class OutboxToolbox:
             return folded[0]
         names = ", ".join(m["name"] for m in files[:15]) or "keine"
         raise FileError(f"Die Datei „{wanted}“ gibt es in diesem Chat nicht. Vorhanden: {names}. Die Person kann Dateien erneut anhängen.")
+
+    def _image_bytes(self, name: str) -> bytes | None:
+        """Bild dieses Chats für ``![…](name)``: erzeugte Bilder, SVG-Zeichnungen und angehängte Fotos."""
+        wanted = str(name or "").strip()
+        meta = next((m for m in self.store.outfile_list(self.profile_id, self.chat_id) if m["name"] == wanted or m["name"].lower() == wanted.lower()), None)
+        if meta is None or not (meta["mime"].startswith("image/") or meta["name"].lower().endswith(".svg")):
+            return None
+        return self.store.outfile_bytes(self.profile_id, self.chat_id, meta["name"])
 
     def _bytes_of(self, name: str) -> bytes | None:
         try:
@@ -1275,6 +1545,13 @@ class OutboxToolbox:
                 "accent": {"type": "string", "description": "Optional: eigene Markenfarbe als Hexwert, z. B. #C2410C; ersetzt die Akzentfarbe des Themas"},
             }, "required": ["name", "content"]},
             self.file_create, "execute",
+        ), ToolSpec(
+            "file_preview", FILE_PREVIEW_TEXT,
+            {"type": "object", "properties": {
+                "name": {"type": "string", "description": "Dateiname wie in file_list, z. B. praesentation.pptx"},
+                "pages": {"type": "string", "description": "Optional: Seiten oder Folien, z. B. \"3\", \"2-5\" oder \"1,4,7\" (Standard: die ersten 12)"},
+            }, "required": ["name"]},
+            self.file_preview, "read",
         ), ToolSpec(
             "design_guide", DESIGN_GUIDE_TEXT,
             {"type": "object", "properties": {

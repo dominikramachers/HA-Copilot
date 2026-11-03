@@ -12,6 +12,9 @@ Ergebnis von :func:`parse`: eine Liste von Blöcken (Tupel):
 * ``("code", Text)``
 * ``("quote", Runs)``
 * ``("hr",)``
+* ``("image", Beschreibung, Verweis)``   (eigene Zeile ``![Beschreibung](dateiname.png)``)
+* ``("chart", JSON-Text)``              (Codeblock mit der Sprache ``chart``, siehe ``charts.py``)
+* ``("toc",)``                          (eigene Zeile ``[TOC]`` oder ``[Inhaltsverzeichnis]``)
 
 Ein *Run* ist ``(Text, Stil)`` mit Stil als Zeichenkette aus ``b`` (fett), ``i`` (kursiv), ``c`` (Code).
 """
@@ -26,6 +29,8 @@ _FENCE = re.compile(r"^\s*(```|~~~)")
 _HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
 _RULE = re.compile(r"^\s{0,3}([-*_])(\s*\1){2,}\s*$")
 _ITEM = re.compile(r"^(\s*)([-*+•]|\d{1,3}[.)])\s+(.*)$")
+_IMAGE = re.compile(r"^\s*!\[(?P<alt>[^\]]*)\]\(\s*<?(?P<ref>[^)>]+?)>?(?:\s+\"[^\"]*\")?\s*\)\s*$")
+_TOC = re.compile(r"^\s*\[{1,2}\s*(toc|inhaltsverzeichnis|table of contents)\s*\]{1,2}\s*$", re.I)
 _QUOTE = re.compile(r"^\s{0,3}>\s?(.*)$")
 _TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
 _INLINE = re.compile(
@@ -93,10 +98,22 @@ def parse(text: str) -> list[Block]:
                 code.append(lines[i])
                 i += 1
             i += 1
-            blocks.append(("code", "\n".join(code)))
+            language = line.strip()[len(marker):].strip().split(" ")[0].lower()
+            blocks.append(("chart", "\n".join(code)) if language == "chart" else ("code", "\n".join(code)))
             continue
         if not line.strip():
             flush()
+            i += 1
+            continue
+        picture = _IMAGE.match(line)
+        if picture:
+            flush()
+            blocks.append(("image", picture.group("alt").strip(), picture.group("ref").strip()))
+            i += 1
+            continue
+        if _TOC.match(line):
+            flush()
+            blocks.append(("toc",))
             i += 1
             continue
         heading = _HEADING.match(line)
