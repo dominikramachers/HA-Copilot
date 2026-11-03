@@ -25,6 +25,17 @@ import re
 Run = tuple[str, str]
 Block = tuple
 
+
+class LinkRun(tuple):
+    """Run eines Links: verhält sich wie ``(Text, Stil)``, trägt aber zusätzlich die Adresse in ``url``."""
+
+    url: str
+
+    def __new__(cls, text: str, style: str, url: str) -> "LinkRun":
+        obj = super().__new__(cls, (text, style))
+        obj.url = url
+        return obj
+
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
 _RULE = re.compile(r"^\s{0,3}([-*_])(\s*\1){2,}\s*$")
@@ -35,12 +46,12 @@ _QUOTE = re.compile(r"^\s{0,3}>\s?(.*)$")
 _TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
 _INLINE = re.compile(
     r"(\*\*\*(?P<bi>.+?)\*\*\*)|(\*\*(?P<b>.+?)\*\*)|(__(?P<b2>.+?)__)|(`(?P<c>[^`]+)`)|"
-    r"(\[(?P<lt>[^\]]+)\]\((?P<lu>[^)\s]+)\))|(\*(?P<i>[^*\s][^*]*?)\*)|(?<![A-Za-z0-9_])_(?P<i2>[^_\s][^_]*?)_(?![A-Za-z0-9_])"
+    r"(\[(?P<lt>[^\]]+)\]\((?P<lu>[^)\s]+)\))|(?P<bare>https?://[^\s<>()\[\]]*[^\s<>()\[\].,;:!?'\"])|(\*(?P<i>[^*\s][^*]*?)\*)|(?<![A-Za-z0-9_])_(?P<i2>[^_\s][^_]*?)_(?![A-Za-z0-9_])"
 )
 
 
 def inline(text: str) -> list[Run]:
-    """Zeichenformate eines Textes in Runs zerlegen (Links erscheinen als „Text (Adresse)“)."""
+    """Zeichenformate eines Textes in Runs zerlegen. Links (http, https, mailto) und nackte Webadressen werden :class:`LinkRun`."""
     runs: list[Run] = []
     pos = 0
     for m in _INLINE.finditer(text):
@@ -54,7 +65,9 @@ def inline(text: str) -> list[Run]:
             runs.append((m.group("c"), "c"))
         elif m.group("lt"):
             label, url = m.group("lt"), m.group("lu")
-            runs.append((label if label == url else f"{label} ({url})", ""))
+            runs.append(LinkRun(label, "", url) if re.match(r"(https?://|mailto:)", url) else (f"{label} ({url})" if label != url else label, ""))
+        elif m.group("bare"):
+            runs.append(LinkRun(m.group("bare"), "", m.group("bare")))
         else:
             runs.append((m.group("i") or m.group("i2"), "i"))
         pos = m.end()

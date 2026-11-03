@@ -66,7 +66,17 @@ def test_markdown_blocks():
 
 
 def test_inline_links_and_snake_case():
-    assert md.plain(md.inline("[Doku](https://x.org) und snake_case_name")) == "Doku (https://x.org) und snake_case_name"
+    runs = md.inline("[Doku](https://x.org) und snake_case_name")
+    assert md.plain(runs) == "Doku und snake_case_name"
+    assert [getattr(r, "url", None) for r in runs][0] == "https://x.org"
+
+
+def test_links_bare_urls_mailto_and_unsafe_targets():
+    runs = md.inline("Siehe https://a.de/x_y. Mail [mich](mailto:a@b.de), [lokal](#kap) und [evil](javascript:alert(1))")
+    urls = [r.url for r in runs if getattr(r, "url", None)]
+    assert urls == ["https://a.de/x_y", "mailto:a@b.de"]
+    text = md.plain(runs)
+    assert "lokal (#kap)" in text and "evil (javascript:alert(1))" in text
 
 
 # ----------------------------------------------------------------------------- Word
@@ -268,7 +278,7 @@ def file_app(store, script, **options):
 
 def test_file_create_end_to_end(store):
     async def scenario():
-        app, seen = file_app(store, [("file_create", {"name": "bericht.docx", "content": MD}), ("file_create", {"name": "x.exe", "content": "nein"})])
+        app, seen = file_app(store, [("file_create", {"name": "bericht.docx", "content": MD}), ("file_create", {"name": "bericht.docx", "content": MD}), ("file_create", {"name": "x.exe", "content": "nein"})])
         chat = await new_chat(app)
         out = await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Mach ein Dokument"})
         events = sse(out)
@@ -276,7 +286,8 @@ def test_file_create_end_to_end(store):
         assert len(made) == 1 and made[0]["status"] == "ok" and made[0]["kind"] == "file"
         file = made[0]["file"]
         assert file["name"] == "bericht.docx" and file["size"] > 1000
-        assert seen["results"][0].startswith("Datei bericht.docx erstellt") and seen["results"][1].startswith("FEHLER")
+        assert seen["results"][0].startswith("FEHLER Die Datei ist noch nicht erstellt")  # erst die Gestaltungsregeln, dann die Datei
+        assert seen["results"][1].startswith("Datei bericht.docx erstellt") and seen["results"][2].startswith("FEHLER")
         assert "file_create" in seen["tools"]
 
         got = await asgi(app, "GET", f"/api/files/{file['id']}")

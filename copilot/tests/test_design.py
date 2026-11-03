@@ -207,3 +207,28 @@ def test_file_create_returns_hints_and_applies_theme():
     assert "Gestaltungshinweise" not in reply
     with pytest.raises(ToolError, match="Unbekanntes Thema"):
         run(box.file_create({"name": "x.docx", "content": "# a", "theme": "neon"}))
+
+
+def test_guides_are_delivered_automatically_before_the_first_office_file():
+    box, events = make_box()
+    box.auto_guides = True
+    with pytest.raises(ToolError) as first:
+        run(box.file_create({"name": "angebot.docx", "content": "# Angebot\n\nText."}))
+    text = str(first.value)
+    assert "noch nicht erstellt" in text and design.guide("allgemein")[:60] in text and design.guide("dokument")[:60] in text and "Verfügbare Themen" in text
+    assert events == []  # kein fehlgeschlagener Karteneintrag in der Oberfläche
+    assert "Datei angebot.docx erstellt" in run(box.file_create({"name": "angebot.docx", "content": "# Angebot\n\nText."}))
+    # weitere Dokumente derselben Art und Textdateien brauchen nichts mehr; eine neue Art bekommt nur ihre eigene Regel
+    assert "erstellt" in run(box.file_create({"name": "zweites.docx", "content": "# A\n\nB"}))
+    assert "erstellt" in run(box.file_create({"name": "skript.ps1", "content": "Get-Date"}))
+    with pytest.raises(ToolError) as second:
+        run(box.file_create({"name": "folien.pptx", "content": "# T\n\nU\n\n## A\n\n- x"}))
+    assert design.guide("folien")[:60] in str(second.value) and design.guide("allgemein")[:60] not in str(second.value) and "Verfügbare Themen" not in str(second.value)
+
+
+def test_design_guide_call_counts_as_reading_the_rules():
+    box, _ = make_box()
+    box.auto_guides = True
+    for topic in ("allgemein", "tabelle"):
+        run(box.design_guide({"topic": topic}))
+    assert "erstellt" in run(box.file_create({"name": "z.xlsx", "content": '{"sheets":[{"name":"A","rows":[["a"],[1]]}]}'}))

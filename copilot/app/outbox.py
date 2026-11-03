@@ -129,10 +129,12 @@ def _shade(cell_or_par, fill: str) -> None:
     props.append(shd)
 
 
-def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tuple[int, int, int] | None = None, size: float | None = None) -> None:
+def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tuple[int, int, int] | None = None, size: float | None = None, link_color: tuple[int, int, int] = (0x1F, 0x5F, 0xBF)) -> None:
     from docx.shared import Pt, RGBColor
 
-    for text, style in runs:
+    for item in runs:
+        text, style = item
+        url = getattr(item, "url", None)
         run = paragraph.add_run(text)
         run.bold = bold or "b" in style or None
         run.italic = "i" in style or None
@@ -141,8 +143,26 @@ def _docx_runs(paragraph, runs: list[md.Run], *, bold: bool = False, color: tupl
             run.font.size = Pt(10)
         elif size:
             run.font.size = Pt(size)
-        if color:
+        if url:
+            _hyperlink(paragraph, run, url, link_color)
+        elif color:
             run.font.color.rgb = RGBColor(*color)
+
+
+def _hyperlink(paragraph, run, url: str, color: tuple[int, int, int]) -> None:
+    """Lauf in einen echten, klickbaren Word-Link verwandeln (blau, unterstrichen)."""
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import RGBColor
+
+    run.font.color.rgb = RGBColor(*color)
+    run.font.underline = True
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("r:id"), paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True))
+    link.set(qn("w:history"), "1")
+    run._r.addprevious(link)
+    link.append(run._r)
 
 
 # ------------------------------------------------- Bilder, Diagramme, Inhaltsverzeichnis
@@ -288,6 +308,10 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
 
     dark, head, accent, grey = (design.rgb(c) for c in (theme.dark, theme.head, theme.accent, theme.grey))
     head_rgb = head
+
+    def runs_in(paragraph, runs, **kw):
+        _docx_runs(paragraph, runs, link_color=accent, **kw)
+
     level_color = {1: dark, 2: head, 3: accent, 4: grey}
     doc = Document()
     doc.core_properties.title = title
@@ -357,11 +381,11 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
         elif kind == "h":
             level = min(block[1], 4)
             par = doc.add_heading(level=level)
-            _docx_runs(par, block[2], bold=True, color=level_color[level])
+            runs_in(par, block[2], bold=True, color=level_color[level])
             if level == 1:
                 _border(par, "bottom", theme.accent, size=8, space=4)
         elif kind == "p":
-            _docx_runs(doc.add_paragraph(), block[1])
+            runs_in(doc.add_paragraph(), block[1])
         elif kind == "list":
             _, ordered, items = block
             counters = [0, 0, 0, 0]
@@ -377,7 +401,7 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
                 par.paragraph_format.tab_stops.add_tab_stop(Cm(indent))
                 marker = par.add_run(f"{counters[level]}.\t" if ordered else "•\t")
                 marker.font.color.rgb = RGBColor(*accent)
-                _docx_runs(par, runs)
+                runs_in(par, runs)
             doc.paragraphs[-1].paragraph_format.space_after = Pt(8)
         elif kind == "table":
             rows = block[1]
@@ -391,11 +415,11 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
                     par.paragraph_format.space_after = Pt(2)
                     if r == 0:
                         _shade(cell, theme.head)
-                        _docx_runs(par, runs, bold=True, color=(0xFF, 0xFF, 0xFF), size=10.5)
+                        runs_in(par, runs, bold=True, color=(0xFF, 0xFF, 0xFF), size=10.5)
                     else:
                         if r % 2 == 0:
                             _shade(cell, theme.surface)
-                        _docx_runs(par, runs, size=10.5)
+                        runs_in(par, runs, size=10.5)
             doc.add_paragraph().paragraph_format.space_after = Pt(4)
         elif kind == "code":
             for line in (block[1] or " ").split("\n"):
@@ -412,7 +436,7 @@ def render_docx(content: str, title: str, author: str, theme: design.Theme = des
             par = doc.add_paragraph()
             par.paragraph_format.left_indent = Cm(0.8)
             _border(par, "left", theme.accent, size=18, space=8)
-            _docx_runs(par, block[1], color=(0x52, 0x60, 0x6D))
+            runs_in(par, block[1], color=(0x52, 0x60, 0x6D))
             for run in par.runs:
                 run.italic = True
         elif kind == "hr":
@@ -662,8 +686,14 @@ def render_pdf(content: str, title: str, author: str, theme: design.Theme = desi
     text_rgb = (40, 46, 54)
 
     def runs_out(runs: list[md.Run], size: float, height: float, *, base: str = "", color: tuple[int, int, int] = (40, 46, 54)) -> None:
-        for text, style in runs:
-            if "c" in style:
+        for item in runs:
+            text, style = item
+            url = getattr(item, "url", None)
+            if url:
+                emphasis = "".join(sorted(set(base + ("B" if "b" in style else "")), key="BI".index))
+                pdf.set_font(body, emphasis + "U", size)
+                pdf.set_text_color(*accent_rgb)
+            elif "c" in style:
                 pdf.set_font(mono, "", size - 1)
                 pdf.set_text_color(150, 40, 70)
             else:
@@ -675,7 +705,7 @@ def render_pdf(content: str, title: str, author: str, theme: design.Theme = desi
                 if not token.isspace() and pdf.get_x() > pdf.l_margin + 0.5 and pdf.get_string_width(token) > pdf.w - pdf.r_margin - pdf.get_x():
                     pdf.ln(height)
                     pdf.set_x(pdf.l_margin)
-                pdf.write(height, token)
+                pdf.write(height, token, link=url if (url and not token.isspace()) else "")
         pdf.set_text_color(*color)
 
     def markdown_cell(runs: list[md.Run]) -> str:
@@ -955,7 +985,8 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
     deck_title = slides[0]["title"] or title
 
     def style_runs(paragraph, runs: list[md.Run], size: float, color=dark, bold: bool = False, font: str | None = None) -> None:
-        for text, style in runs:
+        for item in runs:
+            text, style = item
             run = paragraph.add_run()
             run.text = text
             run.font.size = Pt(size - (1.5 if "c" in style else 0))
@@ -963,6 +994,9 @@ def render_pptx(content: str, title: str, author: str, theme: design.Theme = des
             run.font.italic = "i" in style or None
             run.font.color.rgb = color
             run.font.name = code_font if "c" in style else (font or theme.body_font)
+            if getattr(item, "url", None):
+                run.hyperlink.address = item.url
+                run.font.underline = True
 
     def bullet(paragraph, level: int, ordered: bool, size: float) -> None:
         pPr = paragraph._p.get_or_add_pPr()
@@ -1260,12 +1294,15 @@ FILE_TOOL_TEXT = (
     "Excel (.xlsx): content ist JSON {\"sheets\":[{\"name\":\"…\",\"rows\":[[Kopf1,Kopf2],[1,2]]}]} "
     "(erste Zeile = Kopfzeile; Formeln als Text mit =, englische Funktionsnamen, Komma als Trenner, z. B. \"=SUM(B2:B10)\"; Diagramm je Blatt mit \"charts\":[{\"type\":\"column\",\"title\":\"…\"}]) oder CSV. "
     "Alle anderen Endungen (.ps1, .sh, .py, .bat, .csv, .json, .yaml, .html, .md, .txt …): content ist der vollständige Dateitext. "
-    "Gestaltung: Bei neuen Word-, PDF-, PowerPoint- und Excel-Dateien rufst du vorher design_guide auf. Mit theme wählst du ein Farbthema "
+    "Gestaltung: Beim ersten neuen Word-, PDF-, PowerPoint- oder Excel-Dokument einer Antwort bekommst du die Gestaltungsregeln automatisch zurück, statt dass die Datei entsteht; "
+    "plane danach und rufe file_create erneut auf. Mit theme wählst du ein Farbthema "
     "(klar, ozean, wald, terrakotta, schiefer, beere, sand; ohne Angabe klar), mit accent eine eigene Markenfarbe wie #C2410C. "
     "Soll eine Präsentation in Apple Keynote laufen (Mac, iPad, iPhone, „für Keynote“), setzt du target=keynote bei einer .pptx: Keynote öffnet sie direkt, "
     "eine echte .key-Datei kannst du nicht erzeugen (Keynote speichert sie auf Wunsch selbst). "
     "Erzeuge nur auf Wunsch eine Datei; eine Datei je Aufruf; schreibe den Inhalt vollständig, keine Platzhalter."
 )
+
+GUIDE_OF_EXT = {"pptx": "folien", "docx": "dokument", "xlsx": "tabelle", "pdf": "pdf"}
 
 FILE_PREVIEW_TEXT = (
     "Zeigt dir eine Datei dieses Chats als Bild, damit du dein Ergebnis siehst: Word, PowerPoint und PDF (jede Seite oder Folie), Bilder und SVG-Zeichnungen. "
@@ -1282,8 +1319,9 @@ DESIGN_GUIDE_TEXT = (
 )
 
 DESIGN_NOTE = (
-    "Gestaltung: Bevor du eine neue Präsentation, ein Word-Dokument, eine Excel-Tabelle oder ein PDF erzeugst, rufst du design_guide auf "
-    "(allgemein und das Thema der Dateiart) und folgst den Regeln; wähle mit theme ein passendes Farbthema. "
+    "Gestaltung: Beim ersten Erzeugen einer neuen Präsentation, eines Word-Dokuments, einer Excel-Tabelle oder eines PDFs liefert file_create statt der Datei "
+    "die Gestaltungsregeln und die Themenliste (automatisch, du musst nichts aufrufen). Lies sie, richte Inhalt und Aufbau danach aus, wähle mit theme ein Farbthema "
+    "und rufe file_create mit denselben Angaben erneut auf. Mit design_guide kannst du Regeln später nachlesen. "
     "Bilder, Diagramme und ein Inhaltsverzeichnis kannst du einbetten, wenn sie etwas zeigen, das Text schlechter sagt; Zeichnungen machst du mit image_svg. "
     "Nach einer neuen Präsentation oder einem längeren Dokument siehst du dir das Ergebnis mit file_preview an und behebst klare Layoutfehler (einmal). "
     "Die Antwort von file_create kann Gestaltungshinweise enthalten: behebe sie nur, wenn es die Datei klar besser macht, und höchstens einmal. "
@@ -1363,6 +1401,7 @@ class OutboxToolbox:
         keep_days: int,
         author: str = "HA Copilot",
         edit: bool = True,
+        auto_guides: bool = False,
     ) -> None:
         self.store = store
         self.profile_id = profile_id
@@ -1372,6 +1411,8 @@ class OutboxToolbox:
         self.keep_days = keep_days
         self.author = author
         self.edit = edit
+        self.auto_guides = auto_guides  # Gestaltungsregeln beim ersten Office-Dokument je Antwort automatisch liefern
+        self.guides_seen: set[str] = set()
         self.created = 0
 
     def _event(self, tid: int, label: str, status: str, note: str = "", file: dict | None = None, kind: str = "file") -> None:
@@ -1386,7 +1427,34 @@ class OutboxToolbox:
         if self.store.outfile_usage(self.profile_id) >= MAX_PROFILE_BYTES:
             raise FileError("Der Speicher für erzeugte Dateien ist voll. Die Person kann alte Dateien löschen lassen (Chats löschen) oder wartet, bis sie verfallen.")
 
+    def _gate(self, raw_name: str) -> str | None:
+        """Beim ersten Word-, PowerPoint-, Excel- oder PDF-Dokument einer Antwort die Gestaltungsregeln liefern, statt die Datei zu erzeugen.
+
+        So braucht es keine Mitarbeit der KI: die Regeln kommen automatisch und vor dem Inhalt. Danach (oder nach ``design_guide``) wird erzeugt.
+        """
+        if not self.auto_guides:
+            return None
+        ext = raw_name.rsplit(".", 1)[-1].strip().lower() if "." in raw_name else ""
+        topic = GUIDE_OF_EXT.get(ext)
+        if not topic:
+            return None
+        missing = [t for t in ("allgemein", topic) if t not in self.guides_seen]
+        if not missing:
+            return None
+        first = not self.guides_seen
+        self.guides_seen.update(("allgemein", topic))
+        parts = [design.guide(t) for t in missing]
+        if first:
+            parts.append(design.guide("themen"))
+        return (
+            "Die Datei ist noch nicht erstellt. Zuerst gelten diese Gestaltungsregeln (automatisch geladen, design_guide musst du nicht aufrufen). "
+            "Plane Inhalt, Aufbau und Thema danach und rufe file_create dann mit dem gleichen Namen erneut auf.\n\n" + "\n\n".join(parts)
+        )
+
     async def file_create(self, args: dict) -> str:
+        gate = self._gate(str(args.get("name") or ""))
+        if gate:
+            raise FileError(gate)
         tid = self._next_id()
         raw_name = str(args.get("name") or "")
         label = tr("Datei erstellen: {name}", name=raw_name[:60]) if raw_name else tr("Datei erstellen")
@@ -1447,7 +1515,10 @@ class OutboxToolbox:
 
     async def design_guide(self, args: dict) -> str:
         try:
-            return design.guide(str(args.get("topic") or "allgemein"))
+            topic = str(args.get("topic") or "allgemein").strip().lower()
+            text = design.guide(topic)
+            self.guides_seen.add(topic)
+            return text
         except ValueError as exc:
             raise FileError(str(exc)) from None
 

@@ -1258,7 +1258,7 @@ def register_chat_routes(
         if settings.files_enabled:
             specs += OutboxToolbox(
                 store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
-                keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit,
+                keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit, auto_guides=True,
             ).specs()
         image_box = None
         if images_enabled:

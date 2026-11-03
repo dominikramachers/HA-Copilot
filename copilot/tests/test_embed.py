@@ -345,3 +345,36 @@ def test_backend_passes_images_to_the_model():
     blocks = tool_content(ToolResult("Vorschau", [(b"\xff\xd8abc", "image/jpeg")]))
     assert blocks[0] == {"type": "text", "text": "Vorschau"}
     assert blocks[1]["type"] == "image" and blocks[1]["mimeType"] == "image/jpeg" and base64.b64decode(blocks[1]["data"]) == b"\xff\xd8abc"
+
+
+# ----------------------------------------------------------------------------- Links
+
+LINK_MD = "# T\n\nSiehe [HA Copilot](https://github.com/x/y) und https://example.com/a.\n\n## A\n\n- Punkt [mail](mailto:a@b.de)\n"
+
+
+def test_docx_has_clickable_hyperlinks():
+    from docx import Document
+
+    data, _ = outbox.render("l.docx", LINK_MD, "T")
+    doc = Document(io.BytesIO(data))
+    targets = {r.target_ref for r in doc.part.rels.values() if r.is_external}
+    assert {"https://github.com/x/y", "https://example.com/a", "mailto:a@b.de"} <= targets
+    assert "HA Copilot" in "".join(p.text for p in doc.paragraphs)
+
+
+def test_pdf_has_link_annotations():
+    import re
+
+    data, _ = outbox.render("l.pdf", LINK_MD, "T")
+    uris = set(re.findall(rb"/URI \(([^)]*)\)", data))
+    assert b"https://github.com/x/y" in uris and b"https://example.com/a" in uris
+
+
+def test_pptx_runs_carry_hyperlinks():
+    from pptx import Presentation
+
+    data, _ = outbox.render("l.pptx", "# T\n\nS\n\n## A\n\n- [x](https://x.de) y", "T")
+    prs = Presentation(io.BytesIO(data))
+    found = [r.hyperlink.address for s in prs.slides for sh in s.shapes if sh.has_text_frame
+             for pa in sh.text_frame.paragraphs for r in pa.runs if r.hyperlink.address]
+    assert found == ["https://x.de"]
