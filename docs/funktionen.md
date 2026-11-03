@@ -90,7 +90,7 @@ Mehr: [Web, Modell und Nutzungslimit](../copilot/DOCS.md#web-modell-und-nutzungs
 
 Auf Wunsch legt die KI **Word, Excel, PowerPoint, PDF** und Skripte (PowerShell, Shell, Python …) an. Unter der Antwort erscheint eine Karte mit Download. Die Dateien bleiben `files_keep_days` Tage (Standard 14) und gehören nur dir. Abschalten mit `files_enabled: false`.
 
-Die KI gestaltet neue Dateien nach Designregeln (Leitfäden, sieben Farbthemen, auf Wunsch deine Markenfarbe), mit farbigen Titelfolien, Seitenzahlen und aufgeräumten Tabellen. Sie bettet Bilder, SVG-Zeichnungen und Diagramme ein, setzt ein Inhaltsverzeichnis und prüft ihr Ergebnis per Vorschau-Bild.
+Die KI gestaltet neue Dateien nach Designregeln (Leitfäden, sieben Farbthemen, auf Wunsch deine Markenfarbe), mit farbigen Titelfolien, Seitenzahlen und aufgeräumten Tabellen. Sie bettet Bilder, SVG-Zeichnungen und Diagramme ein, setzt ein Inhaltsverzeichnis, Links, Deckblätter, Zitat-, Kennzahlen- und Zwei-Spalten-Folien und prüft ihr Ergebnis per Vorschau-Bild. Für Mac, iPad und iPhone erzeugt sie Dateien für Keynote, Pages und Numbers.
 
 Mehr: [Dateien erzeugen](../copilot/DOCS.md#dateien-erzeugen-ab-0180), [Gestaltung der Dateien](../copilot/DOCS.md#gestaltung-der-dateien-ab-0300).
 

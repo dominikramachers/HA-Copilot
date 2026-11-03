@@ -13,6 +13,8 @@ Ein PDF ist fertig und unveränderlich: gedacht zum Lesen, Drucken und Versenden
 - Schwarz-weiß tauglich: Bedeutung nie nur über Farbe. Überschriften tragen den Aufbau, nicht Farbflächen.
 - Hinweise als Zitat (`> Hinweis: …`), feine Trennlinien mit `---`, Code in Codeblöcken (kurz halten, lange Zeilen brechen um).
 
+**Deckblatt, Umbruch, Kopf- und Fußzeile:** wie in Word: `[DECKBLATT]` (Text davor wird Titelseite ohne Fußzeile), `[SEITENUMBRUCH]`, `[KOPFZEILE: Text]` (oben rechts) und `[FUSSZEILE: Text]` (unten links, Seitenzahl rechts). Links `[Text](Webadresse)` sind anklickbar.
+
 **Formulare:** Neue ausfüllbare Formulare entstehen mit `file_edit` an einem vorhandenen PDF (Felder anlegen, ausfüllen, sperren), nicht mit `file_create`.
 
 **Bilder, Diagramme, Verzeichnis:** `![Beschreibung](name.png)`, `chart`-Block und `[TOC]` (mit Seitenzahlen, Links und Lesezeichen im PDF) wie in allgemein beschrieben. Bilder stehen mittig, werden nicht auf mehrere Seiten geteilt und rücken im Zweifel auf die nächste.

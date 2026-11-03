@@ -18,7 +18,7 @@ Eine Folie ist ein Plakat, kein Dokument. Wer sie sieht, soll sie in wenigen Sek
 **Tabellen und Zahlen**
 - Eine Tabelle hat höchstens 5 Spalten und 6 Zeilen auf einer Folie; erste Zeile = Kopfzeile. Mehr Zeilen verteilt `file_create` selbst auf Folgefolien „(Forts.)“: besser vorher kürzen oder nach Wichtigkeit auf mehrere Folien teilen.
 - Gleiche Einheit pro Spalte, Zahlen gleich gerundet, Einheit in die Kopfzeile statt in jede Zelle.
-- Eine einzelne wichtige Zahl gehört in die Überschrift („Umsatz 2026: 4,2 Mio. €“) und darunter höchstens zwei Stützpunkte.
+- Eine einzelne wichtige Zahl gehört in die Überschrift („Umsatz 2026: 4,2 Mio. €“) mit höchstens zwei Stützpunkten, oder als Kennzahlen-Folie (siehe unten), wenn sie die Folie tragen soll.
 
 **Bilder und Diagramme**
 - Eine Folie mit Bild oder Diagramm braucht höchstens 3 kurze Stichpunkte; das Bild trägt die Aussage. Ohne Text füllt ein einzelnes Bild oder Diagramm die Folie, zwei oder drei stehen nebeneinander.
@@ -27,6 +27,12 @@ Eine Folie ist ein Plakat, kein Dokument. Wer sie sieht, soll sie in wenigen Sek
 - Danach `file_preview` aufrufen und prüfen, ob Text und Bild sich nicht stören.
 
 **Für Apple Keynote:** Läuft die Präsentation auf Mac, iPad oder iPhone („für Keynote“, „mit Keynote zeigen“), setze bei `file_create` für die `.pptx` `target: keynote`. Keynote öffnet `.pptx` direkt, die Person sichert sie bei Bedarf selbst als `.key`; eine echte `.key`-Datei erzeugst du nicht. Der Keynote-Modus nimmt Mac-Schriften (Helvetica Neue, Georgia), schaltet die automatische Schrumpfung aus, die Keynote nicht kennt, und setzt etwas weniger Text je Folie. Halte die Folien darum noch knapper, nutze Säulen-, Balken-, Linien- und Kreisdiagramme (Keynote macht daraus eigene, bearbeitbare Diagramme) und verzichte auf Sonderschriften. Sag der Person kurz, dass du es für Keynote ausgelegt, aber nicht in Keynote selbst geprüft hast.
+
+**Besondere Folien (je eigene Zeilen im Markdown)**
+- **Zwei Spalten:** eine Zeile `+++` teilt den Inhalt einer Folie in links und rechts (Liste, Tabelle, Text, Bild oder Diagramm je Seite), z. B. Vorher/Nachher oder Vor- und Nachteile. Eine Teilung je Folie, jede Seite knapp.
+- **Zitat:** besteht die Folie nur aus einem `> Zitat` und optional einer Zeile `— Quelle`, wird sie als große Zitatfolie gesetzt. Die Überschrift ist dann eine kleine Marke („Kundenstimme“).
+- **Kennzahlen:** ein bis vier Zahlen groß nebeneinander: je eine fette Kurzzahl mit Ziffer, gefolgt von einer Erklärung, z. B. `**4,2 Mio. €**` und darunter (Leerzeile oder gleich dahinter) `Umsatz im 3. Quartal`. Die Folie darf sonst nichts enthalten.
+- **Vollbild-Bild:** `![Beschreibung](name.png){vollbild}` füllt die ganze Folie (zugeschnitten). Die Überschrift steht auf einem Balken unten, ein Absatz danach als kleine Bildzeile. Für Eindruck und Stimmung, nicht für Diagramme.
 
 **Notizen:** Alles, was die Folie überladen würde (Hintergrund, Quellen, Redetext), kommt als Zeile `Notizen: …` unter die Folie. Es erscheint nur in der Referentenansicht.
 
