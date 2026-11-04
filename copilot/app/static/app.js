@@ -2311,7 +2311,7 @@ async function consume(response, run, bubble) {
 
 const THINK_WORDS = [tr("Denkt nach"), tr("Überlegt"), tr("Tüftelt"), tr("Sortiert Gedanken"), tr("Wägt ab"), tr("Grübelt"), tr("Knobelt"), tr("Formuliert"), tr("Bröselt auf"), tr("Sinniert")];
 
-// Welches Zeichen zur Tätigkeit passt: Stift beim Schreiben von Dateien und Bildern, Lupe beim Suchen und Lesen, Blitz bei Aktionen, sonst Punkte.
+// Welches Zeichen zur Tätigkeit passt: Feder beim Schreiben von Dateien und Bildern, Lupe beim Suchen und Lesen, Blitz bei Aktionen, sonst Punkte.
 const BUSY_ART = {
   file: "pen", "file-edit": "pen", image: "pen",
   web: "look", read: "look", knowledge: "look", "memory-read": "look", "gh-read": "look", "file-read": "look",
@@ -2353,7 +2353,7 @@ function recapOf(actions) {
   }
 }
 
-// Bewegtes Zeichen (SVG, Farbe aus dem Thema): Punkte, schreibender Stift, Lupe, Blitz. CSS wählt über data-art.
+// Bewegtes Zeichen (SVG, Farbe aus dem Thema): Punkte, schreibende Feder, Lupe, Blitz. CSS wählt über data-art.
 function busyArt() {
   const svg = (tag, attrs = {}, ...kids) => {
     const el = document.createElementNS(SVG_NS, tag);
@@ -2361,14 +2361,17 @@ function busyArt() {
     el.append(...kids);
     return el;
   };
-  const art = svg("svg", { viewBox: "0 0 28 20", class: "busy-art", "aria-hidden": "true" });
+  const art = svg("svg", { viewBox: "0 0 36 22", class: "busy-art", "aria-hidden": "true" });
+  // Feder: Spitze im Ursprung der Gruppe, der Körper wächst nach oben rechts; CSS führt sie über die Wellenlinie.
+  const feather = svg("g", { class: "feather-move" },
+    svg("g", { transform: "translate(-5 -19)" },
+      svg("path", { class: "feather-body", d: "M19 5.2c-6.3.2-10.7 3.6-12.3 9.3l-.9 3.3 3.3-.9c5.7-1.6 9.1-6 9.9-11.7z" }),
+      svg("path", { class: "feather-rib", d: "M5 19.2L15.5 8.7M10.4 14.2h4.6M12.4 11.8h3.9" })));
   art.append(
-    svg("g", { class: "art-dots" }, ...[6, 14, 22].map((x) => svg("circle", { cx: x, cy: 10, r: 2.6 }))),
-    svg("g", { class: "art-pen" },
-      svg("path", { class: "pen-line", d: "M3 16q3-4 6 0t6 0t6 0", pathLength: 24 }),
-      svg("path", { class: "pen-body", d: "M0 0l1.6-4.6 8-8a1.7 1.7 0 0 1 2.4 2.4l-8 8z" })),
-    svg("g", { class: "art-look" }, svg("circle", { cx: 12, cy: 9, r: 5 }), svg("path", { d: "M16 13l5 5" })),
-    svg("g", { class: "art-act" }, svg("path", { d: "M15 2L7 11.5h5.5L11 18l8-9.5h-5.5z" })),
+    svg("g", { class: "art-dots" }, ...[11, 18, 25].map((x) => svg("circle", { cx: x, cy: 11, r: 2.6 }))),
+    svg("g", { class: "art-pen" }, svg("path", { class: "pen-line", d: "M4 18q3.5-4 7 0t7 0t7 0", pathLength: 24 }), feather),
+    svg("g", { class: "art-look", transform: "translate(4 1)" }, svg("circle", { cx: 12, cy: 9, r: 5 }), svg("path", { d: "M16 13l5 5" })),
+    svg("g", { class: "art-act", transform: "translate(4 1)" }, svg("path", { d: "M15 2L7 11.5h5.5L11 18l8-9.5h-5.5z" })),
   );
   return art;
 }
