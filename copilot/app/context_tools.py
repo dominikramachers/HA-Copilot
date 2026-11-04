@@ -108,7 +108,7 @@ class ContextToolbox:
         self._record = record
         self._next_id = next_id
         self.files = (store.list_knowledge(profile_id, project_id) or []) if project_id else []
-        self.skills = store.skills_active(profile_id, project_id)  # eingeschaltete Skills (global und Projekt)
+        self.skills = store.skills_active(profile_id)  # eingeschaltete Skills der Person
 
     # ------------------------------------------------------------------ Gemeinsames
 

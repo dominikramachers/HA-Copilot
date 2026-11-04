@@ -930,6 +930,10 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .skill-badge { padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--text-2); font-size: 11.5px; font-weight: 600; }
 .skill-badge.ext { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 .skill-badge.off { color: var(--muted); }
+.skill-add { display: flex; align-items: center; margin-top: auto; padding-top: 4px; }
+.skill-added { color: var(--muted); font-size: 13px; }
+.skills-panel .skill-desc a { color: var(--accent); overflow-wrap: anywhere; }
+.skills-panel .skill-add { margin-top: 12px; }
 .skill-desc { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .skill-desc.full { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .skills-empty { padding: 22px 0 8px; }

@@ -2,6 +2,7 @@
 import asyncio
 import base64
 import io
+import json
 import re
 import zipfile
 from pathlib import Path
@@ -138,39 +139,35 @@ def test_standard_skills_are_the_design_guides():
 
 # ------------------------------------------------------------------ Speicher
 
-def save(store, profile="dora", project=None, imported=True, md=SKILL_MD):
+def save(store, profile="dora", origin="imported", md=SKILL_MD):
     pkg = sk.parse_upload("SKILL.md", md.encode())
-    return store.skill_save(profile, project, pkg.name, pkg.description, pkg.files, imported=imported)
+    return store.skill_save(profile, pkg.name, pkg.description, pkg.files, origin=origin)
 
 
-def test_store_scopes_precedence_and_isolation(store):
-    pid = store.create_project("dora", "Zabbix")["id"]
-    other = store.create_project("adm01", "Fremd")["id"]
+def test_store_isolation_replace_and_enable(store):
     glob = save(store)
-    proj = save(store, project=pid, md=SKILL_MD.replace("Zabbix-Templates", "Projekt-Templates"), imported=False)
-    save(store, md=SKILL_MD.replace("zabbix-templates", "nur-global"))
-    assert [s["name"] for s in store.skill_list("dora", None)] == ["nur-global", "zabbix-templates"]
-    assert [s["name"] for s in store.skill_list("dora", pid)] == ["zabbix-templates"]
-    active = {s["name"]: s for s in store.skills_active("dora", pid)}
-    assert active["zabbix-templates"]["project"] and active["zabbix-templates"]["id"] == proj["id"] and "nur-global" in active
-    assert {s["name"]: s["project"] for s in store.skills_active("dora", None)}["zabbix-templates"] is False
+    save(store, md=SKILL_MD.replace("zabbix-templates", "zweites"))
+    assert [s["name"] for s in store.skill_list("dora")] == ["zabbix-templates", "zweites"]
+    assert {s["name"] for s in store.skills_active("dora")} == {"zabbix-templates", "zweites"}
     # Abschalten
-    assert store.skill_set_enabled("dora", proj["id"], False)
-    assert {s["name"]: s for s in store.skills_active("dora", pid)}["zabbix-templates"]["id"] == glob["id"]
-    # fremde Person: nichts sichtbar, nichts änderbar, kein Zugriff über fremdes Projekt
-    assert store.skill_list("adm01", None) == [] and store.skills_active("adm01", None) == []
+    assert store.skill_set_enabled("dora", glob["id"], False)
+    assert {s["name"] for s in store.skills_active("dora")} == {"zweites"}
+    # fremde Person: nichts sichtbar, nichts änderbar
+    assert store.skill_list("adm01") == [] and store.skills_active("adm01") == []
     assert store.skill_get("adm01", glob["id"]) is None
     assert not store.skill_delete("adm01", glob["id"]) and not store.skill_set_enabled("adm01", glob["id"], False)
-    assert store.skill_list("dora", other) is None and save(store, project=other) is None
-    # gleicher Name im gleichen Bereich ersetzt, Dateien inklusive
+    # gleicher Name ersetzt, Dateien und Herkunft inklusive
     pkg = sk.parse_upload("x.skill", skill_zip())
-    store.skill_save("dora", None, pkg.name, pkg.description, pkg.files, imported=True)
-    store.skill_save("dora", None, pkg.name, "neu", {"SKILL.md": SKILL_MD}, imported=True)
+    store.skill_save("dora", pkg.name, pkg.description, pkg.files, origin="imported")
+    assert len(store.skill_get("dora", glob["id"])["files"]) == 3
+    store.skill_save("dora", pkg.name, "neu", {"SKILL.md": SKILL_MD}, origin="own")
     row = store.skill_get("dora", glob["id"])
-    assert row["description"] == "neu" and list(row["files"]) == ["SKILL.md"]
-    # Projekt löschen nimmt Projekt-Skills mit
-    assert store.delete_project("dora", pid)
-    assert store.skill_get("dora", proj["id"]) is None and store.skill_get("dora", glob["id"]) is not None
+    assert row["description"] == "neu" and list(row["files"]) == ["SKILL.md"] and row["origin"] == "own"
+    store.skill_set_enabled("dora", glob["id"], True)
+    assert {x["name"]: x["imported"] for x in store.skills_active("dora")}["zabbix-templates"] is False
+    # Projekte haben mit Skills nichts zu tun
+    pid = store.create_project("dora", "P")["id"]
+    assert store.delete_project("dora", pid) and store.skill_get("dora", glob["id"]) is not None
 
 
 # ------------------------------------------------------------------ Werkzeuge für die KI
@@ -198,19 +195,21 @@ def test_tools_only_exist_with_active_skills_and_list_goes_into_the_note(store):
     assert not [s for s in toolbox(store).specs() if s.name.startswith("skill_")]
     assert "Skills:" not in toolbox(store).note(["Dora"], "read", False)
     pkg = sk.parse_upload("x.skill", skill_zip())
-    store.skill_save("dora", None, pkg.name, pkg.description, pkg.files, imported=True)
+    store.skill_save("dora", pkg.name, pkg.description, pkg.files, origin="imported")
     box = toolbox(store)
     assert {s.name for s in box.specs()} >= {"skill_load", "skill_file"}
     note = box.note(["Dora"], "read", False)
-    assert "zabbix-templates (global, importiert)" in note and "Standard-Leitfäden" in note and "gehen" in note
+    assert "zabbix-templates (importiert)" in note and "Standard-Leitfäden" in note and "gehen" in note
     assert "Lies references" not in note  # nur Name und Beschreibung, nicht die Anleitung
 
 
 def test_skill_load_and_file_with_taint_kind(store):
     pkg = sk.parse_upload("x.skill", skill_zip())
-    imported = store.skill_save("dora", None, pkg.name, pkg.description, pkg.files, imported=True)
+    imported = store.skill_save("dora", pkg.name, pkg.description, pkg.files, origin="imported")
     own = sk.build("eigenes", "Wann auch immer", "Mach X")
-    store.skill_save("dora", None, own.name, own.description, own.files, imported=False)
+    store.skill_save("dora", own.name, own.description, own.files, origin="own")
+    rec = sk.recommended_package("frontend-design")
+    store.skill_save("dora", rec.name, rec.description, rec.files, origin="recommended")
     box = toolbox(store)
     text = run(handler(box, "skill_load")({"name": "zabbix-templates"}))
     assert "Fremdinhalt" in text and "Lies references/regeln.md" in text and "references/regeln.md" in text and "nicht ausgeführt" in text
@@ -225,20 +224,22 @@ def test_skill_load_and_file_with_taint_kind(store):
         run(handler(box, "skill_load")({"name": "gibtsnicht"}))
     own_text = run(handler(box, "skill_load")({"name": "eigenes"}))
     assert "Mach X" in own_text and "Fremdinhalt" not in own_text and box.events[-1]["kind"] == "skill"
+    # Empfohlene Skills sind mitgeliefert und geprüft: kein Fremdinhalt, die Bestätigungsregeln bleiben unberührt
+    rec_text = run(handler(box, "skill_load")({"name": "frontend-design"}))
+    assert "Typography carries the personality" in rec_text and "Fremdinhalt" not in rec_text and box.events[-1]["kind"] == "skill"
+    assert "(empfohlen)" in box.note(["Dora"], "read", False)
     # ausgeschaltete Skills sind für die KI nicht da
     store.skill_set_enabled("dora", imported["id"], False)
     assert "zabbix-templates" not in {s["name"] for s in toolbox(store).skills}
 
 
-def test_other_person_never_sees_skills_and_project_skill_wins(store):
+def test_other_person_never_sees_skills_and_they_apply_in_projects(store):
     pid = store.create_project("dora", "P")["id"]
     save(store)
-    save(store, project=pid, md=SKILL_MD.replace("Zabbix-Templates", "Projekt-Version"), imported=False)
     assert toolbox(store, "adm01").skills == []
-    in_project = toolbox(store, project_id=pid)
-    assert "Projekt-Version" in in_project.note(["Dora"], "read", False) and "Zabbix-Templates erstellen" not in in_project.note(["Dora"], "read", False)
     assert "Zabbix-Templates erstellen" in toolbox(store).note(["Dora"], "read", False)
-    assert toolbox(store, "adm01", project_id=pid).skills == []  # fremdes Projekt
+    assert "Zabbix-Templates erstellen" in toolbox(store, project_id=pid).note(["Dora"], "read", False)  # global: gilt auch im Projekt
+    assert toolbox(store, "adm01", project_id=pid).skills == []
 
 
 def test_imported_skills_count_as_tainted_in_every_confirmation_rule():
@@ -249,7 +250,7 @@ def test_imported_skills_count_as_tainted_in_every_confirmation_rule():
 
 
 def test_list_is_capped_in_the_note():
-    entries = [{"name": f"s{i}", "description": "x" * 400, "project": False, "imported": False} for i in range(60)]
+    entries = [{"name": f"s{i}", "description": "x" * 400, "origin": "own", "imported": False} for i in range(60)]
     block = sk.note_block(entries)
     assert len(block) < sk.LIST_INLINE_CHARS + 2500 and "weitere" in block and sk.note_block([]) == ""
 
@@ -301,25 +302,21 @@ def test_api_write_own_skill_errors_and_standard_view(api):
     assert client.post("/api/skills/new", json={"description": "d", "instructions": "x"}, headers=as_user(DORA)).status_code in (400, 403)  # ohne Schreib-Kopfzeile
 
 
-def test_api_isolation_between_people_and_projects(api):
+def test_api_isolation_between_people(api):
     client, _ = api
     h = as_user(DORA, True)
-    pid = client.post("/api/projects", json={"name": "Z"}, headers=h).json()["id"]
-    mine = client.post("/api/skills", json={"name": "x.md", "data": b64(SKILL_MD.encode()), "project_id": pid}, headers=h).json()
-    assert mine["project_id"] == pid
-    assert [s["name"] for s in client.get(f"/api/skills?project={pid}", headers=as_user(DORA)).json()["skills"]] == ["zabbix-templates"]
-    assert client.get("/api/skills", headers=as_user(DORA)).json()["skills"] == []  # Projekt-Skill nicht global
-    assert len(client.get(f"/api/skills?project={pid}", headers=as_user(DORA)).json()["standard"]) == 6  # die Seite zeigt Standard-Skills in jedem Bereich
+    mine = client.post("/api/skills", json={"name": "x.md", "data": b64(SKILL_MD.encode())}, headers=h).json()
+    assert [s["name"] for s in client.get("/api/skills", headers=as_user(DORA)).json()["skills"]] == ["zabbix-templates"]
     a = as_user(ADM01, True)
     assert client.get("/api/skills", headers=as_user(ADM01)).json()["skills"] == []
-    assert client.get(f"/api/skills?project={pid}", headers=as_user(ADM01)).status_code == 404
     assert client.get(f"/api/skills/{mine['id']}", headers=as_user(ADM01)).status_code == 404
     assert client.patch(f"/api/skills/{mine['id']}", json={"enabled": False}, headers=a).status_code == 404
     assert client.delete(f"/api/skills/{mine['id']}", headers=a).status_code == 404
     assert client.get(f"/api/skills/{mine['id']}/export", headers=as_user(ADM01)).status_code == 404
-    assert client.post("/api/skills", json={"name": "x.md", "data": b64(SKILL_MD.encode()), "project_id": pid}, headers=a).status_code == 404
+    # Projekte ändern nichts an Skills
+    pid = client.post("/api/projects", json={"name": "Z"}, headers=h).json()["id"]
     assert client.delete(f"/api/projects/{pid}", headers=h).status_code == 204
-    assert client.get(f"/api/skills/{mine['id']}", headers=as_user(DORA)).status_code == 404
+    assert client.get(f"/api/skills/{mine['id']}", headers=as_user(DORA)).status_code == 200
 
 
 def test_api_per_person_limit(api, monkeypatch):
@@ -339,7 +336,7 @@ def test_chat_gets_skill_tools_and_note_and_scheduler_reads_them(store):
     chat = client.post("/api/chats", json={}, headers=as_user(DORA, True)).json()["id"]
     client.post(f"/api/chats/{chat}/send", json={"content": "Hallo"}, headers=as_user(DORA, True))
     call = backend.calls[-1]
-    assert {"skill_load", "skill_file"} <= {t.name for t in call["tools"]} and "zabbix-templates (global, importiert)" in call["note"]
+    assert {"skill_load", "skill_file"} <= {t.name for t in call["tools"]} and "zabbix-templates (importiert)" in call["note"]
     other = client.post("/api/chats", json={}, headers=as_user(ADM01, True)).json()["id"]
     client.post(f"/api/chats/{other}/send", json={"content": "Hallo"}, headers=as_user(ADM01, True))
     assert "zabbix-templates" not in backend.calls[-1]["note"]
@@ -365,12 +362,79 @@ def test_file_guide_points_to_user_skills(store):
 def test_skills_are_part_of_my_data_export(store):
     from app import exporter
 
-    pid = store.create_project("dora", "Zabbix Projekt")["id"]
     save(store)
-    save(store, project=pid, imported=False)
     save(store, profile="adm01")
     with zipfile.ZipFile(io.BytesIO(exporter.build_zip(store, "dora"))) as zf:
         names = set(zf.namelist())
-    assert "skills/global/zabbix-templates/SKILL.md" in names
-    assert any(n.startswith("skills/Zabbix Projekt/zabbix-templates/") for n in names)
-    assert len([n for n in names if n.startswith("skills/")]) == 2
+    assert {n for n in names if n.startswith("skills/")} == {"skills/zabbix-templates/SKILL.md"}  # nur die eigenen, ohne Unterordner „global“
+
+
+# ------------------------------------------------------------------ Empfohlene Skills
+
+def test_catalog_entries_are_complete_and_untouched():
+    entries = json.loads((sk.CATALOG_DIR / "catalog.json").read_text(encoding="utf-8"))
+    assert {e["id"] for e in entries} == {"frontend-design", "internal-comms"}  # doc-coauthoring fehlt bewusst: keine Lizenzdatei
+    for e in entries:
+        files = sk.catalog_files(e["id"])
+        assert "SKILL.md" in files and "Apache License" in files["LICENSE.txt"] and "Version 2.0" in files["LICENSE.txt"]
+        assert e["license"] == "Apache-2.0" and e["source"].startswith("https://github.com/anthropics/skills/") and e["author"]
+        for field in ("label", "summary"):
+            assert e[field]["de"] and e[field]["en"]
+        assert sk.parse_skill_md(files["SKILL.md"])[0] == e["id"]  # Ordnername = Skill-Name
+        assert not [p for p in files if p.startswith("scripts/")]  # mitgelieferte Skills enthalten keine Skripte
+        assert sum(len(t) for t in files.values()) < sk.SKILL_MD_MAX * 2
+    assert "examples/3p-updates.md" in sk.catalog_files("internal-comms")
+
+
+def test_recommended_list_follows_the_language(monkeypatch):
+    from app import i18n
+
+    de = {r["id"]: r for r in sk.recommended_list()}
+    assert "Gestaltung" in de["frontend-design"]["label"] and de["frontend-design"]["license"] == "Apache-2.0"
+    i18n.set_language("en")
+    try:
+        en = {r["id"]: r for r in sk.recommended_list()}
+    finally:
+        i18n.set_language("de")
+    assert en["frontend-design"]["label"] == "Design with a distinct style" and en["frontend-design"]["description"] == de["frontend-design"]["description"]
+    assert sk.recommended_package("gibtsnicht") is None
+
+
+def test_api_recommended_add_view_and_conflicts(api):
+    client, _ = api
+    h = as_user(DORA, True)
+    listed = client.get("/api/skills", headers=as_user(DORA)).json()["recommended"]
+    assert {r["id"] for r in listed} == {"frontend-design", "internal-comms"} and not any(r["installed"] or r["taken"] for r in listed)
+    detail = client.get("/api/skills/recommended/internal-comms", headers=as_user(DORA)).json()
+    assert "3P" in detail["skill_md"] and "Apache License" in detail["license_text"] and len(detail["files_list"]) == 6
+    assert "Progress" in client.get("/api/skills/recommended/internal-comms/file", params={"path": "examples/3p-updates.md"}, headers=as_user(DORA)).json()["text"]
+    assert client.get("/api/skills/recommended/internal-comms/file", params={"path": "../x"}, headers=as_user(DORA)).status_code == 404
+    assert client.get("/api/skills/recommended/nope", headers=as_user(DORA)).status_code == 404
+    assert client.post("/api/skills/recommended/nope", headers=h).status_code == 404
+    assert client.post("/api/skills/recommended/frontend-design", headers=as_user(DORA)).status_code in (400, 403)  # ohne Schreib-Kopfzeile
+    added = client.post("/api/skills/recommended/frontend-design", headers=h)
+    assert added.status_code == 200 and added.json()["origin"] == "recommended" and added.json()["imported"] is False and added.json()["files"] == 2
+    again = client.post("/api/skills/recommended/frontend-design", headers=h)
+    assert again.status_code == 409
+    state = {r["id"]: r for r in client.get("/api/skills", headers=as_user(DORA)).json()["recommended"]}
+    assert state["frontend-design"]["installed"] and not state["internal-comms"]["installed"]
+    assert not client.get("/api/skills", headers=as_user(ADM01)).json()["recommended"][0]["installed"]  # gilt je Person
+    # gleicher Name, aber selbst geschrieben: nicht überschreiben, in der Liste als „vergeben“
+    client.post("/api/skills/new", json={"name": "internal-comms", "description": "Meins", "instructions": "x"}, headers=h)
+    assert client.post("/api/skills/recommended/internal-comms", headers=h).status_code == 409
+    taken = {r["id"]: r for r in client.get("/api/skills", headers=as_user(DORA)).json()["recommended"]}["internal-comms"]
+    assert taken["taken"] and not taken["installed"]
+    # Entfernen geht wie bei jedem Skill; danach lässt es sich wieder hinzufügen
+    sid = added.json()["id"]
+    assert client.delete(f"/api/skills/{sid}", headers=h).status_code == 204
+    assert client.post("/api/skills/recommended/frontend-design", headers=h).status_code == 200
+
+
+def test_recommended_skill_is_used_like_an_own_one(store):
+    pkg = sk.recommended_package("internal-comms")
+    store.skill_save("dora", pkg.name, pkg.description, pkg.files, origin="recommended")
+    box = toolbox(store)
+    assert "internal-comms (empfohlen)" in box.note(["Dora"], "read", False)
+    assert "examples/3p-updates.md" in run(handler(box, "skill_load")({"name": "internal-comms"}))
+    assert "Progress, Plans, Problems" in run(handler(box, "skill_file")({"name": "internal-comms", "path": "examples/3p-updates.md"}))
+    assert box.events[-1]["kind"] == "skill"

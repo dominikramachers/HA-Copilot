@@ -575,14 +575,12 @@ class KnowledgeBody(BaseModel):
 class SkillUploadBody(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     data: str = Field(max_length=skilllib.MAX_BASE64_CHARS)  # Base64; SKILL.md, .skill oder ZIP
-    project_id: str | None = Field(default=None, max_length=64)
 
 
 class SkillWriteBody(BaseModel):
     name: str = Field(default="", max_length=64)
     description: str = Field(min_length=1, max_length=skilllib.DESCRIPTION_MAX)
     instructions: str = Field(min_length=1, max_length=skilllib.SKILL_MD_MAX)
-    project_id: str | None = Field(default=None, max_length=64)
 
 
 class SkillPatchBody(BaseModel):
@@ -942,25 +940,22 @@ def register_chat_routes(
     def skill_view(row: dict) -> dict:
         return {
             "id": row["id"], "name": row["name"], "description": row["description"], "enabled": bool(row["enabled"]),
-            "imported": bool(row["imported"]), "project_id": row["project_id"] or None, "size": row["size"], "files": row["files"],
+            "origin": row["origin"], "imported": row["origin"] == "imported", "size": row["size"], "files": row["files"],
             "updated_at": row["updated_at"],
         }
 
-    def store_skill(profile: Profile, project_id: str | None, pkg: skilllib.Package, imported: bool) -> dict:
-        if not store.skill_exists(profile.id, project_id, pkg.name) and store.skill_count(profile.id) >= skilllib.PER_PERSON:
+    def store_skill(profile: Profile, pkg: skilllib.Package, origin: str) -> dict:
+        if not store.skill_exists(profile.id, pkg.name) and store.skill_count(profile.id) >= skilllib.PER_PERSON:
             raise HTTPException(status_code=422, detail=tr("Es sind höchstens {n} Skills je Person möglich.", n=skilllib.PER_PERSON))
-        row = store.skill_save(profile.id, project_id, pkg.name, pkg.description, pkg.files, imported=imported)
-        if row is None:
-            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
-        return skill_view(row)
+        return skill_view(store.skill_save(profile.id, pkg.name, pkg.description, pkg.files, origin=origin))
 
     @app.get("/api/skills")
-    def list_skills(project: str | None = None, profile: Profile = Depends(current_profile)) -> dict:
-        rows = store.skill_list(profile.id, project or None)
-        if rows is None:
-            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+    def list_skills(profile: Profile = Depends(current_profile)) -> dict:
+        rows = store.skill_list(profile.id)
+        have = {r["name"]: r["origin"] for r in rows}
         return {
             "standard": skilllib.standard_list(),
+            "recommended": [{**r, "installed": have.get(r["name"]) == "recommended", "taken": r["name"] in have and have[r["name"]] != "recommended"} for r in skilllib.recommended_list()],
             "skills": [skill_view(r) for r in rows],
             "max": skilllib.PER_PERSON,
         }
@@ -971,6 +966,33 @@ def register_chat_routes(
         if text is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return {"name": name, "text": text}
+
+    @app.get("/api/skills/recommended/{skill_id}")
+    def recommended_skill(skill_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        pkg = skilllib.recommended_package(skill_id)
+        if pkg is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {
+            "id": skill_id, "skill_md": pkg.files["SKILL.md"],
+            "files_list": [{"path": p, "size": len(t)} for p, t in pkg.files.items()],
+            "license_text": pkg.files.get("LICENSE.txt", ""),
+        }
+
+    @app.get("/api/skills/recommended/{skill_id}/file")
+    def recommended_skill_file(skill_id: str, path: str, profile: Profile = Depends(current_profile)) -> dict:
+        pkg = skilllib.recommended_package(skill_id)
+        if pkg is None or path not in pkg.files:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"path": path, "text": pkg.files[path]}
+
+    @app.post("/api/skills/recommended/{skill_id}", dependencies=[Depends(write_guard)])
+    def add_recommended_skill(skill_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        pkg = skilllib.recommended_package(skill_id)
+        if pkg is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if store.skill_exists(profile.id, pkg.name):
+            raise HTTPException(status_code=409, detail=tr("Ein Skill mit diesem Namen gibt es schon."))
+        return store_skill(profile, pkg, "recommended")
 
     @app.post("/api/skills/preview", dependencies=[Depends(write_guard)])
     async def preview_skill(body: SkillUploadBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -984,7 +1006,7 @@ def register_chat_routes(
             "name": pkg.name, "description": pkg.description, "size": pkg.size,
             "files": [{"path": p, "size": len(t)} for p, t in sorted(pkg.files.items())],
             "warnings": pkg.warnings, "skipped": pkg.skipped[:50],
-            "replaces": store.skill_exists(profile.id, body.project_id, pkg.name),
+            "replaces": store.skill_exists(profile.id, pkg.name),
             "excerpt": text.strip()[:600],
         }
 
@@ -995,7 +1017,7 @@ def register_chat_routes(
         except skilllib.SkillError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
         body.data = ""
-        return {**store_skill(profile, body.project_id, pkg, True), "warnings": pkg.warnings, "skipped": pkg.skipped[:50]}
+        return {**store_skill(profile, pkg, "imported"), "warnings": pkg.warnings, "skipped": pkg.skipped[:50]}
 
     @app.post("/api/skills/new", dependencies=[Depends(write_guard)])
     def new_skill(body: SkillWriteBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -1003,7 +1025,7 @@ def register_chat_routes(
             pkg = skilllib.build(body.name, body.description, body.instructions)
         except skilllib.SkillError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
-        return store_skill(profile, body.project_id, pkg, False)
+        return store_skill(profile, pkg, "own")
 
     @app.get("/api/skills/{skill_id}")
     def get_skill(skill_id: int, profile: Profile = Depends(current_profile)) -> dict:

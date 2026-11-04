@@ -889,7 +889,6 @@ async function projectMenu(project, anchor) {
     { value: "pin", icon: "pin", label: project.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" },
     { value: "instructions", icon: "note", label: project.instructions ? tr("Anweisungen bearbeiten") : tr("Anweisungen festlegen"), key: "A" },
     { value: "knowledge", icon: "stack", label: project.knowledge ? tr("Wissen verwalten ({0})", project.knowledge) : tr("Wissen hinzufügen"), key: "W" },
-    { value: "skills", icon: "skill", label: tr("Skills"), key: "S" },
     { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" },
     { divider: true },
     { value: "delete", icon: "trash", label: tr("Projekt löschen"), danger: true, key: "D" },
@@ -899,7 +898,6 @@ async function projectMenu(project, anchor) {
     : await openSheet({ title: project.name, items: entries.filter((e) => !e.divider) });
   if (choice === "new") { startNew(project.id); return; }
   if (choice === "knowledge") { await openKnowledge(project); await loadAll().catch(() => {}); return; }
-  if (choice === "skills") { openSkills(project.id).catch(() => {}); return; }
   try {
     if (choice === "pin") {
       await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ pinned: !project.pinned }) });
@@ -1283,9 +1281,9 @@ async function openKnowledge(project) {
 
 const SKILL_ACCEPT = ".skill,.zip,.md,text/markdown,text/plain";
 const SKILL_MAX = 4 * 1024 * 1024;
-const skillsUi = { mode: "list", tab: "mine", project: null, detail: null, preview: null, data: null, status: "", busy: false };
+const skillsUi = { mode: "list", tab: "mine", detail: null, preview: null, data: null, status: "", busy: false };
 
-async function openSkills(projectId = null) {
+async function openSkills() {
   if (!state.me) return;
   setView("skills");
   detachRun();
@@ -1297,14 +1295,13 @@ async function openSkills(projectId = null) {
   renderSide();
   closeMenu();
   setTitle(tr("Skills"));
-  Object.assign(skillsUi, { mode: "list", tab: "mine", project: projectOf(projectId) ? projectId : null, detail: null, preview: null, status: "", busy: false });
+  Object.assign(skillsUi, { mode: "list", tab: "mine", detail: null, preview: null, status: "", busy: false });
   await loadSkills();
   $("skills").scrollTop = 0;
 }
 
 async function loadSkills() {
-  const query = skillsUi.project ? `?project=${encodeURIComponent(skillsUi.project)}` : "";
-  try { skillsUi.data = await api(`api/skills${query}`); } catch (err) { skillsUi.data = null; skillsUi.status = errorText(err, tr("Die Skills sind gerade nicht erreichbar.")); }
+  try { skillsUi.data = await api("api/skills"); } catch (err) { skillsUi.data = null; skillsUi.status = errorText(err, tr("Die Skills sind gerade nicht erreichbar.")); }
   if (state.view === "skills") renderSkills();
 }
 
@@ -1322,11 +1319,6 @@ function renderSkills() {
   else if (skillsUi.mode === "write") renderSkillWrite(wrap);
   else if (skillsUi.mode === "preview") renderSkillPreview(wrap);
   else renderSkillList(wrap);
-}
-
-function skillScopeText() {
-  const p = projectOf(skillsUi.project);
-  return p ? tr("Projekt „{0}“", p.name) : tr("Alle Chats");
 }
 
 function skillHead(wrap, title, intro, ...buttons) {
@@ -1375,6 +1367,7 @@ function skillSwitch(s, after) {
 function skillBadges(s) {
   const row = node("div", "skill-badges");
   if (s.standard) row.append(node("span", "skill-badge", tr("Standard")));
+  else if (s.recommended || s.origin === "recommended") row.append(node("span", "skill-badge", tr("empfohlen")));
   else row.append(node("span", "skill-badge" + (s.imported ? " ext" : ""), s.imported ? tr("importiert") : tr("selbst geschrieben")));
   return row;
 }
@@ -1411,7 +1404,7 @@ function renderSkillList(wrap) {
   const bar = node("div", "skills-bar");
   const tabs = node("div", "skills-tabs");
   tabs.setAttribute("role", "tablist");
-  for (const [id, label] of [["mine", tr("Meine Skills")], ["standard", tr("Standard")]]) {
+  for (const [id, label] of [["mine", tr("Meine Skills")], ["recommended", tr("Empfohlen")], ["standard", tr("Standard")]]) {
     const tab = node("button", "skills-tab", label);
     tab.type = "button";
     tab.setAttribute("role", "tab");
@@ -1420,34 +1413,26 @@ function renderSkillList(wrap) {
     tabs.append(tab);
   }
   bar.append(tabs);
-  if (skillsUi.tab === "mine") {
-    const label = node("label", "skills-scope");
-    label.append(node("span", "", tr("Gilt in")));
-    const select = node("select", "field");
-    select.append(new Option(tr("Alle Chats"), ""));
-    for (const p of [...state.projects].sort((a, b) => a.name.localeCompare(b.name, "de"))) select.append(new Option(tr("Projekt „{0}“", p.name), p.id));
-    select.value = skillsUi.project || "";
-    select.addEventListener("change", () => { skillsUi.project = select.value || null; skillsUi.status = ""; loadSkills(); });
-    label.append(select);
-    bar.append(label);
-  }
   wrap.append(bar);
 
   if (!data) { wrap.append(node("p", "mem-empty", skillsUi.status || tr("Die Skills sind gerade nicht erreichbar."))); return; }
-  if (skillsUi.tab === "standard") {
+  if (skillsUi.tab === "recommended") {
+    wrap.append(node("p", "skills-hint", tr("Geprüfte Skills von Anthropic, mitgeliefert und frei nutzbar. Mit „Hinzufügen“ landen sie bei „Meine Skills“; dort kannst du sie jederzeit ausschalten oder entfernen.")));
+    const grid = node("div", "skills-grid");
+    for (const s of data.recommended) grid.append(skillCard({ ...s, recommended: true }));
+    wrap.append(grid);
+  } else if (skillsUi.tab === "standard") {
     wrap.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
     const grid = node("div", "skills-grid");
     for (const s of data.standard) grid.append(skillCard({ ...s, standard: true }));
     wrap.append(grid);
   } else {
-    wrap.append(node("p", "skills-hint", skillsUi.project
-      ? tr("Diese Skills gelten nur in diesem Projekt. Heißt eines wie ein globales Skill, gilt hier das Projekt-Skill. Deine globalen Skills gelten zusätzlich.")
-      : tr("Diese Skills gelten in allen deinen Chats.")));
+    wrap.append(node("p", "skills-hint", tr("Diese Skills gelten in allen deinen Chats. Die KI nimmt eines von selbst, wenn die Aufgabe zur Beschreibung passt.")));
     if (!data.skills.length) {
       const empty = node("div", "skills-empty");
       empty.append(
-        node("p", "", skillsUi.project ? tr("Noch keine Skills in diesem Projekt.") : tr("Noch keine eigenen Skills.")),
-        node("p", "skills-hint", tr("Importiere eine SKILL.md oder ein .skill oder schreibe selbst eines.")),
+        node("p", "", tr("Noch keine eigenen Skills.")),
+        node("p", "skills-hint", tr("Importiere eine SKILL.md oder ein .skill, schreibe selbst eines oder schau bei „Empfohlen“ vorbei.")),
       );
       wrap.append(empty);
     } else {
@@ -1460,17 +1445,41 @@ function renderSkillList(wrap) {
 }
 
 function skillCard(s) {
-  const card = node("article", "skill-card" + (!s.standard && !s.enabled ? " off" : ""));
+  const card = node("article", "skill-card" + (s.enabled === false ? " off" : ""));
   const top = node("div", "skill-card-top");
-  const open = node("button", "skill-open", s.standard ? s.label : s.name);
+  const open = node("button", "skill-open", s.standard || s.recommended ? s.label : s.name);
   open.type = "button";
   open.addEventListener("click", () => openSkillDetail(s));
   top.append(open);
-  if (!s.standard) top.append(skillSwitch(s, renderSkills));
-  card.append(top, skillBadges(s), node("p", "skill-desc", s.description));
-  if (!s.standard) card.append(node("small", "mem-meta", `${trn(s.files, "1 Datei", "{0} Dateien")} · ${tr("{0} Text", formatSize(s.size))}`));
+  if (!s.standard && !s.recommended) top.append(skillSwitch(s, renderSkills));
+  card.append(top, skillBadges(s), node("p", "skill-desc", s.recommended ? s.summary : s.description));
+  if (s.recommended) card.append(skillAddRow(s));
+  if (!s.standard && !s.recommended) card.append(node("small", "mem-meta", `${trn(s.files, "1 Datei", "{0} Dateien")} · ${tr("{0} Text", formatSize(s.size))}`));
   card.addEventListener("click", (event) => { if (!event.target.closest("button")) openSkillDetail(s); });
   return card;
+}
+
+// Empfohlene Skills: Hinzufügen mit einem Klick (die Skills sind mitgeliefert und geprüft)
+async function addRecommended(s, button) {
+  button.disabled = true;
+  try {
+    await api(`api/skills/recommended/${encodeURIComponent(s.id)}`, { method: "POST" });
+    toast(tr("Skill „{0}“ hinzugefügt.", s.label));
+    await loadSkills();
+    const fresh = skillsUi.data?.recommended.find((r) => r.id === s.id);
+    if (skillsUi.mode === "detail" && fresh) openSkillDetail({ ...fresh, recommended: true });
+  } catch (err) { toast(errorText(err, tr("Hinzufügen hat nicht geklappt."))); button.disabled = false; }
+}
+
+function skillAddRow(s) {
+  const row = node("div", "skill-add");
+  if (s.installed) { row.append(node("span", "skill-added", tr("Schon hinzugefügt"))); return row; }
+  if (s.taken) { row.append(node("span", "skill-added", tr("Ein Skill mit diesem Namen gibt es schon."))); return row; }
+  const add = node("button", "pill primary", tr("Hinzufügen"));
+  add.type = "button";
+  add.addEventListener("click", (event) => { event.stopPropagation(); addRecommended(s, add); });
+  row.append(add);
+  return row;
 }
 
 // ---- Import mit Vorschau
@@ -1483,7 +1492,7 @@ async function previewSkillFile(file) {
   renderSkills();
   try {
     const data = await toBase64(file);
-    const preview = await api("api/skills/preview", { method: "POST", body: JSON.stringify({ name: file.name, data, project_id: skillsUi.project }) });
+    const preview = await api("api/skills/preview", { method: "POST", body: JSON.stringify({ name: file.name, data }) });
     skillsUi.busy = false;
     skillsGo("preview", { preview: { ...preview, data, file: file.name } });
   } catch (err) {
@@ -1499,7 +1508,6 @@ function renderSkillPreview(wrap) {
   skillHead(wrap, p.name, tr("So sieht das Skill aus. Es wird erst nach „Hinzufügen“ gespeichert."));
   const card = node("section", "skills-panel");
   card.append(node("p", "skills-label", tr("Beschreibung (so sieht die KI es)")), node("p", "skill-desc full", p.description));
-  card.append(node("p", "skills-label", tr("Gilt in")), node("p", "skill-desc full", skillScopeText()));
   card.append(node("p", "skills-label", tr("Inhalt")));
   const files = node("ul", "skills-files");
   for (const f of p.files) files.append(node("li", "", `${f.path} · ${formatSize(f.size)}`));
@@ -1522,7 +1530,7 @@ function renderSkillPreview(wrap) {
   add.addEventListener("click", async () => {
     add.disabled = true;
     try {
-      await api("api/skills", { method: "POST", body: JSON.stringify({ name: p.file, data: p.data, project_id: skillsUi.project }) });
+      await api("api/skills", { method: "POST", body: JSON.stringify({ name: p.file, data: p.data }) });
       toast(tr("Skill „{0}“ hinzugefügt.", p.name));
       skillsUi.tab = "mine";
       skillsGo("list", { preview: null });
@@ -1561,7 +1569,6 @@ function renderSkillWrite(wrap) {
     field(tr("Name"), tr("Kleinbuchstaben, Ziffern und Bindestriche. Leer lassen: der Name entsteht aus der Beschreibung."), name),
     field(tr("Wann soll die KI es nutzen?"), tr("Das liest die KI immer. Nenne Aufgaben und Stichwörter, bei denen sie das Skill laden soll."), description),
     field(tr("Anleitung"), tr("Schritte, Regeln und Beispiele. Die KI liest das erst, wenn sie das Skill lädt."), instructions),
-    node("p", "skills-hint", tr("Gilt in: {0}", skillScopeText())),
   );
   const foot = node("div", "skills-buttons");
   const save = node("button", "pill primary", tr("Speichern"));
@@ -1576,7 +1583,7 @@ function renderSkillWrite(wrap) {
     if (!description.value.trim() || !instructions.value.trim()) { toast(tr("Bitte Beschreibung und Anleitung ausfüllen.")); return; }
     save.disabled = true;
     try {
-      await api("api/skills/new", { method: "POST", body: JSON.stringify({ name: name.value, description: description.value, instructions: instructions.value, project_id: skillsUi.project }) });
+      await api("api/skills/new", { method: "POST", body: JSON.stringify({ name: name.value, description: description.value, instructions: instructions.value }) });
       toast(tr("Skill gespeichert."));
       skillsUi.tab = "mine";
       skillsGo("list");
@@ -1599,7 +1606,7 @@ async function loadSkillDetail(s) {
   try {
     info = s.standard
       ? { text: (await api(`api/skills/standard/${encodeURIComponent(s.name)}`)).text, files_list: [] }
-      : await api(`api/skills/${s.id}`);
+      : await api(s.recommended ? `api/skills/recommended/${encodeURIComponent(s.id)}` : `api/skills/${s.id}`);
   } catch { info = null; }
   if (skillsUi.mode !== "detail" || skillsUi.detail !== s) return;
   const slot = $("skills-wrap").querySelector(".skills-body");
@@ -1620,7 +1627,7 @@ async function loadSkillDetail(s) {
         if (!box.open || loaded) return;
         loaded = true;
         pre.textContent = tr("Lädt …");
-        try { pre.textContent = (await api(`api/skills/${s.id}/file?path=${encodeURIComponent(f.path)}`)).text; } catch { loaded = false; pre.textContent = tr("Das Skill ist gerade nicht erreichbar."); }
+        try { pre.textContent = (await api(`api/skills/${s.recommended ? "recommended/" + encodeURIComponent(s.id) : s.id}/file?path=${encodeURIComponent(f.path)}`)).text; } catch { loaded = false; pre.textContent = tr("Das Skill ist gerade nicht erreichbar."); }
       });
       list.append(box);
     }
@@ -1632,11 +1639,11 @@ async function loadSkillDetail(s) {
 function renderSkillDetail(wrap) {
   const s = skillsUi.detail;
   skillBack(wrap);
-  skillHead(wrap, s.standard ? s.label : s.name);
+  skillHead(wrap, s.standard || s.recommended ? s.label : s.name);
   const card = node("section", "skills-panel");
   const meta = node("div", "skills-detail-meta");
   meta.append(skillBadges(s));
-  if (!s.standard) {
+  if (!s.standard && !s.recommended) {
     const switchBox = node("label", "skills-onoff");
     const rerender = async () => { renderSkills(); loadSkillDetail(s); };
     switchBox.append(skillSwitch(s, rerender), node("span", "", s.enabled ? tr("An") : tr("Aus")));
@@ -1645,8 +1652,16 @@ function renderSkillDetail(wrap) {
   card.append(meta, node("p", "skills-label", tr("Beschreibung (so sieht die KI es)")), node("p", "skill-desc full", s.description));
   if (s.standard) {
     card.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
+  } else if (s.recommended) {
+    const source = node("a", "", s.source);
+    source.href = s.source;
+    source.target = "_blank";
+    source.rel = "noopener noreferrer";
+    const from = node("p", "skill-desc full");
+    from.append(`${s.author} · ${tr("Lizenz {0}", s.license)} · `, source);
+    card.append(node("p", "skills-label", tr("Herkunft")), from, skillAddRow(s));
+    card.append(node("p", "skills-hint", tr("Der Text ist unverändert aus der Quelle übernommen; der Lizenztext liegt als LICENSE.txt dabei.")));
   } else {
-    card.append(node("p", "skills-label", tr("Gilt in")), node("p", "skill-desc full", s.project_id ? tr("Projekt „{0}“", projectOf(s.project_id)?.name || "") : tr("Alle Chats")));
     const tools = node("div", "skills-buttons");
     const exp = node("button", "pill ghost");
     exp.type = "button";

@@ -140,14 +140,13 @@ SKILLS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS skills (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     profile_id   TEXT NOT NULL,
-    project_id   TEXT NOT NULL DEFAULT '',
     name         TEXT NOT NULL,
     description  TEXT NOT NULL,
     enabled      INTEGER NOT NULL DEFAULT 1,
-    imported     INTEGER NOT NULL DEFAULT 0,
+    origin       TEXT NOT NULL DEFAULT 'own',
     created_at   TEXT NOT NULL,
     updated_at   TEXT NOT NULL,
-    UNIQUE (profile_id, project_id, name)
+    UNIQUE (profile_id, name)
 );
 CREATE TABLE IF NOT EXISTS skill_files (
     skill_id  INTEGER NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
@@ -865,7 +864,6 @@ class Store:
                 "UPDATE chats SET project_id = NULL WHERE project_id = ? AND profile_id = ?",
                 (project_id, profile_id),
             )
-            self._conn.execute("DELETE FROM skills WHERE project_id = ? AND profile_id = ?", (project_id, profile_id))
             cur = self._conn.execute(
                 "DELETE FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
             )
@@ -959,28 +957,23 @@ class Store:
         ).fetchone()
 
     def skill_save(
-        self, profile_id: str, project_id: str | None, name: str, description: str, files: dict[str, str], *, imported: bool
-    ) -> dict[str, Any] | None:
-        """Skill anlegen; gleicher Name im gleichen Bereich (global oder Projekt) wird ersetzt. ``None``: Projekt gehört nicht der Person."""
+        self, profile_id: str, name: str, description: str, files: dict[str, str], *, origin: str
+    ) -> dict[str, Any]:
+        """Skill anlegen; gleicher Name wird ersetzt. ``origin``: ``own``, ``imported`` oder ``recommended``."""
         _require(profile_id)
-        scope = project_id or ""
         now = _now()
         with self._lock, self._conn:
-            if scope and not self._conn.execute("SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (scope, profile_id)).fetchone():
-                return None
-            old = self._conn.execute(
-                "SELECT id FROM skills WHERE profile_id = ? AND project_id = ? AND name = ?", (profile_id, scope, name)
-            ).fetchone()
+            old = self._conn.execute("SELECT id FROM skills WHERE profile_id = ? AND name = ?", (profile_id, name)).fetchone()
             if old:
                 skill_id = old["id"]
                 self._conn.execute("DELETE FROM skill_files WHERE skill_id = ?", (skill_id,))
                 self._conn.execute(
-                    "UPDATE skills SET description = ?, imported = ?, updated_at = ? WHERE id = ?", (description, int(imported), now, skill_id)
+                    "UPDATE skills SET description = ?, origin = ?, updated_at = ? WHERE id = ?", (description, origin, now, skill_id)
                 )
             else:
                 skill_id = self._conn.execute(
-                    "INSERT INTO skills (profile_id, project_id, name, description, enabled, imported, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
-                    (profile_id, scope, name, description, int(imported), now, now),
+                    "INSERT INTO skills (profile_id, name, description, enabled, origin, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?, ?)",
+                    (profile_id, name, description, origin, now, now),
                 ).lastrowid
             self._conn.executemany(
                 "INSERT INTO skill_files (skill_id, path, content) VALUES (?, ?, ?)", [(skill_id, p, t) for p, t in files.items()]
@@ -993,26 +986,20 @@ class Store:
         with self._lock:
             return self._conn.execute("SELECT COUNT(*) AS n FROM skills WHERE profile_id = ?", (profile_id,)).fetchone()["n"]
 
-    def skill_exists(self, profile_id: str, project_id: str | None, name: str) -> bool:
+    def skill_exists(self, profile_id: str, name: str) -> bool:
         _require(profile_id)
         with self._lock:
-            return bool(self._conn.execute(
-                "SELECT 1 FROM skills WHERE profile_id = ? AND project_id = ? AND name = ?", (profile_id, project_id or "", name)
-            ).fetchone())
+            return bool(self._conn.execute("SELECT 1 FROM skills WHERE profile_id = ? AND name = ?", (profile_id, name)).fetchone())
 
-    def skill_list(self, profile_id: str, project_id: str | None) -> list[dict[str, Any]] | None:
-        """Skills eines Bereichs (global, wenn ``project_id`` leer); ``None``, wenn das Projekt nicht der Person gehört."""
+    def skill_list(self, profile_id: str) -> list[dict[str, Any]]:
         _require(profile_id)
-        scope = project_id or ""
         with self._lock:
-            if scope and not self._conn.execute("SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (scope, profile_id)).fetchone():
-                return None
             rows = self._conn.execute(
-                "SELECT s.id, s.project_id, s.name, s.description, s.enabled, s.imported, s.updated_at, "
+                "SELECT s.id, s.name, s.description, s.enabled, s.origin, s.updated_at, "
                 "(SELECT COALESCE(SUM(length(content)), 0) FROM skill_files f WHERE f.skill_id = s.id) AS size, "
                 "(SELECT COUNT(*) FROM skill_files f WHERE f.skill_id = s.id) AS files "
-                "FROM skills s WHERE s.profile_id = ? AND s.project_id = ? ORDER BY s.name",
-                (profile_id, scope),
+                "FROM skills s WHERE s.profile_id = ? ORDER BY s.name",
+                (profile_id,),
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -1038,21 +1025,14 @@ class Store:
             cur = self._conn.execute("DELETE FROM skills WHERE id = ? AND profile_id = ?", (skill_id, profile_id))
         return cur.rowcount == 1
 
-    def skills_active(self, profile_id: str, project_id: str | None) -> list[dict[str, Any]]:
-        """Wirksame Skills für einen Chat: globale und die des Projekts (nur eingeschaltete); im Projekt gilt bei gleichem Namen das Projekt-Skill."""
+    def skills_active(self, profile_id: str) -> list[dict[str, Any]]:
+        """Eingeschaltete Skills der Person (gelten in allen Chats)."""
         _require(profile_id)
         with self._lock:
             rows = self._conn.execute(
-                "SELECT id, project_id, name, description, imported FROM skills WHERE profile_id = ? AND enabled = 1 AND (project_id = '' OR project_id = ?) "
-                "ORDER BY name",
-                (profile_id, project_id or "-"),
+                "SELECT id, name, description, origin FROM skills WHERE profile_id = ? AND enabled = 1 ORDER BY name", (profile_id,)
             ).fetchall()
-        chosen: dict[str, dict[str, Any]] = {}
-        for r in rows:
-            item = {"id": r["id"], "name": r["name"], "description": r["description"], "imported": bool(r["imported"]), "project": bool(r["project_id"])}
-            if r["name"] not in chosen or item["project"]:
-                chosen[r["name"]] = item
-        return list(chosen.values())
+        return [{"id": r["id"], "name": r["name"], "description": r["description"], "origin": r["origin"], "imported": r["origin"] == "imported"} for r in rows]
 
     def chat_project_id(self, profile_id: str, chat_id: str) -> str | None:
         _require(profile_id)
