@@ -111,7 +111,7 @@ Alles in diesem Abschnitt ist optional; ohne Angaben sieht die App neutral aus (
 |---|---|
 | `language` | `de` (Standard) oder `en`: Sprache von Oberfläche und Meldungen, siehe „Sprache“. |
 | `app_name` | Name in Anmeldeseite, Browser-Titel, Seitenleiste und als Name der App auf dem Startbildschirm (höchstens 40 Zeichen). Standard `HA Copilot`. Der Eintrag in der Home-Assistant-Seitenleiste und der Add-on-Name stehen fest in `config.yaml` (`panel_title`) und folgen dieser Option nicht. |
-| `login_text` | Satz unter dem Namen auf der Anmeldeseite. |
+| `login_text` | Satz unter der Überschrift „Willkommen bei <app_name>!“ auf der Anmeldeseite (Standard: „Melde dich an, um mit der KI zu chatten.“). |
 | `login_placeholder` | Beispiel-Adresse im E-Mail-Feld der Anmeldeseite. |
 | `logo_tile` | Für Logos, die auf hellem Grund schlecht lesbar sind (z. B. leuchtendes Cyan): im hellen Design auf dunkler Kachel zeigen. |
 | `follow_ha_theme` | An (Standard): Farben und Hell/Dunkel kommen von Home Assistant. Aus: eingebaute Farben mit eigenem Schalter Auto/Hell/Dunkel. |

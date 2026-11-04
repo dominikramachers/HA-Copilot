@@ -388,7 +388,7 @@ def test_english_login_page_and_manifest(store, backend):
     client, _ = public_client(store, backend, language="en")
     page = client.get("/login").text
     assert '<html lang="en"' in page
-    for german in ("Anmelden", "E-Mail-Adresse", "Mit deinem Konto anmelden", "beispiel.de"):
+    for german in ("Anmelden", "E-Mail-Adresse", "Melde dich an, um mit der KI zu chatten", "beispiel.de"):
         assert german not in page, german
     assert "Sign in" in page and "name@example.com" in page
     manifest = client.get("/branding/manifest.webmanifest")
