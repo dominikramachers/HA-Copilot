@@ -36,6 +36,7 @@ from .backend import (
     scrub_environment,
 )
 from . import attachments as filelib, compact, safety
+from . import news as newslib
 from . import quotes
 from . import i18n
 from .i18n import tr, trn
@@ -154,6 +155,10 @@ class FileBody(BaseModel):
 
 class PreviewBody(BaseModel):
     html: str = Field(min_length=1, max_length=PREVIEW_MAX_CHARS)
+
+
+class SeenBody(BaseModel):
+    what: Literal["intro", "news"]
 
 
 class SendBody(BaseModel):
@@ -598,6 +603,7 @@ def register_chat_routes(
     chat_allow: set[tuple[str, str]] = set()  # Chats, in denen Änderungen in Home Assistant dauerhaft erlaubt wurden (nur Arbeitsspeicher)
     github_allow: set[tuple[str, str]] = set()  # dasselbe für GitHub
     limits = limitlib.shared(store)
+    welcome = newslib.Welcome(store)
     model_ids = {m["id"] for m in settings.model_choices()}
     github_policy = RepoPolicy(settings.github_repos)
     images = images or ImageService(settings)
@@ -655,8 +661,20 @@ def register_chat_routes(
             "overview": overview_allowed(profile),
             "setup": channel == "ingress",
             "setup_open": setup_check.banner(settings) if channel == "ingress" else None,
+            "welcome": welcome.state(profile.id),
             **me_extra,
         }
+
+    @app.post("/api/welcome/seen", status_code=204, dependencies=[Depends(write_guard)])
+    def welcome_seen(body: SeenBody, profile: Profile = Depends(current_profile)) -> Response:
+        """Die Person hat die Einführung oder die Neuerungen mit „Okay“ bestätigt; beides erscheint nicht wieder."""
+        welcome.confirm(profile.id, body.what)
+        return Response(status_code=204)
+
+    @app.get("/api/news")
+    def news_history(profile: Profile = Depends(current_profile)) -> list[dict]:
+        """Alle Neuerungen nach Version (Menüpunkt „Das ist neu“)."""
+        return newslib.history()
 
     @app.get("/api/setup")
     async def setup(profile: Profile = Depends(current_profile)) -> dict:
