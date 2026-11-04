@@ -55,6 +55,7 @@ from .config import (
 )
 from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
+from . import skills as skilllib
 from .context_tools import RESERVED_TEXT, ContextToolbox, _RESERVED
 from .ha_tools import HaToolbox
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
@@ -232,6 +233,7 @@ SEND_PATH = re.compile(r"^/api/chats/[^/]+/send$")
 PREVIEW_PATH = re.compile(r"^/api/previews$")
 KNOWLEDGE_PATH = re.compile(r"^/api/projects/[^/]+/knowledge$")
 KNOWLEDGE_BODY_BYTES = knowlib.MAX_BASE64_CHARS + 64 * 1024
+SKILLS_PATH = re.compile(r"^/api/skills(/preview)?$")
 PREVIEW_BODY_BYTES = 700_000
 
 
@@ -257,6 +259,7 @@ class BodyLimit:
             filelib.MAX_BODY_BYTES if SEND_PATH.match(scope["path"])
             else PREVIEW_BODY_BYTES if PREVIEW_PATH.match(scope["path"])
             else KNOWLEDGE_BODY_BYTES if KNOWLEDGE_PATH.match(scope["path"])
+            else skilllib.MAX_BASE64_CHARS + 64 * 1024 if SKILLS_PATH.match(scope["path"])
             else 0
         )
         if big and self.signed_in(scope):  # nur dann prüfen (Datenbankzugriff), wenn die Grenze davon abhängt
@@ -567,6 +570,21 @@ def _index_page(branding: Branding, version: str, embed: str) -> HTMLResponse:
 class KnowledgeBody(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     data: str = Field(max_length=knowlib.MAX_BASE64_CHARS)  # Base64; Datei oder ZIP, wird nur im Arbeitsspeicher verarbeitet
+
+
+class SkillUploadBody(BaseModel):
+    name: str = Field(min_length=1, max_length=300)
+    data: str = Field(max_length=skilllib.MAX_BASE64_CHARS)  # Base64; SKILL.md, .skill oder ZIP
+
+
+class SkillWriteBody(BaseModel):
+    name: str = Field(default="", max_length=64)
+    description: str = Field(min_length=1, max_length=skilllib.DESCRIPTION_MAX)
+    instructions: str = Field(min_length=1, max_length=skilllib.SKILL_MD_MAX)
+
+
+class SkillPatchBody(BaseModel):
+    enabled: bool
 
 
 class MemoryBody(BaseModel):
@@ -917,6 +935,132 @@ def register_chat_routes(
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return Response(status_code=204)
 
+    # ------------------------------------------------------------------- Skills
+
+    def skill_view(row: dict) -> dict:
+        return {
+            "id": row["id"], "name": row["name"], "description": row["description"], "enabled": bool(row["enabled"]),
+            "origin": row["origin"], "imported": row["origin"] == "imported", "size": row["size"], "files": row["files"],
+            "updated_at": row["updated_at"],
+        }
+
+    def store_skill(profile: Profile, pkg: skilllib.Package, origin: str) -> dict:
+        if not store.skill_exists(profile.id, pkg.name) and store.skill_count(profile.id) >= skilllib.PER_PERSON:
+            raise HTTPException(status_code=422, detail=tr("Es sind höchstens {n} Skills je Person möglich.", n=skilllib.PER_PERSON))
+        return skill_view(store.skill_save(profile.id, pkg.name, pkg.description, pkg.files, origin=origin))
+
+    @app.get("/api/skills")
+    def list_skills(profile: Profile = Depends(current_profile)) -> dict:
+        rows = store.skill_list(profile.id)
+        have = {r["name"]: r["origin"] for r in rows}
+        return {
+            "standard": skilllib.standard_list(),
+            "recommended": [{**r, "installed": have.get(r["name"]) == "recommended", "taken": r["name"] in have and have[r["name"]] != "recommended"} for r in skilllib.recommended_list()],
+            "skills": [skill_view(r) for r in rows],
+            "max": skilllib.PER_PERSON,
+        }
+
+    @app.get("/api/skills/standard/{name}")
+    def standard_skill(name: str, profile: Profile = Depends(current_profile)) -> dict:
+        text = skilllib.standard_text(name)
+        if text is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"name": name, "text": text}
+
+    @app.get("/api/skills/recommended/{skill_id}")
+    def recommended_skill(skill_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        pkg = skilllib.recommended_package(skill_id)
+        if pkg is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {
+            "id": skill_id, "skill_md": pkg.files["SKILL.md"],
+            "files_list": [{"path": p, "size": len(t)} for p, t in pkg.files.items()],
+            "license_text": pkg.files.get("LICENSE.txt", ""),
+        }
+
+    @app.get("/api/skills/recommended/{skill_id}/file")
+    def recommended_skill_file(skill_id: str, path: str, profile: Profile = Depends(current_profile)) -> dict:
+        pkg = skilllib.recommended_package(skill_id)
+        if pkg is None or path not in pkg.files:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"path": path, "text": pkg.files[path]}
+
+    @app.post("/api/skills/recommended/{skill_id}", dependencies=[Depends(write_guard)])
+    def add_recommended_skill(skill_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        pkg = skilllib.recommended_package(skill_id)
+        if pkg is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if store.skill_exists(profile.id, pkg.name):
+            raise HTTPException(status_code=409, detail=tr("Ein Skill mit diesem Namen gibt es schon."))
+        return store_skill(profile, pkg, "recommended")
+
+    @app.post("/api/skills/preview", dependencies=[Depends(write_guard)])
+    async def preview_skill(body: SkillUploadBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            pkg = await asyncio.to_thread(skilllib.parse_upload, body.name, skilllib.decode(body.data))
+        except skilllib.SkillError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        body.data = ""
+        _, _, text = skilllib.parse_skill_md(pkg.files["SKILL.md"])
+        return {
+            "name": pkg.name, "description": pkg.description, "size": pkg.size,
+            "files": [{"path": p, "size": len(t)} for p, t in sorted(pkg.files.items())],
+            "warnings": pkg.warnings, "skipped": pkg.skipped[:50],
+            "replaces": store.skill_exists(profile.id, pkg.name),
+            "excerpt": text.strip()[:600],
+        }
+
+    @app.post("/api/skills", dependencies=[Depends(write_guard)])
+    async def import_skill(body: SkillUploadBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            pkg = await asyncio.to_thread(skilllib.parse_upload, body.name, skilllib.decode(body.data))
+        except skilllib.SkillError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        body.data = ""
+        return {**store_skill(profile, pkg, "imported"), "warnings": pkg.warnings, "skipped": pkg.skipped[:50]}
+
+    @app.post("/api/skills/new", dependencies=[Depends(write_guard)])
+    def new_skill(body: SkillWriteBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            pkg = skilllib.build(body.name, body.description, body.instructions)
+        except skilllib.SkillError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return store_skill(profile, pkg, "own")
+
+    @app.get("/api/skills/{skill_id}")
+    def get_skill(skill_id: int, profile: Profile = Depends(current_profile)) -> dict:
+        row = store.skill_get(profile.id, skill_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {**skill_view(row), "files_list": [{"path": p, "size": len(t)} for p, t in row["files"].items()], "skill_md": row["files"].get("SKILL.md", "")}
+
+    @app.get("/api/skills/{skill_id}/file")
+    def get_skill_file(skill_id: int, path: str, profile: Profile = Depends(current_profile)) -> dict:
+        row = store.skill_get(profile.id, skill_id)
+        if row is None or path not in row["files"]:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"path": path, "text": row["files"][path]}
+
+    @app.get("/api/skills/{skill_id}/export")
+    def export_skill(skill_id: int, profile: Profile = Depends(current_profile)) -> Response:
+        row = store.skill_get(profile.id, skill_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        data = skilllib.to_zip(row["name"], row["files"])
+        return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{row["name"]}.skill"'})
+
+    @app.patch("/api/skills/{skill_id}", dependencies=[Depends(write_guard)])
+    def patch_skill(skill_id: int, body: SkillPatchBody, profile: Profile = Depends(current_profile)) -> dict:
+        if not store.skill_set_enabled(profile.id, skill_id, body.enabled):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"id": skill_id, "enabled": body.enabled}
+
+    @app.delete("/api/skills/{skill_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def delete_skill(skill_id: int, profile: Profile = Depends(current_profile)) -> Response:
+        if not store.skill_delete(profile.id, skill_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
     # --------------------------------------------------------------- Gedächtnis
 
     def memory_enabled_or_404() -> None:
@@ -1258,7 +1402,7 @@ def register_chat_routes(
                 limit_to_exposed=settings.ha_limit_to_exposed,
                 confirm_writes=settings.ha_write_confirm == "ask",
                 # Dateien können eingeschleuste Anweisungen enthalten: dann nichts ohne ausdrückliches Zulassen
-                force_confirm=lambda: bool(files) or any(a["kind"] in ("web", "gh-read", "file-read") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext") for a in run.actions.values()),
                 ask=ask,
                 record=run.push,
                 chat_allowed=lambda: key in chat_allow,
@@ -1274,7 +1418,7 @@ def register_chat_routes(
             household_write=household_writable(profile),
             force_confirm=bool(files),
             ask=ask_memory, record=run.push, next_id=run.next_tool_id,
-            tainted=lambda: any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read") for a in run.actions.values()),
+            tainted=lambda: any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext") for a in run.actions.values()),
             overview=overview_allowed(profile),
         )
         specs += context.specs()
@@ -1282,6 +1426,7 @@ def register_chat_routes(
             specs += OutboxToolbox(
                 store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit, auto_guides=True,
+                user_skills=bool(context.skills),
             ).specs()
         image_box = None
         if images_enabled:
@@ -1289,7 +1434,7 @@ def register_chat_routes(
                 store, profile.id, chat_id, images, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, limit_month=settings.image_limit_month, ask=ask_image,
                 # Gelesene Web- oder Dateiinhalte (und angehängte Dokumente) können Anweisungen enthalten: dann vor jedem Bild nachfragen
-                tainted=lambda: any(f.kind != "image" for f in files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read") for a in run.actions.values()),
+                tainted=lambda: any(f.kind != "image" for f in files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext") for a in run.actions.values()),
             )
             specs += image_box.specs()
         gh_level = github_level(profile)
@@ -1305,7 +1450,7 @@ def register_chat_routes(
                 github, gh_level,
                 policy=github_policy,
                 confirm_writes=settings.github_write_confirm == "ask",
-                force_confirm=lambda: bool(files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "web", "file-read") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "web", "file-read", "skill-ext") for a in run.actions.values()),
                 ask=ask_github, record=run.push, chat_allowed=lambda: key in github_allow, allow_chat=lambda: github_allow.add(key),
                 next_id=run.next_tool_id, file_bytes=attachment_bytes,
             ).specs()

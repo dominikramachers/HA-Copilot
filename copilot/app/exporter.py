@@ -144,4 +144,8 @@ def build_zip(store: Store, profile_id: str, app_name: str = "", now: datetime |
         archive.writestr(tr("projekte.md"), _projects_markdown(projects))
         archive.writestr(tr("gedaechtnis.md"), _memory_markdown(store.memory_list("person", profile_id)))
         archive.writestr(tr("geplante-aufgaben.md"), _schedules_markdown(store.schedule_list(profile_id)))
+        for item in store.skill_list(profile_id):
+            full = store.skill_get(profile_id, item["id"])
+            for rel, text in (full["files"] if full else {}).items():
+                archive.writestr(f"skills/{item['name']}/{rel}", text)
     return buffer.getvalue()

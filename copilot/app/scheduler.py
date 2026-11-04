@@ -260,6 +260,7 @@ class Scheduler:
             specs += OutboxToolbox(
                 self.store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit, auto_guides=True,
+                user_skills=bool(context.skills),
             ).specs()
         gh = self.github_level(profile)
         if gh != "none":

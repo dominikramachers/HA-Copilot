@@ -1,0 +1,26 @@
+[
+ {
+  "id": "frontend-design",
+  "category": "design",
+  "label": {"de": "Gestaltung mit eigener Handschrift", "en": "Design with a distinct style"},
+  "summary": {
+   "de": "Hilft mir, Seiten und Oberflächen zu gestalten, die nicht nach Vorlage aussehen: Farben, Schrift und Aufbau passen zum Thema.",
+   "en": "Helps me design pages and screens that do not look like a template: colours, type and layout fit the subject."
+  },
+  "author": "Anthropic",
+  "license": "Apache-2.0",
+  "source": "https://github.com/anthropics/skills/tree/ca45fc4/skills/frontend-design"
+ },
+ {
+  "id": "internal-comms",
+  "category": "text",
+  "label": {"de": "Mitteilungen im Betrieb", "en": "Internal communications"},
+  "summary": {
+   "de": "Hilft mir bei Wochenberichten, Rundschreiben, Fragen und Antworten und anderen Mitteilungen an Kolleginnen und Kollegen, in festen, knappen Formaten.",
+   "en": "Helps me write weekly updates, newsletters, FAQs and other messages to colleagues, in fixed, concise formats."
+  },
+  "author": "Anthropic",
+  "license": "Apache-2.0",
+  "source": "https://github.com/anthropics/skills/tree/ca45fc4/skills/internal-comms"
+ }
+]

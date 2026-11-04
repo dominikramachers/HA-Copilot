@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.36.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich lerne deine Anleitungen",
+          "text": "Du kannst mir Skills mitgeben, zum Beispiel für ein Programm oder einen festen Ablauf. Ich nutze sie von selbst, wenn sie passen. Unter „Skills“ warten auch ein paar fertige zum Hinzufügen."
+        },
+        "en": {
+          "title": "I can learn your instructions",
+          "text": "You can give me skills, for example for a program or a fixed procedure. I use them on my own when they fit. Under \"Skills\" a few ready-made ones are waiting for you to add."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.34.1",
     "items": [
       {
