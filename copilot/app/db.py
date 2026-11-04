@@ -136,6 +136,27 @@ CREATE TABLE IF NOT EXISTS outfiles (
 CREATE INDEX IF NOT EXISTS idx_outfiles_profile ON outfiles(profile_id, created_at);
 """
 
+SKILLS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS skills (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id   TEXT NOT NULL,
+    project_id   TEXT NOT NULL DEFAULT '',
+    name         TEXT NOT NULL,
+    description  TEXT NOT NULL,
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    imported     INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL,
+    UNIQUE (profile_id, project_id, name)
+);
+CREATE TABLE IF NOT EXISTS skill_files (
+    skill_id  INTEGER NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    path      TEXT NOT NULL,
+    content   TEXT NOT NULL,
+    PRIMARY KEY (skill_id, path)
+);
+"""
+
 IMAGE_USAGE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS image_usage (
     profile_id  TEXT NOT NULL,
@@ -207,7 +228,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 14  # 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 15  # 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id"
 
@@ -376,6 +397,7 @@ class Store:
         if "origin" not in outfile_columns:
             self._conn.execute("ALTER TABLE outfiles ADD COLUMN origin TEXT NOT NULL DEFAULT 'ai'")  # 'ai' = erzeugt/bearbeitet, 'attached' = von der Person angehängt
         self._conn.executescript(IMAGE_USAGE_SCHEMA)
+        self._conn.executescript(SKILLS_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -843,6 +865,7 @@ class Store:
                 "UPDATE chats SET project_id = NULL WHERE project_id = ? AND profile_id = ?",
                 (project_id, profile_id),
             )
+            self._conn.execute("DELETE FROM skills WHERE project_id = ? AND profile_id = ?", (project_id, profile_id))
             cur = self._conn.execute(
                 "DELETE FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
             )
@@ -925,6 +948,111 @@ class Store:
                 (knowledge_id, project_id, profile_id),
             )
         return cur.rowcount == 1
+
+    # ------------------------------------------------------------------ Skills
+
+    def _skill_row(self, profile_id: str, skill_id: int) -> sqlite3.Row | None:
+        return self._conn.execute(
+            "SELECT s.*, (SELECT COALESCE(SUM(length(content)), 0) FROM skill_files f WHERE f.skill_id = s.id) AS size, "
+            "(SELECT COUNT(*) FROM skill_files f WHERE f.skill_id = s.id) AS files FROM skills s WHERE s.id = ? AND s.profile_id = ?",
+            (skill_id, profile_id),
+        ).fetchone()
+
+    def skill_save(
+        self, profile_id: str, project_id: str | None, name: str, description: str, files: dict[str, str], *, imported: bool
+    ) -> dict[str, Any] | None:
+        """Skill anlegen; gleicher Name im gleichen Bereich (global oder Projekt) wird ersetzt. ``None``: Projekt gehört nicht der Person."""
+        _require(profile_id)
+        scope = project_id or ""
+        now = _now()
+        with self._lock, self._conn:
+            if scope and not self._conn.execute("SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (scope, profile_id)).fetchone():
+                return None
+            old = self._conn.execute(
+                "SELECT id FROM skills WHERE profile_id = ? AND project_id = ? AND name = ?", (profile_id, scope, name)
+            ).fetchone()
+            if old:
+                skill_id = old["id"]
+                self._conn.execute("DELETE FROM skill_files WHERE skill_id = ?", (skill_id,))
+                self._conn.execute(
+                    "UPDATE skills SET description = ?, imported = ?, updated_at = ? WHERE id = ?", (description, int(imported), now, skill_id)
+                )
+            else:
+                skill_id = self._conn.execute(
+                    "INSERT INTO skills (profile_id, project_id, name, description, enabled, imported, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
+                    (profile_id, scope, name, description, int(imported), now, now),
+                ).lastrowid
+            self._conn.executemany(
+                "INSERT INTO skill_files (skill_id, path, content) VALUES (?, ?, ?)", [(skill_id, p, t) for p, t in files.items()]
+            )
+            row = self._skill_row(profile_id, skill_id)
+        return dict(row)
+
+    def skill_count(self, profile_id: str) -> int:
+        _require(profile_id)
+        with self._lock:
+            return self._conn.execute("SELECT COUNT(*) AS n FROM skills WHERE profile_id = ?", (profile_id,)).fetchone()["n"]
+
+    def skill_exists(self, profile_id: str, project_id: str | None, name: str) -> bool:
+        _require(profile_id)
+        with self._lock:
+            return bool(self._conn.execute(
+                "SELECT 1 FROM skills WHERE profile_id = ? AND project_id = ? AND name = ?", (profile_id, project_id or "", name)
+            ).fetchone())
+
+    def skill_list(self, profile_id: str, project_id: str | None) -> list[dict[str, Any]] | None:
+        """Skills eines Bereichs (global, wenn ``project_id`` leer); ``None``, wenn das Projekt nicht der Person gehört."""
+        _require(profile_id)
+        scope = project_id or ""
+        with self._lock:
+            if scope and not self._conn.execute("SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (scope, profile_id)).fetchone():
+                return None
+            rows = self._conn.execute(
+                "SELECT s.id, s.project_id, s.name, s.description, s.enabled, s.imported, s.updated_at, "
+                "(SELECT COALESCE(SUM(length(content)), 0) FROM skill_files f WHERE f.skill_id = s.id) AS size, "
+                "(SELECT COUNT(*) FROM skill_files f WHERE f.skill_id = s.id) AS files "
+                "FROM skills s WHERE s.profile_id = ? AND s.project_id = ? ORDER BY s.name",
+                (profile_id, scope),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def skill_get(self, profile_id: str, skill_id: int) -> dict[str, Any] | None:
+        """Ein Skill mit allen Dateien (``files``: Pfad -> Text)."""
+        _require(profile_id)
+        with self._lock:
+            row = self._skill_row(profile_id, skill_id)
+            if not row:
+                return None
+            files = {r["path"]: r["content"] for r in self._conn.execute("SELECT path, content FROM skill_files WHERE skill_id = ? ORDER BY path", (skill_id,))}
+        return {**dict(row), "files": files}
+
+    def skill_set_enabled(self, profile_id: str, skill_id: int, enabled: bool) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("UPDATE skills SET enabled = ? WHERE id = ? AND profile_id = ?", (int(enabled), skill_id, profile_id))
+        return cur.rowcount == 1
+
+    def skill_delete(self, profile_id: str, skill_id: int) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM skills WHERE id = ? AND profile_id = ?", (skill_id, profile_id))
+        return cur.rowcount == 1
+
+    def skills_active(self, profile_id: str, project_id: str | None) -> list[dict[str, Any]]:
+        """Wirksame Skills für einen Chat: globale und die des Projekts (nur eingeschaltete); im Projekt gilt bei gleichem Namen das Projekt-Skill."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, project_id, name, description, imported FROM skills WHERE profile_id = ? AND enabled = 1 AND (project_id = '' OR project_id = ?) "
+                "ORDER BY name",
+                (profile_id, project_id or "-"),
+            ).fetchall()
+        chosen: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            item = {"id": r["id"], "name": r["name"], "description": r["description"], "imported": bool(r["imported"]), "project": bool(r["project_id"])}
+            if r["name"] not in chosen or item["project"]:
+                chosen[r["name"]] = item
+        return list(chosen.values())
 
     def chat_project_id(self, profile_id: str, chat_id: str) -> str | None:
         _require(profile_id)

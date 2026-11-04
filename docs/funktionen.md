@@ -67,6 +67,14 @@ Zusätzlich liest das Add-on selbst einen **Smarthome-Überblick** (Bereiche, En
 
 Mehr: [Projektwissen und Gedächtnis](../copilot/DOCS.md#projektwissen-und-gedächtnis-ab-0160).
 
+## Skills
+
+Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, etwa „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Du fügst sie im Konto-Menü unter **Skills** hinzu (gilt überall) oder im Projekt-Menü (nur in diesem Projekt): als `SKILL.md`, `.skill` oder ZIP importieren (mit Vorschau) oder selbst schreiben. Die KI sieht nur Name und Beschreibung und lädt ein Skill von selbst, wenn die Aufgabe passt; auch geplante Aufgaben nutzen sie (nur lesend).
+
+Die mitgelieferten Gestaltungsregeln für Word, PowerPoint, Excel, PDF und HTML stehen als **Standard-Skills** in der Liste; sie lassen sich nicht abschalten, aber eigene Skills gehen ihnen vor. Skripte in einem Skill werden **nie ausgeführt**, und importierte Skills gelten als fremder Inhalt: Danach fragt die KI vor Änderungen in Home Assistant oder bei GitHub nach.
+
+Mehr: [Skills](../copilot/DOCS.md#skills-ab-0350).
+
 ## GitHub
 
 Mit einem GitHub-Token (`github_token`) arbeitet die KI mit deinen Repositories: lesen, Code durchsuchen, Issues und Pull Requests ansehen, und mit Schreibrecht Dateien einchecken, Zweige und Pull Requests anlegen. Jede Änderung wird im Chat bestätigt; Commits auf den Hauptzweig, Workflow-Dateien und das Mergen immer. Mit `github_repos` beschränkst du die KI auf bestimmte Repositories.

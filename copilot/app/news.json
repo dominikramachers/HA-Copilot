@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.35.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich lerne deine Anleitungen",
+          "text": "Du kannst mir Skills mitgeben, zum Beispiel für ein Programm oder einen festen Ablauf. Ich nutze sie von selbst, wenn sie passen. Du findest sie im Konto-Menü und im Projekt-Menü."
+        },
+        "en": {
+          "title": "I can learn your instructions",
+          "text": "You can give me skills, for example for a program or a fixed procedure. I use them on my own when they fit. You find them in the account menu and in the project menu."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.34.1",
     "items": [
       {

@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.34.1.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.35.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -288,6 +288,19 @@ Damit die KI deine Home-Assistant-Umgebung von Anfang an kennt, liest das Add-on
 - **Für die KI:** Die wichtigsten Einträge (System, Etagen und Bereiche, Entitäten je Typ, Integrationen, Personen) stehen im Kontext, höchstens etwa 3500 Zeichen; den Rest liest sie mit `overview_read` (ohne Thema: Liste der Themen). Das Gespräch bleibt dadurch schlank.
 - **Ablage:** Jeder Lauf ersetzt die „HA · “-Einträge vollständig (alles oder nichts; schlägt ein Lauf fehl, bleibt der alte Stand). Sie zählen nicht gegen die 150 Einträge des Haushalts, erscheinen nicht in der Liste „Haushalt“ und sind weder von der KI noch von Hand änderbar. Eigene Einträge mit dem Thema „HA · …“ sind nicht möglich.
 - **Status:** Während des Einlesens zeigt ein Hinweis oben den Fortschritt (Schritt x von 7), danach kurz das Ergebnis oder bei Fehlern „Erneut versuchen“. Im Dialog „Gedächtnis“ zeigt der Bereich „Home Assistant-Überblick“ Stand, Anzahl und die Einträge.
+
+## Skills (ab 0.35.0)
+
+Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, zum Beispiel „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Das Format ist das von Anthropic: ein Ordner mit `SKILL.md` (Kopf mit `name` und `description`, danach die Anleitung) und optional `references/`, `assets/` und `scripts/`.
+
+- **Wo:** Konto-Menü, **Skills** (gelten in allen Chats der Person), und Projekt-Menü, **Skills** (nur in Chats dieses Projekts). Ein Projekt-Skill mit gleichem Namen ersetzt in diesem Projekt das globale. Jede Person hat ihre eigenen; niemand sieht die Skills anderer.
+- **Hinzufügen:** **Skill importieren** nimmt eine einzelne `SKILL.md`, ein `.skill` oder ein ZIP (mit dem Ordner darin oder flach). Vor dem Speichern zeigt eine Vorschau Name, Beschreibung, Dateien, Warnungen und Übersprungenes; dasselbe Skill erneut importiert ersetzt das vorhandene. **Selbst schreiben** legt ein Skill aus Name, Beschreibung („wann nutzen?“) und Anleitung an. Jedes Skill lässt sich ein- und ausschalten, ansehen, als `.skill` sichern und löschen. Eigene Skills sind auch in „Meine Daten“ (ZIP) enthalten, unter `skills/`.
+- **So nutzt die KI sie:** In der Systemanweisung stehen nur Name und Beschreibung der eingeschalteten Skills. Passt eine Aufgabe, lädt die KI das Skill mit `skill_load` (Anleitung plus Liste der weiteren Dateien) und liest Dateien daraus bei Bedarf mit `skill_file`. Im Chat steht dann „Skill genutzt: <Name>“, die Warteanzeige zeigt die Lupe. Auch **geplante Aufgaben** können die globalen Skills der Person nutzen (nur lesend).
+- **Standard-Skills:** Die mitgelieferten Gestaltungs-Leitfäden (Grundregeln, Word, PowerPoint, Excel, PDF, HTML) stehen oben in der Liste (nur ansehen). Sie sind immer an und lassen sich nicht ausschalten. **Eigene und importierte Skills gehen ihnen vor**, wenn sie zur Aufgabe passen (zum Beispiel ein Design-Skill für ein bestimmtes Projekt); die Standardregeln gelten für das, was das Skill offen lässt. Bei neuen Dateien weist die automatisch gelieferte Regelantwort auf passende Skills hin.
+- **Skripte werden nie ausgeführt.** `scripts/` wird wie jede andere Datei als Text gespeichert und kann von der KI gelesen und als Vorlage genutzt werden; der Import weist darauf hin. Das Add-on hat keine Umgebung, in der fremder Code sicher liefe (es hält Zugangsdaten und Datenbank).
+- **Importierte Skills sind Fremdinhalt.** Wie Dateianhänge oder Webseiten gelten sie als möglicherweise eingeschleuste Anweisungen: Hat die KI in einer Antwort ein importiertes Skill geladen, fragt sie danach vor jeder Änderung in Home Assistant, bei GitHub, im Gedächtnis und vor Bildern erst nach (Aktionsart `skill-ext`). Selbst geschriebene Skills (`skill`) lösen das nicht aus. Im normalen Gebrauch fällt das nur bei Änderungen auf, die nach dem Laden eines importierten Skills folgen.
+- **Grenzen:** `SKILL.md` höchstens 40 000 Zeichen, `description` 1024, je Skill 40 Dateien und 500 000 Zeichen Text, 4 MB je Hochladen, 60 Skills je Person. Namen: Kleinbuchstaben, Ziffern, Bindestriche (höchstens 64). Binärdateien (Bilder, Programme) werden übersprungen.
+- **Technik:** Tabellen `skills` (Bereich je Person; `project_id` leer = global) und `skill_files` (Datenbankschema 15, in der HA-Sicherung enthalten). Schnittstellen: `GET/POST /api/skills` (`?project=` bzw. `project_id`), `POST /api/skills/preview`, `POST /api/skills/new`, `GET/PATCH/DELETE /api/skills/{id}`, `GET /api/skills/{id}/file?path=`, `GET /api/skills/{id}/export`, `GET /api/skills/standard/{name}`. Keine neuen Optionen.
 
 ## GitHub (ab 0.19.0)
 

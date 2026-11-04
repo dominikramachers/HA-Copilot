@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.35.0
+- **Skills.** Die KI kann Anleitungen („Skills“) nutzen, die du ihr gibst, global je Person (Konto-Menü, **Skills**) oder je Projekt (Projekt-Menü, **Skills**). Format wie bei Anthropic: `SKILL.md` mit Kopf (`name`, `description`) plus optional `references/`, `assets/`, `scripts/`. Import einer `SKILL.md`, eines `.skill` oder ZIP mit **Vorschau** vor dem Speichern, oder **selbst schreiben**; ein- und ausschalten, ansehen, als `.skill` sichern, löschen. Details und Grenzen: DOCS, Abschnitt „Skills“.
+- **Nachladen statt Dauer-Ballast.** In der Systemanweisung stehen nur Name und Beschreibung der eingeschalteten Skills (höchstens 6000 Zeichen); die KI lädt die Anleitung mit `skill_load` und weitere Dateien mit `skill_file`. Projekt-Skills gehen gleichnamigen globalen vor. Der Chat zeigt „Skill genutzt: <Name>“, die Warteanzeige die Lupe, die Zusammenfassung „Skill genutzt“.
+- **Standard-Skills.** Die Gestaltungs-Leitfäden aus `design/*.md` stehen read-only und nicht abschaltbar oben in der globalen Liste. Eigene und importierte Skills haben Vorrang (Anweisung in der Systemanweisung; die automatisch gelieferte Regelantwort von `file_create` verweist auf passende Skills, neuer Parameter `user_skills` an `OutboxToolbox`).
+- **Sicherheit.** Skripte in Skills werden **nie ausgeführt**; sie sind lesbarer Text, der Import warnt. Importierte Skills sind Fremdinhalt: Aktionsart `skill-ext` steht in allen „Fremdinhalt gelesen“-Regeln (`main.py`), danach fragt die KI vor Änderungen in Home Assistant, bei GitHub, im Gedächtnis und vor Bildern nach. Eigene Skills (`skill`) lösen das nicht aus. Import: ZIP-Prüfung (Pfade ohne `..`, nur Text, Größen- und Dateigrenzen, `__MACOSX` und versteckte Dateien ignoriert), Namen `[a-z0-9-]`.
+- **Geplante Aufgaben** nutzen die globalen Skills der Person (nur lesend). „Meine Daten“ enthält die eigenen Skills unter `skills/`.
+- **Datenbankschema 15:** Tabellen `skills` und `skill_files` (`CREATE TABLE IF NOT EXISTS`, Projekt-Skills werden beim Löschen des Projekts entfernt). Neue Schnittstellen unter `/api/skills`. Keine neuen Optionen.
+
 ## 0.34.1
 - **Schreibende Feder statt Stift.** Beim Erstellen und Bearbeiten von Dateien und Bildern führt eine Feder (Umriss in der Akzentfarbe) über eine Wellenlinie, die sich beim Schreiben aufbaut. Die übrigen Symbole (Punkte, Lupe, Blitz) bleiben. Mit „Bewegung reduzieren“ steht die Feder still am Ende der Linie.
 - Keine neuen Optionen, kein neues Datenbankschema.

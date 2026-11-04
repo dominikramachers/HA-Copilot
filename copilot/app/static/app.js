@@ -38,6 +38,7 @@ const ICONS = {
   eye: ["M2.5 12C3.5 10.5 7 6 12 6s8.5 4.5 9.5 6c-1 1.5-4.5 6-9.5 6s-8.5-4.5-9.5-6z", "M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"],
   eyeOff: ["M3 3l18 18", "M10.6 6.1A9.6 9.6 0 0 1 12 6c5 0 8.5 4.5 9.5 6a14 14 0 0 1-3.2 3.6M6.5 7.6A14 14 0 0 0 2.5 12c1 1.5 4.5 6 9.5 6 1.5 0 2.8-.4 4-1", "M9.9 10a3 3 0 0 0 4.1 4.1"],
   stack: ["M7 5h10M5 9h14M4 13h16l-1.5 6h-13z"],
+  skill: ["M6 4h11a2 2 0 0 1 2 2v13H8a2 2 0 0 1-2-2z", "M6 17a2 2 0 0 1 2-2h11", "M10 8h5"],
   memory: ["M12 3a5 5 0 0 0-5 5c0 2 1 3 2 4v2h6v-2c1-1 2-2 2-4a5 5 0 0 0-5-5z", "M10 18h4M10.5 21h3"],
   sun: ["M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z", "M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"],
   logout: ["M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h11"],
@@ -888,6 +889,7 @@ async function projectMenu(project, anchor) {
     { value: "pin", icon: "pin", label: project.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" },
     { value: "instructions", icon: "note", label: project.instructions ? tr("Anweisungen bearbeiten") : tr("Anweisungen festlegen"), key: "A" },
     { value: "knowledge", icon: "stack", label: project.knowledge ? tr("Wissen verwalten ({0})", project.knowledge) : tr("Wissen hinzufügen"), key: "W" },
+    { value: "skills", icon: "skill", label: tr("Skills"), key: "S" },
     { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" },
     { divider: true },
     { value: "delete", icon: "trash", label: tr("Projekt löschen"), danger: true, key: "D" },
@@ -897,6 +899,7 @@ async function projectMenu(project, anchor) {
     : await openSheet({ title: project.name, items: entries.filter((e) => !e.divider) });
   if (choice === "new") { startNew(project.id); return; }
   if (choice === "knowledge") { await openKnowledge(project); await loadAll().catch(() => {}); return; }
+  if (choice === "skills") { await openSkills(project); return; }
   try {
     if (choice === "pin") {
       await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ pinned: !project.pinned }) });
@@ -1276,6 +1279,223 @@ async function openKnowledge(project) {
   });
 }
 
+// ------------------------------------------------------------------- Skills
+
+const SKILL_ACCEPT = ".skill,.zip,.md,text/markdown,text/plain";
+const SKILL_MAX = 4 * 1024 * 1024;
+
+// Aufklappbarer Text, der erst beim Öffnen geladen wird.
+function skillText(label, load) {
+  const box = node("details", "skill-more");
+  const pre = node("pre", "skill-text");
+  box.append(node("summary", "", label), pre);
+  let loaded = false;
+  box.addEventListener("toggle", async () => {
+    if (!box.open || loaded) return;
+    loaded = true;
+    pre.textContent = tr("Lädt …");
+    try { pre.textContent = await load(); } catch { loaded = false; pre.textContent = tr("Das Skill ist gerade nicht erreichbar."); }
+  });
+  return box;
+}
+
+function skillsPanel(project) {
+  const query = project ? `?project=${encodeURIComponent(project.id)}` : "";
+  return (body) => {
+    const view = { preview: null, writing: false, busy: false };
+    const draw = async () => {
+      let data;
+      try { data = await api(`api/skills${query}`); } catch { body.replaceChildren(node("p", "mem-empty", tr("Die Skills sind gerade nicht erreichbar."))); return; }
+      const parts = [];
+      parts.push(node("p", "mem-hint", project
+        ? tr("Skills nur für dieses Projekt. Heißt eines wie ein globales Skill, gilt in diesem Projekt das Projekt-Skill.")
+        : tr("Zum Beispiel für eine bestimmte Software oder einen festen Ablauf. Die KI nutzt ein Skill von selbst, wenn die Aufgabe dazu passt. Hier gelten sie in allen deinen Chats.")));
+
+      const buttons = node("div", "skill-actions");
+      const picker = node("input");
+      picker.type = "file";
+      picker.accept = SKILL_ACCEPT;
+      picker.hidden = true;
+      const imp = node("button", "pill primary know-add");
+      imp.type = "button";
+      imp.append(icon("upload"), node("span", "", tr("Skill importieren")));
+      imp.disabled = view.busy;
+      imp.addEventListener("click", () => picker.click());
+      const write = node("button", "pill ghost know-add");
+      write.type = "button";
+      write.append(icon("edit"), node("span", "", tr("Selbst schreiben")));
+      write.addEventListener("click", () => { view.writing = !view.writing; view.preview = null; draw(); });
+      buttons.append(imp, write, picker);
+      parts.push(buttons);
+      const status = node("p", "mem-hint know-status");
+      status.setAttribute("role", "status");
+      parts.push(status);
+      picker.addEventListener("change", async () => {
+        const file = picker.files[0];
+        picker.value = "";
+        if (!file || view.busy) return;
+        if (file.size > SKILL_MAX) { status.textContent = tr("„{0}“ ist zu groß (höchstens {1} MB).", file.name, SKILL_MAX / 1024 / 1024); return; }
+        view.busy = true;
+        imp.disabled = true;
+        status.textContent = tr("Prüfe {0} …", file.name);
+        try {
+          const dataB64 = await toBase64(file);
+          const preview = await api("api/skills/preview", { method: "POST", body: JSON.stringify({ name: file.name, data: dataB64, project_id: project?.id || null }) });
+          view.preview = { ...preview, data: dataB64, file: file.name };
+          view.writing = false;
+          view.busy = false;
+          draw();
+        } catch (err) {
+          view.busy = false;
+          imp.disabled = false;
+          status.textContent = `${file.name}: ${errorText(err, tr("Das Skill konnte nicht gelesen werden."))}`;
+        }
+      });
+
+      if (view.preview) parts.push(skillPreviewCard(view, project, draw));
+      if (view.writing) parts.push(skillWriteForm(view, project, draw));
+
+      const list = node("div", "skill-list");
+      if (!project && data.standard.length) {
+        const box = node("section", "mem-section");
+        box.append(node("h4", "", tr("Standard-Skills")), node("p", "mem-hint", tr("Mitgeliefert, immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
+        for (const s of data.standard) {
+          const row = node("article", "skill-row");
+          const text = node("div", "skill-title");
+          text.append(node("b", "", s.label), node("span", "skill-badge", tr("Standard")));
+          const head = node("div", "skill-head");
+          head.append(text);
+          row.append(head, node("p", "skill-desc", s.description));
+          row.append(skillText(tr("Regeln ansehen"), async () => (await api(`api/skills/standard/${encodeURIComponent(s.name)}`)).text));
+          box.append(row);
+        }
+        list.append(box);
+      }
+      const own = node("section", "mem-section");
+      own.append(node("h4", "", project ? tr("Skills dieses Projekts") : tr("Meine Skills")));
+      if (!data.skills.length) own.append(node("p", "mem-empty", project ? tr("Noch keine Skills in diesem Projekt.") : tr("Noch keine eigenen Skills. Importiere eine SKILL.md oder ein .skill oder schreibe selbst eines.")));
+      for (const s of data.skills) own.append(skillRow(s, draw));
+      list.append(own);
+      parts.push(list);
+      body.replaceChildren(...parts);
+    };
+    draw();
+  };
+}
+
+function skillRow(s, redraw) {
+  const row = node("article", "skill-row" + (s.enabled ? "" : " off"));
+  const text = node("div", "skill-title");
+  text.append(node("b", "", s.name));
+  if (s.imported) text.append(node("span", "skill-badge", tr("importiert")));
+  const toggle = node("button", "sched-switch");
+  toggle.type = "button";
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-checked", String(s.enabled));
+  toggle.setAttribute("aria-label", s.enabled ? tr("{0} ausschalten", s.name) : tr("{0} einschalten", s.name));
+  toggle.title = s.enabled ? tr("Ausschalten") : tr("Einschalten");
+  toggle.append(node("span", "knob"));
+  toggle.addEventListener("click", async () => {
+    try { await api(`api/skills/${s.id}`, { method: "PATCH", body: JSON.stringify({ enabled: !s.enabled }) }); redraw(); } catch { toast(tr("Das hat nicht geklappt.")); }
+  });
+  const head = node("div", "skill-head");
+  head.append(text, toggle);
+  row.append(head, node("p", "skill-desc", s.description));
+  const files = trn(s.files, "1 Datei", "{0} Dateien");
+  row.append(node("small", "mem-meta", `${files} · ${tr("{0} Text", formatSize(s.size))}`));
+  row.append(skillText(tr("Anleitung ansehen"), async () => (await api(`api/skills/${s.id}`)).skill_md));
+  const tools = node("div", "skill-tools");
+  const exp = node("button", "mem-del");
+  exp.type = "button";
+  exp.title = tr("Als .skill sichern");
+  exp.setAttribute("aria-label", tr("{0} als .skill sichern", s.name));
+  exp.append(icon("download"));
+  exp.addEventListener("click", async () => {
+    try { await downloadFrom(`api/skills/${s.id}/export`, `${s.name}.skill`); } catch { toast(tr("Sichern hat nicht geklappt.")); }
+  });
+  tools.append(exp, confirmButton(tr("{0} entfernen", s.name), async () => {
+    try { await api(`api/skills/${s.id}`, { method: "DELETE" }); redraw(); } catch { toast(tr("Entfernen hat nicht geklappt.")); }
+  }));
+  row.append(tools);
+  return row;
+}
+
+function skillPreviewCard(view, project, redraw) {
+  const p = view.preview;
+  const card = node("section", "skill-preview");
+  card.append(node("h4", "", tr("Das wird hinzugefügt")), node("b", "", p.name), node("p", "skill-desc", p.description));
+  card.append(node("small", "mem-meta", `${trn(p.files.length, "1 Datei", "{0} Dateien")} · ${tr("{0} Text", formatSize(p.size))}`));
+  if (p.replaces) card.append(node("p", "mem-hint", tr("Ein Skill mit diesem Namen gibt es schon. Es wird ersetzt.")));
+  for (const w of p.warnings) card.append(node("p", "mem-hint", w));
+  if (p.skipped.length) {
+    const list = node("ul", "know-skipped");
+    for (const sk of p.skipped.slice(0, 8)) list.append(node("li", "", `${sk.name}: ${sk.reason}`));
+    card.append(node("p", "mem-hint", tr("Nicht übernommen:")), list);
+  }
+  card.append(node("p", "mem-hint", tr("Ein importiertes Skill gilt als fremder Inhalt. Hat die KI eines genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
+  const foot = node("div", "skill-actions");
+  const add = node("button", "pill primary", tr("Hinzufügen"));
+  add.type = "button";
+  const cancel = node("button", "pill ghost", tr("Abbrechen"));
+  cancel.type = "button";
+  cancel.addEventListener("click", () => { view.preview = null; redraw(); });
+  add.addEventListener("click", async () => {
+    add.disabled = true;
+    try {
+      await api("api/skills", { method: "POST", body: JSON.stringify({ name: p.file, data: p.data, project_id: project?.id || null }) });
+      view.preview = null;
+      toast(tr("Skill „{0}“ hinzugefügt.", p.name));
+      redraw();
+    } catch (err) { toast(errorText(err, tr("Hinzufügen hat nicht geklappt."))); add.disabled = false; }
+  });
+  foot.append(add, cancel);
+  card.append(foot);
+  return card;
+}
+
+function skillWriteForm(view, project, redraw) {
+  const form = node("form", "mem-form");
+  form.autocomplete = "off";
+  const name = node("input", "field");
+  name.maxLength = 64;
+  name.placeholder = tr("Name, z. B. angebote-schreiben");
+  name.setAttribute("aria-label", tr("Name"));
+  const description = node("textarea", "field area");
+  description.rows = 2;
+  description.maxLength = 1024;
+  description.placeholder = tr("Wann soll die KI es nutzen? z. B. Wenn ich ein Angebot für einen Kunden brauche");
+  description.setAttribute("aria-label", tr("Beschreibung"));
+  const instructions = node("textarea", "field area");
+  instructions.rows = 7;
+  instructions.maxLength = 40000;
+  instructions.placeholder = tr("Was soll die KI dann tun? Schritte, Regeln, Beispiele …");
+  instructions.setAttribute("aria-label", tr("Anleitung"));
+  const save = node("button", "pill primary", tr("Speichern"));
+  save.type = "submit";
+  form.append(node("h4", "", tr("Neues Skill")), name, description, instructions, save);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!description.value.trim() || !instructions.value.trim()) { toast(tr("Bitte Beschreibung und Anleitung ausfüllen.")); return; }
+    save.disabled = true;
+    try {
+      await api("api/skills/new", { method: "POST", body: JSON.stringify({ name: name.value, description: description.value, instructions: instructions.value, project_id: project?.id || null }) });
+      view.writing = false;
+      toast(tr("Skill gespeichert."));
+      redraw();
+    } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); save.disabled = false; }
+  });
+  return form;
+}
+
+async function openSkills(project) {
+  await openSheet({
+    title: project ? tr("Skills: {0}", project.name) : tr("Skills"),
+    sub: project ? tr("Anleitungen, die die KI nur in diesem Projekt nutzt.") : tr("Anleitungen, die die KI bei Bedarf selbst nachschlägt."),
+    ok: tr("Fertig"),
+    panel: skillsPanel(project),
+  });
+}
+
 // ------------------------------------------------------------- Nachrichten
 
 function greeting() {
@@ -1414,6 +1634,7 @@ function actionsEl(list = [], open = false) {
     const changes = ha.filter((a) => a.kind !== "read").length;
     const wissen = items.filter((a) => a.kind === "knowledge").length;
     const memory = items.filter((a) => a.kind === "memory").length;
+    const skillsUsed = items.filter((a) => (a.kind === "skill" || a.kind === "skill-ext") && a.label.startsWith(tr("Skill genutzt"))).length;
     const made = items.filter((a) => a.kind === "file" && a.status === "ok").length;
     const edited = items.filter((a) => a.kind === "file-edit" && a.status === "ok").length;
     const looked = items.filter((a) => a.kind === "file-read").length;
@@ -1434,6 +1655,7 @@ function actionsEl(list = [], open = false) {
     if (ha.length) parts.push(trn(ha.length, "1 Aktion in Home Assistant", "{0} Aktionen in Home Assistant") + (changes ? trn(changes, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (gh.length) parts.push(trn(gh.length, "1 Aktion bei GitHub", "{0} Aktionen bei GitHub") + (ghChanges ? trn(ghChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (wissen) parts.push(trn(wissen, "im Wissen nachgeschlagen", "{0}× im Wissen nachgeschlagen"));
+    if (skillsUsed) parts.push(trn(skillsUsed, "Skill genutzt", "{0} Skills genutzt"));
     if (memory) parts.push(trn(memory, "Gedächtnis aktualisiert", "Gedächtnis {0}× aktualisiert"));
     if (made) parts.push(trn(made, "Datei erstellt", "{0} Dateien erstellt"));
     if (edited) parts.push(trn(edited, "Datei bearbeitet", "{0} Dateien bearbeitet"));
@@ -2314,7 +2536,7 @@ const THINK_WORDS = [tr("Denkt nach"), tr("Überlegt"), tr("Tüftelt"), tr("Sort
 // Welches Zeichen zur Tätigkeit passt: Feder beim Schreiben von Dateien und Bildern, Lupe beim Suchen und Lesen, Blitz bei Aktionen, sonst Punkte.
 const BUSY_ART = {
   file: "pen", "file-edit": "pen", image: "pen",
-  web: "look", read: "look", knowledge: "look", "memory-read": "look", "gh-read": "look", "file-read": "look",
+  web: "look", read: "look", knowledge: "look", skill: "look", "skill-ext": "look", "memory-read": "look", "gh-read": "look", "file-read": "look",
   execute: "act", write: "act", "gh-write": "act", memory: "act",
 };
 const HA_KINDS = ["read", "execute", "write"];
@@ -2331,6 +2553,10 @@ function recapOf(actions) {
     case "file-edit": return trn(n, "Datei bearbeitet", "{0} Dateien bearbeitet");
     case "image": return trn(n, "Bild erzeugt", "{0} Bilder erzeugt");
     case "file-read": return trn(n, "Datei angesehen", "{0} Dateien angesehen");
+    case "skill": case "skill-ext": {
+      const used = done.filter((a) => a.kind === "skill" || a.kind === "skill-ext").length;
+      return trn(used, "Skill genutzt", "{0} Skills genutzt");
+    }
     case "memory": return tr("Gedächtnis aktualisiert");
     case "web": {
       const web = done.filter((a) => a.kind === "web");
@@ -3753,6 +3979,7 @@ const THEMES = [["auto", tr("Auto")], ["light", tr("Hell")], ["dark", tr("Dunkel
 function accountEntries() {
   const entries = [];
   if (state.me?.memory) entries.push({ value: "memory", icon: "memory", label: tr("Gedächtnis") });
+  entries.push({ value: "skills", icon: "skill", label: tr("Skills") });
   entries.push({ value: "data", icon: "data", label: tr("Meine Daten") });
   entries.push({ value: "guide", icon: "info", label: tr("Kurzanleitung") });
   entries.push({ value: "news", icon: "bolt", label: tr("Das ist neu") });
@@ -3799,6 +4026,7 @@ async function accountMenu() {
     button.setAttribute("aria-expanded", "false");
   }
   if (choice === "memory") { closeMenu(); openMemory(); }
+  else if (choice === "skills") { closeMenu(); openSkills(null).catch(() => {}); }
   else if (choice === "data") { closeMenu(); openMyData().catch(() => {}); }
   else if (choice === "setup") { closeMenu(); openSetup().catch(() => {}); }
   else if (choice === "guide") { closeMenu(); openIntro().catch(() => {}); }

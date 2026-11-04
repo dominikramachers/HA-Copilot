@@ -2251,10 +2251,12 @@ class OutboxToolbox:
         author: str = "HA Copilot",
         edit: bool = True,
         auto_guides: bool = False,
+        user_skills: bool = False,
     ) -> None:
         self.store = store
         self.profile_id = profile_id
         self.chat_id = chat_id
+        self.user_skills = user_skills  # der Nutzer hat Skills hinterlegt: sie gehen den Standardregeln vor
         self._record = record
         self._next_id = next_id
         self.keep_days = keep_days
@@ -2297,7 +2299,9 @@ class OutboxToolbox:
             parts.append(design.guide("themen"))
         return (
             "Die Datei ist noch nicht erstellt. Zuerst gelten diese Gestaltungsregeln (automatisch geladen, design_guide musst du nicht aufrufen). "
-            "Plane Inhalt, Aufbau und Thema danach und rufe file_create dann mit dem gleichen Namen erneut auf.\n\n" + "\n\n".join(parts)
+            "Plane Inhalt, Aufbau und Thema danach und rufe file_create dann mit dem gleichen Namen erneut auf."
+            + (" Hat der Nutzer ein passendes Skill hinterlegt (siehe Skill-Liste), gilt es vor diesen Regeln: lade es mit skill_load, falls noch nicht geschehen." if self.user_skills else "")
+            + "\n\n" + "\n\n".join(parts)
         )
 
     async def file_create(self, args: dict) -> str:
