@@ -89,11 +89,17 @@
 .project-row .more { width: 28px; }
 .project-children .hint { padding: 4px 12px 6px; }
 
-.project-row { padding-left: 6px; }
-.project-row > .icon { width: 14px; height: 14px; color: var(--text-2); stroke-width: 2.4; transition: transform .18s; }
-.project-row.open > .icon:first-child { transform: rotate(90deg); }
-.project-row > .icon.pin { width: 14px; height: 14px; margin-right: 2px; color: var(--accent); transform: none; }
-.project-row .name { padding-left: 6px; }
+.project-row { padding-left: 6px; margin-bottom: 4px; }
+.project-row > .icon.folder { flex: none; width: 18px; height: 18px; color: var(--text-2); stroke-width: 1.8; transition: color .18s; }
+.project-row > .icon.folder path { transition: opacity .18s, transform .22s cubic-bezier(.2, .8, .2, 1); transform-origin: 3px 18px; transform-box: view-box; }
+.project-row > .icon.folder .f-open { opacity: 0; transform: scaleY(.9); }
+.project-row.open > .icon.folder { color: var(--text); }
+.project-row.open > .icon.folder .f-closed { opacity: 0; }
+.project-row.open > .icon.folder .f-open { opacity: 1; transform: none; }
+.project-row.open { background: var(--chip); }
+.project-row > .icon.pin { width: 14px; height: 14px; margin-right: 2px; color: var(--accent); stroke-width: 2.4; }
+.project-row .name { padding-left: 8px; }
+@media (prefers-reduced-motion: reduce) { .project-row > .icon.folder, .project-row > .icon.folder path { transition: none; } }
 .project-children { margin: 0 0 4px 16px; padding-left: 8px; border-left: 1px solid var(--line-2); }
 .show-all { display: block; width: 100%; margin-top: 4px; padding: 9px 12px; border-radius: var(--r-1); text-align: left; font-size: 13.5px; font-weight: 600; color: var(--accent); }
 .show-all:hover { background: var(--accent-soft); }
@@ -844,7 +850,7 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .data-block:first-child { border-top: 0; padding-top: 4px; }
 .data-block b { font-size: 15px; }
 .setup-status { margin: 4px 2px 0; }
-.setup-list { display: grid; gap: 16px; margin: 12px 0; max-height: min(56vh, 520px); overflow-y: auto; overscroll-behavior: contain; }
+.setup-list { display: grid; gap: 16px; margin: 12px 0; } /* gescrollt wird nur das Fenster (.sheet-panel); eine zweite Scrollfläche darin schnitt den letzten Punkt ab */
 .setup-group { display: grid; gap: 6px; }
 .setup-list .setup-group > h3 { margin: 0 2px; font-size: 12.5px; font-weight: 650; line-height: 1.3; color: var(--muted); }
 .setup-item { border: 1px solid var(--line-2); border-radius: var(--r-2); }
