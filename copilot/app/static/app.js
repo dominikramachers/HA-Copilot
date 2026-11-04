@@ -565,6 +565,26 @@ function hoverTip(item, describe) {
 document.addEventListener("scroll", hideTip, true);
 document.addEventListener("keydown", hideTip, true);
 
+// Ordner-Symbol der Projekte: geschlossen und geöffnet liegen übereinander, CSS blendet beim Öffnen weich über.
+function folderIcon() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "icon folder");
+  const shapes = [
+    ["f-closed", "M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.2h7.5A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"],
+    ["f-open", "M3 17.5V7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.2h6.5A2.5 2.5 0 0 1 20 9.7V10.5"],
+    ["f-open", "M3 17.7l2-6.6a1.6 1.6 0 0 1 1.5-1.1H21a1 1 0 0 1 1 1.3l-1.9 6.7a1.6 1.6 0 0 1-1.5 1.2H5a2 2 0 0 1-2-1.5z"],
+  ];
+  for (const [cls, d] of shapes) {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("class", cls);
+    svg.append(path);
+  }
+  return svg;
+}
+
 function sectionHead(label, extra = null) {
   const head = node("div", "sec-head");
   head.append(node("span", "sec-label", label));
@@ -594,7 +614,7 @@ function renderProjects(root) {
     const label = node("span", "name", project.name);
     if (project.instructions) { const dot = node("i", "dot"); dot.title = tr("Projektanweisungen aktiv"); label.append(dot); }
     if (project.knowledge) { const dot = node("i", "dot know"); dot.title = tr("{0} Wissensdateien", project.knowledge); label.append(dot); }
-    row.append(icon("chevron"), label);
+    row.append(folderIcon(), label);
     if (project.pinned) { const pin = icon("pin"); pin.classList.add("pin"); row.append(pin); }
     if (!open && state.chats.some((c) => c.project_id === project.id && c.running)) row.append(runningMark());
     else if (!open && state.chats.some((c) => c.project_id === project.id && c.unread)) row.append(unreadDot());
