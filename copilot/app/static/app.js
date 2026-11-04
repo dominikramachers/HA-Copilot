@@ -3529,6 +3529,132 @@ async function openSetup() {
   });
 }
 
+// ------------------------------------------------- Einführung und Neuerungen
+
+const isTouch = () => window.matchMedia("(pointer: coarse)").matches;
+let welcomeShown = false; // pro Seitenaufruf höchstens einmal von selbst
+
+function introRow(iconName, title, text) {
+  const row = node("div", "intro-row");
+  const mark = node("span", "intro-mark");
+  mark.append(icon(iconName));
+  row.append(mark, node("div", "intro-text"));
+  row.lastChild.append(node("b", "", title), node("span", "", text));
+  return row;
+}
+
+function introGroup(heading, rows) {
+  const group = node("section", "intro-group");
+  group.append(node("h4", "", heading), ...rows);
+  return group;
+}
+
+function introCapabilities() {
+  const me = state.me || {};
+  const rows = [
+    introRow("chat", tr("Fragen und Texte"), tr("Ich beantworte Fragen, erkläre Dinge, schreibe und überarbeite Texte und helfe beim Planen.")),
+    introRow("file", tr("Dokumente erstellen"), tr("Auf Wunsch baue ich Word-Dokumente, Excel-Tabellen, PowerPoint-Präsentationen und PDFs, schön gestaltet und zum Herunterladen.")),
+    introRow("attach", tr("Dateien und Fotos lesen"), tr("Hänge Dokumente, Tabellen oder Fotos an, dann fasse ich sie zusammen oder werte sie aus.")),
+  ];
+  if (me.web) rows.push(introRow("globe", tr("Im Internet nachsehen"), tr("Für aktuelle Informationen suche ich im Web.")));
+  if (me.ha_access === "write") rows.push(introRow("bolt", tr("Dein Smarthome"), tr("Ich sehe nach, wie es zu Hause aussieht, und steuere auf Wunsch Geräte. Bei Änderungen frage ich vorher nach.")));
+  else if (me.ha_access === "read") rows.push(introRow("bolt", tr("Dein Smarthome"), tr("Ich sehe nach, wie es zu Hause aussieht, zum Beispiel Temperaturen, Lichter und Verbrauch.")));
+  if (me.memory) rows.push(introRow("memory", tr("Dinge merken"), tr("Ich kann mir merken, was für dich wichtig ist. Was gespeichert ist, siehst du im Menü unter „Gedächtnis“.")));
+  if (me.schedules) rows.push(introRow("clock", tr("Aufgaben planen"), tr("Ich erledige Aufgaben regelmäßig von selbst, zum Beispiel jeden Morgen eine Zusammenfassung.")));
+  return rows;
+}
+
+function introHowTo() {
+  if (isTouch()) {
+    return [
+      introRow("pen", tr("Schreiben"), tr("Tippe unten ins Eingabefeld und sende mit dem Pfeil.")),
+      introRow("upload", tr("Fotos und Dateien"), tr("Mit der Büroklammer hängst du Fotos und Dateien an.")),
+      introRow("reply", tr("Auf einen Satz antworten"), tr("Markiere in meiner Antwort einen Text und tippe auf „Antworten“, wenn du dich genau darauf beziehst.")),
+      introRow("chat", tr("Deine Chats"), tr("Das Chat-Symbol öffnet deine bisherigen Chats, das Plus beginnt ein neues Thema.")),
+    ];
+  }
+  return [
+    introRow("pen", tr("Schreiben"), tr("Schreibe unten ins Eingabefeld. Mit Enter sendest du, mit Umschalt und Enter beginnst du eine neue Zeile.")),
+    introRow("upload", tr("Fotos und Dateien"), tr("Ziehe Dateien einfach ins Fenster oder nutze die Büroklammer.")),
+    introRow("reply", tr("Auf einen Satz antworten"), tr("Markiere in meiner Antwort einen Text und wähle „Antworten“, wenn du dich genau darauf beziehst.")),
+    introRow("chat", tr("Deine Chats"), tr("Links findest du alle bisherigen Chats. Für ein neues Thema beginnst du am besten einen neuen Chat.")),
+  ];
+}
+
+function introPanel(body) {
+  const list = node("div", "intro-list");
+  list.append(
+    introGroup(tr("Das kann ich"), introCapabilities()),
+    introGroup(tr("So arbeitest du mit mir"), introHowTo()),
+    introGroup(tr("Gut zu wissen"), [
+      introRow("info", tr("Ich kann mich irren"), tr("Prüfe wichtige Angaben, bevor du dich darauf verlässt.")),
+      introRow("eye", tr("Deine Chats sind persönlich"), tr("Andere Personen sehen sie nicht.")),
+    ]),
+  );
+  body.append(list);
+}
+
+async function confirmWelcome(what) {
+  try {
+    await api("api/welcome/seen", { method: "POST", body: JSON.stringify({ what }) });
+    if (state.me) state.me.welcome = { intro: false, news: [] };
+  } catch { /* nächstes Mal erneut */ }
+}
+
+// ``first``: automatisch beim Anmelden; nur dann wird „Okay“ gemerkt. Aus dem Menü ist es nur ein Nachschlagen.
+async function openIntro(first = false) {
+  const name = state.me?.app_name || "HA Copilot";
+  const done = await openSheet({
+    title: tr("Hallo, ich bin {0}", name),
+    sub: tr("Dein KI-Assistent für Fragen, Texte, Dateien und mehr. Kurz erklärt, wie du mit mir arbeitest."),
+    ok: tr("Okay"),
+    panel: introPanel,
+  });
+  if (first && done === true) await confirmWelcome("intro");
+}
+
+// ``groups``: [{version?, items}]; ohne Version (Fenster nach einem Update) steht die Liste ohne Überschrift.
+function newsPanel(groups) {
+  return (body) => {
+    const list = node("div", "intro-list");
+    for (const group of groups) {
+      const rows = group.items.map((item) => introRow("bolt", item.title, item.text));
+      if (group.version) list.append(introGroup(tr("Version {0}", group.version), rows));
+      else { const plain = node("section", "intro-group"); plain.append(...rows); list.append(plain); }
+    }
+    body.append(list);
+  };
+}
+
+async function openNews(items, first = false) {
+  const done = await openSheet({
+    title: tr("Das ist neu"),
+    sub: tr("Das hat sich seit deinem letzten Besuch für dich geändert."),
+    ok: tr("Okay"),
+    panel: newsPanel([{ items }]),
+  });
+  if (first && done === true) await confirmWelcome("news");
+}
+
+async function openNewsHistory() {
+  let history = [];
+  try { history = await api("api/news"); } catch { /* leer */ }
+  await openSheet({
+    title: tr("Das ist neu"),
+    sub: tr("Die Neuerungen der letzten Versionen."),
+    ok: tr("Fertig"),
+    panel: newsPanel(history),
+  });
+}
+
+async function showWelcome() {
+  const welcome = state.me?.welcome;
+  if (!welcome || welcomeShown || sheetDone) return;
+  welcomeShown = true;
+  if (welcome.intro) await openIntro(true);
+  else if (welcome.news?.length) await openNews(welcome.news, true);
+}
+
 // ------------------------------------------------- Konto-Menü (unten in der Seitenleiste)
 
 const THEMES = [["auto", tr("Auto")], ["light", tr("Hell")], ["dark", tr("Dunkel")]];
@@ -3538,6 +3664,8 @@ function accountEntries() {
   const entries = [];
   if (state.me?.memory) entries.push({ value: "memory", icon: "memory", label: tr("Gedächtnis") });
   entries.push({ value: "data", icon: "data", label: tr("Meine Daten") });
+  entries.push({ value: "guide", icon: "info", label: tr("Kurzanleitung") });
+  entries.push({ value: "news", icon: "bolt", label: tr("Das ist neu") });
   if (state.me?.setup) entries.push({ value: "setup", icon: "setup", label: tr("Einrichtungsprüfung") });
   if (document.documentElement.dataset.themeSource !== "ha") {
     const current = window.kiTheme.get();
@@ -3583,6 +3711,8 @@ async function accountMenu() {
   if (choice === "memory") { closeMenu(); openMemory(); }
   else if (choice === "data") { closeMenu(); openMyData().catch(() => {}); }
   else if (choice === "setup") { closeMenu(); openSetup().catch(() => {}); }
+  else if (choice === "guide") { closeMenu(); openIntro().catch(() => {}); }
+  else if (choice === "news") { closeMenu(); openNewsHistory().catch(() => {}); }
   else if (choice === "logout") await logout();
   else if (typeof choice === "string" && choice.startsWith("theme:")) window.kiTheme.set(choice.slice(6));
 }
@@ -3649,6 +3779,7 @@ async function init() {
     setInterval(pollRunning, 3000);
     const again = rememberedActive();
     if (again && state.chats.some((c) => c.id === again)) await selectChat(again);
+    showWelcome().catch(() => {});
   } catch {
     $("who").textContent = tr("Nicht angemeldet");
   }

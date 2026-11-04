@@ -1,0 +1,67 @@
+[
+  {
+    "version": "0.33.0",
+    "items": [
+      {
+        "de": {
+          "title": "Kurzanleitung zum Start",
+          "text": "Wenn du dich zum ersten Mal anmeldest, erkläre ich dir kurz, wie du mit mir arbeitest. Die Anleitung und diese Neuerungen findest du jederzeit im Menü unten links."
+        },
+        "en": {
+          "title": "A quick start guide",
+          "text": "The first time you sign in, I briefly explain how to work with me. You can find the guide and this news at any time in the menu at the bottom left."
+        }
+      }
+    ]
+  },
+  {
+    "version": "0.32.0",
+    "items": [
+      {
+        "de": {
+          "title": "Auf einen Satz antworten",
+          "text": "Markiere einen Ausschnitt in meiner Antwort und tippe auf „Antworten“. Dann weiß ich genau, worauf du dich beziehst."
+        },
+        "en": {
+          "title": "Reply to a single passage",
+          "text": "Select a passage in my answer and tap \"Reply\". Then I know exactly what you are referring to."
+        }
+      },
+      {
+        "de": {
+          "title": "Neue Anmeldeseite",
+          "text": "Die Anmeldung ist aufgeräumter und passt besser zum Chat."
+        },
+        "en": {
+          "title": "New sign-in page",
+          "text": "The sign-in page is tidier and fits the chat better."
+        }
+      }
+    ]
+  },
+  {
+    "version": "0.31.0",
+    "items": [
+      {
+        "de": {
+          "title": "Schönere Präsentationen",
+          "text": "Meine PowerPoint-Folien sehen jetzt gestaltet aus: große Schrift, viel Platz, Karten für Stichpunkte und Bilder neben dem Text."
+        },
+        "en": {
+          "title": "Better-looking presentations",
+          "text": "My PowerPoint slides now look designed: large type, plenty of space, cards for key points and pictures next to the text."
+        }
+      },
+      {
+        "de": {
+          "title": "Seiten und Folien als HTML",
+          "text": "Ich kann Präsentationen auch als einzelne Webseite bauen, die sich in jedem Browser öffnen lässt."
+        },
+        "en": {
+          "title": "Pages and slides as HTML",
+          "text": "I can also build presentations as a single web page that opens in any browser."
+        }
+      }
+    ]
+  }
+]
