@@ -899,7 +899,7 @@ async function projectMenu(project, anchor) {
     : await openSheet({ title: project.name, items: entries.filter((e) => !e.divider) });
   if (choice === "new") { startNew(project.id); return; }
   if (choice === "knowledge") { await openKnowledge(project); await loadAll().catch(() => {}); return; }
-  if (choice === "skills") { await openSkills(project); return; }
+  if (choice === "skills") { openSkills(project.id).catch(() => {}); return; }
   try {
     if (choice === "pin") {
       await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ pinned: !project.pinned }) });
@@ -1279,115 +1279,81 @@ async function openKnowledge(project) {
   });
 }
 
-// ------------------------------------------------------------------- Skills
+// ------------------------------------------------------------------- Skills (eigene Seite)
 
 const SKILL_ACCEPT = ".skill,.zip,.md,text/markdown,text/plain";
 const SKILL_MAX = 4 * 1024 * 1024;
+const skillsUi = { mode: "list", tab: "mine", project: null, detail: null, preview: null, data: null, status: "", busy: false };
 
-// Aufklappbarer Text, der erst beim Öffnen geladen wird.
-function skillText(label, load) {
-  const box = node("details", "skill-more");
-  const pre = node("pre", "skill-text");
-  box.append(node("summary", "", label), pre);
-  let loaded = false;
-  box.addEventListener("toggle", async () => {
-    if (!box.open || loaded) return;
-    loaded = true;
-    pre.textContent = tr("Lädt …");
-    try { pre.textContent = await load(); } catch { loaded = false; pre.textContent = tr("Das Skill ist gerade nicht erreichbar."); }
-  });
-  return box;
+async function openSkills(projectId = null) {
+  if (!state.me) return;
+  setView("skills");
+  detachRun();
+  releaseRecent();
+  state.activeId = null;
+  rememberActive();
+  state.newProject = null;
+  state.heldUnread = null;
+  renderSide();
+  closeMenu();
+  setTitle(tr("Skills"));
+  Object.assign(skillsUi, { mode: "list", tab: "mine", project: projectOf(projectId) ? projectId : null, detail: null, preview: null, status: "", busy: false });
+  await loadSkills();
+  $("skills").scrollTop = 0;
 }
 
-function skillsPanel(project) {
-  const query = project ? `?project=${encodeURIComponent(project.id)}` : "";
-  return (body) => {
-    const view = { preview: null, writing: false, busy: false };
-    const draw = async () => {
-      let data;
-      try { data = await api(`api/skills${query}`); } catch { body.replaceChildren(node("p", "mem-empty", tr("Die Skills sind gerade nicht erreichbar."))); return; }
-      const parts = [];
-      parts.push(node("p", "mem-hint", project
-        ? tr("Skills nur für dieses Projekt. Heißt eines wie ein globales Skill, gilt in diesem Projekt das Projekt-Skill.")
-        : tr("Zum Beispiel für eine bestimmte Software oder einen festen Ablauf. Die KI nutzt ein Skill von selbst, wenn die Aufgabe dazu passt. Hier gelten sie in allen deinen Chats.")));
-
-      const buttons = node("div", "skill-actions");
-      const picker = node("input");
-      picker.type = "file";
-      picker.accept = SKILL_ACCEPT;
-      picker.hidden = true;
-      const imp = node("button", "pill primary know-add");
-      imp.type = "button";
-      imp.append(icon("upload"), node("span", "", tr("Skill importieren")));
-      imp.disabled = view.busy;
-      imp.addEventListener("click", () => picker.click());
-      const write = node("button", "pill ghost know-add");
-      write.type = "button";
-      write.append(icon("edit"), node("span", "", tr("Selbst schreiben")));
-      write.addEventListener("click", () => { view.writing = !view.writing; view.preview = null; draw(); });
-      buttons.append(imp, write, picker);
-      parts.push(buttons);
-      const status = node("p", "mem-hint know-status");
-      status.setAttribute("role", "status");
-      parts.push(status);
-      picker.addEventListener("change", async () => {
-        const file = picker.files[0];
-        picker.value = "";
-        if (!file || view.busy) return;
-        if (file.size > SKILL_MAX) { status.textContent = tr("„{0}“ ist zu groß (höchstens {1} MB).", file.name, SKILL_MAX / 1024 / 1024); return; }
-        view.busy = true;
-        imp.disabled = true;
-        status.textContent = tr("Prüfe {0} …", file.name);
-        try {
-          const dataB64 = await toBase64(file);
-          const preview = await api("api/skills/preview", { method: "POST", body: JSON.stringify({ name: file.name, data: dataB64, project_id: project?.id || null }) });
-          view.preview = { ...preview, data: dataB64, file: file.name };
-          view.writing = false;
-          view.busy = false;
-          draw();
-        } catch (err) {
-          view.busy = false;
-          imp.disabled = false;
-          status.textContent = `${file.name}: ${errorText(err, tr("Das Skill konnte nicht gelesen werden."))}`;
-        }
-      });
-
-      if (view.preview) parts.push(skillPreviewCard(view, project, draw));
-      if (view.writing) parts.push(skillWriteForm(view, project, draw));
-
-      const list = node("div", "skill-list");
-      if (!project && data.standard.length) {
-        const box = node("section", "mem-section");
-        box.append(node("h4", "", tr("Standard-Skills")), node("p", "mem-hint", tr("Mitgeliefert, immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
-        for (const s of data.standard) {
-          const row = node("article", "skill-row");
-          const text = node("div", "skill-title");
-          text.append(node("b", "", s.label), node("span", "skill-badge", tr("Standard")));
-          const head = node("div", "skill-head");
-          head.append(text);
-          row.append(head, node("p", "skill-desc", s.description));
-          row.append(skillText(tr("Regeln ansehen"), async () => (await api(`api/skills/standard/${encodeURIComponent(s.name)}`)).text));
-          box.append(row);
-        }
-        list.append(box);
-      }
-      const own = node("section", "mem-section");
-      own.append(node("h4", "", project ? tr("Skills dieses Projekts") : tr("Meine Skills")));
-      if (!data.skills.length) own.append(node("p", "mem-empty", project ? tr("Noch keine Skills in diesem Projekt.") : tr("Noch keine eigenen Skills. Importiere eine SKILL.md oder ein .skill oder schreibe selbst eines.")));
-      for (const s of data.skills) own.append(skillRow(s, draw));
-      list.append(own);
-      parts.push(list);
-      body.replaceChildren(...parts);
-    };
-    draw();
-  };
+async function loadSkills() {
+  const query = skillsUi.project ? `?project=${encodeURIComponent(skillsUi.project)}` : "";
+  try { skillsUi.data = await api(`api/skills${query}`); } catch (err) { skillsUi.data = null; skillsUi.status = errorText(err, tr("Die Skills sind gerade nicht erreichbar.")); }
+  if (state.view === "skills") renderSkills();
 }
 
-function skillRow(s, redraw) {
-  const row = node("article", "skill-row" + (s.enabled ? "" : " off"));
-  const text = node("div", "skill-title");
-  text.append(node("b", "", s.name));
-  if (s.imported) text.append(node("span", "skill-badge", tr("importiert")));
+function skillsGo(mode, extra = {}) {
+  Object.assign(skillsUi, { mode, status: "", ...extra });
+  renderSkills();
+  $("skills").scrollTop = 0;
+  $("skills-wrap").querySelector("h2")?.focus();
+}
+
+function renderSkills() {
+  const wrap = $("skills-wrap");
+  wrap.replaceChildren();
+  if (skillsUi.mode === "detail") renderSkillDetail(wrap);
+  else if (skillsUi.mode === "write") renderSkillWrite(wrap);
+  else if (skillsUi.mode === "preview") renderSkillPreview(wrap);
+  else renderSkillList(wrap);
+}
+
+function skillScopeText() {
+  const p = projectOf(skillsUi.project);
+  return p ? tr("Projekt „{0}“", p.name) : tr("Alle Chats");
+}
+
+function skillHead(wrap, title, intro, ...buttons) {
+  const head = node("div", "skills-top");
+  const heading = node("div", "");
+  const h = node("h2", "", title);
+  h.tabIndex = -1;
+  heading.append(h);
+  if (intro) heading.append(node("p", "skills-intro", intro));
+  head.append(heading);
+  if (buttons.length) {
+    const box = node("div", "skills-buttons");
+    box.append(...buttons);
+    head.append(box);
+  }
+  wrap.append(head);
+}
+
+function skillBack(wrap, label = tr("Zurück zu den Skills")) {
+  const back = node("button", "skills-back");
+  back.type = "button";
+  back.append(icon("chevron"), node("span", "", label));
+  back.addEventListener("click", () => skillsGo("list", { detail: null, preview: null }));
+  wrap.append(back);
+}
+
+function skillSwitch(s, after) {
   const toggle = node("button", "sched-switch");
   toggle.type = "button";
   toggle.setAttribute("role", "switch");
@@ -1395,105 +1361,313 @@ function skillRow(s, redraw) {
   toggle.setAttribute("aria-label", s.enabled ? tr("{0} ausschalten", s.name) : tr("{0} einschalten", s.name));
   toggle.title = s.enabled ? tr("Ausschalten") : tr("Einschalten");
   toggle.append(node("span", "knob"));
-  toggle.addEventListener("click", async () => {
-    try { await api(`api/skills/${s.id}`, { method: "PATCH", body: JSON.stringify({ enabled: !s.enabled }) }); redraw(); } catch { toast(tr("Das hat nicht geklappt.")); }
+  toggle.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    try {
+      await api(`api/skills/${s.id}`, { method: "PATCH", body: JSON.stringify({ enabled: !s.enabled }) });
+      s.enabled = !s.enabled;
+      await after();
+    } catch { toast(tr("Das hat nicht geklappt.")); }
   });
-  const head = node("div", "skill-head");
-  head.append(text, toggle);
-  row.append(head, node("p", "skill-desc", s.description));
-  const files = trn(s.files, "1 Datei", "{0} Dateien");
-  row.append(node("small", "mem-meta", `${files} · ${tr("{0} Text", formatSize(s.size))}`));
-  row.append(skillText(tr("Anleitung ansehen"), async () => (await api(`api/skills/${s.id}`)).skill_md));
-  const tools = node("div", "skill-tools");
-  const exp = node("button", "mem-del");
-  exp.type = "button";
-  exp.title = tr("Als .skill sichern");
-  exp.setAttribute("aria-label", tr("{0} als .skill sichern", s.name));
-  exp.append(icon("download"));
-  exp.addEventListener("click", async () => {
-    try { await downloadFrom(`api/skills/${s.id}/export`, `${s.name}.skill`); } catch { toast(tr("Sichern hat nicht geklappt.")); }
-  });
-  tools.append(exp, confirmButton(tr("{0} entfernen", s.name), async () => {
-    try { await api(`api/skills/${s.id}`, { method: "DELETE" }); redraw(); } catch { toast(tr("Entfernen hat nicht geklappt.")); }
-  }));
-  row.append(tools);
+  return toggle;
+}
+
+function skillBadges(s) {
+  const row = node("div", "skill-badges");
+  if (s.standard) row.append(node("span", "skill-badge", tr("Standard")));
+  else row.append(node("span", "skill-badge" + (s.imported ? " ext" : ""), s.imported ? tr("importiert") : tr("selbst geschrieben")));
   return row;
 }
 
-function skillPreviewCard(view, project, redraw) {
-  const p = view.preview;
-  const card = node("section", "skill-preview");
-  card.append(node("h4", "", tr("Das wird hinzugefügt")), node("b", "", p.name), node("p", "skill-desc", p.description));
-  card.append(node("small", "mem-meta", `${trn(p.files.length, "1 Datei", "{0} Dateien")} · ${tr("{0} Text", formatSize(p.size))}`));
-  if (p.replaces) card.append(node("p", "mem-hint", tr("Ein Skill mit diesem Namen gibt es schon. Es wird ersetzt.")));
-  for (const w of p.warnings) card.append(node("p", "mem-hint", w));
-  if (p.skipped.length) {
-    const list = node("ul", "know-skipped");
-    for (const sk of p.skipped.slice(0, 8)) list.append(node("li", "", `${sk.name}: ${sk.reason}`));
-    card.append(node("p", "mem-hint", tr("Nicht übernommen:")), list);
+// ---- Liste
+
+function renderSkillList(wrap) {
+  const data = skillsUi.data;
+  const picker = node("input");
+  picker.type = "file";
+  picker.accept = SKILL_ACCEPT;
+  picker.hidden = true;
+  const imp = node("button", "pill primary");
+  imp.type = "button";
+  imp.append(icon("upload"), node("span", "", tr("Skill importieren")));
+  imp.disabled = skillsUi.busy;
+  imp.addEventListener("click", () => picker.click());
+  const write = node("button", "pill ghost");
+  write.type = "button";
+  write.append(icon("edit"), node("span", "", tr("Selbst schreiben")));
+  write.addEventListener("click", () => skillsGo("write"));
+  picker.addEventListener("change", async () => {
+    const file = picker.files[0];
+    picker.value = "";
+    if (file) await previewSkillFile(file);
+  });
+  skillHead(wrap, tr("Skills"), tr("Anleitungen, die die KI von selbst nutzt, wenn eine Aufgabe dazu passt, zum Beispiel für eine bestimmte Software oder einen festen Ablauf."), imp, write, picker);
+
+  const status = node("p", "skills-status");
+  status.setAttribute("role", "status");
+  status.textContent = skillsUi.status;
+  wrap.append(status);
+
+  const bar = node("div", "skills-bar");
+  const tabs = node("div", "skills-tabs");
+  tabs.setAttribute("role", "tablist");
+  for (const [id, label] of [["mine", tr("Meine Skills")], ["standard", tr("Standard")]]) {
+    const tab = node("button", "skills-tab", label);
+    tab.type = "button";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(skillsUi.tab === id));
+    tab.addEventListener("click", () => { skillsUi.tab = id; skillsUi.status = ""; renderSkills(); });
+    tabs.append(tab);
   }
-  card.append(node("p", "mem-hint", tr("Ein importiertes Skill gilt als fremder Inhalt. Hat die KI eines genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
-  const foot = node("div", "skill-actions");
+  bar.append(tabs);
+  if (skillsUi.tab === "mine") {
+    const label = node("label", "skills-scope");
+    label.append(node("span", "", tr("Gilt in")));
+    const select = node("select", "field");
+    select.append(new Option(tr("Alle Chats"), ""));
+    for (const p of [...state.projects].sort((a, b) => a.name.localeCompare(b.name, "de"))) select.append(new Option(tr("Projekt „{0}“", p.name), p.id));
+    select.value = skillsUi.project || "";
+    select.addEventListener("change", () => { skillsUi.project = select.value || null; skillsUi.status = ""; loadSkills(); });
+    label.append(select);
+    bar.append(label);
+  }
+  wrap.append(bar);
+
+  if (!data) { wrap.append(node("p", "mem-empty", skillsUi.status || tr("Die Skills sind gerade nicht erreichbar."))); return; }
+  if (skillsUi.tab === "standard") {
+    wrap.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
+    const grid = node("div", "skills-grid");
+    for (const s of data.standard) grid.append(skillCard({ ...s, standard: true }));
+    wrap.append(grid);
+  } else {
+    wrap.append(node("p", "skills-hint", skillsUi.project
+      ? tr("Diese Skills gelten nur in diesem Projekt. Heißt eines wie ein globales Skill, gilt hier das Projekt-Skill. Deine globalen Skills gelten zusätzlich.")
+      : tr("Diese Skills gelten in allen deinen Chats.")));
+    if (!data.skills.length) {
+      const empty = node("div", "skills-empty");
+      empty.append(
+        node("p", "", skillsUi.project ? tr("Noch keine Skills in diesem Projekt.") : tr("Noch keine eigenen Skills.")),
+        node("p", "skills-hint", tr("Importiere eine SKILL.md oder ein .skill oder schreibe selbst eines.")),
+      );
+      wrap.append(empty);
+    } else {
+      const grid = node("div", "skills-grid");
+      for (const s of data.skills) grid.append(skillCard(s));
+      wrap.append(grid);
+    }
+  }
+  wrap.append(node("p", "skills-note", tr("Skripte in Skills werden nie ausgeführt. Ein importiertes Skill gilt als fremder Inhalt: Hat die KI eines genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
+}
+
+function skillCard(s) {
+  const card = node("article", "skill-card" + (!s.standard && !s.enabled ? " off" : ""));
+  const top = node("div", "skill-card-top");
+  const open = node("button", "skill-open", s.standard ? s.label : s.name);
+  open.type = "button";
+  open.addEventListener("click", () => openSkillDetail(s));
+  top.append(open);
+  if (!s.standard) top.append(skillSwitch(s, renderSkills));
+  card.append(top, skillBadges(s), node("p", "skill-desc", s.description));
+  if (!s.standard) card.append(node("small", "mem-meta", `${trn(s.files, "1 Datei", "{0} Dateien")} · ${tr("{0} Text", formatSize(s.size))}`));
+  card.addEventListener("click", (event) => { if (!event.target.closest("button")) openSkillDetail(s); });
+  return card;
+}
+
+// ---- Import mit Vorschau
+
+async function previewSkillFile(file) {
+  if (skillsUi.busy) return;
+  if (file.size > SKILL_MAX) { skillsUi.status = tr("„{0}“ ist zu groß (höchstens {1} MB).", file.name, SKILL_MAX / 1024 / 1024); renderSkills(); return; }
+  skillsUi.busy = true;
+  skillsUi.status = tr("Prüfe {0} …", file.name);
+  renderSkills();
+  try {
+    const data = await toBase64(file);
+    const preview = await api("api/skills/preview", { method: "POST", body: JSON.stringify({ name: file.name, data, project_id: skillsUi.project }) });
+    skillsUi.busy = false;
+    skillsGo("preview", { preview: { ...preview, data, file: file.name } });
+  } catch (err) {
+    skillsUi.busy = false;
+    skillsUi.status = `${file.name}: ${errorText(err, tr("Das Skill konnte nicht gelesen werden."))}`;
+    renderSkills();
+  }
+}
+
+function renderSkillPreview(wrap) {
+  const p = skillsUi.preview;
+  skillBack(wrap, tr("Abbrechen"));
+  skillHead(wrap, p.name, tr("So sieht das Skill aus. Es wird erst nach „Hinzufügen“ gespeichert."));
+  const card = node("section", "skills-panel");
+  card.append(node("p", "skills-label", tr("Beschreibung (so sieht die KI es)")), node("p", "skill-desc full", p.description));
+  card.append(node("p", "skills-label", tr("Gilt in")), node("p", "skill-desc full", skillScopeText()));
+  card.append(node("p", "skills-label", tr("Inhalt")));
+  const files = node("ul", "skills-files");
+  for (const f of p.files) files.append(node("li", "", `${f.path} · ${formatSize(f.size)}`));
+  card.append(files);
+  if (p.replaces) card.append(node("p", "skills-warn", tr("Ein Skill mit diesem Namen gibt es schon. Es wird ersetzt.")));
+  for (const w of p.warnings) card.append(node("p", "skills-warn", w));
+  if (p.skipped.length) {
+    const list = node("ul", "skills-files");
+    for (const sk of p.skipped.slice(0, 12)) list.append(node("li", "", `${sk.name}: ${sk.reason}`));
+    card.append(node("p", "skills-label", tr("Nicht übernommen:")), list);
+  }
+  if (p.excerpt) card.append(node("p", "skills-label", tr("Anfang der Anleitung")), node("pre", "skill-text", p.excerpt));
+  card.append(node("p", "skills-hint", tr("Ein importiertes Skill gilt als fremder Inhalt. Hat die KI eines genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
+  const foot = node("div", "skills-buttons");
   const add = node("button", "pill primary", tr("Hinzufügen"));
   add.type = "button";
   const cancel = node("button", "pill ghost", tr("Abbrechen"));
   cancel.type = "button";
-  cancel.addEventListener("click", () => { view.preview = null; redraw(); });
+  cancel.addEventListener("click", () => skillsGo("list", { preview: null }));
   add.addEventListener("click", async () => {
     add.disabled = true;
     try {
-      await api("api/skills", { method: "POST", body: JSON.stringify({ name: p.file, data: p.data, project_id: project?.id || null }) });
-      view.preview = null;
+      await api("api/skills", { method: "POST", body: JSON.stringify({ name: p.file, data: p.data, project_id: skillsUi.project }) });
       toast(tr("Skill „{0}“ hinzugefügt.", p.name));
-      redraw();
+      skillsUi.tab = "mine";
+      skillsGo("list", { preview: null });
+      await loadSkills();
     } catch (err) { toast(errorText(err, tr("Hinzufügen hat nicht geklappt."))); add.disabled = false; }
   });
   foot.append(add, cancel);
   card.append(foot);
-  return card;
+  wrap.append(card);
 }
 
-function skillWriteForm(view, project, redraw) {
-  const form = node("form", "mem-form");
+// ---- Selbst schreiben
+
+function renderSkillWrite(wrap) {
+  skillBack(wrap, tr("Abbrechen"));
+  skillHead(wrap, tr("Neues Skill"), tr("Schreibe auf, wie die KI bei einer bestimmten Aufgabe vorgehen soll. Sie liest die Anleitung erst, wenn die Aufgabe zur Beschreibung passt."));
+  const form = node("form", "skills-panel skills-form");
   form.autocomplete = "off";
+  const field = (label, hint, control) => {
+    const box = node("label", "f-field");
+    box.append(node("span", "f-label", label), control, node("span", "f-hint", hint));
+    return box;
+  };
   const name = node("input", "field");
   name.maxLength = 64;
-  name.placeholder = tr("Name, z. B. angebote-schreiben");
-  name.setAttribute("aria-label", tr("Name"));
+  name.placeholder = tr("z. B. angebote-schreiben");
   const description = node("textarea", "field area");
-  description.rows = 2;
+  description.rows = 3;
   description.maxLength = 1024;
-  description.placeholder = tr("Wann soll die KI es nutzen? z. B. Wenn ich ein Angebot für einen Kunden brauche");
-  description.setAttribute("aria-label", tr("Beschreibung"));
-  const instructions = node("textarea", "field area");
-  instructions.rows = 7;
+  description.placeholder = tr("z. B. Wenn ich ein Angebot für einen Kunden brauche");
+  const instructions = node("textarea", "field area skills-editor");
+  instructions.rows = 14;
   instructions.maxLength = 40000;
-  instructions.placeholder = tr("Was soll die KI dann tun? Schritte, Regeln, Beispiele …");
-  instructions.setAttribute("aria-label", tr("Anleitung"));
+  instructions.placeholder = tr("1. Frage nach Kunde und Leistung …");
+  form.append(
+    field(tr("Name"), tr("Kleinbuchstaben, Ziffern und Bindestriche. Leer lassen: der Name entsteht aus der Beschreibung."), name),
+    field(tr("Wann soll die KI es nutzen?"), tr("Das liest die KI immer. Nenne Aufgaben und Stichwörter, bei denen sie das Skill laden soll."), description),
+    field(tr("Anleitung"), tr("Schritte, Regeln und Beispiele. Die KI liest das erst, wenn sie das Skill lädt."), instructions),
+    node("p", "skills-hint", tr("Gilt in: {0}", skillScopeText())),
+  );
+  const foot = node("div", "skills-buttons");
   const save = node("button", "pill primary", tr("Speichern"));
   save.type = "submit";
-  form.append(node("h4", "", tr("Neues Skill")), name, description, instructions, save);
+  const cancel = node("button", "pill ghost", tr("Abbrechen"));
+  cancel.type = "button";
+  cancel.addEventListener("click", () => skillsGo("list"));
+  foot.append(save, cancel);
+  form.append(foot);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!description.value.trim() || !instructions.value.trim()) { toast(tr("Bitte Beschreibung und Anleitung ausfüllen.")); return; }
     save.disabled = true;
     try {
-      await api("api/skills/new", { method: "POST", body: JSON.stringify({ name: name.value, description: description.value, instructions: instructions.value, project_id: project?.id || null }) });
-      view.writing = false;
+      await api("api/skills/new", { method: "POST", body: JSON.stringify({ name: name.value, description: description.value, instructions: instructions.value, project_id: skillsUi.project }) });
       toast(tr("Skill gespeichert."));
-      redraw();
+      skillsUi.tab = "mine";
+      skillsGo("list");
+      await loadSkills();
     } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); save.disabled = false; }
   });
-  return form;
+  wrap.append(form);
+  name.focus();
 }
 
-async function openSkills(project) {
-  await openSheet({
-    title: project ? tr("Skills: {0}", project.name) : tr("Skills"),
-    sub: project ? tr("Anleitungen, die die KI nur in diesem Projekt nutzt.") : tr("Anleitungen, die die KI bei Bedarf selbst nachschlägt."),
-    ok: tr("Fertig"),
-    panel: skillsPanel(project),
-  });
+// ---- Ansicht eines Skills
+
+function openSkillDetail(s) {
+  skillsGo("detail", { detail: s });
+  loadSkillDetail(s);
+}
+
+async function loadSkillDetail(s) {
+  let info;
+  try {
+    info = s.standard
+      ? { text: (await api(`api/skills/standard/${encodeURIComponent(s.name)}`)).text, files_list: [] }
+      : await api(`api/skills/${s.id}`);
+  } catch { info = null; }
+  if (skillsUi.mode !== "detail" || skillsUi.detail !== s) return;
+  const slot = $("skills-wrap").querySelector(".skills-body");
+  if (!slot) return;
+  if (!info) { slot.replaceChildren(node("p", "mem-empty", tr("Das Skill ist gerade nicht erreichbar."))); return; }
+  const parts = [node("p", "skills-label", s.standard ? tr("Regeln") : tr("Anleitung (SKILL.md)")), node("pre", "skill-text", s.standard ? info.text : info.skill_md)];
+  const others = (info.files_list || []).filter((f) => f.path !== "SKILL.md");
+  if (others.length) {
+    parts.push(node("p", "skills-label", tr("Weitere Dateien")));
+    const list = node("div", "skills-filelist");
+    for (const f of others) {
+      const box = node("details", "skill-more");
+      box.append(node("summary", "", `${f.path} · ${formatSize(f.size)}`));
+      const pre = node("pre", "skill-text");
+      box.append(pre);
+      let loaded = false;
+      box.addEventListener("toggle", async () => {
+        if (!box.open || loaded) return;
+        loaded = true;
+        pre.textContent = tr("Lädt …");
+        try { pre.textContent = (await api(`api/skills/${s.id}/file?path=${encodeURIComponent(f.path)}`)).text; } catch { loaded = false; pre.textContent = tr("Das Skill ist gerade nicht erreichbar."); }
+      });
+      list.append(box);
+    }
+    parts.push(list);
+  }
+  slot.replaceChildren(...parts);
+}
+
+function renderSkillDetail(wrap) {
+  const s = skillsUi.detail;
+  skillBack(wrap);
+  skillHead(wrap, s.standard ? s.label : s.name);
+  const card = node("section", "skills-panel");
+  const meta = node("div", "skills-detail-meta");
+  meta.append(skillBadges(s));
+  if (!s.standard) {
+    const switchBox = node("label", "skills-onoff");
+    const rerender = async () => { renderSkills(); loadSkillDetail(s); };
+    switchBox.append(skillSwitch(s, rerender), node("span", "", s.enabled ? tr("An") : tr("Aus")));
+    meta.append(switchBox);
+  }
+  card.append(meta, node("p", "skills-label", tr("Beschreibung (so sieht die KI es)")), node("p", "skill-desc full", s.description));
+  if (s.standard) {
+    card.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
+  } else {
+    card.append(node("p", "skills-label", tr("Gilt in")), node("p", "skill-desc full", s.project_id ? tr("Projekt „{0}“", projectOf(s.project_id)?.name || "") : tr("Alle Chats")));
+    const tools = node("div", "skills-buttons");
+    const exp = node("button", "pill ghost");
+    exp.type = "button";
+    exp.append(icon("download"), node("span", "", tr("Als .skill sichern")));
+    exp.addEventListener("click", async () => {
+      try { await downloadFrom(`api/skills/${s.id}/export`, `${s.name}.skill`); } catch { toast(tr("Sichern hat nicht geklappt.")); }
+    });
+    tools.append(exp, confirmButton(tr("{0} entfernen", s.name), async () => {
+      try {
+        await api(`api/skills/${s.id}`, { method: "DELETE" });
+        toast(tr("Skill „{0}“ entfernt.", s.name));
+        skillsGo("list", { detail: null });
+        await loadSkills();
+      } catch { toast(tr("Entfernen hat nicht geklappt.")); }
+    }));
+    card.append(tools);
+  }
+  const body = node("div", "skills-body");
+  body.append(node("p", "mem-empty", tr("Lädt …")));
+  card.append(body);
+  wrap.append(card);
 }
 
 // ------------------------------------------------------------- Nachrichten
@@ -3273,7 +3447,9 @@ function setView(view) {
   $("messages").hidden = view !== "chat";
   $("composer").hidden = view !== "chat";
   $("schedules").hidden = view !== "schedules";
+  $("skills").hidden = view !== "skills";
   $("nav-schedules").classList.toggle("active", view === "schedules");
+  $("nav-skills").classList.toggle("active", view === "skills");
 }
 
 function stampText(ts) {
@@ -3979,7 +4155,6 @@ const THEMES = [["auto", tr("Auto")], ["light", tr("Hell")], ["dark", tr("Dunkel
 function accountEntries() {
   const entries = [];
   if (state.me?.memory) entries.push({ value: "memory", icon: "memory", label: tr("Gedächtnis") });
-  entries.push({ value: "skills", icon: "skill", label: tr("Skills") });
   entries.push({ value: "data", icon: "data", label: tr("Meine Daten") });
   entries.push({ value: "guide", icon: "info", label: tr("Kurzanleitung") });
   entries.push({ value: "news", icon: "bolt", label: tr("Das ist neu") });
@@ -4026,7 +4201,6 @@ async function accountMenu() {
     button.setAttribute("aria-expanded", "false");
   }
   if (choice === "memory") { closeMenu(); openMemory(); }
-  else if (choice === "skills") { closeMenu(); openSkills(null).catch(() => {}); }
   else if (choice === "data") { closeMenu(); openMyData().catch(() => {}); }
   else if (choice === "setup") { closeMenu(); openSetup().catch(() => {}); }
   else if (choice === "guide") { closeMenu(); openIntro().catch(() => {}); }
@@ -4046,6 +4220,7 @@ async function init() {
   $("new-chat").addEventListener("click", () => startNew());
   $("nav-schedules").addEventListener("click", () => { openSchedules().catch(() => {}); });
   $("nav-search").addEventListener("click", () => { openSearch().catch(() => {}); });
+  $("nav-skills").addEventListener("click", () => { openSkills().catch(() => {}); });
   initShortcuts();
   $("account").addEventListener("click", () => { accountMenu().catch(() => {}); });
   $("new-chat-top").addEventListener("click", () => startNew());

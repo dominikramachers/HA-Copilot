@@ -309,6 +309,7 @@ def test_api_isolation_between_people_and_projects(api):
     assert mine["project_id"] == pid
     assert [s["name"] for s in client.get(f"/api/skills?project={pid}", headers=as_user(DORA)).json()["skills"]] == ["zabbix-templates"]
     assert client.get("/api/skills", headers=as_user(DORA)).json()["skills"] == []  # Projekt-Skill nicht global
+    assert len(client.get(f"/api/skills?project={pid}", headers=as_user(DORA)).json()["standard"]) == 6  # die Seite zeigt Standard-Skills in jedem Bereich
     a = as_user(ADM01, True)
     assert client.get("/api/skills", headers=as_user(ADM01)).json()["skills"] == []
     assert client.get(f"/api/skills?project={pid}", headers=as_user(ADM01)).status_code == 404

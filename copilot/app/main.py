@@ -960,7 +960,7 @@ def register_chat_routes(
         if rows is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return {
-            "standard": skilllib.standard_list() if not project else [],
+            "standard": skilllib.standard_list(),
             "skills": [skill_view(r) for r in rows],
             "max": skilllib.PER_PERSON,
         }

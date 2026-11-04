@@ -69,7 +69,7 @@ Mehr: [Projektwissen und Gedächtnis](../copilot/DOCS.md#projektwissen-und-gedä
 
 ## Skills
 
-Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, etwa „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Du fügst sie im Konto-Menü unter **Skills** hinzu (gilt überall) oder im Projekt-Menü (nur in diesem Projekt): als `SKILL.md`, `.skill` oder ZIP importieren (mit Vorschau) oder selbst schreiben. Die KI sieht nur Name und Beschreibung und lädt ein Skill von selbst, wenn die Aufgabe passt; auch geplante Aufgaben nutzen sie (nur lesend).
+Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, etwa „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Du findest sie auf der Seite **Skills** in der Seitenleiste. Dort stellst du ein, ob ein Skill überall oder nur in einem Projekt gilt (auch über das Projekt-Menü erreichbar), und fügst Skills hinzu: als `SKILL.md`, `.skill` oder ZIP importieren (mit Vorschau) oder selbst schreiben. Die KI sieht nur Name und Beschreibung und lädt ein Skill von selbst, wenn die Aufgabe passt; auch geplante Aufgaben nutzen sie (nur lesend).
 
 Die mitgelieferten Gestaltungsregeln für Word, PowerPoint, Excel, PDF und HTML stehen als **Standard-Skills** in der Liste; sie lassen sich nicht abschalten, aber eigene Skills gehen ihnen vor. Skripte in einem Skill werden **nie ausgeführt**, und importierte Skills gelten als fremder Inhalt: Danach fragt die KI vor Änderungen in Home Assistant oder bei GitHub nach.
 
