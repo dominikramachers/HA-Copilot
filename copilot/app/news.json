@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.34.1",
+    "items": [
+      {
+        "de": {
+          "title": "Eine Feder schreibt mit",
+          "text": "Wenn ich eine Datei erstelle, siehst du jetzt eine Feder, die eine Linie zeichnet."
+        },
+        "en": {
+          "title": "A feather writes along",
+          "text": "When I create a file, you now see a feather drawing a line."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.34.0",
     "items": [
       {

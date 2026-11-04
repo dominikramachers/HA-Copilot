@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.34.1
+- **Schreibende Feder statt Stift.** Beim Erstellen und Bearbeiten von Dateien und Bildern führt eine Feder (Umriss in der Akzentfarbe) über eine Wellenlinie, die sich beim Schreiben aufbaut. Die übrigen Symbole (Punkte, Lupe, Blitz) bleiben. Mit „Bewegung reduzieren“ steht die Feder still am Ende der Linie.
+- Keine neuen Optionen, kein neues Datenbankschema.
+
 ## 0.34.0
 - **Warteanzeige zeigt, was die KI gerade tut.** Statt eines einzigen Zeichens gibt es je nach Tätigkeit ein eigenes bewegtes Symbol mit Text daneben: **drei Punkte** beim Nachdenken (mit wechselnden Wörtern, neu „Bröselt auf“ und „Sinniert“), ein **schreibender Stift** beim Erstellen oder Bearbeiten von Dateien und Bildern („Datei erstellen: bericht.pptx …“), eine **Lupe** beim Suchen und Lesen (Web, Dateien, Wissen, Gedächtnis, GitHub), ein **Blitz** bei Aktionen in Home Assistant, GitHub und im Gedächtnis. Zwischen zwei Schritten steht kurz, was schon fertig ist („2 Dateien erstellt“, „Recherche im Web (2 Suchen)“), danach wieder die Denkwörter. Sobald Text kommt, bleiben nur kleine Punkte unter dem Text; bei „Wartet auf deine Freigabe“ stehen die Punkte still; mit „Bewegung reduzieren“ gibt es keine Animation. Die Symbole sind SVG in der Akzentfarbe, nichts wird nachgeladen.
 - **News werden bei jedem Release gepflegt.** `app/news.json` muss für die aktuelle Version einen Eintrag haben, sonst schlägt ein Test fehl (siehe `CLAUDE.md`). Nutzer sehen die Neuerungen einmalig nach dem Update. Nachgetragen: 0.33.1 (Projekte als Ordner).
