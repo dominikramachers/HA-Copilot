@@ -36,6 +36,7 @@ from .backend import (
     scrub_environment,
 )
 from . import attachments as filelib, compact, safety
+from . import quotes
 from . import i18n
 from .i18n import tr, trn
 from .previews import MAX_CHARS as PREVIEW_MAX_CHARS, PREVIEW_HEADERS, PreviewStore
@@ -163,6 +164,8 @@ class SendBody(BaseModel):
     files: list[FileBody] = Field(default_factory=list, max_length=filelib.MAX_FILES)
     # Eine frühere eigene Frage bearbeiten: sie und alles danach werden durch diese Nachricht und die neue Antwort ersetzt.
     edit_message_id: int | None = Field(default=None, ge=1)
+    # Markierter Ausschnitt einer früheren Antwort, auf den sich die Nachricht bezieht (wird als Zitatblock vorangestellt, siehe quotes.py)
+    quote: str | None = Field(default=None, max_length=quotes.QUOTE_MAX * 2)
 
 
 class CreateChatBody(BaseModel):
@@ -387,6 +390,7 @@ async def _pump(factory: Callable[[], AsyncIterator[str]], interval: float) -> A
 
 
 def _title_from(text: str) -> str:
+    text = quotes.split_quote(text)[1] or text  # ein vorangestelltes Zitat gehört nicht in den Titel
     lines = (ln.strip() for ln in text.splitlines())
     line = next((ln for ln in lines if ln and not ln.startswith("```")), "")
     line = re.sub(r"[`*#>_]", "", line)
@@ -1124,6 +1128,7 @@ def register_chat_routes(
         text = body.content.strip()
         if not text:
             raise HTTPException(status_code=422, detail=tr("Leere Nachricht"))
+        text = quotes.with_quote(body.quote, text)
         history = store.list_messages(profile.id, chat_id)
         if history is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))

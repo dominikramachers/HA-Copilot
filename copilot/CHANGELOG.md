@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.32.0
+- **Auf einen Ausschnitt einer Antwort antworten.** Markierst du Text in einer fertigen Antwort der KI, erscheint daneben ein kleiner Knopf **Antworten** (am Touchscreen unter der Markierung). Er setzt den Ausschnitt als Zitat in eine Leiste über dem Eingabefeld (↳, zwei Zeilen Text, **x** zum Entfernen). Mit dem „x“ ist die Nachricht wieder eine gewöhnliche; ein Neuladen der Seite ist nicht nötig. Beim Senden steht das Zitat über deiner Nachricht in der Sprechblase und geht der KI als Zitatblock mit.
+- Das Zitat wird als Markdown-Zitat (`> …`) vor die Nachricht gestellt und mit ihr gespeichert (neues optionales Feld `quote` bei `POST /api/chats/{id}/send`, höchstens 2000 Zeichen). Es bleibt deshalb nach dem Neuladen, im Export und in der Suche erhalten; der Chat-Titel kommt aus deiner eigenen Frage. Beim Bearbeiten der Nachricht bleibt das Zitat erhalten, beim Kopieren wird nur dein Text kopiert. Ein Zitat gehört zu einem Chat: beim Wechsel in einen anderen Chat oder „Neuer Chat“ wird es verworfen; ein neuer Ausschnitt ersetzt das alte. Scheitert das Senden ohne Antwort, kommt das Zitat zurück in die Leiste.
+- Keine neuen Optionen, kein neues Datenbankschema.
+
 ## 0.31.0
 - **Präsentationen sehen jetzt gestaltet aus, nicht wie ein Textdokument.** Der Folien-Renderer ist neu gebaut: große Schrift (Überschriften 38 pt, Text bis 30 pt, je nach Textmenge automatisch so groß wie möglich ohne Überlauf), mehr Weißraum, Flächen statt Linien. Die Titelfolie bekommt Dekorkreise (oder ein Bild über die rechte Folienhälfte), Zwischenfolien eine große Ziffer, Zitate stehen groß auf dunklem Grund, Kennzahlen auf Karten (alle Zahlen gleich groß), Diagramme auf einer Fläche, zwei Spalten als zwei Karten.
 - **Karten aus Listen:** Eine Folie mit 2 bis 6 Punkten, die alle mit einem fetten Stichwort beginnen (`- **Wallbox:** Laden über Nacht`), wird als Kartenreihe gesetzt. **Bild neben Text** füllt die rechte Folienhälfte bis zum Rand (zugeschnitten, bei PowerPoint mit leicht gerundeten Ecken, in Keynote eckig). Lange Listen werden früher auf Folgefolien verteilt, damit die Schrift groß bleibt.
