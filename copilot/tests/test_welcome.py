@@ -46,7 +46,7 @@ def test_news_appear_once_after_an_update(store):
     store.state_set("intro:adm01", "1")
     store.state_set("news:adm01", "0.31.0")
     shown = _welcome(app)
-    assert shown["intro"] is False and [i["title"] for i in shown["news"]][:1] == ["Kurzanleitung zum Start"] and "Auf einen Satz antworten" in [i["title"] for i in shown["news"]]
+    assert shown["intro"] is False and [i["title"] for i in shown["news"]][:1] == [news.unseen("0.0.1")[0]["title"]] and "Auf einen Satz antworten" in [i["title"] for i in shown["news"]]
     assert _post(app, "/api/welcome/seen", {"what": "news"}) == 204
     assert _welcome(app) == {"intro": False, "news": []}
 
@@ -93,6 +93,13 @@ def test_english_texts_follow_the_language(store):
 
 RELEASES = json.loads((APP / "news.json").read_text(encoding="utf-8"))
 TECHNICAL = re.compile(r"\b(API|SQL|SQLite|Docker|Endpunkt|Schema|Option|Konfiguration|Add-on|Token|Python|JSON|Parameter|Dockerfile)\b", re.I)
+
+
+def test_every_release_has_news_for_the_users():
+    """Jede Version (config.yaml) braucht einen Eintrag in app/news.json, sonst sehen die Nutzer nichts Neues."""
+    assert RELEASES[0]["version"] == CONFIG["version"], (
+        f"app/news.json hat keinen Eintrag für Version {CONFIG['version']}: Neuerungen in einfacher Sprache ergänzen (de und en)."
+    )
 
 
 def test_news_file_is_well_formed_and_not_ahead_of_the_add_on():

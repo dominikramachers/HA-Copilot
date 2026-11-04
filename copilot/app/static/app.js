@@ -2251,7 +2251,8 @@ async function consume(response, run, bubble) {
     if (!run.busy || run.detached) return;
     const running = out.actions.filter((a) => a.status === "running");
     const waiting = out.actions.some((a) => a.status === "waiting") || cards.size > 0;
-    run.busy.set({ tool: running.at(-1)?.label || "", status: statusText, waiting, streaming: !!out.answer && !running.length && !waiting });
+    const current = running.at(-1);
+    run.busy.set({ tool: current?.label || "", kind: current?.kind || "", recap: running.length ? "" : recapOf(out.actions), status: statusText, waiting, streaming: !!out.answer && !running.length && !waiting });
   };
   let frame = 0;
   const paint = () => {
@@ -2308,14 +2309,76 @@ async function consume(response, run, bubble) {
 // Solange die KI arbeitet: kleines bewegtes Zeichen plus ein Wort (oder die laufende Aktion, z. B. „Entitäten suchen: Licht“).
 // Beim Schreiben bleibt nur das kleine Zeichen unter dem Text. Nach 20 s kommt die Wartezeit dazu, nach 60 s ein Hinweis.
 
-const THINK_WORDS = [tr("Denkt nach"), tr("Überlegt"), tr("Tüftelt"), tr("Sortiert Gedanken"), tr("Wägt ab"), tr("Grübelt"), tr("Knobelt"), tr("Formuliert")];
+const THINK_WORDS = [tr("Denkt nach"), tr("Überlegt"), tr("Tüftelt"), tr("Sortiert Gedanken"), tr("Wägt ab"), tr("Grübelt"), tr("Knobelt"), tr("Formuliert"), tr("Bröselt auf"), tr("Sinniert")];
+
+// Welches Zeichen zur Tätigkeit passt: Stift beim Schreiben von Dateien und Bildern, Lupe beim Suchen und Lesen, Blitz bei Aktionen, sonst Punkte.
+const BUSY_ART = {
+  file: "pen", "file-edit": "pen", image: "pen",
+  web: "look", read: "look", knowledge: "look", "memory-read": "look", "gh-read": "look", "file-read": "look",
+  execute: "act", write: "act", "gh-write": "act", memory: "act",
+};
+const HA_KINDS = ["read", "execute", "write"];
+
+// Kurzfassung des zuletzt Erledigten („2 Dateien erstellt“), damit man zwischen zwei Schritten sieht, was geschehen ist.
+function recapOf(actions) {
+  const done = actions.filter((a) => a.status === "ok");
+  const last = done.at(-1);
+  if (!last) return "";
+  const count = (kind) => done.filter((a) => a.kind === kind).length;
+  const n = count(last.kind);
+  switch (last.kind) {
+    case "file": return trn(n, "Datei erstellt", "{0} Dateien erstellt");
+    case "file-edit": return trn(n, "Datei bearbeitet", "{0} Dateien bearbeitet");
+    case "image": return trn(n, "Bild erzeugt", "{0} Bilder erzeugt");
+    case "file-read": return trn(n, "Datei angesehen", "{0} Dateien angesehen");
+    case "memory": return tr("Gedächtnis aktualisiert");
+    case "web": {
+      const web = done.filter((a) => a.kind === "web");
+      const searches = web.filter((a) => a.label.startsWith(tr("Websuche"))).length;
+      const bits = [];
+      const pages = web.length - searches;
+      if (searches) bits.push(trn(searches, "1 Suche", "{0} Suchen"));
+      if (pages) bits.push(trn(pages, "1 Seite gelesen", "{0} Seiten gelesen"));
+      return tr("Recherche im Web ({0})", bits.join(", "));
+    }
+    case "gh-read": case "gh-write": {
+      const gh = done.filter((a) => a.kind.startsWith("gh-")).length;
+      return trn(gh, "1 Aktion bei GitHub", "{0} Aktionen bei GitHub");
+    }
+    default: {
+      if (!HA_KINDS.includes(last.kind)) return "";
+      const ha = done.filter((a) => HA_KINDS.includes(a.kind)).length;
+      return trn(ha, "1 Aktion in Home Assistant", "{0} Aktionen in Home Assistant");
+    }
+  }
+}
+
+// Bewegtes Zeichen (SVG, Farbe aus dem Thema): Punkte, schreibender Stift, Lupe, Blitz. CSS wählt über data-art.
+function busyArt() {
+  const svg = (tag, attrs = {}, ...kids) => {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    el.append(...kids);
+    return el;
+  };
+  const art = svg("svg", { viewBox: "0 0 28 20", class: "busy-art", "aria-hidden": "true" });
+  art.append(
+    svg("g", { class: "art-dots" }, ...[6, 14, 22].map((x) => svg("circle", { cx: x, cy: 10, r: 2.6 }))),
+    svg("g", { class: "art-pen" },
+      svg("path", { class: "pen-line", d: "M3 16q3-4 6 0t6 0t6 0", pathLength: 24 }),
+      svg("path", { class: "pen-body", d: "M0 0l1.6-4.6 8-8a1.7 1.7 0 0 1 2.4 2.4l-8 8z" })),
+    svg("g", { class: "art-look" }, svg("circle", { cx: 12, cy: 9, r: 5 }), svg("path", { d: "M16 13l5 5" })),
+    svg("g", { class: "art-act" }, svg("path", { d: "M15 2L7 11.5h5.5L11 18l8-9.5h-5.5z" })),
+  );
+  return art;
+}
 const BUSY_SHOW_TIME = 20;
 const BUSY_SHOW_HINT = 60;
 
 function makeBusy() {
   const el = node("div", "busy");
   el.setAttribute("role", "status");
-  const spark = node("span", "spark");
+  const spark = busyArt();
   const word = node("span", "busy-word");
   const extra = node("span", "busy-extra");
   const hint = node("p", "busy-hint", tr("Das dauert etwas länger. Du kannst den Chat verlassen, die Antwort wird trotzdem fertig."));
@@ -2325,8 +2388,9 @@ function makeBusy() {
 
   const started = Date.now();
   const words = [...THINK_WORDS].sort(() => Math.random() - 0.5);
-  const now = { tool: "", status: "", waiting: false, streaming: false };
+  const now = { tool: "", kind: "", recap: "", status: "", waiting: false, streaming: false };
   let index = 0;
+  let recapShown = "";
   let shown = "";
   let timer = 0;
 
@@ -2334,7 +2398,10 @@ function makeBusy() {
     const seconds = Math.floor((Date.now() - started) / 1000);
     el.classList.toggle("compact", now.streaming);
     el.classList.toggle("paused", now.waiting);
-    const label = now.waiting ? tr("Wartet auf deine Freigabe") : (now.tool || now.status || words[index % words.length]) + " …";
+    if (now.recap !== recapShown) { recapShown = now.recap; index = 0; } // Neues Ergebnis: zuerst kurz zeigen, dann wieder Denkwörter
+    const cycle = now.recap ? [now.recap, ...words] : words;
+    spark.dataset.art = now.streaming || now.waiting || !now.tool ? "dots" : BUSY_ART[now.kind] || "dots";
+    const label = now.waiting ? tr("Wartet auf deine Freigabe") : (now.tool || now.status || cycle[index % cycle.length]) + (now.recap && !now.tool && !now.status && index % cycle.length === 0 ? "" : " …");
     if (label !== shown) {
       shown = label;
       word.textContent = label;

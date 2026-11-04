@@ -1,5 +1,35 @@
 [
   {
+    "version": "0.34.0",
+    "items": [
+      {
+        "de": {
+          "title": "Du siehst, was ich gerade tue",
+          "text": "Während ich arbeite, zeigt ein kleines Symbol, was passiert: Ich denke nach, schreibe eine Datei, suche im Web oder schalte etwas im Smarthome. Dazu steht, was schon fertig ist, zum Beispiel „2 Dateien erstellt“."
+        },
+        "en": {
+          "title": "You can see what I am doing",
+          "text": "While I work, a small symbol shows what is happening: I am thinking, writing a file, searching the web or switching something in the smart home. Next to it you can see what is already done, for example \"2 files created\"."
+        }
+      }
+    ]
+  },
+  {
+    "version": "0.33.1",
+    "items": [
+      {
+        "de": {
+          "title": "Projekte als Ordner",
+          "text": "In der Seitenleiste erkennst du Projekte jetzt am Ordner-Symbol. Ein geöffnetes Projekt zeigt einen offenen Ordner und bleibt hervorgehoben."
+        },
+        "en": {
+          "title": "Projects as folders",
+          "text": "In the sidebar you now recognise projects by a folder icon. An open project shows an open folder and stays highlighted."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.33.0",
     "items": [
       {
