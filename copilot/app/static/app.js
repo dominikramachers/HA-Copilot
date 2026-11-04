@@ -2,7 +2,7 @@
 
 // Alle Pfade sind relativ, damit die Seite unter dem Ingress-Pfad von Home Assistant funktioniert.
 const $ = (id) => document.getElementById(id);
-const state = { view: "chat", schedules: [], files: [], recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
+const state = { view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
 const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
 
 // ---------------------------------------------------------------- Hilfen
@@ -28,6 +28,8 @@ const ICONS = {
   chat: ["M20 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"],
   fold: ["M4 8l4 4-4 4M12 6h8M12 12h8M12 18h8"],
   close: ["M6 6l12 12M18 6L6 18"],
+  reply: ["M9 14L4 9l5-5", "M4 9h9a6 6 0 0 1 6 6v4"],
+  quote: ["M5 5v6a3 3 0 0 0 3 3h11", "M15 10l4 4-4 4"],
   info: ["M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z", "M12 11v5.5", "M12 7.8h.01"],
   bolt: ["M13 3L5 13.5h6L10 21l8-10.5h-6z"],
   bug: ["M9 7a3 3 0 0 1 6 0M8 9h8v5a4 4 0 0 1-8 0zM4 10l4 1.5M20 10l-4 1.5M4 18l4-2M20 18l-4-2M12 9v10"],
@@ -1713,14 +1715,21 @@ function userMessage(text, files = [], meta = {}) {
     group.append(row);
   }
   const bubble = node("div", "msg user");
-  bubble.textContent = text;
+  const { quote, body } = splitQuote(text);
+  if (quote) {
+    const cite = node("div", "msg-quote");
+    cite.append(icon("quote"), node("span", "msg-quote-text", quote));
+    bubble.append(cite, node("div", "msg-text", body));
+  } else {
+    bubble.textContent = text;
+  }
   const bar = node("div", "msg-meta");
   const time = node("span", "msg-time");
   const refresh = () => { time.textContent = sentAgo(group.dataset.at); time.title = exactTime(group.dataset.at); };
-  const edit = actionButton(tr("Nachricht bearbeiten"), "edit", "msg-act msg-edit-btn", () => startEdit(group, text, files.length > 0));
+  const edit = actionButton(tr("Nachricht bearbeiten"), "edit", "msg-act msg-edit-btn", () => startEdit(group, body, files.length > 0, quote));
   const copy = actionButton(tr("Nachricht kopieren"), "copy", "msg-act", async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(body);
       copy.replaceChildren(icon("check"));
       setTimeout(() => copy.replaceChildren(icon("copy")), 1600);
     } catch { toast(tr("Kopieren nicht möglich.")); }
@@ -1740,7 +1749,7 @@ function userMessage(text, files = [], meta = {}) {
 }
 
 // Nachricht bearbeiten: Die Blase wird zum Eingabefeld; „Senden“ ersetzt diese Frage und alles danach durch eine neue Antwort.
-function startEdit(group, text, hadFiles) {
+function startEdit(group, text, hadFiles, quote = "") {
   if (state.streaming) { toast(tr("Warte, bis die Antwort fertig ist.")); return; }
   if (!group.dataset.id) { toast(tr("Diese Nachricht lässt sich gerade nicht bearbeiten.")); return; }
   const bubble = group.querySelector(".msg.user");
@@ -1754,6 +1763,7 @@ function startEdit(group, text, hadFiles) {
   const notes = [];
   if (group.nextElementSibling) notes.push(tr("Spätere Nachrichten in diesem Chat werden durch die neue Antwort ersetzt."));
   if (hadFiles) notes.push(tr("Angehängte Dateien werden nicht übernommen. Hänge sie bei Bedarf neu an."));
+  if (quote) notes.push(tr("Das Zitat bleibt erhalten."));
   const row = node("div", "msg-edit-row");
   const cancel = node("button", "pill ghost small", tr("Abbrechen"));
   const save = node("button", "pill primary small", tr("Senden"));
@@ -1764,7 +1774,7 @@ function startEdit(group, text, hadFiles) {
     const value = area.value.trim();
     if (!value) return;
     close();
-    sendMessage({ id: Number(group.dataset.id), text: value, el: group }).catch(() => {});
+    sendMessage({ id: Number(group.dataset.id), text: value, el: group, quote }).catch(() => {});
   });
   area.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); close(); }
@@ -1880,6 +1890,7 @@ async function selectChat(id) {
   rememberActive();
   state.newProject = null;
   state.heldUnread = null;
+  setQuote("");
   renderSide();
   closeMenu();
   const chat = state.chats.find((c) => c.id === id);
@@ -1910,6 +1921,7 @@ function startNew(projectId = null) {
   rememberActive();
   state.heldUnread = null;
   state.newProject = projectId;
+  setQuote("");
   renderSide();
   closeMenu();
   setTitle(idleTitle());
@@ -2449,6 +2461,7 @@ async function settleRun(run, bubble, out, view = {}) {
         view.userEl.remove();
         input.value = view.text;
         if (state.files.length === 0 && view.sentFiles) { state.files = view.sentFiles; renderTray(); }
+        if (view.quote && !state.quote) setQuote(view.quote);
       } else {
         try { renderMessages(await api(`api/chats/${encodeURIComponent(chatId)}/messages`)); } catch { /* bleibt */ }
         if (!input.value && out.failure.text) input.value = out.failure.text;
@@ -2527,6 +2540,104 @@ async function reloadActive(chatId) {
 }
 
 // ``edit`` = { id, text, el }: eine frühere Frage bearbeiten (el = ihre Ansicht); sie und alles danach wird ersetzt.
+// ------------------------------------------------------- Auf einen Ausschnitt antworten (Zitat)
+
+// Gleiches Muster wie quotes.py: Zitatblock („> “ je Zeile), Leerzeile, eigener Text.
+const QUOTE_MAX = 2000;
+
+function cleanQuote(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").trim().split("\n").map((line) => line.replace(/\s+$/, ""));
+  const out = [];
+  for (const line of lines) {
+    if (!line && out.length && !out[out.length - 1]) continue;
+    out.push(line);
+  }
+  const joined = out.join("\n").trim();
+  return joined.length > QUOTE_MAX ? `${joined.slice(0, QUOTE_MAX).trimEnd()}…` : joined;
+}
+
+function withQuote(quote, text) {
+  const clean = cleanQuote(quote);
+  if (!clean) return text;
+  return `${clean.split("\n").map((line) => (line ? `> ${line}` : ">")).join("\n")}\n\n${text}`;
+}
+
+function splitQuote(content) {
+  const lines = String(content).split("\n");
+  let count = 0;
+  while (count < lines.length && (lines[count].startsWith("> ") || lines[count] === ">")) count += 1;
+  if (count === 0 || count >= lines.length || lines[count] !== "") return { quote: "", body: content };
+  return { quote: lines.slice(0, count).map((l) => (l.startsWith("> ") ? l.slice(2) : "")).join("\n"), body: lines.slice(count + 1).join("\n").replace(/^\n+/, "") };
+}
+
+// Leiste über dem Eingabefeld: ↳, der Ausschnitt (zwei Zeilen) und „x“. Mit „x“ ist die Nachricht wieder eine gewöhnliche.
+function setQuote(text) {
+  state.quote = cleanQuote(text);
+  const bar = $("quote-bar");
+  bar.replaceChildren();
+  bar.hidden = !state.quote;
+  if (!state.quote) return;
+  const label = node("span", "quote-text", state.quote);
+  label.title = state.quote;
+  bar.append(icon("quote"), label, actionButton(tr("Zitat entfernen"), "close", "quote-x", () => { setQuote(""); $("input").focus({ preventScroll: true }); }));
+}
+
+// Markierter Text in einer fertigen Antwort: kleiner Knopf „Antworten“ in der Nähe der Markierung.
+function initQuotePicker() {
+  const pop = node("button", "quote-pop");
+  pop.type = "button";
+  pop.hidden = true;
+  pop.append(icon("reply"), node("span", "", tr("Antworten")));
+  document.body.append(pop);
+  let picked = "";
+  let pointerDown = false;
+  let timer = 0;
+
+  const hide = () => { pop.hidden = true; picked = ""; };
+  const hostOf = (n) => (n && (n.nodeType === 1 ? n : n.parentElement))?.closest(".msg.assistant:not(.pending)") || null;
+
+  function update() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) { hide(); return; }
+    const range = sel.getRangeAt(0);
+    const host = hostOf(range.startContainer);
+    if (!host || host !== hostOf(range.endContainer) || !host.closest("#thread")) { hide(); return; }
+    const text = cleanQuote(sel.toString());
+    const rect = range.getBoundingClientRect();
+    if (!text || (!rect.width && !rect.height)) { hide(); return; }
+    picked = text;
+    pop.hidden = false;
+    const width = pop.offsetWidth;
+    const touch = window.matchMedia("(hover: none)").matches;
+    // Mit Maus über der Markierung, auf dem Touchscreen darunter (oben erscheint das Menü des Systems).
+    let top = touch ? rect.bottom + 14 : rect.top - pop.offsetHeight - 8;
+    if (top < 8) top = rect.bottom + 8;
+    top = Math.min(top, window.innerHeight - pop.offsetHeight - 8);
+    const left = Math.max(8, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 8));
+    pop.style.top = `${Math.round(top)}px`;
+    pop.style.left = `${Math.round(left)}px`;
+  }
+  const later = (delay = 120) => { clearTimeout(timer); timer = setTimeout(update, delay); };
+
+  document.addEventListener("selectionchange", () => { if (!pointerDown) later(); });
+  document.addEventListener("pointerdown", (event) => { if (!pop.contains(event.target)) { pointerDown = true; hide(); } }, true);
+  document.addEventListener("pointerup", () => { pointerDown = false; later(30); }, true);
+  document.addEventListener("keyup", (event) => { if (event.key.startsWith("Arrow") || event.key === "Shift") later(30); });
+  window.addEventListener("resize", hide);
+  $("messages").addEventListener("scroll", () => { if (!pop.hidden) hide(); }, { passive: true });
+  // Mausdruck auf den Knopf darf die Markierung nicht aufheben.
+  pop.addEventListener("pointerdown", (event) => event.preventDefault());
+  pop.addEventListener("mousedown", (event) => event.preventDefault());
+  pop.addEventListener("click", () => {
+    const text = picked;
+    hide();
+    window.getSelection()?.removeAllRanges();
+    if (!text) return;
+    setQuote(text);
+    $("input").focus({ preventScroll: true });
+  });
+}
+
 async function sendMessage(edit = null) {
   if (state.streaming) { if (!edit) stopAnswer(); return; }
   const input = $("input");
@@ -2562,8 +2673,9 @@ async function sendMessage(edit = null) {
     for (let n = edit.el; n;) { const next = n.nextElementSibling; n.remove(); n = next; }
   }
   const sentFiles = edit ? [] : state.files;
-  if (!edit) { state.files = []; renderTray(); }
-  const userEl = messageEl("user", text, sentFiles);
+  const quote = edit ? (edit.quote || "") : state.quote;
+  if (!edit) { state.files = []; renderTray(); setQuote(""); }
+  const userEl = messageEl("user", withQuote(quote, text), sentFiles);
   const bubble = node("div", "msg assistant pending");
   thread.append(userEl, bubble);
   scrollDown(true);
@@ -2572,7 +2684,7 @@ async function sendMessage(edit = null) {
   const run = openRun(chatId);
   addBusy(run, bubble);
   // Beim Bearbeiten holt ein Fehler ohne Antwort den alten Stand vom Server zurück (kein ``userEl`` in der Ansicht).
-  const view = edit ? { text, sentFiles, first } : { userEl, text, sentFiles, first };
+  const view = edit ? { text, sentFiles, first } : { userEl, text, sentFiles, first, quote };
 
   let out;
   try {
@@ -2584,6 +2696,7 @@ async function sendMessage(edit = null) {
       headers: { "X-Requested-With": "ki-chat", "Content-Type": "application/json" },
       body: JSON.stringify({
         content: text, effort: state.effort, files,
+        ...(quote ? { quote } : {}),
         ...(edit ? { edit_message_id: edit.id } : {}),
         ...((state.me?.models?.length || 0) > 1 && validModel(state.model) ? { model: state.model } : {}),
         ...(state.me?.web && !state.web ? { web: false } : {}),
@@ -3490,6 +3603,7 @@ async function init() {
   $("new-chat-top").addEventListener("click", () => startNew());
   initSideToggle();
   initAttachments();
+  initQuotePicker();
   $("composer").addEventListener("submit", (event) => {
     event.preventDefault();
     sendMessage().catch(() => {});

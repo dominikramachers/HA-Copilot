@@ -481,5 +481,8 @@
  "Das Bild ist nicht mehr verfügbar.": "The image is no longer available.",
  "Soll dieses Bild erzeugt werden?": "Should this image be created?",
  "Bild erzeugt": "image created",
- "{0} Bilder erzeugt": "{0} images created"
+ "{0} Bilder erzeugt": "{0} images created",
+ "Antworten": "Reply",
+ "Zitat entfernen": "Remove quote",
+ "Das Zitat bleibt erhalten.": "The quote is kept."
 }

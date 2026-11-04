@@ -82,7 +82,7 @@ COLOR_OPTIONS = {
 }
 APP_NAME_DEFAULT = "HA Copilot"
 LOGIN_PLACEHOLDER_DEFAULT = "name@beispiel.de"
-LOGIN_TEXT_DEFAULT = "Mit deinem Konto anmelden."
+LOGIN_TEXT_DEFAULT = "Melde dich an, um mit der KI zu chatten."
 
 
 @dataclass(frozen=True)
