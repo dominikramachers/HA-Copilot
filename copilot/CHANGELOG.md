@@ -2,6 +2,8 @@
 
 ## 0.33.1
 - **Projekte in der Seitenleiste als Ordner.** Statt des Pfeils steht vor jedem Projekt ein Ordner-Symbol. Ein geöffnetes Projekt zeigt einen offenen Ordner (weiche Überblendung, ohne Animation bei „Bewegung reduzieren“) und bleibt wie beim Darüberfahren hinterlegt. „Neuer Chat im Projekt“ und die Aktionen erscheinen weiterhin nur beim Darüberfahren (am Touchscreen immer).
+- Zwischen den Projekten ist etwas mehr Abstand, damit sich hinterlegte Zeilen nicht berühren.
+- **Einrichtungsprüfung: der letzte Punkt ließ sich nicht erreichen.** Die Liste hatte eine zweite Scrollfläche im scrollenden Fenster; der Rand schnitt den untersten Punkt ab. Jetzt scrollt nur noch das Fenster.
 - Keine neuen Optionen, kein neues Datenbankschema.
 
 ## 0.33.0
