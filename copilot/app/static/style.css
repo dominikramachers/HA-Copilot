@@ -96,7 +96,7 @@
 .project-row.open > .icon.folder { color: var(--text); }
 .project-row.open > .icon.folder .f-closed { opacity: 0; }
 .project-row.open > .icon.folder .f-open { opacity: 1; transform: none; }
-.project-row.open { background: var(--chip); }
+.project-row.current { background: var(--chip); }
 .project-row > .icon.pin { width: 14px; height: 14px; margin-right: 2px; color: var(--accent); stroke-width: 2.4; }
 .project-row .name { padding-left: 8px; }
 @media (prefers-reduced-motion: reduce) { .project-row > .icon.folder, .project-row > .icon.folder path { transition: none; } }

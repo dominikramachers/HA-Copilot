@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.37.1",
+    "items": [
+      {
+        "de": {
+          "title": "Klarere Markierung bei Projekten",
+          "text": "In der Seitenleiste ist ein Projekt nur noch markiert, solange du darin keinen Chat geöffnet hast. Sonst ist nur der Chat markiert."
+        },
+        "en": {
+          "title": "Clearer marking for projects",
+          "text": "In the sidebar a project is only highlighted while you have no chat open in it. Otherwise only the chat is highlighted."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.37.0",
     "items": [
       {
