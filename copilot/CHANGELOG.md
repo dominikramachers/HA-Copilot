@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.37.1
+- **Projekt in der Seitenleiste nur noch markiert, wenn kein Chat ausgewählt ist.** Ein geöffnetes Projekt blieb bisher immer hinterlegt, auch wenn man einen seiner Chats geöffnet hatte; dann waren Projekt und Chat zugleich markiert. Jetzt ist die Zeile nur hinterlegt, solange man in diesem Projekt einen neuen Chat beginnt (`state.newProject`, kein aktiver Chat); sonst ist nur der Chat markiert, wie bei Claude. Der geöffnete Ordner bleibt am Symbol erkennbar. CSS: `.project-row.current` statt `.project-row.open`.
+- Keine neuen Optionen, kein neues Datenbankschema.
+
 ## 0.37.0
 - **Seite „Anpassungen“.** Die Seite „Skills“ heißt jetzt **Anpassungen** (wie bei Claude) und hat oben die Reiter **Skills**, **Konnektoren** und **Plugins**. Konnektoren und Plugins sind Platzhalter mit „Kommt bald“. Unter „Skills“ wechselt ein Umschalter zwischen **Meine** (eigene, importierte und hinzugefügte Skills, darunter die Standard-Skills als eigener Abschnitt) und **Entdecken** (vorher „Empfohlen“). Das Menü **Hinzufügen** (am Handy ein Blatt von unten) bietet „Skill importieren“ und „Selbst schreiben“.
 - **Entdecken mit Suche, Kategorien und Sortierung.** Suche über Name, Beschreibung und Kategorie (ohne Rücksicht auf Groß-/Kleinschreibung und Umlaute, mehrere Wörter müssen alle vorkommen), Kategorie-Schaltflächen mit Trefferzahl (leere sind abgeblendet, am Handy waagerecht wischbar), Sortierung „Beliebteste“ (nach Installationen, dann Name) oder „A bis Z“. Die Karten zeigen Kategorie, „von <Autor> · <N> Installationen“ und „Hinzufügen“. Ohne Treffer gibt es „Suche zurücksetzen“.

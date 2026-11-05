@@ -611,7 +611,9 @@ function renderProjects(root) {
   const ordered = [...state.projects].sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name, "de"));
   for (const project of ordered) {
     const open = ui.openProjects.has(project.id);
-    const row = node("div", "row project-row" + (open ? " open" : ""));
+    // markiert nur, solange in diesem Projekt kein Chat ausgewählt ist (neuer Chat im Projekt); sonst ist es der Chat
+    const current = state.view === "chat" && !state.activeId && state.newProject === project.id;
+    const row = node("div", "row project-row" + (open ? " open" : "") + (current ? " current" : ""));
     const label = node("span", "name", project.name);
     if (project.instructions) { const dot = node("i", "dot"); dot.title = tr("Projektanweisungen aktiv"); label.append(dot); }
     if (project.knowledge) { const dot = node("i", "dot know"); dot.title = tr("{0} Wissensdateien", project.knowledge); label.append(dot); }
