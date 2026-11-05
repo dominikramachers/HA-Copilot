@@ -1,26 +1,1177 @@
-[
- {
-  "id": "frontend-design",
-  "category": "design",
-  "label": {"de": "Gestaltung mit eigener Handschrift", "en": "Design with a distinct style"},
-  "summary": {
-   "de": "Hilft mir, Seiten und Oberflächen zu gestalten, die nicht nach Vorlage aussehen: Farben, Schrift und Aufbau passen zum Thema.",
-   "en": "Helps me design pages and screens that do not look like a template: colours, type and layout fit the subject."
+{
+ "categories": [
+  {
+   "id": "marketing",
+   "label": {
+    "de": "Marketing & Social Media",
+    "en": "Marketing & social media"
+   }
   },
-  "author": "Anthropic",
-  "license": "Apache-2.0",
-  "source": "https://github.com/anthropics/skills/tree/ca45fc4/skills/frontend-design"
- },
- {
-  "id": "internal-comms",
-  "category": "text",
-  "label": {"de": "Mitteilungen im Betrieb", "en": "Internal communications"},
-  "summary": {
-   "de": "Hilft mir bei Wochenberichten, Rundschreiben, Fragen und Antworten und anderen Mitteilungen an Kolleginnen und Kollegen, in festen, knappen Formaten.",
-   "en": "Helps me write weekly updates, newsletters, FAQs and other messages to colleagues, in fixed, concise formats."
+  {
+   "id": "design",
+   "label": {
+    "de": "Design",
+    "en": "Design"
+   }
   },
-  "author": "Anthropic",
-  "license": "Apache-2.0",
-  "source": "https://github.com/anthropics/skills/tree/ca45fc4/skills/internal-comms"
- }
-]
+  {
+   "id": "office",
+   "label": {
+    "de": "Büro & Dokumente",
+    "en": "Office & documents"
+   }
+  },
+  {
+   "id": "tech",
+   "label": {
+    "de": "Technik & IT",
+    "en": "Tech & IT"
+   }
+  },
+  {
+   "id": "data",
+   "label": {
+    "de": "Daten & Analyse",
+    "en": "Data & analysis"
+   }
+  },
+  {
+   "id": "product",
+   "label": {
+    "de": "Produkt & Projekte",
+    "en": "Product & projects"
+   }
+  },
+  {
+   "id": "support",
+   "label": {
+    "de": "Kunden & Support",
+    "en": "Customers & support"
+   }
+  },
+  {
+   "id": "people",
+   "label": {
+    "de": "Personal",
+    "en": "People & hiring"
+   }
+  }
+ ],
+ "skills": [
+  {
+   "id": "copywriting",
+   "category": "marketing",
+   "label": {
+    "de": "Texte, die überzeugen",
+    "en": "Copy that converts"
+   },
+   "summary": {
+    "de": "Schreibt und überarbeitet Werbetexte für Startseite, Landingpage, Preis- und Produktseiten und meidet typische KI-Floskeln.",
+    "en": "Writes and rewrites marketing copy for home, landing, pricing and product pages and avoids typical AI phrasing."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/copywriting",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 245200
+  },
+  {
+   "id": "marketing-psychology",
+   "category": "marketing",
+   "label": {
+    "de": "Psychologie im Marketing",
+    "en": "Marketing psychology"
+   },
+   "summary": {
+    "de": "Wendet Erkenntnisse aus Psychologie und Verhaltensforschung an, damit Angebote und Texte besser ankommen.",
+    "en": "Applies findings from psychology and behavioural science so offers and copy land better."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/marketing-psychology",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 171000
+  },
+  {
+   "id": "content-strategy",
+   "category": "marketing",
+   "label": {
+    "de": "Content-Strategie",
+    "en": "Content strategy"
+   },
+   "summary": {
+    "de": "Plant Themen, Formate und einen Redaktionsplan, die zu Zielgruppe und Zielen passen.",
+    "en": "Plans topics, formats and an editorial calendar that fit the audience and goals."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/content-strategy",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 170900
+  },
+  {
+   "id": "seo-audit",
+   "category": "marketing",
+   "label": {
+    "de": "SEO-Check",
+    "en": "SEO audit"
+   },
+   "summary": {
+    "de": "Prüft eine Website auf technische und inhaltliche SEO-Probleme und nennt Maßnahmen nach Wichtigkeit.",
+    "en": "Checks a website for technical and content SEO issues and lists fixes by priority."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/seo-audit",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 166600
+  },
+  {
+   "id": "marketing-ideas",
+   "category": "marketing",
+   "label": {
+    "de": "Marketing-Ideen",
+    "en": "Marketing ideas"
+   },
+   "summary": {
+    "de": "Liefert passende Ideen für Kanäle und Aktionen, je nach Produkt, Budget und Phase.",
+    "en": "Suggests fitting channel and campaign ideas depending on product, budget and stage."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/marketing-ideas",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 152400
+  },
+  {
+   "id": "lead-magnets",
+   "category": "marketing",
+   "label": {
+    "de": "Lead-Magnete",
+    "en": "Lead magnets"
+   },
+   "summary": {
+    "de": "Entwickelt kostenlose Angebote wie Checklisten oder Vorlagen, mit denen Interessenten ihre Kontaktdaten hinterlassen.",
+    "en": "Develops free offers such as checklists or templates that make prospects leave their contact details."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/lead-magnets",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 118200
+  },
+  {
+   "id": "cro",
+   "category": "marketing",
+   "label": {
+    "de": "Mehr Anfragen von der Website",
+    "en": "Website conversion"
+   },
+   "summary": {
+    "de": "Verbessert Seiten so, dass mehr Besucher anfragen, kaufen oder sich anmelden.",
+    "en": "Improves pages so more visitors enquire, buy or sign up."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/cro",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 97000
+  },
+  {
+   "id": "community-marketing",
+   "category": "marketing",
+   "label": {
+    "de": "Community aufbauen",
+    "en": "Community building"
+   },
+   "summary": {
+    "de": "Hilft, eine Community aufzubauen und zu pflegen, von Foren bis zu Gruppen und Events.",
+    "en": "Helps build and nurture a community, from forums to groups and events."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/community-marketing",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 94600
+  },
+  {
+   "id": "social",
+   "category": "marketing",
+   "label": {
+    "de": "Social-Media-Inhalte",
+    "en": "Social media content"
+   },
+   "summary": {
+    "de": "Plant und schreibt Beiträge für LinkedIn, Instagram, X, TikTok und mehr, inklusive Hooks, Karussells und Kurzvideos.",
+    "en": "Plans and writes posts for LinkedIn, Instagram, X, TikTok and more, including hooks, carousels and short videos."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/social",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 91700
+  },
+  {
+   "id": "pricing",
+   "category": "marketing",
+   "label": {
+    "de": "Preisgestaltung",
+    "en": "Pricing"
+   },
+   "summary": {
+    "de": "Hilft bei Preisen, Paketen und Preisseiten und bei der Frage, wie viel das Produkt wert ist.",
+    "en": "Helps with prices, packages and pricing pages and with how much the product is worth."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/pricing",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 84900
+  },
+  {
+   "id": "public-relations",
+   "category": "marketing",
+   "label": {
+    "de": "Pressearbeit",
+    "en": "Public relations"
+   },
+   "summary": {
+    "de": "Unterstützt bei Pressemitteilungen, Medienlisten und dem Ansprechen von Journalistinnen und Journalisten.",
+    "en": "Supports press releases, media lists and approaching journalists."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/public-relations",
+   "license_file": "MIT-marketingskills.txt",
+   "installs": 60000
+  },
+  {
+   "id": "copy-editing",
+   "category": "marketing",
+   "label": {
+    "de": "Texte überarbeiten",
+    "en": "Copy editing"
+   },
+   "summary": {
+    "de": "Geht Marketingtexte Schritt für Schritt durch und macht sie klarer, kürzer und stimmiger.",
+    "en": "Goes through marketing copy step by step and makes it clearer, shorter and more consistent."
+   },
+   "author": "Corey Haines",
+   "license": "MIT",
+   "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/copy-editing",
+   "license_file": "MIT-marketingskills.txt"
+  },
+  {
+   "id": "content-creation",
+   "category": "marketing",
+   "label": {
+    "de": "Inhalte für jeden Kanal",
+    "en": "Content for every channel"
+   },
+   "summary": {
+    "de": "Erstellt Blogartikel, Beiträge, Newsletter und Texte für verschiedene Kanäle im passenden Ton.",
+    "en": "Creates blog posts, social posts, newsletters and channel copy in the right tone."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/marketing/skills/content-creation",
+   "license_file": "Apache-2.0.txt",
+   "installs": 3800
+  },
+  {
+   "id": "campaign-plan",
+   "category": "marketing",
+   "label": {
+    "de": "Kampagnenplan",
+    "en": "Campaign plan"
+   },
+   "summary": {
+    "de": "Entwirft eine Kampagne mit Ziel, Zielgruppe, Kanälen, Zeitplan und Kennzahlen.",
+    "en": "Drafts a campaign with goal, audience, channels, schedule and metrics."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/marketing/skills/campaign-plan",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "brand-review",
+   "category": "marketing",
+   "label": {
+    "de": "Markenton prüfen",
+    "en": "Brand voice check"
+   },
+   "summary": {
+    "de": "Prüft Texte gegen Markenstimme und Stilregeln und schlägt Korrekturen vor.",
+    "en": "Checks copy against brand voice and style rules and suggests fixes."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/marketing/skills/brand-review",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "email-sequence",
+   "category": "marketing",
+   "label": {
+    "de": "E-Mail-Serien",
+    "en": "Email sequences"
+   },
+   "summary": {
+    "de": "Entwirft Willkommens-, Nachfass- und Verkaufs-E-Mails als Serie mit Betreffzeilen und Zeitplan.",
+    "en": "Drafts welcome, nurture and sales emails as a series with subject lines and timing."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/marketing/skills/email-sequence",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "frontend-design",
+   "category": "design",
+   "label": {
+    "de": "Gestaltung mit eigener Handschrift",
+    "en": "Design with a distinct style"
+   },
+   "summary": {
+    "de": "Hilft mir, Seiten und Oberflächen zu gestalten, die nicht nach Vorlage aussehen: Farben, Schrift und Aufbau passen zum Thema.",
+    "en": "Helps me design pages and screens that do not look like a template: colours, type and layout fit the subject."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/skills/tree/ca45fc4/skills/frontend-design",
+   "installs": 686900
+  },
+  {
+   "id": "theme-factory",
+   "category": "design",
+   "label": {
+    "de": "Farb- und Schriftthemen",
+    "en": "Colour and font themes"
+   },
+   "summary": {
+    "de": "Gibt Folien, Dokumenten und Seiten ein stimmiges Thema aus Farben und Schriften, mit zehn fertigen Vorlagen.",
+    "en": "Gives slides, documents and pages a consistent theme of colours and fonts, with ten ready-made presets."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/skills/tree/ca45fc4/skills/theme-factory",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "design-critique",
+   "category": "design",
+   "label": {
+    "de": "Design-Kritik",
+    "en": "Design critique"
+   },
+   "summary": {
+    "de": "Bewertet einen Entwurf nach Wirkung, Bedienbarkeit, Hierarchie und Konsistenz und gibt konkrete Verbesserungen.",
+    "en": "Reviews a design for impact, usability, hierarchy and consistency and gives concrete improvements."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/design/skills/design-critique",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "ux-copy",
+   "category": "design",
+   "label": {
+    "de": "Texte für Oberflächen",
+    "en": "Interface copy"
+   },
+   "summary": {
+    "de": "Formuliert Beschriftungen, Fehlermeldungen, leere Zustände und Hinweise so, dass man sie sofort versteht.",
+    "en": "Writes labels, error messages, empty states and hints that people understand at once."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/design/skills/ux-copy",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "accessibility-review",
+   "category": "design",
+   "label": {
+    "de": "Barrierefreiheit prüfen",
+    "en": "Accessibility review"
+   },
+   "summary": {
+    "de": "Prüft einen Entwurf oder eine Seite auf Barrierefreiheit (WCAG 2.1 AA): Kontrast, Tastatur, Zielgrößen.",
+    "en": "Reviews a design or page for accessibility (WCAG 2.1 AA): contrast, keyboard, target sizes."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/design/skills/accessibility-review",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "design-system",
+   "category": "design",
+   "label": {
+    "de": "Designsystem pflegen",
+    "en": "Design system"
+   },
+   "summary": {
+    "de": "Prüft und dokumentiert ein Designsystem und hilft, neue Bausteine passend zu entwerfen.",
+    "en": "Audits and documents a design system and helps design new components that fit."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/design/skills/design-system",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "design-handoff",
+   "category": "design",
+   "label": {
+    "de": "Übergabe an die Entwicklung",
+    "en": "Design handoff"
+   },
+   "summary": {
+    "de": "Macht aus einem Entwurf eine Übergabe für die Entwicklung: Abstände, Farben, Zustände, Verhalten.",
+    "en": "Turns a design into a handoff for developers: spacing, colours, states, behaviour."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/design/skills/design-handoff",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "user-research",
+   "category": "design",
+   "label": {
+    "de": "Nutzerforschung planen",
+    "en": "User research"
+   },
+   "summary": {
+    "de": "Plant Interviews, Umfragen und Tests und hilft, die richtigen Fragen zu stellen.",
+    "en": "Plans interviews, surveys and tests and helps ask the right questions."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/design/skills/user-research",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "research-synthesis",
+   "category": "design",
+   "label": {
+    "de": "Forschung auswerten",
+    "en": "Research synthesis"
+   },
+   "summary": {
+    "de": "Verdichtet Interviews, Umfragen und Rückmeldungen zu Mustern, Erkenntnissen und Empfehlungen.",
+    "en": "Condenses interviews, surveys and feedback into patterns, insights and recommendations."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/design/skills/research-synthesis",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "internal-comms",
+   "category": "office",
+   "label": {
+    "de": "Mitteilungen im Betrieb",
+    "en": "Internal communications"
+   },
+   "summary": {
+    "de": "Hilft bei Wochenberichten, Rundschreiben, Fragen und Antworten und anderen Mitteilungen an Kolleginnen und Kollegen, in festen, knappen Formaten.",
+    "en": "Helps write weekly updates, newsletters, FAQs and other messages to colleagues, in fixed, concise formats."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/skills/tree/ca45fc4/skills/internal-comms"
+  },
+  {
+   "id": "geschaeftsbrief-din-5008",
+   "category": "office",
+   "label": {
+    "de": "Geschäftsbrief nach DIN 5008",
+    "en": "Business letter (DIN 5008)"
+   },
+   "summary": {
+    "de": "Schreibt deutsche Geschäftsbriefe mit korrektem Aufbau, Betreff, Anrede und Grußformel, auch als Word- oder PDF-Datei.",
+    "en": "Writes German business letters with correct layout, subject line, salutation and closing, also as a Word or PDF file."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/geschaeftsbrief-din-5008",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "protokoll-besprechung",
+   "category": "office",
+   "label": {
+    "de": "Besprechungsprotokoll",
+    "en": "Meeting minutes"
+   },
+   "summary": {
+    "de": "Macht aus Notizen oder einem Transkript ein klares Protokoll mit Beschlüssen und einer Aufgabenliste.",
+    "en": "Turns notes or a transcript into clear minutes with decisions and an action list."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/protokoll-besprechung",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "e-mail-professionell",
+   "category": "office",
+   "label": {
+    "de": "Berufliche E-Mails",
+    "en": "Professional emails"
+   },
+   "summary": {
+    "de": "Schreibt und überarbeitet E-Mails mit klarem Betreff, einer Bitte und passendem Ton.",
+    "en": "Writes and revises emails with a clear subject, one request and the right tone."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/e-mail-professionell",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "praesentation-storyline",
+   "category": "office",
+   "label": {
+    "de": "Präsentation planen",
+    "en": "Presentation storyline"
+   },
+   "summary": {
+    "de": "Plant erst die Geschichte einer Präsentation: Kernaussage, Gliederung, Folientitel und Sprechernotizen.",
+    "en": "Plans the story of a presentation first: key message, outline, slide titles and speaker notes."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/praesentation-storyline",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "zusammenfassung-kernaussagen",
+   "category": "office",
+   "label": {
+    "de": "Zusammenfassen",
+    "en": "Summarising"
+   },
+   "summary": {
+    "de": "Fasst Dokumente, Artikel und Transkripte treu zusammen, in kurzer, mittlerer oder langer Fassung.",
+    "en": "Summarises documents, articles and transcripts faithfully, in a short, medium or long version."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/zusammenfassung-kernaussagen",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "status-report",
+   "category": "office",
+   "label": {
+    "de": "Statusbericht",
+    "en": "Status report"
+   },
+   "summary": {
+    "de": "Schreibt Statusberichte mit Kennzahlen, Risiken und Aufgaben für Leitung und Beteiligte.",
+    "en": "Writes status reports with metrics, risks and action items for leadership and stakeholders."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/status-report",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "process-doc",
+   "category": "office",
+   "label": {
+    "de": "Prozess dokumentieren",
+    "en": "Process documentation"
+   },
+   "summary": {
+    "de": "Hält Abläufe fest: Ablaufdiagramm, Zuständigkeiten und Anleitung zum Nachmachen.",
+    "en": "Captures procedures: flowchart, responsibilities and a how-to for repeating them."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/process-doc",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "process-optimization",
+   "category": "office",
+   "label": {
+    "de": "Abläufe verbessern",
+    "en": "Process improvement"
+   },
+   "summary": {
+    "de": "Findet Engpässe und überflüssige Schritte und schlägt einen besseren Ablauf vor.",
+    "en": "Finds bottlenecks and unnecessary steps and proposes a better flow."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/process-optimization",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "risk-assessment",
+   "category": "office",
+   "label": {
+    "de": "Risiken bewerten",
+    "en": "Risk assessment"
+   },
+   "summary": {
+    "de": "Erfasst Risiken, bewertet Eintritt und Folgen und schlägt Gegenmaßnahmen vor.",
+    "en": "Lists risks, rates likelihood and impact and proposes countermeasures."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/risk-assessment",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "vendor-review",
+   "category": "office",
+   "label": {
+    "de": "Anbieter vergleichen",
+    "en": "Vendor review"
+   },
+   "summary": {
+    "de": "Vergleicht Anbieter nach Kosten, Risiko und Eignung und gibt eine Empfehlung.",
+    "en": "Compares vendors on cost, risk and fit and gives a recommendation."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/vendor-review",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "stakeholder-update",
+   "category": "office",
+   "label": {
+    "de": "Update für Beteiligte",
+    "en": "Stakeholder update"
+   },
+   "summary": {
+    "de": "Schreibt Updates für Leitung, Kunden oder Team, passend zu Wissensstand und Interesse.",
+    "en": "Writes updates for leadership, customers or the team, matched to their knowledge and interest."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/product-management/skills/stakeholder-update",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "code-review",
+   "category": "tech",
+   "label": {
+    "de": "Code prüfen",
+    "en": "Code review"
+   },
+   "summary": {
+    "de": "Prüft Code auf Sicherheit, Leistung und Fehler und gibt umsetzbare Hinweise.",
+    "en": "Reviews code for security, performance and bugs and gives actionable feedback."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/code-review",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "debug",
+   "category": "tech",
+   "label": {
+    "de": "Fehler eingrenzen",
+    "en": "Debugging"
+   },
+   "summary": {
+    "de": "Geht Fehler strukturiert an: nachstellen, eingrenzen, Ursache finden, beheben.",
+    "en": "Approaches bugs systematically: reproduce, isolate, diagnose, fix."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/debug",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "incident-response",
+   "category": "tech",
+   "label": {
+    "de": "Störung bewältigen",
+    "en": "Incident response"
+   },
+   "summary": {
+    "de": "Führt durch eine Störung: einordnen, informieren, beheben und danach ein Bericht ohne Schuldzuweisung.",
+    "en": "Guides through an incident: triage, communicate, fix, then a blameless post-mortem."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/incident-response",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "architecture",
+   "category": "tech",
+   "label": {
+    "de": "Entscheidung dokumentieren",
+    "en": "Architecture decisions"
+   },
+   "summary": {
+    "de": "Hält technische Entscheidungen mit Optionen, Abwägung und Folgen fest.",
+    "en": "Records technical decisions with options, trade-offs and consequences."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/architecture",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "system-design",
+   "category": "tech",
+   "label": {
+    "de": "Systeme entwerfen",
+    "en": "System design"
+   },
+   "summary": {
+    "de": "Entwirft Systeme und Schnittstellen: Anforderungen, Bausteine, Datenmodell, Abwägungen.",
+    "en": "Designs systems and interfaces: requirements, components, data model, trade-offs."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/system-design",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "documentation",
+   "category": "tech",
+   "label": {
+    "de": "Technisch dokumentieren",
+    "en": "Technical documentation"
+   },
+   "summary": {
+    "de": "Schreibt technische Dokumentation: Anleitungen, Referenzen, README und Einarbeitung.",
+    "en": "Writes technical documentation: guides, references, READMEs and onboarding."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/documentation",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "testing-strategy",
+   "category": "tech",
+   "label": {
+    "de": "Teststrategie",
+    "en": "Testing strategy"
+   },
+   "summary": {
+    "de": "Plant, was wie getestet wird, mit Testplan, Abdeckung und Prioritäten.",
+    "en": "Plans what to test and how, with a test plan, coverage and priorities."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/testing-strategy",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "deploy-checklist",
+   "category": "tech",
+   "label": {
+    "de": "Checkliste vor dem Ausrollen",
+    "en": "Deployment checklist"
+   },
+   "summary": {
+    "de": "Prüft vor einer Veröffentlichung, ob alles bereit ist, und legt Rückfall-Kriterien fest.",
+    "en": "Checks before a release that everything is ready and sets rollback criteria."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/deploy-checklist",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "tech-debt",
+   "category": "tech",
+   "label": {
+    "de": "Altlasten angehen",
+    "en": "Technical debt"
+   },
+   "summary": {
+    "de": "Erfasst technische Altlasten und ordnet sie nach Nutzen und Aufwand.",
+    "en": "Lists technical debt and ranks it by value and effort."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/tech-debt",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "standup",
+   "category": "tech",
+   "label": {
+    "de": "Tagesbericht fürs Team",
+    "en": "Standup update"
+   },
+   "summary": {
+    "de": "Macht aus Notizen einen kurzen Stand: gestern, heute, Hindernisse.",
+    "en": "Turns notes into a short update: yesterday, today, blockers."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/engineering/skills/standup",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "runbook",
+   "category": "tech",
+   "label": {
+    "de": "Betriebsanleitung",
+    "en": "Runbook"
+   },
+   "summary": {
+    "de": "Schreibt Anleitungen für wiederkehrende Aufgaben mit genauen Schritten, Fehlersuche und Rückweg.",
+    "en": "Writes runbooks for recurring tasks with exact steps, troubleshooting and rollback."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/runbook",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "change-request",
+   "category": "tech",
+   "label": {
+    "de": "Änderungsantrag",
+    "en": "Change request"
+   },
+   "summary": {
+    "de": "Erstellt einen Änderungsantrag mit Auswirkung, Risiko und Rückfallplan.",
+    "en": "Creates a change request with impact, risk and rollback plan."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/change-request",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "capacity-plan",
+   "category": "tech",
+   "label": {
+    "de": "Kapazität planen",
+    "en": "Capacity planning"
+   },
+   "summary": {
+    "de": "Plant Auslastung und Ressourcen und prüft, ob Vorhaben zu den vorhandenen Kräften passen.",
+    "en": "Plans utilisation and resources and checks whether projects fit the capacity available."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/capacity-plan",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "compliance-tracking",
+   "category": "tech",
+   "label": {
+    "de": "Vorgaben nachhalten",
+    "en": "Compliance tracking"
+   },
+   "summary": {
+    "de": "Behält Anforderungen und Nachweise im Blick und bereitet Prüfungen vor.",
+    "en": "Keeps requirements and evidence in view and prepares audits."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/operations/skills/compliance-tracking",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "analyze",
+   "category": "data",
+   "label": {
+    "de": "Daten auswerten",
+    "en": "Analyse data"
+   },
+   "summary": {
+    "de": "Beantwortet Fragen zu Daten, von schnellen Zahlen bis zur vollständigen Auswertung.",
+    "en": "Answers questions about data, from quick numbers to a full analysis."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/data/skills/analyze",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "explore-data",
+   "category": "data",
+   "label": {
+    "de": "Daten kennenlernen",
+    "en": "Explore data"
+   },
+   "summary": {
+    "de": "Verschafft einen Überblick über eine Tabelle: Aufbau, Qualität, Auffälligkeiten.",
+    "en": "Gives an overview of a table: structure, quality, oddities."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/data/skills/explore-data",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "sql-queries",
+   "category": "data",
+   "label": {
+    "de": "SQL schreiben",
+    "en": "Write SQL"
+   },
+   "summary": {
+    "de": "Schreibt und optimiert SQL-Abfragen für gängige Datenbanken.",
+    "en": "Writes and optimises SQL queries for common databases."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/data/skills/sql-queries",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "data-visualization",
+   "category": "data",
+   "label": {
+    "de": "Diagramme wählen",
+    "en": "Data visualisation"
+   },
+   "summary": {
+    "de": "Wählt das passende Diagramm und gestaltet es lesbar.",
+    "en": "Chooses the right chart and designs it to be readable."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/data/skills/data-visualization",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "statistical-analysis",
+   "category": "data",
+   "label": {
+    "de": "Statistik",
+    "en": "Statistical analysis"
+   },
+   "summary": {
+    "de": "Wendet Statistik an: Kennzahlen, Verteilungen, Tests und was sie bedeuten.",
+    "en": "Applies statistics: summary figures, distributions, tests and what they mean."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/data/skills/statistical-analysis",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "validate-data",
+   "category": "data",
+   "label": {
+    "de": "Auswertung prüfen",
+    "en": "Validate analysis"
+   },
+   "summary": {
+    "de": "Prüft eine Auswertung auf Fehler und Verzerrungen, bevor sie weitergegeben wird.",
+    "en": "Checks an analysis for errors and bias before it is shared."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/data/skills/validate-data",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "write-spec",
+   "category": "product",
+   "label": {
+    "de": "Anforderungen schreiben",
+    "en": "Write a spec"
+   },
+   "summary": {
+    "de": "Schreibt Anforderungen und Spezifikationen aus einer Idee oder einem Problem.",
+    "en": "Writes requirements and specs from an idea or a problem."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/product-management/skills/write-spec",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "roadmap-update",
+   "category": "product",
+   "label": {
+    "de": "Fahrplan aktualisieren",
+    "en": "Roadmap update"
+   },
+   "summary": {
+    "de": "Pflegt einen Fahrplan mit Prioritäten, Abhängigkeiten und Terminen.",
+    "en": "Maintains a roadmap with priorities, dependencies and dates."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/product-management/skills/roadmap-update",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "sprint-planning",
+   "category": "product",
+   "label": {
+    "de": "Sprint planen",
+    "en": "Sprint planning"
+   },
+   "summary": {
+    "de": "Plant einen Arbeitsabschnitt: Umfang, Aufwand, Reihenfolge und Risiken.",
+    "en": "Plans a sprint: scope, effort, order and risks."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/product-management/skills/sprint-planning",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "product-brainstorming",
+   "category": "product",
+   "label": {
+    "de": "Produkt-Ideen entwickeln",
+    "en": "Product brainstorming"
+   },
+   "summary": {
+    "de": "Entwickelt Ideen und Richtungen für Produkte und prüft sie auf Tragfähigkeit.",
+    "en": "Develops product ideas and directions and tests whether they hold up."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/product-management/skills/product-brainstorming",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "metrics-review",
+   "category": "product",
+   "label": {
+    "de": "Kennzahlen auswerten",
+    "en": "Metrics review"
+   },
+   "summary": {
+    "de": "Wertet Kennzahlen aus, erkennt Trends und leitet Maßnahmen ab.",
+    "en": "Reviews metrics, spots trends and derives actions."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/product-management/skills/metrics-review",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "draft-response",
+   "category": "support",
+   "label": {
+    "de": "Kundenantworten",
+    "en": "Customer replies"
+   },
+   "summary": {
+    "de": "Schreibt Antworten an Kunden, die freundlich, genau und lösungsorientiert sind.",
+    "en": "Writes customer replies that are friendly, precise and solution-oriented."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/customer-support/skills/draft-response",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "ticket-triage",
+   "category": "support",
+   "label": {
+    "de": "Anfragen sortieren",
+    "en": "Ticket triage"
+   },
+   "summary": {
+    "de": "Sortiert eingehende Anfragen nach Art und Dringlichkeit und schlägt den nächsten Schritt vor.",
+    "en": "Sorts incoming requests by type and urgency and suggests the next step."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/customer-support/skills/ticket-triage",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "kb-article",
+   "category": "support",
+   "label": {
+    "de": "Hilfeartikel",
+    "en": "Help articles"
+   },
+   "summary": {
+    "de": "Macht aus einem gelösten Fall einen Hilfeartikel für die Wissensdatenbank.",
+    "en": "Turns a solved case into a help article for the knowledge base."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/customer-support/skills/kb-article",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "customer-escalation",
+   "category": "support",
+   "label": {
+    "de": "Eskalation vorbereiten",
+    "en": "Escalation"
+   },
+   "summary": {
+    "de": "Bereitet eine Eskalation vor: Sachstand, Auswirkung, Verlauf und gewünschte Hilfe.",
+    "en": "Prepares an escalation: status, impact, history and the help needed."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/customer-support/skills/customer-escalation",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "interview-prep",
+   "category": "people",
+   "label": {
+    "de": "Vorstellungsgespräch",
+    "en": "Interview prep"
+   },
+   "summary": {
+    "de": "Bereitet Gespräche vor: Fragen, Bewertungsraster und Ablauf.",
+    "en": "Prepares interviews: questions, scorecard and flow."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/human-resources/skills/interview-prep",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "onboarding",
+   "category": "people",
+   "label": {
+    "de": "Einarbeitung",
+    "en": "Onboarding"
+   },
+   "summary": {
+    "de": "Plant die Einarbeitung neuer Kolleginnen und Kollegen mit Checkliste und Zeitplan.",
+    "en": "Plans the onboarding of new colleagues with a checklist and timeline."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/human-resources/skills/onboarding",
+   "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "performance-review",
+   "category": "people",
+   "label": {
+    "de": "Mitarbeitergespräch",
+    "en": "Performance review"
+   },
+   "summary": {
+    "de": "Hilft bei Beurteilungen und Feedback-Gesprächen, fair und konkret.",
+    "en": "Helps with performance reviews and feedback conversations, fair and concrete."
+   },
+   "author": "Anthropic",
+   "license": "Apache-2.0",
+   "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/human-resources/skills/performance-review",
+   "license_file": "Apache-2.0.txt"
+  }
+ ]
+}

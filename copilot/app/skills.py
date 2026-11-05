@@ -33,8 +33,10 @@ UPLOAD_MAX = 4 * 1024 * 1024  # Rohdaten je Hochladen
 ZIP_MEMBER_BYTES = 2 * 1024 * 1024
 ZIP_TOTAL_BYTES = 20 * 1024 * 1024
 ZIP_ENTRIES = 400
-PER_PERSON = 60  # Skills je Person (eigene, importierte und empfohlene zusammen)
-LIST_INLINE_CHARS = 6000  # so viel Verzeichnis (Name + Beschreibung) gehört höchstens in die Systemanweisung
+PER_PERSON = 120  # Skills je Person (eigene, importierte und empfohlene zusammen)
+LIST_INLINE_CHARS = 9000  # so viel Verzeichnis (Name + Beschreibung) gehört höchstens in die Systemanweisung
+LIST_DESCRIPTION_CHARS = 300  # je Skill im Verzeichnis; den ganzen Text liefert skill_load
+LIST_NAMES_CHARS = 3000  # Namen der Skills, die nicht mehr mit Beschreibung ins Verzeichnis passen
 STANDARD = {"allgemein", "dokument", "folien", "html", "pdf", "tabelle"}
 STANDARD_LABEL = {
     "allgemein": "Grundregeln für jede Datei",
@@ -292,10 +294,11 @@ def standard_text(name: str) -> str | None:
 # ------------------------------------------------------------------ Empfohlene Skills
 
 CATALOG_DIR = Path(__file__).parent / "skill_catalog"
-_catalog: list[dict] | None = None
+_catalog: dict | None = None
 
 
-def _load_catalog() -> list[dict]:
+def _load_catalog() -> dict:
+    """``catalog.json``: ``categories`` (id, label) und ``skills`` (id, category, label, summary, author, license, source, ...)."""
     global _catalog
     if _catalog is None:
         _catalog = json.loads((CATALOG_DIR / "catalog.json").read_text(encoding="utf-8"))
@@ -303,26 +306,36 @@ def _load_catalog() -> list[dict]:
 
 
 def catalog_entry(skill_id: str) -> dict | None:
-    return next((e for e in _load_catalog() if e["id"] == skill_id), None)
+    return next((e for e in _load_catalog()["skills"] if e["id"] == skill_id), None)
 
 
 def catalog_files(skill_id: str) -> dict[str, str]:
-    """Alle Dateien eines mitgelieferten Skills (Pfad -> Text), ``SKILL.md`` und ``LICENSE.txt`` eingeschlossen."""
+    """Alle Dateien eines mitgelieferten Skills (Pfad -> Text) mit ``SKILL.md``; die Lizenz kommt als ``LICENSE.txt`` dazu."""
     root = CATALOG_DIR / skill_id
-    return {p.relative_to(root).as_posix(): p.read_text(encoding="utf-8") for p in sorted(root.rglob("*")) if p.is_file()}
+    files = {p.relative_to(root).as_posix(): p.read_text(encoding="utf-8") for p in sorted(root.rglob("*")) if p.is_file()}
+    entry = catalog_entry(skill_id)
+    if entry and entry.get("license_file") and "LICENSE.txt" not in files:
+        files["LICENSE.txt"] = (CATALOG_DIR / "licenses" / entry["license_file"]).read_text(encoding="utf-8")
+    return files
+
+
+def recommended_categories() -> list[dict]:
+    lang = language()
+    return [{"id": c["id"], "label": c["label"].get(lang) or c["label"]["de"]} for c in _load_catalog()["categories"]]
 
 
 def recommended_list() -> list[dict]:
     """Die mitgelieferten, geprüften Skills mit Text in der eingestellten Sprache (ohne ``installed``)."""
     lang = language()
     out = []
-    for e in _load_catalog():
+    for e in _load_catalog()["skills"]:
         files = catalog_files(e["id"])
         _, description, _ = parse_skill_md(files["SKILL.md"])
         out.append({
             "id": e["id"], "name": e["id"], "category": e["category"], "label": e["label"].get(lang) or e["label"]["de"],
             "summary": e["summary"].get(lang) or e["summary"]["de"], "description": description, "author": e["author"],
-            "license": e["license"], "source": e["source"], "files": len(files), "size": sum(len(t) for t in files.values()),
+            "license": e["license"], "source": e["source"], "installs": e.get("installs"),
+            "files": len(files), "size": sum(len(t) for t in files.values()),
         })
     return out
 
@@ -348,18 +361,34 @@ NOTE_RULES = (
 )
 
 
+def _short(text: str, limit: int) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[:limit].rsplit(" ", 1)[0].rstrip(",;:.") + " …"
+
+
 def note_block(entries: list[dict]) -> str:
-    """Verzeichnis (Name, Herkunft, Beschreibung) der wirksamen Skills als Abschnitt der Systemanweisung; leer, wenn keine."""
+    """Verzeichnis (Name, Herkunft, Beschreibung) der wirksamen Skills als Abschnitt der Systemanweisung; leer, wenn keine.
+
+    Die Beschreibungen sind gekürzt; was nicht mehr hineinpasst, steht nur mit Namen da (skill_load liefert alles)."""
     if not entries:
         return ""
-    lines = []
+    lines: list[str] = []
     used = 0
+    rest: list[str] = []
     for e in entries:
         origin = {"imported": "importiert", "recommended": "empfohlen"}.get(e["origin"], "eigen")
-        line = f"- {e['name']} ({origin}): {e['description']}"
-        if used + len(line) > LIST_INLINE_CHARS:
-            lines.append(f"- … und {len(entries) - len(lines)} weitere (Name in skill_load angeben; Beschreibungen gekürzt)")
-            break
+        line = f"- {e['name']} ({origin}): {_short(e['description'], LIST_DESCRIPTION_CHARS)}"
+        if rest or used + len(line) > LIST_INLINE_CHARS:
+            rest.append(e["name"])
+            continue
         used += len(line)
         lines.append(line)
+    if rest:
+        names = ""
+        for i, name in enumerate(rest):
+            if len(names) + len(name) > LIST_NAMES_CHARS:
+                names += f" … und {len(rest) - i} weitere"
+                break
+            names += (", " if names else "") + name
+        lines.append(f"- Weitere Skills, nur mit Namen (Beschreibung mit skill_load abrufen): {names}")
     return NOTE_RULES + "\n" + "\n".join(lines)

@@ -69,9 +69,9 @@ Mehr: [Projektwissen und Gedächtnis](../copilot/DOCS.md#projektwissen-und-gedä
 
 ## Skills
 
-Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, etwa „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Du findest sie auf der Seite **Skills** in der Seitenleiste. Sie gelten für dich in allen Chats. Du fügst Skills hinzu, indem du sie importierst (`SKILL.md`, `.skill` oder ZIP, mit Vorschau), selbst schreibst oder im Reiter **Empfohlen** mit einem Klick übernimmst (geprüfte Skills von Anthropic für Gestaltung und für Mitteilungen im Betrieb). Die KI sieht nur Name und Beschreibung und lädt ein Skill von selbst, wenn die Aufgabe passt; auch geplante Aufgaben nutzen sie (nur lesend).
+Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, etwa „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Du findest sie auf der Seite **Anpassungen** in der Seitenleiste (Reiter „Skills“; „Konnektoren“ und „Plugins“ kommen später). Sie gelten für dich in allen Chats. Du fügst Skills hinzu, indem du sie importierst (`SKILL.md`, `.skill` oder ZIP, mit Vorschau), selbst schreibst oder unter **Entdecken** mit einem Klick übernimmst (69 geprüfte Skills in acht Kategorien, mit Suche, zum Beispiel für Marketing, Social Media, Gestaltung und Büro). Die KI sieht nur Name und Beschreibung und lädt ein Skill von selbst, wenn die Aufgabe passt; auch geplante Aufgaben nutzen sie (nur lesend).
 
-Die mitgelieferten Gestaltungsregeln für Word, PowerPoint, Excel, PDF und HTML stehen als **Standard-Skills** in der Liste; sie lassen sich nicht abschalten, aber eigene Skills gehen ihnen vor. Skripte in einem Skill werden **nie ausgeführt**, und importierte Skills gelten als fremder Inhalt: Danach fragt die KI vor Änderungen in Home Assistant oder bei GitHub nach.
+Die mitgelieferten Gestaltungsregeln für Word, PowerPoint, Excel, PDF und HTML stehen als **Standard-Skills** unter „Meine“; sie lassen sich nicht abschalten, aber eigene Skills gehen ihnen vor. Skripte in einem Skill werden **nie ausgeführt**, und importierte Skills gelten als fremder Inhalt: Danach fragt die KI vor Änderungen in Home Assistant oder bei GitHub nach.
 
 Mehr: [Skills](../copilot/DOCS.md#skills-ab-0360).
 
