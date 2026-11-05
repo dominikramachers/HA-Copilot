@@ -46,7 +46,7 @@ def test_news_appear_once_after_an_update(store):
     store.state_set("intro:adm01", "1")
     store.state_set("news:adm01", "0.31.0")
     shown = _welcome(app)
-    assert shown["intro"] is False and [i["title"] for i in shown["news"]][:1] == [news.unseen("0.0.1")[0]["title"]] and "Auf einen Satz antworten" in [i["title"] for i in shown["news"]]
+    assert shown["intro"] is False and [i["title"] for i in shown["news"]][:1] == [news.unseen("0.0.1")[0]["title"]] and len(shown["news"]) > 1 and [i["title"] for i in shown["news"]] == [i["title"] for i in news.unseen("0.31.0")]
     assert _post(app, "/api/welcome/seen", {"what": "news"}) == 204
     assert _welcome(app) == {"intro": False, "news": []}
 

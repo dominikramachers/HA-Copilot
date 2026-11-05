@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.37.0",
+    "items": [
+      {
+        "de": {
+          "title": "Viel mehr Skills zur Auswahl",
+          "text": "Unter „Anpassungen“ findest du jetzt 69 fertige Skills, zum Beispiel für Texte, Social Media, Gestaltung und Büroarbeit. Du kannst suchen, nach Themen filtern und mit einem Klick hinzufügen."
+        },
+        "en": {
+          "title": "Many more skills to choose from",
+          "text": "Under \"Customise\" you now find 69 ready-made skills, for example for writing, social media, design and office work. You can search, filter by topic and add one with a single click."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.36.0",
     "items": [
       {

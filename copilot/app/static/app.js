@@ -1281,7 +1281,7 @@ async function openKnowledge(project) {
 
 const SKILL_ACCEPT = ".skill,.zip,.md,text/markdown,text/plain";
 const SKILL_MAX = 4 * 1024 * 1024;
-const skillsUi = { mode: "list", tab: "mine", detail: null, preview: null, data: null, status: "", busy: false };
+const skillsUi = { mode: "list", section: "skills", tab: "mine", query: "", category: "all", sort: "popular", detail: null, preview: null, data: null, status: "", busy: false };
 
 async function openSkills() {
   if (!state.me) return;
@@ -1294,8 +1294,8 @@ async function openSkills() {
   state.heldUnread = null;
   renderSide();
   closeMenu();
-  setTitle(tr("Skills"));
-  Object.assign(skillsUi, { mode: "list", tab: "mine", detail: null, preview: null, status: "", busy: false });
+  setTitle(tr("Anpassungen"));
+  Object.assign(skillsUi, { mode: "list", section: "skills", tab: "mine", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
   await loadSkills();
   $("skills").scrollTop = 0;
 }
@@ -1337,7 +1337,7 @@ function skillHead(wrap, title, intro, ...buttons) {
   wrap.append(head);
 }
 
-function skillBack(wrap, label = tr("Zurück zu den Skills")) {
+function skillBack(wrap, label = tr("Zurück zu den Anpassungen")) {
   const back = node("button", "skills-back");
   back.type = "button";
   back.append(icon("chevron"), node("span", "", label));
@@ -1367,7 +1367,7 @@ function skillSwitch(s, after) {
 function skillBadges(s) {
   const row = node("div", "skill-badges");
   if (s.standard) row.append(node("span", "skill-badge", tr("Standard")));
-  else if (s.recommended || s.origin === "recommended") row.append(node("span", "skill-badge", tr("empfohlen")));
+  else if (s.recommended || s.origin === "recommended") row.append(node("span", "skill-badge", s.categoryLabel || tr("empfohlen")));
   else row.append(node("span", "skill-badge" + (s.imported ? " ext" : ""), s.imported ? tr("importiert") : tr("selbst geschrieben")));
   return row;
 }
@@ -1380,68 +1380,176 @@ function renderSkillList(wrap) {
   picker.type = "file";
   picker.accept = SKILL_ACCEPT;
   picker.hidden = true;
-  const imp = node("button", "pill primary");
-  imp.type = "button";
-  imp.append(icon("upload"), node("span", "", tr("Skill importieren")));
-  imp.disabled = skillsUi.busy;
-  imp.addEventListener("click", () => picker.click());
-  const write = node("button", "pill ghost");
-  write.type = "button";
-  write.append(icon("edit"), node("span", "", tr("Selbst schreiben")));
-  write.addEventListener("click", () => skillsGo("write"));
   picker.addEventListener("change", async () => {
     const file = picker.files[0];
     picker.value = "";
     if (file) await previewSkillFile(file);
   });
-  skillHead(wrap, tr("Skills"), tr("Anleitungen, die die KI von selbst nutzt, wenn eine Aufgabe dazu passt, zum Beispiel für eine bestimmte Software oder einen festen Ablauf."), imp, write, picker);
+  skillHead(wrap, tr("Anpassungen"), tr("Hier legst du fest, was die KI zusätzlich kann und wie sie arbeitet."), picker);
+
+  const bar = node("div", "skills-bar");
+  const tabs = node("div", "skills-tabs");
+  tabs.setAttribute("role", "tablist");
+  for (const [id, label] of [["skills", tr("Skills")], ["connectors", tr("Konnektoren")], ["plugins", tr("Plugins")]]) {
+    const tab = node("button", "skills-tab", label);
+    tab.type = "button";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(skillsUi.section === id));
+    tab.addEventListener("click", () => { skillsUi.section = id; skillsUi.status = ""; renderSkills(); });
+    tabs.append(tab);
+  }
+  bar.append(tabs);
+  wrap.append(bar);
+
+  if (skillsUi.section !== "skills") { renderSoon(wrap, skillsUi.section); return; }
 
   const status = node("p", "skills-status");
   status.setAttribute("role", "status");
   status.textContent = skillsUi.status;
   wrap.append(status);
 
-  const bar = node("div", "skills-bar");
-  const tabs = node("div", "skills-tabs");
-  tabs.setAttribute("role", "tablist");
-  for (const [id, label] of [["mine", tr("Meine Skills")], ["recommended", tr("Empfohlen")], ["standard", tr("Standard")]]) {
-    const tab = node("button", "skills-tab", label);
-    tab.type = "button";
-    tab.setAttribute("role", "tab");
-    tab.setAttribute("aria-selected", String(skillsUi.tab === id));
-    tab.addEventListener("click", () => { skillsUi.tab = id; skillsUi.status = ""; renderSkills(); });
-    tabs.append(tab);
+  const tools = node("div", "skills-tools");
+  const seg = node("div", "seg");
+  for (const [id, label] of [["mine", tr("Meine")], ["recommended", tr("Entdecken")]]) {
+    const b = node("button", "", label);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(skillsUi.tab === id));
+    b.addEventListener("click", () => { skillsUi.tab = id; skillsUi.status = ""; renderSkills(); });
+    seg.append(b);
   }
-  bar.append(tabs);
-  wrap.append(bar);
+  const add = node("button", "pill primary");
+  add.type = "button";
+  add.disabled = skillsUi.busy;
+  add.setAttribute("aria-haspopup", "menu");
+  add.append(icon("plus"), node("span", "", tr("Hinzufügen")));
+  add.addEventListener("click", async () => {
+    const entries = [
+      { value: "import", icon: "upload", label: tr("Skill importieren") },
+      { value: "write", icon: "edit", label: tr("Selbst schreiben") },
+    ];
+    const choice = wideScreen() ? await openPopover(add, entries) : await openSheet({ title: tr("Skill hinzufügen"), items: entries });
+    if (choice === "import") picker.click();
+    else if (choice === "write") skillsGo("write");
+  });
+  tools.append(seg, add);
+  wrap.append(tools);
 
   if (!data) { wrap.append(node("p", "mem-empty", skillsUi.status || tr("Die Skills sind gerade nicht erreichbar."))); return; }
-  if (skillsUi.tab === "recommended") {
-    wrap.append(node("p", "skills-hint", tr("Geprüfte Skills von Anthropic, mitgeliefert und frei nutzbar. Mit „Hinzufügen“ landen sie bei „Meine Skills“; dort kannst du sie jederzeit ausschalten oder entfernen.")));
-    const grid = node("div", "skills-grid");
-    for (const s of data.recommended) grid.append(skillCard({ ...s, recommended: true }));
-    wrap.append(grid);
-  } else if (skillsUi.tab === "standard") {
-    wrap.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
-    const grid = node("div", "skills-grid");
-    for (const s of data.standard) grid.append(skillCard({ ...s, standard: true }));
-    wrap.append(grid);
-  } else {
-    wrap.append(node("p", "skills-hint", tr("Diese Skills gelten in allen deinen Chats. Die KI nimmt eines von selbst, wenn die Aufgabe zur Beschreibung passt.")));
-    if (!data.skills.length) {
-      const empty = node("div", "skills-empty");
-      empty.append(
-        node("p", "", tr("Noch keine eigenen Skills.")),
-        node("p", "skills-hint", tr("Importiere eine SKILL.md oder ein .skill, schreibe selbst eines oder schau bei „Empfohlen“ vorbei.")),
-      );
-      wrap.append(empty);
-    } else {
-      const grid = node("div", "skills-grid");
-      for (const s of data.skills) grid.append(skillCard(s));
-      wrap.append(grid);
-    }
-  }
+  if (skillsUi.tab === "recommended") renderDiscover(wrap, data);
+  else renderMine(wrap, data);
   wrap.append(node("p", "skills-note", tr("Skripte in Skills werden nie ausgeführt. Ein importiertes Skill gilt als fremder Inhalt: Hat die KI eines genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
+}
+
+// Konnektoren und Plugins folgen später: Platzhalter statt leerer Seite
+function renderSoon(wrap, section) {
+  const box = node("div", "skills-soon");
+  box.append(
+    node("p", "skills-soon-title", tr("Kommt bald")),
+    node("p", "skills-hint", section === "connectors"
+      ? tr("Hier verbindest du später weitere Dienste mit der KI, damit sie dort nachschlagen und etwas erledigen kann.")
+      : tr("Hier findest du später Pakete, die Skills und Verbindungen zu einem Thema bündeln.")),
+  );
+  wrap.append(box);
+}
+
+function renderMine(wrap, data) {
+  wrap.append(node("p", "skills-hint", tr("Diese Skills gelten in allen deinen Chats. Die KI nimmt eines von selbst, wenn die Aufgabe zur Beschreibung passt.")));
+  if (!data.skills.length) {
+    const empty = node("div", "skills-empty");
+    const go = node("button", "pill ghost", tr("Skills entdecken"));
+    go.type = "button";
+    go.addEventListener("click", () => { skillsUi.tab = "recommended"; renderSkills(); });
+    empty.append(
+      node("p", "", tr("Noch keine eigenen Skills.")),
+      node("p", "skills-hint", tr("Importiere eine SKILL.md oder ein .skill, schreibe selbst eines oder such dir bei „Entdecken“ eines aus.")),
+      go,
+    );
+    wrap.append(empty);
+  } else {
+    const grid = node("div", "skills-grid");
+    for (const s of data.skills) grid.append(skillCard(s));
+    wrap.append(grid);
+  }
+  wrap.append(node("h3", "skills-section", tr("Standard")));
+  wrap.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
+  const std = node("div", "skills-grid");
+  for (const s of data.standard) std.append(skillCard({ ...s, standard: true }));
+  wrap.append(std);
+}
+
+const skillFold = (text) => String(text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+// Entdecken: Suche, Kategorien und Sortierung über die mitgelieferten Skills
+function renderDiscover(wrap, data) {
+  wrap.append(node("p", "skills-hint", tr("Geprüfte Skills, mitgeliefert und frei nutzbar. Mit „Hinzufügen“ landen sie bei „Meine“; dort kannst du sie jederzeit ausschalten oder entfernen.")));
+  const cats = new Map(data.categories.map((c) => [c.id, c.label]));
+  const all = data.recommended.map((s) => ({ ...s, recommended: true, categoryLabel: cats.get(s.category) || "", haystack: skillFold(`${s.label} ${s.name} ${s.summary} ${cats.get(s.category) || ""}`) }));
+
+  const controls = node("div", "skills-filter");
+  const search = node("input", "field");
+  search.type = "search";
+  search.maxLength = 80;
+  search.placeholder = tr("Skills durchsuchen");
+  search.setAttribute("aria-label", tr("Skills durchsuchen"));
+  search.value = skillsUi.query;
+  const sort = node("select", "field");
+  sort.setAttribute("aria-label", tr("Sortierung"));
+  for (const [id, label] of [["popular", tr("Beliebteste")], ["az", tr("A bis Z")]]) {
+    const o = node("option", "", label);
+    o.value = id;
+    sort.append(o);
+  }
+  sort.value = skillsUi.sort;
+  controls.append(search, sort);
+  const chips = node("div", "skills-cats");
+  chips.setAttribute("role", "group");
+  chips.setAttribute("aria-label", tr("Kategorien"));
+  const count = node("p", "skills-count");
+  count.setAttribute("role", "status");
+  const grid = node("div", "skills-grid");
+  wrap.append(controls, chips, count, grid);
+
+  const update = () => {
+    const words = skillFold(skillsUi.query).split(/\s+/).filter(Boolean);
+    const hits = all.filter((s) => words.every((w) => s.haystack.includes(w)));
+    const per = new Map();
+    for (const s of hits) per.set(s.category, (per.get(s.category) || 0) + 1);
+    if (skillsUi.category !== "all" && !cats.has(skillsUi.category)) skillsUi.category = "all";
+    chips.replaceChildren();
+    for (const [id, label] of [["all", tr("Alle")], ...cats]) {
+      const n = id === "all" ? hits.length : per.get(id) || 0;
+      const chip = node("button", "skills-cat", `${label} · ${n.toLocaleString(kiLocale)}`);
+      chip.type = "button";
+      chip.setAttribute("aria-pressed", String(skillsUi.category === id));
+      if (!n && skillsUi.category !== id) chip.disabled = true;
+      chip.addEventListener("click", () => { skillsUi.category = id; update(); });
+      chips.append(chip);
+    }
+    const shown = hits.filter((s) => skillsUi.category === "all" || s.category === skillsUi.category);
+    shown.sort(skillsUi.sort === "az"
+      ? (a, b) => a.label.localeCompare(b.label, kiLocale)
+      : (a, b) => (b.installs || 0) - (a.installs || 0) || a.label.localeCompare(b.label, kiLocale));
+    count.textContent = trn(shown.length, "1 Skill", "{0} Skills");
+    grid.replaceChildren();
+    if (!shown.length) {
+      const none = node("div", "skills-empty");
+      const reset = node("button", "pill ghost", tr("Suche zurücksetzen"));
+      reset.type = "button";
+      reset.addEventListener("click", () => { skillsUi.query = ""; skillsUi.category = "all"; search.value = ""; update(); search.focus(); });
+      none.append(node("p", "", tr("Nichts gefunden.")), node("p", "skills-hint", tr("Versuch es mit einem anderen Wort oder wähle eine andere Kategorie.")), reset);
+      grid.append(none);
+      return;
+    }
+    for (const s of shown) grid.append(skillCard(s));
+  };
+  search.addEventListener("input", () => { skillsUi.query = search.value; update(); });
+  sort.addEventListener("change", () => { skillsUi.sort = sort.value; update(); });
+  update();
+}
+
+function skillSource(s) {
+  const by = tr("von {0}", s.author);
+  return s.installs ? `${by} · ${tr("{0} Installationen", s.installs.toLocaleString(kiLocale))}` : by;
 }
 
 function skillCard(s) {
@@ -1453,7 +1561,7 @@ function skillCard(s) {
   top.append(open);
   if (!s.standard && !s.recommended) top.append(skillSwitch(s, renderSkills));
   card.append(top, skillBadges(s), node("p", "skill-desc", s.recommended ? s.summary : s.description));
-  if (s.recommended) card.append(skillAddRow(s));
+  if (s.recommended) card.append(node("small", "mem-meta", skillSource(s)), skillAddRow(s));
   if (!s.standard && !s.recommended) card.append(node("small", "mem-meta", `${trn(s.files, "1 Datei", "{0} Dateien")} · ${tr("{0} Text", formatSize(s.size))}`));
   card.addEventListener("click", (event) => { if (!event.target.closest("button")) openSkillDetail(s); });
   return card;
@@ -1467,7 +1575,7 @@ async function addRecommended(s, button) {
     toast(tr("Skill „{0}“ hinzugefügt.", s.label));
     await loadSkills();
     const fresh = skillsUi.data?.recommended.find((r) => r.id === s.id);
-    if (skillsUi.mode === "detail" && fresh) openSkillDetail({ ...fresh, recommended: true });
+    if (skillsUi.mode === "detail" && fresh) openSkillDetail({ ...fresh, recommended: true, categoryLabel: s.categoryLabel });
   } catch (err) { toast(errorText(err, tr("Hinzufügen hat nicht geklappt."))); button.disabled = false; }
 }
 
@@ -1649,7 +1757,9 @@ function renderSkillDetail(wrap) {
     switchBox.append(skillSwitch(s, rerender), node("span", "", s.enabled ? tr("An") : tr("Aus")));
     meta.append(switchBox);
   }
-  card.append(meta, node("p", "skills-label", tr("Beschreibung (so sieht die KI es)")), node("p", "skill-desc full", s.description));
+  if (s.recommended) card.append(meta, node("p", "skill-desc full", s.summary));
+  else card.append(meta);
+  card.append(node("p", "skills-label", tr("Beschreibung (so sieht die KI es)")), node("p", "skill-desc full", s.description));
   if (s.standard) {
     card.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
   } else if (s.recommended) {
@@ -1658,9 +1768,9 @@ function renderSkillDetail(wrap) {
     source.target = "_blank";
     source.rel = "noopener noreferrer";
     const from = node("p", "skill-desc full");
-    from.append(`${s.author} · ${tr("Lizenz {0}", s.license)} · `, source);
+    from.append(`${skillSource(s)} · ${tr("Lizenz {0}", s.license)} · `, source);
     card.append(node("p", "skills-label", tr("Herkunft")), from, skillAddRow(s));
-    card.append(node("p", "skills-hint", tr("Der Text ist unverändert aus der Quelle übernommen; der Lizenztext liegt als LICENSE.txt dabei.")));
+    card.append(node("p", "skills-hint", tr("Der Inhalt ist aus der Quelle übernommen; der Lizenztext liegt als LICENSE.txt dabei.")));
   } else {
     const tools = node("div", "skills-buttons");
     const exp = node("button", "pill ghost");

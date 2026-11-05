@@ -250,9 +250,13 @@ def test_imported_skills_count_as_tainted_in_every_confirmation_rule():
 
 
 def test_list_is_capped_in_the_note():
-    entries = [{"name": f"s{i}", "description": "x" * 400, "origin": "own", "imported": False} for i in range(60)]
+    entries = [{"name": f"s{i}", "description": "wort " * 100, "origin": "own", "imported": False} for i in range(120)]
     block = sk.note_block(entries)
-    assert len(block) < sk.LIST_INLINE_CHARS + 2500 and "weitere" in block and sk.note_block([]) == ""
+    assert len(block) < sk.LIST_INLINE_CHARS + sk.LIST_NAMES_CHARS + 2500 and "nur mit Namen" in block and sk.note_block([]) == ""
+    assert "s119" in block or "weitere" in block  # auch der Rest ist genannt (mit Namen oder als Anzahl)
+    assert "wort " * 100 not in block and " …" in block  # lange Beschreibungen sind gekürzt
+    short = sk.note_block(entries[:5])
+    assert "nur mit Namen" not in short and short.count("\n- ") == 5
 
 
 # ------------------------------------------------------------------ Programmierschnittstelle
@@ -371,19 +375,62 @@ def test_skills_are_part_of_my_data_export(store):
 
 # ------------------------------------------------------------------ Empfohlene Skills
 
+def _catalog():
+    return json.loads((sk.CATALOG_DIR / "catalog.json").read_text(encoding="utf-8"))
+
+
 def test_catalog_entries_are_complete_and_untouched():
-    entries = json.loads((sk.CATALOG_DIR / "catalog.json").read_text(encoding="utf-8"))
-    assert {e["id"] for e in entries} == {"frontend-design", "internal-comms"}  # doc-coauthoring fehlt bewusst: keine Lizenzdatei
+    catalog = _catalog()
+    entries = catalog["skills"]
+    ids = [e["id"] for e in entries]
+    assert len(ids) == len(set(ids)) and len(ids) >= 60
+    assert {"frontend-design", "internal-comms", "copywriting", "social", "code-review", "geschaeftsbrief-din-5008"} <= set(ids)
+    assert "doc-coauthoring" not in ids  # bewusst nicht dabei: keine Lizenzdatei
+    categories = {c["id"] for c in catalog["categories"]}
+    assert {"marketing", "design", "office"} <= categories
+    for c in catalog["categories"]:
+        assert c["label"]["de"] and c["label"]["en"]
+        assert any(e["category"] == c["id"] for e in entries), c["id"]  # keine leere Kategorie
+    folders = {p.name for p in sk.CATALOG_DIR.iterdir() if p.is_dir() and p.name != "licenses"}
+    assert folders == set(ids)  # jeder Ordner hat einen Eintrag und umgekehrt
     for e in entries:
         files = sk.catalog_files(e["id"])
-        assert "SKILL.md" in files and "Apache License" in files["LICENSE.txt"] and "Version 2.0" in files["LICENSE.txt"]
-        assert e["license"] == "Apache-2.0" and e["source"].startswith("https://github.com/anthropics/skills/") and e["author"]
+        assert e["category"] in categories and e["author"] and e["source"].startswith("https://github.com/")
+        assert e["license"] in ("Apache-2.0", "MIT")
+        licence = files["LICENSE.txt"]
+        assert ("Apache License" in licence and "Version 2.0" in licence) if e["license"] == "Apache-2.0" else "Permission is hereby granted" in licence
+        assert e.get("installs") is None or (isinstance(e["installs"], int) and e["installs"] > 0)
         for field in ("label", "summary"):
             assert e[field]["de"] and e[field]["en"]
+        assert len(e["label"]["de"]) <= 40 and len(e["summary"]["de"]) <= 260
         assert sk.parse_skill_md(files["SKILL.md"])[0] == e["id"]  # Ordnername = Skill-Name
-        assert not [p for p in files if p.startswith("scripts/")]  # mitgelieferte Skills enthalten keine Skripte
-        assert sum(len(t) for t in files.values()) < sk.SKILL_MD_MAX * 2
+        assert not [p for p in files if p.startswith(("scripts/", "evals/"))]  # mitgelieferte Skills enthalten keine Skripte
+        assert len(files) <= sk.FILES_MAX and sum(len(x) for x in files.values()) <= sk.TOTAL_MAX
+        assert len(files["SKILL.md"]) <= sk.SKILL_MD_MAX and all(len(x) <= sk.FILE_MAX for x in files.values())
     assert "examples/3p-updates.md" in sk.catalog_files("internal-comms")
+
+
+def test_catalog_texts_have_no_hidden_characters():
+    import unicodedata
+
+    for path in sk.CATALOG_DIR.rglob("*"):
+        if path.is_file():
+            text = path.read_text(encoding="utf-8")
+            bad = {hex(ord(c)) for c in text if unicodedata.category(c) in ("Cf", "Co", "Cs") or 0xE0000 <= ord(c) <= 0xE007F}
+            assert not bad, (path, bad)
+
+
+def test_catalog_can_be_added_completely_and_listed_in_the_note(store):
+    for r in sk.recommended_list():
+        pkg = sk.recommended_package(r["id"])
+        store.skill_save("dora", pkg.name, pkg.description, pkg.files, origin="recommended")
+    entries = store.skills_active("dora")
+    assert len(entries) == len(sk.recommended_list()) <= sk.PER_PERSON
+    block = sk.note_block(entries)
+    assert "Weitere Skills, nur mit Namen" in block  # nicht alle Beschreibungen passen: der Rest steht mit Namen da
+    assert len(block) < sk.LIST_INLINE_CHARS + sk.LIST_NAMES_CHARS + 2500
+    for e in entries:
+        assert e["name"] in block  # jedes Skill ist mindestens mit seinem Namen genannt
 
 
 def test_recommended_list_follows_the_language(monkeypatch):
@@ -404,7 +451,10 @@ def test_api_recommended_add_view_and_conflicts(api):
     client, _ = api
     h = as_user(DORA, True)
     listed = client.get("/api/skills", headers=as_user(DORA)).json()["recommended"]
-    assert {r["id"] for r in listed} == {"frontend-design", "internal-comms"} and not any(r["installed"] or r["taken"] for r in listed)
+    assert {r["id"] for r in listed} == {e["id"] for e in _catalog()["skills"]} and not any(r["installed"] or r["taken"] for r in listed)
+    page = client.get("/api/skills", headers=as_user(DORA)).json()
+    assert {c["id"] for c in page["categories"]} == {c["id"] for c in _catalog()["categories"]} and page["max"] == 120
+    assert all(r["category"] in {c["id"] for c in page["categories"]} for r in listed)
     detail = client.get("/api/skills/recommended/internal-comms", headers=as_user(DORA)).json()
     assert "3P" in detail["skill_md"] and "Apache License" in detail["license_text"] and len(detail["files_list"]) == 6
     assert "Progress" in client.get("/api/skills/recommended/internal-comms/file", params={"path": "examples/3p-updates.md"}, headers=as_user(DORA)).json()["text"]
@@ -418,7 +468,7 @@ def test_api_recommended_add_view_and_conflicts(api):
     assert again.status_code == 409
     state = {r["id"]: r for r in client.get("/api/skills", headers=as_user(DORA)).json()["recommended"]}
     assert state["frontend-design"]["installed"] and not state["internal-comms"]["installed"]
-    assert not client.get("/api/skills", headers=as_user(ADM01)).json()["recommended"][0]["installed"]  # gilt je Person
+    assert not any(r["installed"] for r in client.get("/api/skills", headers=as_user(ADM01)).json()["recommended"])  # gilt je Person
     # gleicher Name, aber selbst geschrieben: nicht überschreiben, in der Liste als „vergeben“
     client.post("/api/skills/new", json={"name": "internal-comms", "description": "Meins", "instructions": "x"}, headers=h)
     assert client.post("/api/skills/recommended/internal-comms", headers=h).status_code == 409
