@@ -162,7 +162,7 @@ function closeSheet(result) {
 // Ein Fenster von unten für drei Fälle: Bestätigen, Text eingeben, aus einer Liste wählen (``items``).
 // Ergebnis: ``null`` bei Abbruch, sonst true, der Text oder der ``value`` des gewählten Eintrags.
 let sheetMultiline = false;
-function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false, maxLength = 120 }) {
+function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false, wide = false, maxLength = 120 }) {
   return new Promise((resolve) => {
     if (sheetDone) closeSheet(null);
     sheetDone = resolve;
@@ -170,6 +170,7 @@ function openSheet({ title, sub = "", label = "", value = null, placeholder = ""
     $("sheet-title").textContent = title;
     $("sheet-sub").textContent = sub;
     $("sheet").dataset.plain = plain ? "1" : "";
+    $("sheet").dataset.wide = wide ? "1" : "";
     $("sheet").dataset.kind = panel ? "panel" : items ? "list" : multiline ? "multiline" : value !== null ? "input" : "confirm";
     const field = $("sheet-label");
     field.textContent = label;
@@ -4476,80 +4477,285 @@ function highlighted(text, spans) {
   return out;
 }
 
-const SEARCH_HINT = tr("Sucht in Titeln und Nachrichten aller deiner Chats.");
+// ------------------------------------------------- Suche: Letzte Elemente, Reiter, Tastatur
+
+function searchTabs() {
+  const tabs = [["all", tr("Alle")], ["chats", tr("Chats")], ["projects", tr("Projekte")]];
+  if (state.me?.schedules) tabs.push(["schedules", tr("Geplant")]);
+  return tabs;
+}
+
+// Dinge, die man statt eines Treffers aufrufen will (in der Suche und als Vorschlag ohne Suchwort)
+function searchActions() {
+  const list = [
+    { icon: "plus", label: tr("Neuer Chat"), run: () => startNew() },
+    { icon: "folder", label: tr("Neues Projekt"), run: () => createProject() },
+    { icon: "skill", label: tr("Anpassungen"), run: () => openSkills() },
+  ];
+  if (state.me?.schedules) list.push({ icon: "clock", label: tr("Geplant"), run: () => openSchedules() });
+  if (state.me?.memory) list.push({ icon: "memory", label: tr("Gedächtnis"), run: () => openMemory() });
+  list.push({ icon: "download", label: tr("Meine Daten"), run: () => openMyData() });
+  return list.map((a) => ({ ...a, id: `a-${a.label}`, title: a.label, meta: "", marks: [] }));
+}
+
+// „Heute“, „Gestern“, sonst Tag und Monat (das Jahr nur, wenn es nicht das laufende ist)
+function searchDate(iso) {
+  if (!iso) return "";
+  const days = daysAgo(iso);
+  if (days <= 1) return groupOf(iso);
+  try {
+    const then = new Date(iso);
+    const opts = then.getFullYear() === new Date().getFullYear() ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" };
+    return then.toLocaleDateString(kiLocale, opts);
+  } catch { return ""; }
+}
+
+function chatEntry(chat, hit = null) {
+  const marks = [];
+  if (chat.needs_approval) marks.push(askMark());
+  else if (chat.running) marks.push(runningMark());
+  else if (chat.unread) marks.push(unreadDot());
+  return {
+    id: `c-${chat.id}`, icon: chat.schedule_id ? "clock" : "chat", title: chat.title,
+    meta: searchDate(chat.updated_at), marks, snippet: hit?.snippet || "", hl: hit?.hl || [],
+    run: () => selectChat(chat.id),
+  };
+}
+
+function projectEntry(project) {
+  return {
+    id: `p-${project.id}`, icon: "folder", title: project.name, meta: project.pinned ? tr("Angepinnt") : "", marks: [],
+    run: () => {
+      // zeigt das Projekt in der Seitenleiste (am Handy öffnet sich die Leiste)
+      ui.projectsOpen = true;
+      ui.openProjects.add(project.id);
+      saveUi();
+      renderSide();
+      openMenu();
+      setTimeout(() => [...document.querySelectorAll("#side-scroll .project-row .name")].find((n) => n.textContent === project.name)?.scrollIntoView({ block: "center" }), 60);
+    },
+  };
+}
+
+function scheduleEntry(task) {
+  return { id: `s-${task.id}`, icon: "clock", title: task.name, meta: "", marks: task.running ? [runningMark()] : [], run: () => openSchedules() };
+}
 
 function searchPanel(body) {
   const input = node("input", "field srch-input");
   input.type = "search";
   input.maxLength = 100;
-  input.placeholder = tr("Chats durchsuchen");
-  input.setAttribute("aria-label", tr("Chats durchsuchen"));
+  input.placeholder = tr("Chats, Projekte und mehr durchsuchen");
+  input.setAttribute("aria-label", tr("Chats, Projekte und mehr durchsuchen"));
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-expanded", "true");
+  input.setAttribute("aria-controls", "srch-list");
   input.autocomplete = "off";
   input.enterKeyHint = "search";
-  const status = node("p", "mem-hint srch-status", SEARCH_HINT);
+  const tabBar = node("div", "srch-tabs");
+  tabBar.setAttribute("role", "tablist");
+  tabBar.setAttribute("aria-label", tr("Suchen in"));
+  const status = node("p", "mem-hint srch-status");
   status.setAttribute("role", "status");
   const list = node("div", "srch-list");
-  body.append(input, status, list);
-  let timer = 0;
+  list.id = "srch-list";
+  list.setAttribute("role", "listbox");
+  const keys = node("div", "srch-keys");
+  keys.setAttribute("aria-hidden", "true");
+  for (const [key, label] of [["Esc", tr("Schließen")], ["↑ ↓", tr("Auswählen")], ["← →", tr("Typ wechseln")], ["↵", tr("Öffnen")]]) {
+    const item = node("span", "", label);
+    item.prepend(node("kbd", "", key));
+    keys.append(item);
+  }
+  body.append(input, tabBar, status, list, keys);
+
+  let tab = "all";
+  let entries = [];
+  let cursor = -1;
   let ticket = 0;
-  const rows = () => [...list.querySelectorAll(".srch-item")];
-  const open = (id) => { closeSheet(null); closeMenu(); selectChat(id).catch(() => {}); };
-  const show = (query, hits) => {
-    list.replaceChildren();
-    status.textContent = hits.length ? "" : tr("Nichts gefunden für „{0}“.", query);
-    for (const hit of hits) {
-      const row = node("button", "srch-item");
-      row.type = "button";
-      const head = node("span", "srch-head");
-      head.append(node("b", "srch-title", hit.title), node("small", "srch-date", dayText(hit.updated_at)));
-      row.append(head);
-      if (hit.snippet) row.append(highlighted(hit.snippet, hit.hl));
-      row.addEventListener("click", () => open(hit.chat_id));
-      list.append(row);
-    }
+  let timer = 0;
+  let pending = false;
+  const tabButtons = new Map();
+
+  const select = (index) => {
+    if (cursor >= 0) { const old = entries[cursor]?.row; old?.classList.remove("sel"); old?.setAttribute("aria-selected", "false"); }
+    cursor = entries.length ? Math.max(0, Math.min(index, entries.length - 1)) : -1;
+    const row = entries[cursor]?.row;
+    if (!row) { input.removeAttribute("aria-activedescendant"); return; }
+    row.classList.add("sel");
+    row.setAttribute("aria-selected", "true");
+    input.setAttribute("aria-activedescendant", row.id);
+    row.scrollIntoView({ block: "nearest" });
   };
-  // Liefert die Treffer; eine ältere, später eintreffende Antwort wird verworfen.
-  const run = async () => {
+
+  const choose = (entry) => {
+    closeSheet(null);
+    Promise.resolve(entry.run()).catch(() => {});
+  };
+
+  const render = (groups, emptyText) => {
+    list.replaceChildren();
+    entries = [];
+    cursor = -1;
+    for (const group of groups) {
+      if (!group.entries.length) continue;
+      const head = node("div", "srch-group", group.label);
+      head.setAttribute("role", "presentation");
+      list.append(head);
+      for (const entry of group.entries) {
+        const index = entries.length;
+        const row = node("button", "srch-item");
+        row.type = "button";
+        row.tabIndex = -1;
+        row.id = `srch-opt-${index}`;
+        row.setAttribute("role", "option");
+        row.setAttribute("aria-selected", "false");
+        const lead = icon(entry.icon);
+        lead.classList.add("srch-lead");
+        const main = node("span", "srch-main");
+        main.append(node("b", "srch-title", entry.title));
+        if (entry.snippet) main.append(highlighted(entry.snippet, entry.hl));
+        const end = node("span", "srch-end");
+        if (entry.meta) end.append(node("small", "srch-date", entry.meta));
+        for (const mark of entry.marks) end.append(mark);
+        row.append(lead, main, end);
+        row.addEventListener("click", () => choose(entry));
+        row.addEventListener("mousemove", () => { if (cursor !== index) select(index); });
+        list.append(row);
+        entries.push({ entry, row });
+      }
+    }
+    status.textContent = entries.length ? "" : emptyText;
+    select(0);
+  };
+
+  const recents = () => {
+    const chats = state.chats;
+    if (tab === "chats") {
+      const out = [];
+      let current = null;
+      for (const chat of chats.slice(0, 60)) {
+        const label = groupOf(chat.updated_at);
+        if (label !== current) { current = label; out.push({ label, entries: [] }); }
+        out[out.length - 1].entries.push(chatEntry(chat));
+      }
+      return { groups: out, empty: tr("Noch keine Chats.") };
+    }
+    if (tab === "projects") {
+      const ordered = [...state.projects].sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name, kiLocale));
+      return { groups: [{ label: tr("Projekte"), entries: ordered.map(projectEntry) }], empty: tr("Noch keine Projekte.") };
+    }
+    if (tab === "schedules") {
+      return { groups: [{ label: tr("Geplant"), entries: state.schedules.map(scheduleEntry) }], empty: tr("Noch keine geplanten Aufgaben.") };
+    }
+    const active = chats.filter((c) => c.running || c.needs_approval);
+    const rest = chats.filter((c) => !(c.running || c.needs_approval)).slice(0, 6);
+    return {
+      groups: [
+        { label: tr("Aktiv"), entries: active.map((c) => chatEntry(c)) },
+        { label: tr("Letzte Elemente"), entries: rest.map((c) => chatEntry(c)) },
+        { label: tr("Aktionen"), entries: searchActions().slice(0, 3) },
+      ],
+      empty: tr("Noch keine Chats."),
+    };
+  };
+
+  const found = (query, hits) => {
+    const all = tab === "all";
+    const groups = [];
+    if (all || tab === "chats") {
+      groups.push({ label: tr("Chats"), entries: hits.map((h) => chatEntry(state.chats.find((c) => c.id === h.chat_id) || { id: h.chat_id, title: h.title, updated_at: h.updated_at, schedule_id: h.schedule_id }, h)) });
+    }
+    if (all || tab === "projects") groups.push({ label: tr("Projekte"), entries: state.projects.filter((p) => wordsMatch(query, p.name)).map(projectEntry) });
+    if ((all || tab === "schedules") && state.me?.schedules) {
+      groups.push({ label: tr("Geplant"), entries: state.schedules.filter((t) => wordsMatch(query, `${t.name} ${t.prompt || ""}`)).map(scheduleEntry) });
+    }
+    if (all) groups.push({ label: tr("Aktionen"), entries: searchActions().filter((a) => wordsMatch(query, a.label)) });
+    return groups;
+  };
+
+  // Zeigt die Vorschläge oder die Treffer; eine ältere, später eintreffende Antwort wird verworfen.
+  const refresh = async () => {
     const query = input.value.trim().replace(/\s+/g, " ");
     const mine = ++ticket;
-    if (query.length < 2) {
-      list.replaceChildren();
-      status.textContent = query ? tr("Mindestens zwei Zeichen eingeben.") : SEARCH_HINT;
-      return [];
+    if (!query) {
+      const { groups, empty } = recents();
+      render(groups, empty);
+    } else if (query.length < 2) {
+      render([], tr("Mindestens zwei Zeichen eingeben."));
+    } else {
+      let hits = [];
+      if (tab === "all" || tab === "chats") {
+        try {
+          hits = await api(`api/search?q=${encodeURIComponent(query)}`);
+        } catch {
+          if (mine === ticket) render([], tr("Die Suche ist gerade nicht erreichbar."));
+          return;
+        }
+        if (mine !== ticket) return;
+      }
+      render(found(query, hits), tr("Nichts gefunden für „{0}“.", query));
     }
-    try {
-      const hits = await api(`api/search?q=${encodeURIComponent(query)}`);
-      if (mine === ticket) show(query, hits);
-      return mine === ticket ? hits : [];
-    } catch {
-      if (mine === ticket) { list.replaceChildren(); status.textContent = tr("Die Suche ist gerade nicht erreichbar."); }
-      return [];
-    }
+    if (mine === ticket) pending = false;
   };
-  input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(run, 220); });
+
+  const setTab = (key, focus = false) => {
+    tab = key;
+    for (const [k, button] of tabButtons) {
+      button.setAttribute("aria-selected", String(k === key));
+      button.tabIndex = k === key ? 0 : -1;
+      if (focus && k === key) button.focus();
+    }
+    pending = true;
+    clearTimeout(timer);
+    refresh().catch(() => {});
+  };
+  const shift = (step, focus) => {
+    const order = searchTabs().map(([k]) => k);
+    setTab(order[(order.indexOf(tab) + step + order.length) % order.length], focus);
+  };
+
+  for (const [key, label] of searchTabs()) {
+    const button = node("button", "srch-tab", label);
+    button.type = "button";
+    button.setAttribute("role", "tab");
+    button.addEventListener("click", () => { setTab(key); input.focus(); });
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") { event.preventDefault(); shift(1, true); }
+      else if (event.key === "ArrowLeft") { event.preventDefault(); shift(-1, true); }
+      else if (event.key === "ArrowDown") { event.preventDefault(); input.focus(); }
+    });
+    tabButtons.set(key, button);
+    tabBar.append(button);
+  }
+
+  input.addEventListener("input", () => { pending = true; clearTimeout(timer); timer = setTimeout(() => { refresh().catch(() => {}); }, 200); });
   input.addEventListener("keydown", async (event) => {
+    if (event.isComposing) return;
     if (event.key === "Enter") {
       event.preventDefault();
-      clearTimeout(timer);
-      const hits = await run();
-      if (hits.length) open(hits[0].chat_id);
+      if (pending) { clearTimeout(timer); await refresh(); }
+      if (cursor >= 0) choose(entries[cursor].entry);
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
-      rows()[0]?.focus();
+      select(cursor + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      select(cursor - 1);
+    } else if ((event.key === "ArrowRight" || event.key === "ArrowLeft") && !input.value) {
+      event.preventDefault();
+      shift(event.key === "ArrowRight" ? 1 : -1, false);
     }
   });
-  list.addEventListener("keydown", (event) => {
-    const all = rows();
-    const at = all.indexOf(document.activeElement);
-    if (event.key === "ArrowDown") { event.preventDefault(); all[Math.min(at + 1, all.length - 1)]?.focus(); }
-    else if (event.key === "ArrowUp") { event.preventDefault(); if (at <= 0) input.focus(); else all[at - 1].focus(); }
-  });
+
+  setTab("all");
+  if (state.me?.schedules && !state.schedules.length) loadSchedules().then(() => { if (tab === "all" || tab === "schedules") refresh().catch(() => {}); }).catch(() => {});
 }
 
 async function openSearch() {
   if (!state.me) return;
   closePopover(null);
-  await openSheet({ title: tr("Suchen"), ok: tr("Schließen"), panel: searchPanel });
+  await openSheet({ title: tr("Suchen"), ok: tr("Schließen"), panel: searchPanel, wide: true });
 }
 
 const DELETE_WORD = tr("LÖSCHEN");

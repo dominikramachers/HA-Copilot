@@ -379,8 +379,6 @@
  "Anlegen": "Create",
  "Chat als Markdown gespeichert.": "Chat saved as Markdown.",
  "Der Export hat nicht geklappt.": "The export failed.",
- "Sucht in Titeln und Nachrichten aller deiner Chats.": "Searches the titles and messages of all your chats.",
- "Chats durchsuchen": "Search chats",
  "Nichts gefunden für „{0}“.": "Nothing found for “{0}”.",
  "Mindestens zwei Zeichen eingeben.": "Enter at least two characters.",
  "Die Suche ist gerade nicht erreichbar.": "Search is not available right now.",
@@ -709,5 +707,13 @@
  "Soll diese Änderung über den Konnektor ausgeführt werden?": "Should this change be made through the connector?",
  "Öffne den Link und melde dich an.": "Open the link and sign in.",
  "Am Ende zeigt der Browser eine Fehlerseite (localhost). Das ist normal.": "At the end the browser shows an error page (localhost). That is normal.",
- "Kopiere die ganze Adresse aus der Adresszeile und füge sie unten ein.": "Copy the whole address from the address bar and paste it below."
+ "Kopiere die ganze Adresse aus der Adresszeile und füge sie unten ein.": "Copy the whole address from the address bar and paste it below.",
+ "Aktiv": "Active",
+ "Auswählen": "Select",
+ "Chats, Projekte und mehr durchsuchen": "Search chats, projects and more",
+ "Letzte Elemente": "Recent items",
+ "Neuer Chat": "New chat",
+ "Noch keine Projekte.": "No projects yet.",
+ "Suchen in": "Search in",
+ "Typ wechseln": "Switch type"
 }
