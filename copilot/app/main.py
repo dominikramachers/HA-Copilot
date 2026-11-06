@@ -892,7 +892,10 @@ def register_chat_routes(
         try:
             await connectors.finish_oauth(state, code)
         except ConnectorError as exc:
-            return _connector_page(False, str(exc))
+            # Feste Texte statt der Fehlermeldung selbst: die Seite ist ohne Anmeldung erreichbar und soll keine Einzelheiten preisgeben.
+            if exc.status == 502:
+                return _connector_page(False, tr("Der Dienst hat die Anmeldung nicht angenommen. Öffne im HA Copilot die Konnektoren und melde dich noch einmal an."))
+            return _connector_page(False, tr("Die Anmeldung ist abgelaufen oder gehört nicht zu dieser Sitzung. Bitte noch einmal anmelden."))
         return _connector_page(True, tr("Der Konnektor ist verbunden. Du kannst dieses Fenster schließen und zum HA Copilot zurückkehren."))
 
     @app.get("/api/limits")

@@ -455,5 +455,6 @@
  "Ungültige Angabe.": "Invalid input.",
  "Zu viele Versuche. Bitte in ein paar Minuten noch einmal.": "Too many attempts. Please try again in a few minutes.",
  "{n} Werkzeuge gefunden.": "{n} tools found.",
- "{n} weitere wurden ausgelassen (Grenze {max}).": "{n} more were left out (limit {max})."
+ "{n} weitere wurden ausgelassen (Grenze {max}).": "{n} more were left out (limit {max}).",
+ "Der Dienst hat die Anmeldung nicht angenommen. Öffne im HA Copilot die Konnektoren und melde dich noch einmal an.": "The service did not accept the sign-in. Open Connectors in HA Copilot and sign in again."
 }

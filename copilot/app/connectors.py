@@ -112,7 +112,7 @@ def tool_name(connector_id: int, name: str) -> str:
     full = f"conn{connector_id}_{base}"
     if len(full) <= 56:
         return full
-    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:6]
+    digest = hashlib.sha256(name.encode("utf-8")).hexdigest()[:6]
     return f"{full[:49]}_{digest}"
 
 
