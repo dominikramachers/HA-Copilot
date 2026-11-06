@@ -271,7 +271,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 17  # 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 18  # 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id"
 
@@ -425,6 +425,8 @@ class Store:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN label TEXT")  # nur bei automatisch angelegten HA-Profilen
         if "ha_user_id" not in profile_columns:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN ha_user_id TEXT")
+        if "instructions" not in profile_columns:
+            self._conn.execute("ALTER TABLE profiles ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")  # „Meine Anweisungen“ für alle Chats der Person
         project_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(projects)")}
         if "instructions" not in project_columns:
             self._conn.execute("ALTER TABLE projects ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")
@@ -1285,6 +1287,21 @@ class Store:
                 (scope, owner, topic),
             ).fetchone()
         return dict(row)
+
+    def profile_instructions(self, profile_id: str) -> str:
+        """„Meine Anweisungen“ der Person (gelten in allen ihren Chats); leer, wenn keine gesetzt sind."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT instructions FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+        return (row["instructions"] if row else "") or ""
+
+    def set_profile_instructions(self, profile_id: str, text: str) -> str:
+        _require(profile_id)
+        text = text.strip()[:INSTRUCTIONS_MAX]
+        with self._lock, self._conn:
+            self._conn.execute("INSERT OR IGNORE INTO profiles (id) VALUES (?)", (profile_id,))
+            self._conn.execute("UPDATE profiles SET instructions = ? WHERE id = ?", (text, profile_id))
+        return text
 
     def memory_has_topic(self, scope: str, profile_id: str, topic: str) -> bool:
         owner = self._memory_owner(scope, profile_id)

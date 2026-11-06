@@ -63,6 +63,8 @@ Mehr: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant
 
 Die KI merkt sich dauerhafte Dinge in kurzen Einträgen, getrennt in **Haushalt** (für alle) und **Person** (nur du). Du siehst, ergänzt und löschst Einträge im Konto-Menü unter **Gedächtnis**. Wer in den Haushalt schreiben darf, regelt `memory_household_writers`. Mit `memory_enabled: false` ist die Funktion aus.
 
+Im selben Fenster stehen **Meine Anweisungen** (ein Text, der in all deinen Chats mitgeht, etwa „Antworte kurz und duze mich“) und **Aus Claude übernehmen**: Du exportierst dein Gedächtnis bei Claude als ZIP mit Markdown, wählst die Datei hier aus, siehst jeden Fund mit Haken und übernimmst nur, was du willst. Die Vorlieben aus Claude werden zu deinen Anweisungen.
+
 Zusätzlich liest das Add-on selbst einen **Smarthome-Überblick** (Bereiche, Entitäten je Typ, Integrationen, Namen von Automationen) ein und legt ihn als schreibgeschützte Einträge ab. Das kostet keine KI-Nachricht. `ha_scan_days: 0` schaltet es ab.
 
 Mehr: [Projektwissen und Gedächtnis](../copilot/DOCS.md#projektwissen-und-gedächtnis-ab-0160).

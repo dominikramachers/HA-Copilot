@@ -303,6 +303,9 @@ class Scheduler:
         cancelled = False
         try:
             extra: dict = {"on_limit": self.limits.update}
+            personal = store.profile_instructions(profile.id)
+            if personal:
+                extra["personal_instructions"] = personal
             model = self.model_for(row)
             if model:
                 extra["model"] = model

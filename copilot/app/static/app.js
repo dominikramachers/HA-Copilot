@@ -1178,11 +1178,252 @@ function overviewSection(info, redraw) {
   return box;
 }
 
+// ------------------------------------------------- Meine Anweisungen und Import aus Claude
+
+const MEMORY_IMPORT_ACCEPT = ".zip,.md,.markdown,.txt,text/markdown,text/plain,application/zip";
+const MEMORY_IMPORT_MAX = 4 * 1024 * 1024;
+
+function instructionsSection(data) {
+  const box = node("section", "mem-section");
+  const area = node("textarea", "field area");
+  area.rows = 3;
+  area.maxLength = data.instructions_max || 4000;
+  area.value = data.instructions || "";
+  area.placeholder = tr("z. B. Antworte kurz und duze mich.");
+  area.setAttribute("aria-label", tr("Meine Anweisungen"));
+  const count = node("small", "mem-meta");
+  const save = node("button", "pill primary", tr("Speichern"));
+  save.type = "button";
+  let saved = area.value.trim();
+  const sync = () => {
+    count.textContent = `${area.value.length} / ${area.maxLength}`;
+    save.disabled = area.value.trim() === saved;
+  };
+  area.addEventListener("input", sync);
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      const answer = await api("api/memory/instructions", { method: "PUT", body: JSON.stringify({ text: area.value }) });
+      saved = answer.text;
+      area.value = answer.text;
+      toast(answer.text ? tr("Anweisungen gespeichert.") : tr("Anweisungen entfernt."));
+    } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); }
+    sync();
+  });
+  sync();
+  const bar = node("div", "mem-bar");
+  bar.append(count, save);
+  box.append(
+    node("h4", "", tr("Meine Anweisungen")),
+    node("p", "mem-hint", tr("Gelten in allen deinen Chats, zusätzlich zu den Anweisungen eines Projekts. Nur du siehst sie.")),
+    area, bar,
+  );
+  return box;
+}
+
+function memoryImportSection(body, draw) {
+  const box = node("section", "mem-section");
+  const picker = node("input");
+  picker.type = "file";
+  picker.accept = MEMORY_IMPORT_ACCEPT;
+  picker.hidden = true;
+  const add = node("button", "pill know-add");
+  add.type = "button";
+  add.append(icon("upload"), node("span", "", tr("Export von Claude wählen")));
+  add.addEventListener("click", () => picker.click());
+  const status = node("p", "mem-hint know-status");
+  status.setAttribute("role", "status");
+  picker.addEventListener("change", async () => {
+    const file = picker.files[0];
+    picker.value = "";
+    if (!file) return;
+    if (file.size > MEMORY_IMPORT_MAX) { status.textContent = tr("Die Datei ist zu groß (höchstens {0} MB).", MEMORY_IMPORT_MAX / 1024 / 1024); return; }
+    add.disabled = true;
+    status.textContent = tr("Lese {0} …", file.name);
+    try {
+      const found = await api("api/memory/import/preview", { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) });
+      memoryImportReview(body, found, draw);
+    } catch (err) {
+      status.textContent = errorText(err, tr("Die Datei konnte nicht gelesen werden."));
+      add.disabled = false;
+    }
+  });
+  box.append(
+    node("h4", "", tr("Aus Claude übernehmen")),
+    node("p", "mem-hint", tr("Bei Claude gibt es in den Einstellungen unter „Gedächtnis“ den Export als ZIP-Datei mit Markdown. Wähle sie hier aus (eine einzelne Markdown- oder Textdatei geht auch). Du siehst alles vorher und bestimmst, was übernommen wird.")),
+    add, picker, status,
+  );
+  return box;
+}
+
+function memoryImportReview(body, found, back) {
+  const parts = [];
+  const backLink = node("button", "mem-link", tr("‹ Zurück"));
+  backLink.type = "button";
+  backLink.addEventListener("click", back);
+  parts.push(backLink, node("h4", "mem-review-title", tr("Das habe ich gefunden")));
+  const total = found.entries.length;
+  parts.push(node("p", "mem-hint", [
+    trn(total, "1 Gedächtnis-Eintrag", "{0} Gedächtnis-Einträge"),
+    found.instructions.text ? tr("und Anweisungen") : "",
+  ].filter(Boolean).join(" ") + ". " + tr("Entferne den Haken bei allem, was nicht mit soll.")));
+
+  let scope = "person";
+  const scopeBox = node("div", "mem-scope");
+  const scopeSelect = node("select", "field");
+  scopeSelect.setAttribute("aria-label", tr("Wo speichern"));
+  scopeSelect.append(new Option(tr("Mein Gedächtnis"), "person"));
+  if (found.household_write) {
+    scopeSelect.append(new Option(tr("Haushalt"), "household"));
+    scopeBox.append(node("span", "", tr("Speichern in:")), scopeSelect);
+    parts.push(scopeBox);
+  }
+
+  // Anweisungen
+  let useInstructions = null;
+  let instructionsText = null;
+  let instructionsMode = null;
+  if (found.instructions.text) {
+    const card = node("section", "mem-card");
+    const head = node("label", "mem-check");
+    useInstructions = node("input");
+    useInstructions.type = "checkbox";
+    useInstructions.checked = true;
+    head.append(useInstructions, node("b", "", tr("Als „Meine Anweisungen“ übernehmen")));
+    instructionsText = node("textarea", "field area");
+    instructionsText.rows = 4;
+    instructionsText.maxLength = found.instructions_max;
+    instructionsText.value = found.instructions.text;
+    instructionsText.setAttribute("aria-label", tr("Meine Anweisungen"));
+    card.append(head, instructionsText);
+    if (found.instructions.truncated) card.append(node("p", "mem-hint", tr("Der Text war länger und wurde auf {0} Zeichen gekürzt.", found.instructions_max)));
+    if (found.current_instructions) {
+      instructionsMode = node("select", "field");
+      instructionsMode.setAttribute("aria-label", tr("Bisherige Anweisungen"));
+      instructionsMode.append(new Option(tr("An meine bisherigen Anweisungen anhängen"), "append"), new Option(tr("Meine bisherigen Anweisungen ersetzen"), "replace"));
+      card.append(instructionsMode);
+    }
+    useInstructions.addEventListener("change", () => { instructionsText.disabled = !useInstructions.checked; if (instructionsMode) instructionsMode.disabled = !useInstructions.checked; });
+    parts.push(card);
+  }
+
+  // Einträge
+  const rows = [];
+  const warn = node("p", "mem-hint mem-warn");
+  const submit = node("button", "pill primary", tr("Übernehmen"));
+  submit.type = "button";
+  const refresh = () => {
+    let fresh = 0;
+    let chosen = 0;
+    for (const r of rows) {
+      const exists = r.entry.exists[scope];
+      r.badge.hidden = !exists;
+      r.badge.textContent = exists ? tr("Gibt es schon, Haken ersetzt den Eintrag") : "";
+      if (r.box.checked) { chosen += 1; if (!exists) fresh += 1; }
+    }
+    const free = found.free[scope];
+    warn.hidden = fresh <= free;
+    warn.textContent = fresh > free ? tr("Im Gedächtnis ist nur noch Platz für {0} neue Einträge. Der Rest wird übersprungen.", free) : "";
+    const instr = useInstructions && useInstructions.checked ? 1 : 0;
+    submit.disabled = chosen + instr === 0;
+    submit.textContent = chosen ? tr("{0} übernehmen", chosen + (instr ? 1 : 0)) : tr("Übernehmen");
+  };
+  scopeSelect.addEventListener("change", () => {
+    scope = scopeSelect.value;
+    for (const r of rows) r.box.checked = !r.entry.exists[scope];
+    refresh();
+  });
+  if (useInstructions) useInstructions.addEventListener("change", refresh);
+  if (total) {
+    const tools = node("div", "mem-tools");
+    const all = node("button", "mem-link", tr("Alle wählen"));
+    const none = node("button", "mem-link", tr("Keine wählen"));
+    all.type = none.type = "button";
+    all.addEventListener("click", () => { for (const r of rows) r.box.checked = true; refresh(); });
+    none.addEventListener("click", () => { for (const r of rows) r.box.checked = false; refresh(); });
+    tools.append(node("b", "", tr("Gedächtnis")), all, none);
+    parts.push(tools);
+    const list = node("div", "mem-import-list");
+    for (const entry of found.entries) {
+      const label = node("label", "mem-entry mem-pick");
+      const box = node("input");
+      box.type = "checkbox";
+      box.checked = !entry.exists.person;
+      const text = node("div", "mem-text");
+      const badge = node("small", "mem-badge");
+      text.append(node("b", "mem-topic", entry.topic), badge, node("p", "", entry.content));
+      label.append(box, text);
+      box.addEventListener("change", refresh);
+      rows.push({ entry, box, badge });
+      list.append(label);
+    }
+    parts.push(list, warn);
+  }
+  if (found.skipped.length) {
+    const details = node("details", "mem-skipped");
+    details.append(node("summary", "", trn(found.skipped.length, "1 Datei oder Eintrag übersprungen", "{0} Dateien oder Einträge übersprungen")));
+    const ul = node("ul", "know-skipped");
+    for (const sk of found.skipped) ul.append(node("li", "", `${sk.name}: ${sk.reason}`));
+    details.append(ul);
+    parts.push(details);
+  }
+  const actions = node("div", "mem-import-actions");
+  actions.append(submit);
+  parts.push(actions);
+  submit.addEventListener("click", async () => {
+    submit.disabled = true;
+    const payload = {
+      scope,
+      entries: rows.filter((r) => r.box.checked).map((r) => ({ topic: r.entry.topic, content: r.entry.content, replace: !!r.entry.exists[scope] })),
+    };
+    if (useInstructions && useInstructions.checked) {
+      payload.instructions = instructionsText.value;
+      payload.instructions_mode = instructionsMode ? instructionsMode.value : "replace";
+    }
+    try {
+      const result = await api("api/memory/import", { method: "POST", body: JSON.stringify(payload) });
+      memoryImportDone(body, result, back);
+    } catch (err) {
+      toast(errorText(err, tr("Übernehmen hat nicht geklappt.")));
+      refresh();
+    }
+  });
+  refresh();
+  body.classList.add("tall");
+  body.replaceChildren(...parts);
+  body.scrollTop = 0;
+}
+
+function memoryImportDone(body, result, back) {
+  const parts = [node("h4", "mem-review-title", tr("Fertig"))];
+  const lines = [];
+  if (result.saved) lines.push(trn(result.saved, "1 neuer Eintrag im Gedächtnis", "{0} neue Einträge im Gedächtnis"));
+  if (result.replaced) lines.push(trn(result.replaced, "1 Eintrag ersetzt", "{0} Einträge ersetzt"));
+  if (result.instructions) lines.push(tr("Meine Anweisungen aktualisiert"));
+  if (!lines.length) lines.push(tr("Es wurde nichts gespeichert."));
+  const list = node("ul", "mem-done");
+  for (const line of lines) list.append(node("li", "", line));
+  parts.push(list);
+  if (result.skipped.length) {
+    parts.push(node("p", "mem-hint", trn(result.skipped.length, "1 Eintrag wurde übersprungen:", "{0} Einträge wurden übersprungen:")));
+    const ul = node("ul", "know-skipped");
+    for (const sk of result.skipped) ul.append(node("li", "", `${sk.name}: ${sk.reason}`));
+    parts.push(ul);
+  }
+  const back2 = node("button", "pill primary", tr("Zum Gedächtnis"));
+  back2.type = "button";
+  back2.addEventListener("click", back);
+  parts.push(back2);
+  body.replaceChildren(...parts);
+  body.scrollTop = 0;
+}
+
 function memoryPanel(body) {
   const draw = async () => {
+    body.classList.remove("tall");
     let data;
     try { data = await api("api/memory"); } catch { body.replaceChildren(node("p", "mem-empty", tr("Das Gedächtnis ist gerade nicht erreichbar."))); return; }
-    const parts = [];
+    const parts = [instructionsSection(data)];
     const section = (title, hint, entries, scope, canDelete) => {
       const box = node("section", "mem-section");
       box.append(node("h4", "", title), node("p", "mem-hint", hint));
@@ -1193,6 +1434,7 @@ function memoryPanel(body) {
     section(tr("Mein Gedächtnis"), tr("Nur du siehst das und nur dir gegenüber nutzt die KI es."), data.person, "person", true);
     section(tr("Haushalt"), data.household_write ? tr("Gilt für alle im Haushalt.") : tr("Gilt für alle im Haushalt. Du darfst es ansehen, aber nicht ändern."), data.household, "household", data.household_write);
     if (data.overview) parts.push(overviewSection(data.overview, draw));
+    parts.push(memoryImportSection(body, draw));
     // Eintrag selbst hinzufügen
     const form = node("form", "mem-form");
     form.autocomplete = "off";

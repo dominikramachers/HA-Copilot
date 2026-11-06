@@ -4,6 +4,26 @@
     "items": [
       {
         "de": {
+          "title": "Gedächtnis aus Claude übernehmen",
+          "text": "Hast du bei Claude ein Gedächtnis? Exportiere es dort und wähle die Datei bei mir im Gedächtnis aus. Du siehst alles vorher und bestimmst, was ich übernehme."
+        },
+        "en": {
+          "title": "Bring your memory from Claude",
+          "text": "Do you have a memory in Claude? Export it there and choose the file in my memory. You see everything first and decide what I take over."
+        }
+      },
+      {
+        "de": {
+          "title": "Meine Anweisungen",
+          "text": "Du kannst mir jetzt einmal sagen, wie ich mit dir sprechen soll, zum Beispiel kurz und per Du. Das gilt dann in all deinen Chats."
+        },
+        "en": {
+          "title": "My instructions",
+          "text": "You can now tell me once how I should talk to you, for example short and informal. That then applies in all your chats."
+        }
+      },
+      {
+        "de": {
           "title": "Konnektoren: Katalog und Logos",
           "text": "Ich kenne jetzt viele Dienste vorab, zum Beispiel Gmail, Google Kalender, Notion oder Sentry. Du suchst sie unter Entdecken aus. Eigene Verbindungen bekommen auf Wunsch ein Logo."
         },

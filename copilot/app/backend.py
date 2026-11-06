@@ -77,8 +77,10 @@ SUMMARY_PROMPT = (
 SUMMARY_MAX = 8000
 
 
-def compose_system(instructions: str | None, note: str = "", tools: bool = False, web: bool = False) -> str:
-    """Grundanweisung, Hinweise zur Sitzung (wer spricht, Rechte) und die Anweisungen des Projekts."""
+def compose_system(
+    instructions: str | None, note: str = "", tools: bool = False, web: bool = False, personal: str | None = None
+) -> str:
+    """Grundanweisung, Hinweise zur Sitzung (wer spricht, Rechte), eigene Anweisungen der Person und die des Projekts."""
     base = SYSTEM_PROMPT
     if language() == "en":
         base = base.replace("Antworte standardmäßig auf Deutsch", "Antworte standardmäßig auf Englisch")
@@ -88,12 +90,18 @@ def compose_system(instructions: str | None, note: str = "", tools: bool = False
         base = base.replace(NO_TOOLS, NO_TOOLS_WEB)
     if note:
         base += "\n\n" + note.strip()
+    if personal and personal.strip():
+        base += (
+            "\n\nPersönliche Anweisungen des Nutzers für alle seine Chats (befolge sie, soweit sie den "
+            "obigen Regeln nicht widersprechen):\n" + personal.strip()
+        )
     if not instructions or not instructions.strip():
         return base
     return (
         base
         + "\n\nAnweisungen des Nutzers für alle Chats in diesem Projekt (befolge sie, soweit sie den "
-        "obigen Regeln nicht widersprechen):\n" + instructions.strip()
+        "obigen Regeln nicht widersprechen; bei einem Widerspruch zu den persönlichen Anweisungen gelten die des Projekts):\n"
+        + instructions.strip()
     )
 
 
@@ -194,7 +202,7 @@ class ChatBackend(Protocol):
         ``instructions`` = Anweisungen des Projekts, in dem der Chat liegt.
         ``tools`` = Werkzeuge, die diese Antwort benutzen darf; ``note`` = Hinweise zur Sitzung für die Systemanweisung.
         Weitere Angaben (alle optional): ``model`` (statt des Standard-Modells), ``web`` (Websuche erlaubt), ``record`` und ``next_id``
-        (Aktionen für die Anzeige melden), ``on_limit`` (Stand des Nutzungslimits melden).
+        (Aktionen für die Anzeige melden), ``on_limit`` (Stand des Nutzungslimits melden), ``personal_instructions`` („Meine Anweisungen“ der Person).
         """
         ...
 
@@ -262,10 +270,12 @@ class EchoBackend:
         tools: list[ToolSpec] | None = None,
         note: str = "",
         model: str | None = None,
+        personal_instructions: str | None = None,
         **_: object,
     ) -> AsyncIterator[str]:
         files = "".join(f" [Datei: {a.name}, {human_size(a.size)}]" for a in attachments or [])
         rules = f" [Projektanweisungen: {len(instructions)} Zeichen]" if instructions else ""
+        rules += f" [Persönliche Anweisungen: {len(personal_instructions)} Zeichen]" if personal_instructions else ""
         text = f"Echo ({effort}, {len(history)} frühere Nachrichten): {message}{files}{rules}"
         if tools:
             text += f" [Werkzeuge: {len(tools)}]"
@@ -423,6 +433,7 @@ class ClaudeSdkBackend:
         record: Callable[[dict], None] | None = None,
         next_id: Callable[[], int] | None = None,
         on_limit: Callable[[dict], None] | None = None,
+        personal_instructions: str | None = None,
         **_: object,
     ) -> AsyncIterator[str]:
         from claude_agent_sdk import (
@@ -453,7 +464,7 @@ class ClaudeSdkBackend:
                 request = one_message()
             else:
                 request = prompt
-            options = self._options(effort, model=model, system=compose_system(instructions, note, bool(tools), web), tools=tools, web=web)
+            options = self._options(effort, model=model, system=compose_system(instructions, note, bool(tools), web, personal_instructions), tools=tools, web=web)
             stream = query(prompt=request, options=options)
             async with contextlib.aclosing(stream) as messages:
                 async for msg in messages:

@@ -58,7 +58,10 @@ from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
 from . import skills as skilllib
 from . import skills_github
-from .context_tools import RESERVED_TEXT, ContextToolbox, _RESERVED
+from . import memory_import as memlib
+from .context_tools import (
+    CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
+)
 from .ha_tools import HaToolbox
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
 from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox
@@ -282,6 +285,7 @@ KNOWLEDGE_PATH = re.compile(r"^/api/projects/[^/]+/knowledge$")
 KNOWLEDGE_BODY_BYTES = knowlib.MAX_BASE64_CHARS + 64 * 1024
 SKILLS_PATH = re.compile(r"^/api/skills(/preview)?$")
 CONNECTORS_PATH = re.compile(r"^/api/connectors(/\d+)?$")
+MEMORY_IMPORT_PATH = re.compile(r"^/api/memory/import(/preview)?$")
 CONNECTORS_BODY_BYTES = connector_icons.MAX_ICON_BYTES * 4 // 3 + 64 * 1024  # Logo als Base64 im Anfragetext
 PREVIEW_BODY_BYTES = 700_000
 
@@ -310,6 +314,7 @@ class BodyLimit:
             else KNOWLEDGE_BODY_BYTES if KNOWLEDGE_PATH.match(scope["path"])
             else skilllib.MAX_BASE64_CHARS + 64 * 1024 if SKILLS_PATH.match(scope["path"])
             else CONNECTORS_BODY_BYTES if CONNECTORS_PATH.match(scope["path"])
+            else memlib.MAX_BASE64_CHARS + 64 * 1024 if MEMORY_IMPORT_PATH.match(scope["path"])
             else 0
         )
         if big and self.signed_in(scope):  # nur dann prüfen (Datenbankzugriff), wenn die Grenze davon abhängt
@@ -647,6 +652,28 @@ class MemoryBody(BaseModel):
     content: str = Field(min_length=3, max_length=800)
 
 
+class InstructionsBody(BaseModel):
+    text: str = Field(max_length=INSTRUCTIONS_MAX)
+
+
+class MemoryImportBody(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    data: str = Field(min_length=1)
+
+
+class MemoryImportEntry(BaseModel):
+    topic: str = Field(max_length=300)
+    content: str = Field(max_length=3000)
+    replace: bool = False
+
+
+class MemoryImportCommit(BaseModel):
+    scope: Literal["household", "person"] = "person"
+    entries: list[MemoryImportEntry] = Field(default_factory=list, max_length=memlib.MAX_ENTRIES)
+    instructions: str | None = Field(default=None, max_length=INSTRUCTIONS_MAX)
+    instructions_mode: Literal["replace", "append"] = "replace"
+
+
 class ApproveBody(BaseModel):
     id: int
     decision: Literal["allow", "deny", "allow_chat"]
@@ -686,6 +713,7 @@ def register_chat_routes(
     previews = PreviewStore()  # HTML-Vorschauen, nur im Arbeitsspeicher
     export_limit = RateLimiter(4, 600)  # ZIP-Export nicht im Sekundentakt
     scan_limit = RateLimiter(4, 600)  # „Neu einlesen“ nicht im Sekundentakt
+    import_limit = RateLimiter(30, 600)  # Gedächtnis-Import: Vorschau und Übernehmen
 
     def ha_level(profile: Profile) -> str:
         """Stufe des Zugriffs auf Home Assistant für diese Person über diesen Zugangsweg."""
@@ -1318,6 +1346,8 @@ def register_chat_routes(
             "household": household,
             "person": store.memory_list("person", profile.id),
             "household_write": household_writable(profile),
+            "instructions": store.profile_instructions(profile.id),
+            "instructions_max": INSTRUCTIONS_MAX,
         }
         if overview_allowed(profile):
             out["overview"] = {"status": scan_status(), "entries": store.memory_list("household", auto=True)}
@@ -1352,6 +1382,101 @@ def register_chat_routes(
         if _RESERVED.match(topic):
             raise HTTPException(status_code=422, detail=tr(RESERVED_TEXT))
         return store.memory_save(body.scope, profile.id, topic, body.content.strip(), profile.id)
+
+    @app.put("/api/memory/instructions", dependencies=[Depends(write_guard)])
+    def save_instructions(body: InstructionsBody, profile: Profile = Depends(current_profile)) -> dict:
+        """„Meine Anweisungen“: gelten in allen Chats dieser Person (Projektanweisungen kommen dazu)."""
+        memory_enabled_or_404()
+        if _SECRET.search(body.text):
+            raise HTTPException(status_code=422, detail=tr("Zugangsdaten, Schlüssel und Kontonummern gehören nicht in die Anweisungen."))
+        return {"text": store.set_profile_instructions(profile.id, body.text)}
+
+    @app.post("/api/memory/import/preview", dependencies=[Depends(write_guard)])
+    async def preview_memory_import(body: MemoryImportBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Export von Claude (ZIP oder Markdown) einlesen und Vorschläge zeigen. Es wird nichts gespeichert."""
+        memory_enabled_or_404()
+        if not import_limit.allow(profile.id):
+            raise HTTPException(status_code=429, detail=tr("Bitte etwas später noch einmal versuchen."))
+        try:
+            data = memlib.decode(body.data)
+            body.data = ""
+            files, skipped = await asyncio.to_thread(memlib.read_upload, body.name, data)
+            found = await asyncio.to_thread(memlib.parse, files)
+        except memlib.ImportError_ as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        if not found["entries"] and not found["instructions"]["text"]:
+            raise HTTPException(status_code=422, detail=tr("In der Datei wurde nichts gefunden, das sich als Gedächtnis oder Anweisung übernehmen lässt."))
+        for entry in found["entries"]:
+            entry["exists"] = {
+                "person": store.memory_has_topic("person", profile.id, entry["topic"]),
+                "household": store.memory_has_topic("household", profile.id, entry["topic"]),
+            }
+        return {
+            **found,
+            "skipped": [*skipped, *found["skipped"]][:memlib.MAX_SKIPPED],
+            "current_instructions": store.profile_instructions(profile.id),
+            "instructions_max": INSTRUCTIONS_MAX,
+            "free": {
+                "person": max(0, PERSON_LIMIT - store.memory_count("person", profile.id)),
+                "household": max(0, HOUSEHOLD_LIMIT - store.memory_count("household")),
+            },
+            "household_write": household_writable(profile),
+        }
+
+    @app.post("/api/memory/import", dependencies=[Depends(write_guard)])
+    def commit_memory_import(body: MemoryImportCommit, profile: Profile = Depends(current_profile)) -> dict:
+        """Die in der Vorschau gewählten (und eventuell geänderten) Einträge speichern. Alles wird hier noch einmal geprüft."""
+        memory_enabled_or_404()
+        if not import_limit.allow(profile.id):
+            raise HTTPException(status_code=429, detail=tr("Bitte etwas später noch einmal versuchen."))
+        if body.scope == "household" and body.entries and not household_writable(profile):
+            raise HTTPException(status_code=403, detail=tr("Das Haushaltsgedächtnis darfst du nicht ändern."))
+        text = (body.instructions or "").strip()
+        merged = ""
+        if text:
+            if _SECRET.search(text):
+                raise HTTPException(status_code=422, detail=tr("Zugangsdaten, Schlüssel und Kontonummern gehören nicht in die Anweisungen."))
+            current = store.profile_instructions(profile.id)
+            merged = f"{current}\n\n{text}" if body.instructions_mode == "append" and current else text
+            if len(merged) > INSTRUCTIONS_MAX:
+                raise HTTPException(
+                    status_code=422,
+                    detail=tr("Die Anweisungen wären zu lang (höchstens {n} Zeichen). Kürze sie oder ersetze die bisherigen.", n=INSTRUCTIONS_MAX),
+                )
+        limit = HOUSEHOLD_LIMIT if body.scope == "household" else PERSON_LIMIT
+        free = limit - store.memory_count(body.scope, profile.id)
+        saved = replaced = 0
+        skipped: list[dict] = []
+        for entry in body.entries:
+            topic = " ".join(entry.topic.split())
+            content = entry.content.strip()
+            reason = ""
+            if not 2 <= len(topic) <= TOPIC_MAX:
+                reason = tr("Thema braucht 2 bis {n} Zeichen", n=TOPIC_MAX)
+            elif not 3 <= len(content) <= CONTENT_MAX:
+                reason = tr("Text braucht 3 bis {n} Zeichen", n=CONTENT_MAX)
+            elif _RESERVED.match(topic):
+                reason = tr("Thema ist für den Smarthome-Überblick reserviert")
+            elif _SECRET.search(topic) or _SECRET.search(content):
+                reason = tr("enthält vermutlich Zugangsdaten oder Kontonummern")
+            else:
+                exists = store.memory_has_topic(body.scope, profile.id, topic)
+                if exists and not entry.replace:
+                    reason = tr("gibt es schon")
+                elif not exists and free <= 0:
+                    reason = tr("Gedächtnis ist voll ({n} Einträge)", n=limit)
+                else:
+                    store.memory_save(body.scope, profile.id, topic, content, profile.id)
+                    if exists:
+                        replaced += 1
+                    else:
+                        saved += 1
+                        free -= 1
+            if reason:
+                skipped.append({"name": topic[:TOPIC_MAX] or "?", "reason": reason})
+        if text:
+            store.set_profile_instructions(profile.id, merged)
+        return {"saved": saved, "replaced": replaced, "skipped": skipped[:memlib.MAX_SKIPPED], "instructions": bool(text)}
 
     @app.delete("/api/memory/{scope}/{memory_id}", status_code=204, dependencies=[Depends(write_guard)])
     def delete_memory(scope: Literal["household", "person"], memory_id: int, profile: Profile = Depends(current_profile)) -> Response:
@@ -1568,6 +1693,9 @@ def register_chat_routes(
             extra["attachments"] = files
         if instructions:
             extra["instructions"] = instructions
+        personal = store.profile_instructions(profile.id)
+        if personal:
+            extra["personal_instructions"] = personal
         summarize = getattr(backend, "summarize", None)
         level = ha_level(profile)
 

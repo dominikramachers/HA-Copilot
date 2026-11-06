@@ -777,6 +777,33 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .mem-form { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line-2); }
 .mem-form .field, .mem-form select.field { margin-top: 0; width: 100%; }
 .mem-form .pill { justify-self: end; height: 36px; padding: 0 18px; }
+.sheet-panel.tall { max-height: min(72dvh, 660px); }
+.mem-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.mem-bar .pill { height: 34px; padding: 0 16px; font-size: 14px; }
+.mem-section .field.area { width: 100%; margin-top: 4px; }
+.mem-link { padding: 4px 0; font-size: 13.5px; font-weight: 600; color: var(--accent); }
+.mem-link:hover { text-decoration: underline; }
+.mem-review-title { margin: 6px 0 0; font-size: 16px; }
+.mem-scope { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; font-size: 14px; }
+.mem-scope select.field { margin-top: 0; width: auto; flex: 1; min-width: 0; }
+.mem-card { display: grid; gap: 8px; margin: 8px 0 14px; padding: 12px; border: 1px solid var(--line-2); border-radius: var(--r-2); }
+.mem-card .field { margin-top: 0; width: 100%; }
+.mem-card .mem-hint { margin: 0; }
+.mem-check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.mem-check input, .mem-pick > input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.mem-tools { display: flex; align-items: center; gap: 14px; margin: 6px 0 2px; font-size: 14px; }
+.mem-tools b { margin-right: auto; }
+.mem-pick { cursor: pointer; align-items: flex-start; }
+.mem-pick > input { margin-top: 3px; }
+.mem-badge { display: block; margin-top: 2px; font-size: 12px; color: var(--text-2); }
+.mem-badge[hidden] { display: none; }
+.mem-warn { color: var(--danger); }
+.mem-warn[hidden] { display: none; }
+.mem-skipped { margin: 10px 0; font-size: 13px; color: var(--text-2); }
+.mem-skipped summary { cursor: pointer; }
+.mem-import-actions { position: sticky; bottom: 0; display: flex; justify-content: flex-end; padding: 10px 0 2px; background: var(--sheet); border-top: 1px solid var(--line-2); margin-top: 8px; }
+.mem-import-actions .pill { height: 38px; padding: 0 20px; }
+.mem-done { margin: 8px 0; padding-left: 20px; font-size: 14.5px; line-height: 1.6; }
 .know-add { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; }
 .know-add .icon { width: 18px; height: 18px; }
 .know-status:empty { display: none; }
