@@ -1871,9 +1871,15 @@ async function saveFile(name, text, mime) {
   return true;
 }
 
-async function togglePreview(pre, button, html) {
-  const open = pre.nextElementSibling?.classList.contains("preview") ? pre.nextElementSibling : null;
-  if (open) { open.remove(); button.textContent = tr("Vorschau"); return; }
+function toolIcon(button, name, label) {
+  button.replaceChildren(icon(name));
+  button.title = label;
+  button.setAttribute("aria-label", label);
+}
+
+async function togglePreview(anchor, button, html) {
+  const open = anchor.nextElementSibling?.classList.contains("preview") ? anchor.nextElementSibling : null;
+  if (open) { open.remove(); toolIcon(button, "eye", tr("Vorschau")); return; }
   let id;
   try {
     id = (await api("api/previews", { method: "POST", body: JSON.stringify({ html }) })).id;
@@ -1893,12 +1899,13 @@ async function togglePreview(pre, button, html) {
   frame.title = tr("Vorschau");
   frame.src = `preview/${encodeURIComponent(id)}`;
   box.append(bar, frame);
-  pre.after(box);
-  button.textContent = tr("Schließen");
+  anchor.after(box);
+  toolIcon(button, "eyeOff", tr("Schließen"));
   box.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 window.kiFile = { save: saveFile, preview: togglePreview };
+window.kiIcon = icon;
 
 function fileChip(file, removable) {
   const chip = node("div", "file-chip");
