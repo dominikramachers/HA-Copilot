@@ -281,7 +281,7 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
             continue
         entry = {"label": str(i.get("label", ""))[:200], "kind": str(i.get("kind", "read")), "status": str(i.get("status", "ok")), "note": str(i.get("note", ""))[:300]}
         file = i.get("file")
-        if isinstance(file, dict) and _FILE_ID.match(str(file.get("id", ""))):
+        if isinstance(file, dict) and _FILE_ID.fullmatch(str(file.get("id", ""))):
             entry["file"] = {"id": str(file["id"]), "name": str(file.get("name", ""))[:150], "size": int(file.get("size", 0) or 0)}
             if file.get("image") is True:  # Bild: Maße, Fassung und Herkunft für die Vorschau
                 entry["file"].update(
@@ -1146,7 +1146,14 @@ class Store:
     # ------------------------------------------------------- erzeugte Dateien
 
     def _outfile_path(self, file_id: str) -> Path:
-        return self.files_dir / file_id
+        """Pfad der Datei; nur 32 Hexzeichen sind erlaubt, und das Ergebnis muss im Dateiordner liegen."""
+        if not _FILE_ID.fullmatch(file_id or ""):
+            raise ValueError("ungültige Dateikennung")
+        root = os.path.normpath(str(self.files_dir))
+        full = os.path.normpath(os.path.join(root, file_id))
+        if not full.startswith(root + os.sep):
+            raise ValueError("ungültige Dateikennung")
+        return Path(full)
 
     def outfile_add(
         self, profile_id: str, chat_id: str, name: str, mime: str, data: bytes, keep_days: int, origin: str = "ai"
@@ -1183,7 +1190,7 @@ class Store:
     def outfile_open(self, profile_id: str, file_id: str) -> tuple[dict[str, Any], Path] | None:
         """Datei zum Herunterladen: nur für den Besitzer und solange sie nicht abgelaufen ist."""
         _require(profile_id)
-        if not _FILE_ID.match(file_id or ""):
+        if not _FILE_ID.fullmatch(file_id or ""):
             return None
         with self._lock:
             row = self._conn.execute(

@@ -226,6 +226,10 @@ def test_store_files_belong_to_their_owner_and_expire(tmp_path):
     assert found and found[1].read_bytes() == b"hallo"
     assert store.outfile_open("dora", meta["id"]) is None  # fremde Datei
     assert store.outfile_open("adm01", "../../etc/passwd") is None
+    for bad in ("../../etc/passwd", "a" * 31, "a" * 32 + "\n", "A" * 32, ""):  # nur 32 Hexzeichen, nichts anderes kommt an den Pfad
+        assert store.outfile_open("adm01", bad) is None
+        with pytest.raises(ValueError):
+            store._outfile_path(bad)
     assert store.outfile_add("adm01", "gibt-es-nicht", "b.txt", "text/plain", b"x", 14) is None
     assert not list(store.files_dir.glob("*.part"))
     with store._lock, store._conn:
