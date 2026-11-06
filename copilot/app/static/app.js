@@ -1486,8 +1486,7 @@ const skillFold = (text) => String(text || "").toLowerCase().normalize("NFD").re
 
 // Entdecken: Suche, Kategorien und Sortierung über die mitgelieferten Skills
 function renderDiscover(wrap, data) {
-  const asof = data.installs_asof ? new Date(`${data.installs_asof}-01T12:00:00`).toLocaleDateString(kiLocale, { month: "long", year: "numeric" }) : "";
-  wrap.append(node("p", "skills-hint", tr("Geprüfte Skills, mitgeliefert und frei nutzbar. Mit „Hinzufügen“ landen sie bei „Meine“; dort kannst du sie jederzeit ausschalten oder entfernen.") + (asof ? " " + tr("Die Zahl der Installationen ist gerundet und stammt von {0}.", asof) : "")));
+  wrap.append(node("p", "skills-hint", tr("Geprüfte Skills, mitgeliefert und frei nutzbar. Mit „Hinzufügen“ landen sie bei „Meine“; dort kannst du sie jederzeit ausschalten oder entfernen.")));
   const cats = new Map(data.categories.map((c) => [c.id, c.label]));
   const all = data.recommended.map((s) => ({ ...s, recommended: true, categoryLabel: cats.get(s.category) || "", haystack: skillFold(`${s.label} ${s.name} ${s.summary} ${cats.get(s.category) || ""}`) }));
 
@@ -1553,13 +1552,17 @@ function renderDiscover(wrap, data) {
   update();
 }
 
-// Installationszahlen gerundet („245 Tsd.“): genau sind sie nicht, und sie werden nur bei Katalogpflege aktualisiert
+// Installationszahlen aufgerundet auf zwei gültige Ziffern („245 Tsd.“ -> „250 Tsd.“), ohne Hinweis: so bleibt die Anzeige lange stimmig
 function roundedCount(n) {
   const one = (x) => x.toLocaleString(kiLocale, { maximumFractionDigits: 1 });
-  if (n >= 1_000_000) return tr("{0} Mio.", one(n / 1_000_000));
-  if (n >= 10_000) return tr("{0} Tsd.", Math.round(n / 1000).toLocaleString(kiLocale));
-  if (n >= 1000) return tr("{0} Tsd.", one(n / 1000));
-  return String(Math.round(n / 10) * 10);
+  let v = Math.max(0, Math.floor(n));
+  if (v >= 100) {
+    const step = 10 ** (String(v).length - 2);
+    v = Math.ceil(v / step) * step;
+  }
+  if (v >= 1_000_000) return tr("{0} Mio.", one(v / 1_000_000));
+  if (v >= 1000) return tr("{0} Tsd.", one(v / 1000));
+  return String(v);
 }
 
 function skillSource(s) {

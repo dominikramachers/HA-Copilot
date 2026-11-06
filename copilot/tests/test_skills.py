@@ -7,6 +7,7 @@ import re
 import zipfile
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -627,3 +628,55 @@ def test_github_limits_and_redirects(store, api, monkeypatch):
     monkeypatch.setattr(gh, "TRANSPORT", httpx.MockTransport(away))
     moved = client.post("/api/skills/github", json={"url": "o/r"}, headers=as_user(DORA, True))
     assert moved.status_code == 422 and "umgeleitet" in moved.json()["detail"]  # andere Adressen als GitHub werden nicht verfolgt
+
+
+def _installs_script():
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[2] / ".github" / "scripts" / "update_installs.py"
+    spec = importlib.util.spec_from_file_location("update_installs", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_installs_script_updates_only_changed_foreign_skills_and_keeps_the_rest():
+    script = _installs_script()
+    assert script.lookup_key("https://github.com/anthropics/knowledge-work-plugins/tree/d900840/marketing/skills/campaign-plan") == ("anthropics", "knowledge-work-plugins", "campaign-plan")
+    assert script.lookup_key("https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/x") is None
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path, request.headers.get("authorization")))
+        if request.url.path.endswith("/copywriting"):
+            return httpx.Response(200, json={"installs": 300000})
+        if request.url.path.endswith("/seo-audit"):
+            return httpx.Response(200, json={"installs": 166600})  # unverändert
+        return httpx.Response(404)
+
+    catalog = {"installs_asof": "2026-11", "skills": [
+        {"id": "copywriting", "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/copywriting", "installs": 245200},
+        {"id": "seo-audit", "source": "https://github.com/coreyhaines31/marketingskills/tree/88c79f6/skills/seo-audit", "installs": 166600},
+        {"id": "unbekannt", "source": "https://github.com/anthropics/skills/tree/ca45fc4/skills/unbekannt", "installs": 5},
+        {"id": "eigen", "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/x/eigen"},
+    ]}
+    with httpx.Client(transport=httpx.MockTransport(handler), headers={"Authorization": "Bearer t"}) as client:
+        changes = script.update(catalog, client, "2027-01")
+    assert changes == ["copywriting: 245200 -> 300000"]
+    assert [s.get("installs") for s in catalog["skills"]] == [300000, 166600, 5, None]
+    assert catalog["installs_asof"] == "2027-01"
+    assert len(seen) == 3 and all(auth == "Bearer t" for _, auth in seen)  # eigene Skills werden nicht abgefragt
+
+    with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"installs": 166600}))) as client:
+        quiet = {"installs_asof": "2026-11", "skills": [catalog["skills"][1]]}
+        assert script.update(quiet, client, "2027-02") == [] and quiet["installs_asof"] == "2026-11"
+
+    with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(401))) as client:
+        with pytest.raises(SystemExit):
+            script.update({"skills": [catalog["skills"][0]]}, client, "2027-01")
+
+
+def test_catalog_file_keeps_the_format_the_script_writes():
+    path = Path(__file__).resolve().parent.parent / "app" / "skill_catalog" / "catalog.json"
+    text = path.read_text(encoding="utf-8")
+    assert json.dumps(json.loads(text), ensure_ascii=False, indent=1) + "\n" == text  # sonst gäbe der Monatslauf einen riesigen Diff

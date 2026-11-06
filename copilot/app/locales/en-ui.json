@@ -614,7 +614,6 @@
  "Zurück zu den Anpassungen": "Back to Customise",
  "{0} Installationen": "{0} installs",
  "Das Skill konnte nicht von GitHub geholt werden.": "The skill could not be fetched from GitHub.",
- "Die Zahl der Installationen ist gerundet und stammt von {0}.": "The number of installs is rounded and dates from {0}.",
  "GitHub-Link": "GitHub link",
  "Hole das Skill von GitHub …": "Fetching the skill from GitHub …",
  "Holen": "Fetch",

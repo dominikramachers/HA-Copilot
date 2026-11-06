@@ -319,11 +319,6 @@ def catalog_files(skill_id: str) -> dict[str, str]:
     return files
 
 
-def installs_asof() -> str:
-    """Monat (``2026-11``), auf den sich die Installationszahlen im Katalog beziehen; sie sind gerundet und werden nicht live abgerufen."""
-    return str(_load_catalog().get("installs_asof", ""))
-
-
 def recommended_categories() -> list[dict]:
     lang = language()
     return [{"id": c["id"], "label": c["label"].get(lang) or c["label"]["de"]} for c in _load_catalog()["categories"]]

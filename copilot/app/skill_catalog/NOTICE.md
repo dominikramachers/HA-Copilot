@@ -23,6 +23,6 @@ Die Lizenztexte liegen in `licenses/`; beim Hinzufügen kommt der passende Text 
 
 Aufgenommen ist, was ohne eigene Zugänge, Konten oder Programme auf dem Rechner funktioniert und nicht für ein bestimmtes Produkt wirbt. Nicht aufgenommen sind Skills, die Werbung für Dienste enthalten, an Dienste von Dritten gebunden sind (Verkauf, Werbekonten, Analysewerkzeuge), Dateien in Office-Formaten über eigene Programme erzeugen (diese stehen unter einer nicht freien Lizenz) oder keine Lizenz haben (`doc-coauthoring`; im Repository von Anthropic liegt dafür weiterhin keine Lizenzdatei, deshalb gibt es stattdessen das eigene, neu geschriebene `dokument-gemeinsam-schreiben`).
 
-Die Zahlen zu Installationen sind öffentlichen Verzeichnissen entnommen (Stand November 2026) und werden nicht zur Laufzeit abgerufen, sondern bei der Pflege des Katalogs von Hand nachgezogen (`installs_asof` in `catalog.json`); in der Oberfläche erscheinen sie gerundet. Ohne Zahl gab es keine verlässliche Angabe.
+Die Zahlen zu Installationen sind öffentlichen Verzeichnissen entnommen (Stand November 2026) und werden nicht zur Laufzeit abgerufen, sondern monatlich per GitHub Action (`.github/workflows/installs.yml`) oder bei der Pflege des Katalogs nachgezogen (`installs_asof` in `catalog.json`); in der Oberfläche erscheinen sie aufgerundet. Ohne Zahl gab es keine verlässliche Angabe.
 
 Neue Einträge kommen in `catalog.json`; `tests/test_skills.py` prüft, dass jeder Eintrag einen Ordner, eine Lizenz, eine Quelle und beide Sprachen hat.

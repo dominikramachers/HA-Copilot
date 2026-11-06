@@ -963,7 +963,6 @@ def register_chat_routes(
             "standard": skilllib.standard_list(),
             "recommended": [{**r, "installed": have.get(r["name"]) == "recommended", "taken": r["name"] in have and have[r["name"]] != "recommended"} for r in skilllib.recommended_list()],
             "categories": skilllib.recommended_categories(),
-            "installs_asof": skilllib.installs_asof(),
             "skills": [skill_view(r) for r in rows],
             "max": skilllib.PER_PERSON,
         }
