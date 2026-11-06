@@ -619,5 +619,6 @@
  "Link zu einem öffentlichen Skill-Ordner, zum Beispiel https://github.com/besitzer/repo/tree/main/skills/name. Gespeichert wird erst nach der Vorschau.": "Link to a public skill folder, for example https://github.com/owner/repo/tree/main/skills/name. Nothing is saved until after the preview.",
  "Quelle: {0}": "Source: {0}",
  "Skill von GitHub holen": "Fetch a skill from GitHub",
- "Von GitHub-Link": "From a GitHub link"
+ "Von GitHub-Link": "From a GitHub link",
+ "Versuch es mit einem anderen Wort.": "Try a different word."
 }

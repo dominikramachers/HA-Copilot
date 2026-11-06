@@ -50,6 +50,11 @@ const ICONS = {
   data: ["M5 7c0-1.7 3.1-3 7-3s7 1.3 7 3-3.1 3-7 3-7-1.3-7-3z", "M5 7v10c0 1.7 3.1 3 7 3s7-1.3 7-3V7", "M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"],
   play: ["M8 5.5v13l10.5-6.5z"],
   pause: ["M8 6v12M16 6v12"],
+  megaphone: ["M4 10v4h3l7 4V6L7 10z", "M17.5 9.5a4 4 0 0 1 0 5"],
+  chart: ["M5 20V11M12 20V4M19 20v-6"],
+  cube: ["M12 3l8 4.5v9L12 21l-8-4.5v-9z", "M4 7.5l8 4.5 8-4.5M12 12v9"],
+  headset: ["M5 14v-2a7 7 0 0 1 14 0v2", "M5 14h2.5v5H5zM16.5 14H19v5h-2.5z", "M17.5 19c0 1.5-2 2-4 2"],
+  users: ["M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M3.5 19a5.5 5.5 0 0 1 11 0", "M16 6.3a3 3 0 0 1 0 5.4M17.5 14a5 5 0 0 1 3 5"],
   folderX: ["M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M9.5 11.5l5 5M14.5 11.5l-5 5"],
 };
 
@@ -71,6 +76,44 @@ function node(tag, className, text) {
   if (className) el.className = className;
   if (text != null) el.textContent = text;
   return el;
+}
+
+// Suche und Kacheln, gemeinsam für Skills, Konnektoren und Pakete
+const foldText = (text) => String(text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+// Alle Wörter der Suche müssen vorkommen (ohne Groß-/Kleinschreibung und Akzente)
+function wordsMatch(query, haystack) {
+  const words = foldText(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const text = foldText(haystack);
+  return words.every((w) => text.includes(w));
+}
+
+function searchInput(label, value) {
+  const input = node("input", "field");
+  input.type = "search";
+  input.maxLength = 80;
+  input.placeholder = label;
+  input.setAttribute("aria-label", label);
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  input.value = value || "";
+  return input;
+}
+
+// Kachel mit Symbol; ohne Symbol die Anfangsbuchstaben (zum Beispiel für Dienste ohne Logo)
+function tile(iconName, label) {
+  const box = node("span", "tile");
+  box.setAttribute("aria-hidden", "true");
+  if (iconName && ICONS[iconName]) box.append(icon(iconName));
+  else box.textContent = initials(label);
+  return box;
+}
+
+function initials(label) {
+  const words = String(label || "").split(/[\s\-_.]+/).filter(Boolean);
+  const letters = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "?").slice(0, 2);
+  return letters.toUpperCase();
 }
 
 async function api(path, options = {}) {
@@ -1284,7 +1327,7 @@ async function openKnowledge(project) {
 
 const SKILL_ACCEPT = ".skill,.zip,.md,text/markdown,text/plain";
 const SKILL_MAX = 4 * 1024 * 1024;
-const skillsUi = { mode: "list", section: "skills", tab: "mine", query: "", category: "all", sort: "popular", detail: null, preview: null, data: null, status: "", busy: false };
+const skillsUi = { mode: "list", section: "skills", tab: "mine", mineQuery: "", query: "", category: "all", sort: "popular", detail: null, preview: null, data: null, status: "", busy: false };
 
 async function openSkills() {
   if (!state.me) return;
@@ -1298,7 +1341,7 @@ async function openSkills() {
   renderSide();
   closeMenu();
   setTitle(tr("Anpassungen"));
-  Object.assign(skillsUi, { mode: "list", section: "skills", tab: "mine", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
+  Object.assign(skillsUi, { mode: "list", section: "skills", tab: "mine", mineQuery: "", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
   await loadSkills();
   $("skills").scrollTop = 0;
 }
@@ -1459,44 +1502,65 @@ function renderSoon(wrap, section) {
 
 function renderMine(wrap, data) {
   wrap.append(node("p", "skills-hint", tr("Diese Skills gelten in allen deinen Chats. Die KI nimmt eines von selbst, wenn die Aufgabe zur Beschreibung passt.")));
-  if (!data.skills.length) {
-    const empty = node("div", "skills-empty");
-    const go = node("button", "pill ghost", tr("Skills entdecken"));
-    go.type = "button";
-    go.addEventListener("click", () => { skillsUi.tab = "recommended"; renderSkills(); });
-    empty.append(
-      node("p", "", tr("Noch keine eigenen Skills.")),
-      node("p", "skills-hint", tr("Importiere eine SKILL.md oder ein .skill, schreibe selbst eines oder such dir bei „Entdecken“ eines aus.")),
-      go,
-    );
-    wrap.append(empty);
-  } else {
-    const grid = node("div", "skills-grid");
-    for (const s of data.skills) grid.append(skillCard(s));
-    wrap.append(grid);
-  }
-  wrap.append(node("h3", "skills-section", tr("Standard")));
-  wrap.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
-  const std = node("div", "skills-grid");
-  for (const s of data.standard) std.append(skillCard({ ...s, standard: true }));
-  wrap.append(std);
-}
+  const filter = node("div", "skills-filter");
+  const search = searchInput(tr("Skills durchsuchen"), skillsUi.mineQuery);
+  filter.append(search);
+  const count = node("p", "skills-count");
+  count.setAttribute("role", "status");
+  const body = node("div", "skills-mine");
+  wrap.append(filter, count, body);
 
-const skillFold = (text) => String(text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const update = () => {
+    const q = skillsUi.mineQuery;
+    const own = data.skills.filter((s) => wordsMatch(q, `${s.name} ${s.description}`));
+    const std = data.standard.filter((s) => wordsMatch(q, `${s.label} ${s.name} ${s.description}`));
+    body.replaceChildren();
+    count.textContent = q.trim() ? trn(own.length + std.length, "1 Skill", "{0} Skills") : "";
+    if (q.trim() && !own.length && !std.length) {
+      const none = node("div", "skills-empty");
+      const reset = node("button", "pill ghost", tr("Suche zurücksetzen"));
+      reset.type = "button";
+      reset.addEventListener("click", () => { skillsUi.mineQuery = ""; search.value = ""; update(); search.focus(); });
+      none.append(node("p", "", tr("Nichts gefunden.")), node("p", "skills-hint", tr("Versuch es mit einem anderen Wort.")), reset);
+      body.append(none);
+      return;
+    }
+    if (!data.skills.length && !q.trim()) {
+      const empty = node("div", "skills-empty");
+      const go = node("button", "pill ghost", tr("Skills entdecken"));
+      go.type = "button";
+      go.addEventListener("click", () => { skillsUi.tab = "recommended"; renderSkills(); });
+      empty.append(
+        node("p", "", tr("Noch keine eigenen Skills.")),
+        node("p", "skills-hint", tr("Importiere eine SKILL.md oder ein .skill, schreibe selbst eines oder such dir bei „Entdecken“ eines aus.")),
+        go,
+      );
+      body.append(empty);
+    } else if (own.length) {
+      const grid = node("div", "skills-grid");
+      for (const s of own) grid.append(skillCard(s));
+      body.append(grid);
+    }
+    if (std.length) {
+      body.append(node("h3", "skills-section", tr("Standard")));
+      body.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
+      const grid = node("div", "skills-grid");
+      for (const s of std) grid.append(skillCard({ ...s, standard: true }));
+      body.append(grid);
+    }
+  };
+  search.addEventListener("input", () => { skillsUi.mineQuery = search.value; update(); });
+  update();
+}
 
 // Entdecken: Suche, Kategorien und Sortierung über die mitgelieferten Skills
 function renderDiscover(wrap, data) {
   wrap.append(node("p", "skills-hint", tr("Geprüfte Skills, mitgeliefert und frei nutzbar. Mit „Hinzufügen“ landen sie bei „Meine“; dort kannst du sie jederzeit ausschalten oder entfernen.")));
   const cats = new Map(data.categories.map((c) => [c.id, c.label]));
-  const all = data.recommended.map((s) => ({ ...s, recommended: true, categoryLabel: cats.get(s.category) || "", haystack: skillFold(`${s.label} ${s.name} ${s.summary} ${cats.get(s.category) || ""}`) }));
+  const all = data.recommended.map((s) => ({ ...s, recommended: true, categoryLabel: cats.get(s.category) || "", haystack: `${s.label} ${s.name} ${s.summary} ${cats.get(s.category) || ""}` }));
 
   const controls = node("div", "skills-filter");
-  const search = node("input", "field");
-  search.type = "search";
-  search.maxLength = 80;
-  search.placeholder = tr("Skills durchsuchen");
-  search.setAttribute("aria-label", tr("Skills durchsuchen"));
-  search.value = skillsUi.query;
+  const search = searchInput(tr("Skills durchsuchen"), skillsUi.query);
   const sort = node("select", "field");
   sort.setAttribute("aria-label", tr("Sortierung"));
   for (const [id, label] of [["popular", tr("Beliebteste")], ["az", tr("A bis Z")]]) {
@@ -1515,8 +1579,7 @@ function renderDiscover(wrap, data) {
   wrap.append(controls, chips, count, grid);
 
   const update = () => {
-    const words = skillFold(skillsUi.query).split(/\s+/).filter(Boolean);
-    const hits = all.filter((s) => words.every((w) => s.haystack.includes(w)));
+    const hits = all.filter((s) => wordsMatch(skillsUi.query, s.haystack));
     const per = new Map();
     for (const s of hits) per.set(s.category, (per.get(s.category) || 0) + 1);
     if (skillsUi.category !== "all" && !cats.has(skillsUi.category)) skillsUi.category = "all";
@@ -1557,13 +1620,23 @@ function skillSource(s) {
   return by;
 }
 
+// Symbol je Kategorie (empfohlene Skills); eigene und importierte Skills haben das Skill-Symbol, die Standard-Skills den Stift
+const SKILL_ICONS = { marketing: "megaphone", design: "pen", office: "file", tech: "code", data: "chart", product: "cube", support: "headset", people: "users" };
+
+function skillIcon(s) {
+  if (s.standard) return "stack";
+  return SKILL_ICONS[s.category] || "skill";
+}
+
 function skillCard(s) {
   const card = node("article", "skill-card" + (s.enabled === false ? " off" : ""));
   const top = node("div", "skill-card-top");
   const open = node("button", "skill-open", s.standard || s.recommended ? s.label : s.name);
   open.type = "button";
   open.addEventListener("click", () => openSkillDetail(s));
-  top.append(open);
+  const who = node("div", "skill-card-id");
+  who.append(tile(skillIcon(s)), open);
+  top.append(who);
   if (!s.standard && !s.recommended) top.append(skillSwitch(s, renderSkills));
   card.append(top, skillBadges(s), node("p", "skill-desc", s.recommended ? s.summary : s.description));
   if (s.recommended) card.append(node("small", "mem-meta", skillSource(s)), skillAddRow(s));
@@ -1777,6 +1850,8 @@ function renderSkillDetail(wrap) {
   const s = skillsUi.detail;
   skillBack(wrap);
   skillHead(wrap, s.standard || s.recommended ? s.label : s.name);
+  wrap.lastElementChild.classList.add("with-tile");
+  wrap.lastElementChild.prepend(tile(skillIcon(s)));
   const card = node("section", "skills-panel");
   const meta = node("div", "skills-detail-meta");
   meta.append(skillBadges(s));
