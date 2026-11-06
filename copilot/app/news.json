@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.39.0",
+    "items": [
+      {
+        "de": {
+          "title": "Text in PDFs ersetzen",
+          "text": "Ich kann jetzt vorhandenen Text in einem PDF austauschen, zum Beispiel eine Nummer oder ein Datum. Ich decke die alte Stelle ab und schreibe den neuen Text darüber. Schau dir das Ergebnis bitte an."
+        },
+        "en": {
+          "title": "Replace text in PDFs",
+          "text": "I can now swap existing text in a PDF, for example a number or a date. I cover the old spot and write the new text over it. Please take a look at the result."
+        }
+      },
+      {
+        "de": {
+          "title": "Excel behält Diagramme",
+          "text": "Wenn ich eine Excel-Tabelle ändere, bleiben ihre Diagramme und Bilder jetzt erhalten. Vorher konnten sie dabei verloren gehen."
+        },
+        "en": {
+          "title": "Excel keeps its charts",
+          "text": "When I change an Excel spreadsheet, its charts and pictures are now kept. Before, they could get lost."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.38.2",
     "items": [
       {
