@@ -590,3 +590,123 @@ def test_legacy_and_image_formats_are_not_editable():
 
 def test_user_in_chat_helpers_exist():
     assert ADM01  # Importprobe der Test-Hilfen
+
+
+# ============================================ Excel: Diagramme und Bilder bleiben, PDF: Text ersetzen
+
+def _xlsx_with_chart_and_image():
+    from openpyxl import Workbook
+    from openpyxl.chart import BarChart, LineChart, Reference
+    from openpyxl.drawing.image import Image
+    from PIL import Image as PilImage
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Umsatz"
+    ws.append(["Monat", "Wert"])
+    for i, v in enumerate([5, 7, 3, 9], 1):
+        ws.append([f"M{i}", v])
+    chart = BarChart()
+    chart.title = "Umsatz Chart"
+    chart.add_data(Reference(ws, min_col=2, min_row=1, max_row=5), titles_from_data=True)
+    ws.add_chart(chart, "D2")
+    pic = io.BytesIO()
+    PilImage.new("RGB", (20, 20), "red").save(pic, "PNG")
+    pic.seek(0)
+    ws.add_image(Image(pic), "D20")
+    other = wb.create_sheet("Zwei")
+    other.append(["x"])
+    line = LineChart()
+    line.add_data(Reference(ws, min_col=2, min_row=1, max_row=5))
+    other.add_chart(line, "B2")
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def _package(data):
+    import zipfile
+
+    return zipfile.ZipFile(io.BytesIO(data))
+
+
+def test_excel_charts_images_and_their_parts_survive_an_edit():
+    data = _xlsx_with_chart_and_image()
+    ctx = fe.Context()
+    new, report, notes = fe.edit_file("xlsx", data, [{"op": "set_cell", "sheet": "Umsatz", "cell": "B2", "value": 99}], ctx)
+    before, after = _package(data), _package(new)
+    for part in before.namelist():
+        if part.startswith(("xl/charts/", "xl/drawings/", "xl/media/")):
+            assert before.read(part) == after.read(part), part  # unverändert übernommen
+    import openpyxl
+
+    book = openpyxl.load_workbook(io.BytesIO(new))
+    assert book["Umsatz"]["B2"].value == 99
+    assert [(s.title, len(s._charts), len(s._images)) for s in book.worksheets] == [("Umsatz", 1, 1), ("Zwei", 1, 0)]
+    assert any("unverändert erhalten" in n for n in notes) and not any("verloren" in n for n in notes)
+
+
+def test_excel_charts_follow_renamed_sheets_and_say_when_ranges_shift():
+    data = _xlsx_with_chart_and_image()
+    ctx = fe.Context()
+    new, _, notes = fe.edit_file("xlsx", data, [{"op": "rename_sheet", "sheet": "Umsatz", "name": "Zahlen"}, {"op": "insert_rows", "sheet": "Zahlen", "at": 2}], ctx)
+    package = _package(new)
+    refs = "".join(package.read(n).decode() for n in package.namelist() if n.startswith("xl/charts/chart"))
+    assert "<f>'Zahlen'!$B$1:$B$5</f>" in refs and "<f>'Zahlen'!$B$2:$B$5</f>" in refs and "Umsatz'!" not in refs and "<f>Umsatz!" not in refs
+    assert any("nicht angepasst" in n for n in notes)
+    deleted, _, notes = fe.edit_file("xlsx", data, [{"op": "delete_sheet", "sheet": "Umsatz"}], fe.Context())
+    assert not any(n.startswith("xl/media/") for n in _package(deleted).namelist())  # Blatt samt Bild weg
+    assert any("gelöscht" in n for n in notes)
+
+
+def _pdf_with_text():
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=14)
+    pdf.set_fill_color(255, 250, 200)
+    pdf.rect(10, 20, 120, 12, style="F")
+    pdf.set_text_color(200, 0, 0)
+    pdf.set_xy(12, 22)
+    pdf.cell(100, 8, "Rechnung Nr. 4711 vom 01.11.2026")
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_xy(12, 60)
+    pdf.cell(100, 8, "Zweite Zeile mit Nr. 4711 hier")
+    return bytes(pdf.output())
+
+
+def test_pdf_replace_text_covers_the_old_and_writes_the_new_in_place():
+    import pypdfium2 as pdfium
+
+    data = _pdf_with_text()
+    ctx = fe.Context()
+    new, report, notes = fe.edit_file("pdf", data, [{"op": "replace_text", "find": "Nr. 4711", "replace": "Nr. 9999"}], ctx)
+    assert report == ["2× „Nr. 4711“ ersetzt (Seite 1)"]
+    page = pdfium.PdfDocument(new)[0]
+    text = page.get_textpage().get_text_range()
+    assert "Nr. 9999" in text and "Rechnung" in text and "vom 01.11.2026" in text
+    image = page.render(scale=2).to_pil().convert("RGB")
+    # die Abdeckung hat die gelbe Fläche hinter dem ersten Treffer übernommen: an der Stelle des alten Texts keine roten Pixel mehr außer dem neuen Text
+    old_box = pdfium.PdfDocument(data)[0].get_textpage()
+    start = old_box.get_text_range().index("Nr. 4711")
+    left, bottom, right, top = old_box.get_charbox(start + 7)  # die letzte Ziffer des alten Texts
+    x, y = int((left + right) / 2 * 2), int((page.get_size()[1] - (bottom + top) / 2) * 2)
+    r, g, b = image.getpixel((x, y))
+    assert (r, g, b) != (200, 0, 0) and r > 200 and g > 200  # Hintergrund, nicht alte Schrift
+    assert any("Abdeckung" in n and "auslesen" in n for n in notes)
+
+
+def test_pdf_replace_text_reports_what_it_cannot_do():
+    data = _pdf_with_text()
+    with pytest.raises(fe.EditError, match="steht auf den geprüften Seiten nicht"):
+        edit("pdf", data, [{"op": "replace_text", "find": "gibt es nicht", "replace": "x"}])
+    with pytest.raises(fe.EditError, match="Seite\\(n\\) 3 gibt es nicht"):
+        edit("pdf", data, [{"op": "replace_text", "find": "Nr.", "replace": "x", "page": 3}])
+    rotated, _, _ = edit("pdf", data, [{"op": "rotate_pages", "angle": 90}])
+    with pytest.raises(fe.EditError, match="gedreht"):
+        edit("pdf", rotated, [{"op": "replace_text", "find": "Nr.", "replace": "x"}])
+    new, report, _ = edit("pdf", data, [{"op": "replace_text", "find": "nr. 4711", "replace": "Nr. 1", "match_case": False, "page": 1}])
+    assert report == ["2× „nr. 4711“ ersetzt (Seite 1)"]
+    long, _, notes = edit("pdf", data, [{"op": "replace_text", "find": "Zweite", "replace": "Eine sehr viel längere Ersetzung hier"}])
+    assert any("breiter" in n for n in notes)

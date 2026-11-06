@@ -7,7 +7,7 @@ Die KI arbeitet mit zwei Werkzeugen (siehe ``outbox.py``):
 * ``edit_file(kind, name, data, operations, ctx)`` wendet eine Liste von Änderungen an und liefert die neue Datei.
   Alles oder nichts: scheitert eine Änderung, wird nichts gespeichert und die KI erfährt, welche und warum.
 
-Die Dateien werden mit python-docx, openpyxl, python-pptx, pypdf und fpdf2 bearbeitet (optional wie bei ``file_create``;
+Die Dateien werden mit python-docx, openpyxl, python-pptx, pypdf, pypdfium2 und fpdf2 bearbeitet (optional wie bei ``file_create``;
 fehlt eine Bibliothek, melden die Werkzeuge es verständlich). Es wird nie etwas ausgeführt: weder Makros noch Formeln,
 und Formeln mit gefährlichen Funktionen (WEBSERVICE, DDE …) werden entschärft wie beim Erzeugen.
 
@@ -657,12 +657,200 @@ def _set_value(cell, value: Any, as_text: bool = False) -> None:
         cell.number_format = fmt
 
 
+# ---- Zeichnungen (Diagramme, Bilder, Formen) beim Speichern erhalten
+# openpyxl liest Diagramme nur unvollständig und verliert Formatierung; deshalb werden die Zeichnungsteile der Originaldatei
+# unverändert in die neue Datei übernommen (Teile, Beziehungen, Inhaltstypen).
+
+_NS_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
+_NS_CT = "http://schemas.openxmlformats.org/package/2006/content-types"
+_NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+_NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_REL_DRAWING = _NS_R + "/drawing"
+_AFTER_DRAWING = ("legacyDrawing", "legacyDrawingHF", "picture", "oleObjects", "controls", "webPublishItems", "tableParts", "extLst")
+
+
+def _part_dir(part: str) -> str:
+    return part.rsplit("/", 1)[0] if "/" in part else ""
+
+
+def _rels_part(part: str) -> str:
+    folder, name = (part.rsplit("/", 1) + [""])[:2] if "/" in part else ("", part)
+    return (folder + "/" if folder else "") + "_rels/" + name + ".rels"
+
+
+def _resolve_target(base_part: str, target: str) -> str:
+    import posixpath
+
+    if target.startswith("/"):
+        return target.lstrip("/")
+    return posixpath.normpath(posixpath.join(_part_dir(base_part), target))
+
+
+def _read_rels(z, part: str) -> list[dict]:
+    from lxml import etree
+
+    name = _rels_part(part)
+    if name not in z.namelist():
+        return []
+    root = etree.fromstring(z.read(name))
+    return [dict(r.attrib) for r in root.findall(f"{{{_NS_REL}}}Relationship")]
+
+
+def _worksheet_parts(z) -> list[str]:
+    """Pfade der Tabellenblätter in der Reihenfolge der Arbeitsmappe (Diagrammblätter zählen nicht)."""
+    from lxml import etree
+
+    book = etree.fromstring(z.read("xl/workbook.xml"))
+    rels = {r["Id"]: r for r in _read_rels(z, "xl/workbook.xml")}
+    out = []
+    for sheet in book.find(f"{{{_NS_MAIN}}}sheets"):
+        rel = rels.get(sheet.get(f"{{{_NS_R}}}id", ""))
+        if rel and rel.get("Type", "").endswith("/worksheet"):
+            out.append(_resolve_target("xl/workbook.xml", rel["Target"]))
+    return out
+
+
+def _sheet_drawing(z, sheet_part: str) -> str | None:
+    from lxml import etree
+
+    root = etree.fromstring(z.read(sheet_part))
+    node = root.find(f"{{{_NS_MAIN}}}drawing")
+    if node is None:
+        return None
+    rid = node.get(f"{{{_NS_R}}}id")
+    for rel in _read_rels(z, sheet_part):
+        if rel["Id"] == rid:
+            return _resolve_target(sheet_part, rel["Target"])
+    return None
+
+
+def _drawing_parts(data: bytes) -> list[str | None]:
+    """Je Tabellenblatt (in Reihenfolge) der Zeichnungsteil der Originaldatei oder None."""
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            return [_sheet_drawing(z, part) for part in _worksheet_parts(z)]
+    except Exception:  # noqa: BLE001 - unlesbar: dann bleibt es beim Verhalten von openpyxl
+        return []
+
+
+def _closure(z, part: str) -> list[str]:
+    """Der Teil und alles, worauf er (rekursiv) zeigt: Diagramme, Bilder, Stile."""
+    seen: list[str] = []
+    todo = [part]
+    while todo:
+        current = todo.pop()
+        if current in seen or current not in z.namelist():
+            continue
+        seen.append(current)
+        for rel in _read_rels(z, current):
+            if rel.get("TargetMode") != "External":
+                todo.append(_resolve_target(current, rel["Target"]))
+    return seen
+
+
+def _graft_drawings(new: bytes, old: bytes, plan: list[tuple[int, str]], renames: list[tuple[str, str]]) -> bytes:
+    """Zeichnungsteile der Originaldatei in die gespeicherte Datei übernehmen. ``plan``: (Blattposition in der neuen Datei, Zeichnungsteil im Original)."""
+    import zipfile
+    from lxml import etree
+
+    zin_old = zipfile.ZipFile(io.BytesIO(old))
+    zin_new = zipfile.ZipFile(io.BytesIO(new))
+    sheet_parts = _worksheet_parts(zin_new)
+    files = {n: zin_new.read(n) for n in zin_new.namelist()}
+    ct_old = etree.fromstring(zin_old.read("[Content_Types].xml"))
+    ct_new = etree.fromstring(files["[Content_Types].xml"])
+    have_default = {d.get("Extension", "").lower() for d in ct_new.findall(f"{{{_NS_CT}}}Default")}
+    have_override = {o.get("PartName") for o in ct_new.findall(f"{{{_NS_CT}}}Override")}
+
+    for position, drawing in plan:
+        sheet_part = sheet_parts[position]
+        parts = _closure(zin_old, drawing)
+        clash = [p for p in parts if p in files]
+        if clash:
+            raise EditError("Zeichnungsteile kollidieren: " + ", ".join(clash[:3]))
+        for part in parts:
+            content = zin_old.read(part)
+            if part.startswith("xl/charts/") and part.endswith(".xml") and renames:
+                content = _rename_in_chart(content, renames)
+            files[part] = content
+            rels = _rels_part(part)
+            if rels in zin_old.namelist():
+                files[rels] = zin_old.read(rels)
+            name = "/" + part
+            override = next((o for o in ct_old.findall(f"{{{_NS_CT}}}Override") if o.get("PartName") == name), None)
+            if override is not None and name not in have_override:
+                ct_new.append(etree.fromstring(etree.tostring(override)))
+                have_override.add(name)
+            ext = part.rsplit(".", 1)[-1].lower()
+            default = next((d for d in ct_old.findall(f"{{{_NS_CT}}}Default") if d.get("Extension", "").lower() == ext), None)
+            if default is not None and ext not in have_default and override is None:
+                ct_new.append(etree.fromstring(etree.tostring(default)))
+                have_default.add(ext)
+        # Verweis im Blatt und Beziehung dazu
+        rels_name = _rels_part(sheet_part)
+        rels_root = etree.fromstring(files[rels_name]) if rels_name in files else etree.Element(f"{{{_NS_REL}}}Relationships", nsmap={None: _NS_REL})
+        rid = "rIdGraft1"
+        while any(r.get("Id") == rid for r in rels_root):
+            rid += "x"
+        import posixpath
+
+        target = posixpath.relpath(drawing, _part_dir(sheet_part))
+        etree.SubElement(rels_root, f"{{{_NS_REL}}}Relationship", Id=rid, Type=_REL_DRAWING, Target=target)
+        files[rels_name] = etree.tostring(rels_root, xml_declaration=True, encoding="UTF-8", standalone=True)
+        sheet = etree.fromstring(files[sheet_part])
+        node = etree.Element(f"{{{_NS_MAIN}}}drawing")
+        node.set(f"{{{_NS_R}}}id", rid)
+        anchor = next((c for c in sheet if etree.QName(c).localname in _AFTER_DRAWING), None)
+        if anchor is not None:
+            anchor.addprevious(node)
+        else:
+            sheet.append(node)
+        files[sheet_part] = etree.tostring(sheet, xml_declaration=True, encoding="UTF-8", standalone=True)
+    files["[Content_Types].xml"] = etree.tostring(ct_new, xml_declaration=True, encoding="UTF-8", standalone=True)
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", files.pop("[Content_Types].xml"))
+        for name, content in files.items():
+            z.writestr(name, content)
+    return out.getvalue()
+
+
+def _rename_in_chart(xml: bytes, renames: list[tuple[str, str]]) -> bytes:
+    """Bezüge wie ``Tabelle1!$A$1:$B$5`` in einem Diagramm an umbenannte Blätter anpassen."""
+    from lxml import etree
+
+    root = etree.fromstring(xml)
+    for node in root.iter("{http://schemas.openxmlformats.org/drawingml/2006/chart}f"):
+        text = node.text or ""
+        for old, new in renames:
+            quoted = "'" + new.replace("'", "''") + "'!"
+            for form in ("'" + old.replace("'", "''") + "'!", old + "!"):
+                if text.startswith(form):
+                    text = quoted + text[len(form):]
+                    break
+        node.text = text
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+
 def edit_xlsx(data: bytes, ops: list[dict], ctx: Context) -> tuple[bytes, list[str]]:
     from openpyxl.utils import get_column_letter, range_boundaries
     from openpyxl.utils.cell import coordinate_from_string
 
     wb = _load_xlsx(data)
     report: list[str] = []
+    drawings = _drawing_parts(data)  # je Blatt der Zeichnungsteil des Originals (Diagramme, Bilder, Formen)
+    sheets_before = list(wb.worksheets)
+    held = {}
+    if len(drawings) == len(sheets_before):
+        for ws, part in zip(sheets_before, drawings):
+            if part:
+                held[id(ws)] = (ws, part, list(ws._charts), list(ws._images))
+                ws._charts, ws._images = [], []  # openpyxl schreibt sie nicht selbst; die Originalteile kommen unverändert zurück
+    renames: list[tuple[str, str]] = []
+    shifted = False
     for i, op in enumerate(ops):
         kind = op.get("op")
         try:
@@ -707,12 +895,14 @@ def edit_xlsx(data: bytes, ops: list[dict], ctx: Context) -> tuple[bytes, list[s
             elif kind in ("insert_rows", "delete_rows"):
                 ws = _sheet(wb, op.get("sheet"))
                 at, count = _int(op, "at"), _int(op, "count", default=1)
+                shifted = True
                 (ws.insert_rows if kind == "insert_rows" else ws.delete_rows)(at, count)
                 report.append(f"{ws.title}: {count} Zeile(n) ab {at} {'eingefügt' if kind == 'insert_rows' else 'gelöscht'}")
                 ctx.notes.append("Formeln und verbundene Zellen werden beim Einfügen/Löschen von Zeilen nicht angepasst; prüfe Formeln, die auf verschobene Zellen zeigen.") if "zeilen-formeln" not in " ".join(ctx.notes) else None
             elif kind in ("insert_cols", "delete_cols"):
                 ws = _sheet(wb, op.get("sheet"))
                 at, count = _col_index(op.get("at")), _int(op, "count", default=1)
+                shifted = True
                 (ws.insert_cols if kind == "insert_cols" else ws.delete_cols)(at, count)
                 report.append(f"{ws.title}: {count} Spalte(n) ab {get_column_letter(at)} {'eingefügt' if kind == 'insert_cols' else 'gelöscht'}")
             elif kind == "add_sheet":
@@ -728,6 +918,7 @@ def edit_xlsx(data: bytes, ops: list[dict], ctx: Context) -> tuple[bytes, list[s
                 ws = _sheet(wb, op.get("sheet"))
                 new = _str(op, "name")[:31]
                 old, ws.title = ws.title, new
+                renames.append((old, new))
                 report.append(f"Blatt „{old}“ in „{new}“ umbenannt")
             elif kind == "delete_sheet":
                 ws = _sheet(wb, op.get("sheet"))
@@ -748,13 +939,29 @@ def edit_xlsx(data: bytes, ops: list[dict], ctx: Context) -> tuple[bytes, list[s
         names = set(__import__("zipfile").ZipFile(io.BytesIO(data)).namelist())
     except Exception:  # noqa: BLE001
         names = set()
-    lost = [label for key, label in (("xl/charts/", "Diagramme"), ("xl/pivotTables/", "Pivot-Tabellen"), ("xl/drawings/", "Zeichnungen/Bilder"), ("xl/vbaProject", "Makros")) if any(n.startswith(key) for n in names)]
-    if lost:
-        ctx.notes.append("Achtung: Die Originaldatei enthielt " + ", ".join(lost) + "; sie können beim Speichern verloren gehen. Sage der Person das und weise darauf hin, dass die Originaldatei unverändert bleibt.")
-    ctx.notes.append("Berechnete Formelwerte werden von Excel beim Öffnen neu berechnet.")
+    lost = [label for key, label in (("xl/pivotTables/", "Pivot-Tabellen"), ("xl/vbaProject", "Makros"), ("xl/chartsheets/", "eigene Diagrammblätter")) if any(n.startswith(key) for n in names)]
     out = io.BytesIO()
     wb.save(out)
-    return out.getvalue(), report
+    result = out.getvalue()
+    kept = [(wb.worksheets.index(ws), part) for ws, part, _c, _i in held.values() if ws in wb.worksheets]
+    if len(kept) < len(held):
+        ctx.notes.append("Gelöschte Blätter hatten Diagramme oder Bilder; diese sind mit den Blättern weg. Diagramme auf anderen Blättern, die sich auf ein gelöschtes Blatt beziehen, zeigen dann nichts mehr an.")
+    if kept:
+        try:
+            result = _graft_drawings(result, data, kept, renames)
+            what = "Diagramme, Bilder und Formen" if any("chart" in n for n in names) else "Bilder und Formen"
+            ctx.notes.append(f"{what[0].upper() + what[1:]} der Originaldatei sind unverändert erhalten." + (" Ihre Zellbezüge wurden beim Einfügen oder Löschen von Zeilen und Spalten nicht angepasst; prüfe die Bereiche der Diagramme." if shifted else ""))
+        except Exception:  # noqa: BLE001 - dann das Ergebnis von openpyxl nehmen
+            for ws, _part, charts, images in held.values():
+                ws._charts, ws._images = charts, images
+            out = io.BytesIO()
+            wb.save(out)
+            result = out.getvalue()
+            lost.append("Formatierung von Diagrammen und Bildern")
+    if lost:
+        ctx.notes.append("Achtung: Die Originaldatei enthielt " + ", ".join(lost) + "; das geht beim Speichern ganz oder teilweise verloren. Sage der Person das und weise darauf hin, dass die Originaldatei unverändert bleibt.")
+    ctx.notes.append("Berechnete Formelwerte werden von Excel beim Öffnen neu berechnet.")
+    return result, report
 
 
 # ================================================================== PowerPoint
@@ -1336,6 +1543,155 @@ def _flatten(writer: Any, fields: list[PdfField]) -> int:
     return removed
 
 
+def _pdfium():
+    try:
+        import pypdfium2
+    except ImportError:
+        raise _missing("PDF-Textsuche") from None
+    return pypdfium2
+
+
+MAX_REPLACEMENTS = 200
+
+
+def _line_boxes(tp, start: int, count: int) -> list[list[float]]:
+    """Ein Treffer als Kästen je Zeile (links, unten, rechts, oben in PDF-Punkt)."""
+    lines: list[list[float]] = []
+    for i in range(start, start + count):
+        box = tp.get_charbox(i)
+        if box[2] - box[0] <= 0 or box[3] - box[1] <= 0:  # Leerzeichen und Zeilenumbrüche ohne Fläche
+            continue
+        if lines and abs(lines[-1][1] - box[1]) < 0.5 * (box[3] - box[1]):
+            line = lines[-1]
+            line[0], line[1], line[2], line[3] = min(line[0], box[0]), min(line[1], box[1]), max(line[2], box[2]), max(line[3], box[3])
+        else:
+            lines.append(list(box))
+    return lines
+
+
+def _background(image, box: list[float], scale: float, page_height: float) -> tuple[int, int, int]:
+    """Häufigste Farbe rund um den Kasten (damit die Abdeckung nicht als weißer Fleck auf farbigem Grund auffällt)."""
+    from collections import Counter
+
+    left, bottom, right, top = box
+    x0, x1 = int(left * scale), int(right * scale)
+    y0, y1 = int((page_height - top) * scale), int((page_height - bottom) * scale)
+    pad = max(2, int(2 * scale))
+    width, height = image.size
+    samples: Counter = Counter()
+    for x in range(max(0, x0 - pad), min(width, x1 + pad), 2):
+        for y in (y0 - pad, y1 + pad):
+            if 0 <= y < height:
+                samples[tuple(v // 4 * 4 for v in image.getpixel((x, y))[:3])] += 1
+    for y in range(max(0, y0), min(height, y1), 2):
+        for x in (x0 - pad, x1 + pad):
+            if 0 <= x < width:
+                samples[tuple(v // 4 * 4 for v in image.getpixel((x, y))[:3])] += 1
+    return samples.most_common(1)[0][0] if samples else (255, 255, 255)
+
+
+def _replace_pdf_text(writer: Any, op: dict, ctx: Context) -> str:
+    """Text im PDF ersetzen: der alte Text wird mit der Hintergrundfarbe abgedeckt, der neue darübergeschrieben."""
+    import ctypes
+
+    from . import outbox
+
+    pdfium = _pdfium()
+    total = len(writer.pages)
+    find = _str(op, "find")
+    repl = _str(op, "replace", required=False, allow_empty=True)
+    match_case = _bool(op, "match_case", True)
+    if op.get("pages") not in (None, ""):
+        numbers = _pdf_page_list(op, total)
+    elif op.get("page") not in (None, ""):
+        numbers = _pdf_page_list({"pages": op["page"]}, total)
+    else:
+        numbers = list(range(1, total + 1))
+    document = pdfium.PdfDocument(_write(writer))
+    fonts = outbox.find_fonts()
+    done = 0
+    pages_hit: list[int] = []
+    widest = 0
+    try:
+        for n in numbers:
+            page = document[n - 1]
+            if page.get_rotation() % 360:
+                raise EditError(f"Seite {n} ist um {page.get_rotation()}° gedreht; dort lässt sich Text nicht ersetzen (erst mit rotate_pages zurückdrehen).")
+            tp = page.get_textpage()
+            finder = tp.search(find, match_case=match_case)
+            matches = []
+            while True:
+                found = finder.get_next()
+                if not found:
+                    break
+                matches.append(found)
+                if done + len(matches) > MAX_REPLACEMENTS:
+                    raise EditError(f"Mehr als {MAX_REPLACEMENTS} Treffer; grenze den Suchtext oder die Seiten ein.")
+            if not matches:
+                continue
+            width, height = page.get_size()
+            image = page.render(scale=2).to_pil().convert("RGB")
+            target = _pick(list(writer.pages), n, "Seite")
+            left0, top0 = float(target.mediabox.left), float(target.mediabox.top)
+            jobs = []
+            for start, count in matches:
+                lines = _line_boxes(tp, start, count)
+                if not lines:
+                    continue
+                size = float(pdfium.raw.FPDFText_GetFontSize(tp, start)) or (lines[0][3] - lines[0][1]) * 0.85
+                ox, oy = ctypes.c_double(), ctypes.c_double()
+                pdfium.raw.FPDFText_GetCharOrigin(tp, start, ox, oy)  # Grundlinie des ersten Zeichens
+                r, g, b, a = (ctypes.c_uint() for _ in range(4))
+                colored = pdfium.raw.FPDFText_GetFillColor(tp, start, r, g, b, a)
+                rgb = (r.value, g.value, b.value) if colored else (0, 0, 0)
+                jobs.append((lines, size, rgb, (ox.value, oy.value)))
+            if not jobs:
+                continue
+
+            def draw(pdf, jobs=jobs, image=image, height=height, left0=left0, top0=top0) -> None:
+                nonlocal widest
+                if fonts:
+                    pdf.add_font("body", "", str(fonts[0][""]))
+                for lines, size, rgb, (base_x, base_y) in jobs:
+                    for box in lines:
+                        pdf.set_fill_color(*_background(image, box, 2, height))
+                        low, high = min(box[1], box[1] if box is not lines[0] else base_y - 0.2 * size), max(box[3], box[3] if box is not lines[0] else base_y + 0.75 * size)
+                        pdf.rect(box[0] - left0 - 0.5, top0 - high - 0.5, box[2] - box[0] + 1, high - low + 1, style="F")
+                    if not repl:
+                        continue
+                    box = lines[0]
+                    if fonts:
+                        pdf.set_font("body", size=size)
+                    else:
+                        pdf.set_font("Helvetica", size=size)
+                    text = repl if fonts else repl.encode("latin-1", "replace").decode("latin-1")
+                    room = box[2] - box[0]
+                    need = pdf.get_string_width(text)
+                    if need > room * 1.08 > 0:
+                        size = max(size * 0.7, size * room / need)
+                        pdf.set_font("body" if fonts else "Helvetica", size=size)
+                        need = pdf.get_string_width(text)
+                    widest = max(widest, need - room)
+                    pdf.set_text_color(*rgb)
+                    pdf.text(base_x - left0, top0 - base_y, text)
+
+            overlay = _overlay_page(float(target.mediabox.width), float(target.mediabox.height), draw)
+            target.merge_page(overlay)
+            done += len(jobs)
+            pages_hit.append(n)
+    finally:
+        document.close()
+    if not done:
+        raise EditError(f"„{find}“ steht auf den geprüften Seiten nicht als Text (Groß-/Kleinschreibung beachten; in Scans und Bildern gibt es keinen Text, den man ersetzen könnte; Silben und Zeilenumbrüche mitten im Wort können den Treffer verhindern).")
+    note = "Der alte Text bleibt unter der Abdeckung im PDF erhalten und lässt sich noch auslesen oder kopieren; zum Schwärzen vertraulicher Angaben taugt das nicht. Sage der Person das."
+    if note not in ctx.notes:
+        ctx.notes.append(note)
+        ctx.notes.append("Der neue Text steht in Liberation Sans bzw. Helvetica in Größe und Farbe des alten, nicht in dessen Schriftart (auch nicht fett oder kursiv); die Abdeckung übernimmt die Hintergrundfarbe der Umgebung. Die Person sollte das Ergebnis ansehen.")
+    if widest > 1:
+        ctx.notes.append(f"Der neue Text ist an mindestens einer Stelle etwa {widest:.0f} Punkt breiter als der alte und kann angrenzenden Text berühren.")
+    return f"{done}× „{find}“ ersetzt (Seite {', '.join(map(str, pages_hit))})"
+
+
 def edit_pdf(data: bytes, ops: list[dict], ctx: Context) -> tuple[bytes, list[str]]:
     from pypdf.generic import NameObject, BooleanObject
 
@@ -1430,11 +1786,13 @@ def edit_pdf(data: bytes, ops: list[dict], ctx: Context) -> tuple[bytes, list[st
                 report.append(f"{len(src.pages)} Seite(n) aus „{other}“ nach Seite {at} eingefügt")
             elif kind == "add_text":
                 report.append(_add_text(writer, op))
+            elif kind == "replace_text":
+                report.append(_replace_pdf_text(writer, op, ctx))
             elif kind == "add_text_field":
                 report.append(_add_text_field(writer, op))
                 form_touched = True
             else:
-                raise EditError("Unbekannter Befehl. Möglich bei PDF: fill_fields, lock_fields, unlock_fields, flatten, add_text, add_text_field, delete_pages, rotate_pages, reorder, merge.")
+                raise EditError("Unbekannter Befehl. Möglich bei PDF: fill_fields, lock_fields, unlock_fields, flatten, add_text, replace_text, add_text_field, delete_pages, rotate_pages, reorder, merge.")
         except EditError as exc:
             raise EditError(f"Änderung {i + 1} ({kind}): {exc}") from None
         except (KeyError, ValueError, TypeError, AttributeError) as exc:
