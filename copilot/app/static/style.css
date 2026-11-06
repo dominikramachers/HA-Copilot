@@ -777,6 +777,33 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .mem-form { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line-2); }
 .mem-form .field, .mem-form select.field { margin-top: 0; width: 100%; }
 .mem-form .pill { justify-self: end; height: 36px; padding: 0 18px; }
+.sheet-panel.tall { max-height: min(72dvh, 660px); }
+.mem-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.mem-bar .pill { height: 34px; padding: 0 16px; font-size: 14px; }
+.mem-section .field.area { width: 100%; margin-top: 4px; }
+.mem-link { padding: 4px 0; font-size: 13.5px; font-weight: 600; color: var(--accent); }
+.mem-link:hover { text-decoration: underline; }
+.mem-review-title { margin: 6px 0 0; font-size: 16px; }
+.mem-scope { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; font-size: 14px; }
+.mem-scope select.field { margin-top: 0; width: auto; flex: 1; min-width: 0; }
+.mem-card { display: grid; gap: 8px; margin: 8px 0 14px; padding: 12px; border: 1px solid var(--line-2); border-radius: var(--r-2); }
+.mem-card .field { margin-top: 0; width: 100%; }
+.mem-card .mem-hint { margin: 0; }
+.mem-check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.mem-check input, .mem-pick > input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.mem-tools { display: flex; align-items: center; gap: 14px; margin: 6px 0 2px; font-size: 14px; }
+.mem-tools b { margin-right: auto; }
+.mem-pick { cursor: pointer; align-items: flex-start; }
+.mem-pick > input { margin-top: 3px; }
+.mem-badge { display: block; margin-top: 2px; font-size: 12px; color: var(--text-2); }
+.mem-badge[hidden] { display: none; }
+.mem-warn { color: var(--danger); }
+.mem-warn[hidden] { display: none; }
+.mem-skipped { margin: 10px 0; font-size: 13px; color: var(--text-2); }
+.mem-skipped summary { cursor: pointer; }
+.mem-import-actions { position: sticky; bottom: 0; display: flex; justify-content: flex-end; padding: 10px 0 2px; background: var(--sheet); border-top: 1px solid var(--line-2); margin-top: 8px; }
+.mem-import-actions .pill { height: 38px; padding: 0 20px; }
+.mem-done { margin: 8px 0; padding-left: 20px; font-size: 14.5px; line-height: 1.6; }
 .know-add { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; }
 .know-add .icon { width: 18px; height: 18px; }
 .know-status:empty { display: none; }
@@ -1015,6 +1042,9 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   .skills-buttons .pill { flex: 1 1 auto; justify-content: center; }
   .skills-scope { width: 100%; }
   .skills-tools .seg { flex: 1; }
+  .skills-tools .seg.three button { min-width: 0; padding: 0 6px; }
+  .skills-tools .pill.compact { width: 40px; padding: 0; justify-content: center; }
+  .skills-tools .pill.compact span { display: none; }
   .skills-filter select.field { min-width: 0; max-width: 42%; }
   .skills-cats { flex-wrap: nowrap; overflow-x: auto; margin-right: -16px; padding-right: 16px; scrollbar-width: none; }
   .skills-cats::-webkit-scrollbar { display: none; }
@@ -1041,3 +1071,26 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .conn-oauth[hidden] { display: none; }
 .conn-steps { margin: 0 0 4px; padding-left: 20px; font-size: 13.5px; line-height: 1.6; color: var(--text-2); }
 .conn-flow .skills-form .pill { margin-top: 8px; }
+.tile.logo { background: #fff; box-shadow: inset 0 0 0 1px var(--line-2); }
+.tile.logo img { width: 62%; height: 62%; object-fit: contain; display: block; }
+.skills-top.with-tile .tile.logo img { width: 62%; height: 62%; }
+.skill-open.static { cursor: default; }
+.skill-open.static:hover { color: var(--text); }
+.skills-link { font-size: 13.5px; color: var(--accent); text-decoration: none; }
+.skills-link:hover { text-decoration: underline; }
+.skill-add .skills-link { margin-left: 14px; }
+.skills-count:empty { display: none; }
+.skills-mine > .pill { margin-top: 14px; }
+.conn-copy { display: flex; align-items: center; gap: 8px; }
+.conn-copy .field { flex: 1; min-width: 0; font-size: 13px; }
+.conn-copy .pill { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; }
+.conn-copy .pill .icon { width: 15px; height: 15px; }
+.conn-setup { margin-top: 14px; }
+.conn-setup .skills-buttons { margin-top: 6px; }
+.conn-logo { display: flex; align-items: flex-start; gap: 14px; }
+.conn-logo > .tile { width: 52px; height: 52px; font-size: 16px; }
+.conn-logo-controls { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.conn-logo-controls .skills-buttons { margin: 0; }
+.conn-logo-controls .pill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; font-size: 13.5px; }
+.conn-logo-controls .pill .icon { width: 15px; height: 15px; }
+.conn-logo-controls .f-hint { margin: 0; }

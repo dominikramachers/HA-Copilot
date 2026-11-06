@@ -60,6 +60,7 @@ async def asgi(app, method, path, body=None, user=ADM01, hang_up_after=None):
     async def send(message):
         if message["type"] == "http.response.start":
             out["status"] = message["status"]
+            out["headers"] = {k.decode().lower(): v.decode() for k, v in message.get("headers", [])}
         elif message["type"] == "http.response.body" and message.get("body"):
             out["body"] += message["body"]
             out["chunks"] += 1

@@ -1178,11 +1178,252 @@ function overviewSection(info, redraw) {
   return box;
 }
 
+// ------------------------------------------------- Meine Anweisungen und Import aus Claude
+
+const MEMORY_IMPORT_ACCEPT = ".zip,.md,.markdown,.txt,text/markdown,text/plain,application/zip";
+const MEMORY_IMPORT_MAX = 4 * 1024 * 1024;
+
+function instructionsSection(data) {
+  const box = node("section", "mem-section");
+  const area = node("textarea", "field area");
+  area.rows = 3;
+  area.maxLength = data.instructions_max || 4000;
+  area.value = data.instructions || "";
+  area.placeholder = tr("z. B. Antworte kurz und duze mich.");
+  area.setAttribute("aria-label", tr("Meine Anweisungen"));
+  const count = node("small", "mem-meta");
+  const save = node("button", "pill primary", tr("Speichern"));
+  save.type = "button";
+  let saved = area.value.trim();
+  const sync = () => {
+    count.textContent = `${area.value.length} / ${area.maxLength}`;
+    save.disabled = area.value.trim() === saved;
+  };
+  area.addEventListener("input", sync);
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      const answer = await api("api/memory/instructions", { method: "PUT", body: JSON.stringify({ text: area.value }) });
+      saved = answer.text;
+      area.value = answer.text;
+      toast(answer.text ? tr("Anweisungen gespeichert.") : tr("Anweisungen entfernt."));
+    } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); }
+    sync();
+  });
+  sync();
+  const bar = node("div", "mem-bar");
+  bar.append(count, save);
+  box.append(
+    node("h4", "", tr("Meine Anweisungen")),
+    node("p", "mem-hint", tr("Gelten in allen deinen Chats, zusätzlich zu den Anweisungen eines Projekts. Nur du siehst sie.")),
+    area, bar,
+  );
+  return box;
+}
+
+function memoryImportSection(body, draw) {
+  const box = node("section", "mem-section");
+  const picker = node("input");
+  picker.type = "file";
+  picker.accept = MEMORY_IMPORT_ACCEPT;
+  picker.hidden = true;
+  const add = node("button", "pill know-add");
+  add.type = "button";
+  add.append(icon("upload"), node("span", "", tr("Export von Claude wählen")));
+  add.addEventListener("click", () => picker.click());
+  const status = node("p", "mem-hint know-status");
+  status.setAttribute("role", "status");
+  picker.addEventListener("change", async () => {
+    const file = picker.files[0];
+    picker.value = "";
+    if (!file) return;
+    if (file.size > MEMORY_IMPORT_MAX) { status.textContent = tr("Die Datei ist zu groß (höchstens {0} MB).", MEMORY_IMPORT_MAX / 1024 / 1024); return; }
+    add.disabled = true;
+    status.textContent = tr("Lese {0} …", file.name);
+    try {
+      const found = await api("api/memory/import/preview", { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) });
+      memoryImportReview(body, found, draw);
+    } catch (err) {
+      status.textContent = errorText(err, tr("Die Datei konnte nicht gelesen werden."));
+      add.disabled = false;
+    }
+  });
+  box.append(
+    node("h4", "", tr("Aus Claude übernehmen")),
+    node("p", "mem-hint", tr("Bei Claude gibt es in den Einstellungen unter „Gedächtnis“ den Export als ZIP-Datei mit Markdown. Wähle sie hier aus (eine einzelne Markdown- oder Textdatei geht auch). Du siehst alles vorher und bestimmst, was übernommen wird.")),
+    add, picker, status,
+  );
+  return box;
+}
+
+function memoryImportReview(body, found, back) {
+  const parts = [];
+  const backLink = node("button", "mem-link", tr("‹ Zurück"));
+  backLink.type = "button";
+  backLink.addEventListener("click", back);
+  parts.push(backLink, node("h4", "mem-review-title", tr("Das habe ich gefunden")));
+  const total = found.entries.length;
+  parts.push(node("p", "mem-hint", [
+    trn(total, "1 Gedächtnis-Eintrag", "{0} Gedächtnis-Einträge"),
+    found.instructions.text ? tr("und Anweisungen") : "",
+  ].filter(Boolean).join(" ") + ". " + tr("Entferne den Haken bei allem, was nicht mit soll.")));
+
+  let scope = "person";
+  const scopeBox = node("div", "mem-scope");
+  const scopeSelect = node("select", "field");
+  scopeSelect.setAttribute("aria-label", tr("Wo speichern"));
+  scopeSelect.append(new Option(tr("Mein Gedächtnis"), "person"));
+  if (found.household_write) {
+    scopeSelect.append(new Option(tr("Haushalt"), "household"));
+    scopeBox.append(node("span", "", tr("Speichern in:")), scopeSelect);
+    parts.push(scopeBox);
+  }
+
+  // Anweisungen
+  let useInstructions = null;
+  let instructionsText = null;
+  let instructionsMode = null;
+  if (found.instructions.text) {
+    const card = node("section", "mem-card");
+    const head = node("label", "mem-check");
+    useInstructions = node("input");
+    useInstructions.type = "checkbox";
+    useInstructions.checked = true;
+    head.append(useInstructions, node("b", "", tr("Als „Meine Anweisungen“ übernehmen")));
+    instructionsText = node("textarea", "field area");
+    instructionsText.rows = 4;
+    instructionsText.maxLength = found.instructions_max;
+    instructionsText.value = found.instructions.text;
+    instructionsText.setAttribute("aria-label", tr("Meine Anweisungen"));
+    card.append(head, instructionsText);
+    if (found.instructions.truncated) card.append(node("p", "mem-hint", tr("Der Text war länger und wurde auf {0} Zeichen gekürzt.", found.instructions_max)));
+    if (found.current_instructions) {
+      instructionsMode = node("select", "field");
+      instructionsMode.setAttribute("aria-label", tr("Bisherige Anweisungen"));
+      instructionsMode.append(new Option(tr("An meine bisherigen Anweisungen anhängen"), "append"), new Option(tr("Meine bisherigen Anweisungen ersetzen"), "replace"));
+      card.append(instructionsMode);
+    }
+    useInstructions.addEventListener("change", () => { instructionsText.disabled = !useInstructions.checked; if (instructionsMode) instructionsMode.disabled = !useInstructions.checked; });
+    parts.push(card);
+  }
+
+  // Einträge
+  const rows = [];
+  const warn = node("p", "mem-hint mem-warn");
+  const submit = node("button", "pill primary", tr("Übernehmen"));
+  submit.type = "button";
+  const refresh = () => {
+    let fresh = 0;
+    let chosen = 0;
+    for (const r of rows) {
+      const exists = r.entry.exists[scope];
+      r.badge.hidden = !exists;
+      r.badge.textContent = exists ? tr("Gibt es schon, Haken ersetzt den Eintrag") : "";
+      if (r.box.checked) { chosen += 1; if (!exists) fresh += 1; }
+    }
+    const free = found.free[scope];
+    warn.hidden = fresh <= free;
+    warn.textContent = fresh > free ? tr("Im Gedächtnis ist nur noch Platz für {0} neue Einträge. Der Rest wird übersprungen.", free) : "";
+    const instr = useInstructions && useInstructions.checked ? 1 : 0;
+    submit.disabled = chosen + instr === 0;
+    submit.textContent = chosen ? tr("{0} übernehmen", chosen + (instr ? 1 : 0)) : tr("Übernehmen");
+  };
+  scopeSelect.addEventListener("change", () => {
+    scope = scopeSelect.value;
+    for (const r of rows) r.box.checked = !r.entry.exists[scope];
+    refresh();
+  });
+  if (useInstructions) useInstructions.addEventListener("change", refresh);
+  if (total) {
+    const tools = node("div", "mem-tools");
+    const all = node("button", "mem-link", tr("Alle wählen"));
+    const none = node("button", "mem-link", tr("Keine wählen"));
+    all.type = none.type = "button";
+    all.addEventListener("click", () => { for (const r of rows) r.box.checked = true; refresh(); });
+    none.addEventListener("click", () => { for (const r of rows) r.box.checked = false; refresh(); });
+    tools.append(node("b", "", tr("Gedächtnis")), all, none);
+    parts.push(tools);
+    const list = node("div", "mem-import-list");
+    for (const entry of found.entries) {
+      const label = node("label", "mem-entry mem-pick");
+      const box = node("input");
+      box.type = "checkbox";
+      box.checked = !entry.exists.person;
+      const text = node("div", "mem-text");
+      const badge = node("small", "mem-badge");
+      text.append(node("b", "mem-topic", entry.topic), badge, node("p", "", entry.content));
+      label.append(box, text);
+      box.addEventListener("change", refresh);
+      rows.push({ entry, box, badge });
+      list.append(label);
+    }
+    parts.push(list, warn);
+  }
+  if (found.skipped.length) {
+    const details = node("details", "mem-skipped");
+    details.append(node("summary", "", trn(found.skipped.length, "1 Datei oder Eintrag übersprungen", "{0} Dateien oder Einträge übersprungen")));
+    const ul = node("ul", "know-skipped");
+    for (const sk of found.skipped) ul.append(node("li", "", `${sk.name}: ${sk.reason}`));
+    details.append(ul);
+    parts.push(details);
+  }
+  const actions = node("div", "mem-import-actions");
+  actions.append(submit);
+  parts.push(actions);
+  submit.addEventListener("click", async () => {
+    submit.disabled = true;
+    const payload = {
+      scope,
+      entries: rows.filter((r) => r.box.checked).map((r) => ({ topic: r.entry.topic, content: r.entry.content, replace: !!r.entry.exists[scope] })),
+    };
+    if (useInstructions && useInstructions.checked) {
+      payload.instructions = instructionsText.value;
+      payload.instructions_mode = instructionsMode ? instructionsMode.value : "replace";
+    }
+    try {
+      const result = await api("api/memory/import", { method: "POST", body: JSON.stringify(payload) });
+      memoryImportDone(body, result, back);
+    } catch (err) {
+      toast(errorText(err, tr("Übernehmen hat nicht geklappt.")));
+      refresh();
+    }
+  });
+  refresh();
+  body.classList.add("tall");
+  body.replaceChildren(...parts);
+  body.scrollTop = 0;
+}
+
+function memoryImportDone(body, result, back) {
+  const parts = [node("h4", "mem-review-title", tr("Fertig"))];
+  const lines = [];
+  if (result.saved) lines.push(trn(result.saved, "1 neuer Eintrag im Gedächtnis", "{0} neue Einträge im Gedächtnis"));
+  if (result.replaced) lines.push(trn(result.replaced, "1 Eintrag ersetzt", "{0} Einträge ersetzt"));
+  if (result.instructions) lines.push(tr("Meine Anweisungen aktualisiert"));
+  if (!lines.length) lines.push(tr("Es wurde nichts gespeichert."));
+  const list = node("ul", "mem-done");
+  for (const line of lines) list.append(node("li", "", line));
+  parts.push(list);
+  if (result.skipped.length) {
+    parts.push(node("p", "mem-hint", trn(result.skipped.length, "1 Eintrag wurde übersprungen:", "{0} Einträge wurden übersprungen:")));
+    const ul = node("ul", "know-skipped");
+    for (const sk of result.skipped) ul.append(node("li", "", `${sk.name}: ${sk.reason}`));
+    parts.push(ul);
+  }
+  const back2 = node("button", "pill primary", tr("Zum Gedächtnis"));
+  back2.type = "button";
+  back2.addEventListener("click", back);
+  parts.push(back2);
+  body.replaceChildren(...parts);
+  body.scrollTop = 0;
+}
+
 function memoryPanel(body) {
   const draw = async () => {
+    body.classList.remove("tall");
     let data;
     try { data = await api("api/memory"); } catch { body.replaceChildren(node("p", "mem-empty", tr("Das Gedächtnis ist gerade nicht erreichbar."))); return; }
-    const parts = [];
+    const parts = [instructionsSection(data)];
     const section = (title, hint, entries, scope, canDelete) => {
       const box = node("section", "mem-section");
       box.append(node("h4", "", title), node("p", "mem-hint", hint));
@@ -1193,6 +1434,7 @@ function memoryPanel(body) {
     section(tr("Mein Gedächtnis"), tr("Nur du siehst das und nur dir gegenüber nutzt die KI es."), data.person, "person", true);
     section(tr("Haushalt"), data.household_write ? tr("Gilt für alle im Haushalt.") : tr("Gilt für alle im Haushalt. Du darfst es ansehen, aber nicht ändern."), data.household, "household", data.household_write);
     if (data.overview) parts.push(overviewSection(data.overview, draw));
+    parts.push(memoryImportSection(body, draw));
     // Eintrag selbst hinzufügen
     const form = node("form", "mem-form");
     form.autocomplete = "off";
@@ -1343,7 +1585,8 @@ async function openSkills() {
   closeMenu();
   setTitle(tr("Anpassungen"));
   Object.assign(skillsUi, { mode: "list", section: "skills", tab: "mine", mineQuery: "", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
-  Object.assign(connUi, { id: null, form: null, flow: null, query: "" });
+  Object.assign(connUi, { id: null, form: null, flow: null, setup: null, tab: "mine", mineQuery: "", query: "", category: "all" });
+  Object.assign(connUi.registry, { q: "", items: [], next: "", loaded: false, error: "" });
   await loadSkills();
   $("skills").scrollTop = 0;
 }
@@ -1368,6 +1611,7 @@ function renderSkills() {
   else if (skillsUi.mode === "preview") renderSkillPreview(wrap);
   else if (skillsUi.mode === "connector") renderConnectorDetail(wrap);
   else if (skillsUi.mode === "connector-form") renderConnectorForm(wrap);
+  else if (skillsUi.mode === "connector-setup") renderConnectorSetup(wrap);
   else renderSkillList(wrap);
 }
 
@@ -1909,12 +2153,24 @@ function renderSkillDetail(wrap) {
 
 // ------------------------------------------------------------------- Konnektoren (Tab in den Anpassungen)
 
-const connUi = { data: null, query: "", id: null, form: null, flow: null, error: "", loading: false };
+const connUi = {
+  data: null, catalog: null, catalogError: "", catalogLoading: false, tab: "mine", mineQuery: "", query: "", category: "all",
+  registry: { q: "", items: [], next: "", loading: false, error: "", loaded: false, seq: 0 },
+  id: null, form: null, flow: null, setup: null, error: "", loading: false,
+};
 
 async function loadConnectors() {
   connUi.loading = true;
   try { connUi.data = await api("api/connectors"); connUi.error = ""; } catch (err) { connUi.data = null; connUi.error = errorText(err, tr("Die Konnektoren sind gerade nicht erreichbar.")); }
   connUi.loading = false;
+  if (state.view === "skills") renderSkills();
+}
+
+async function loadConnCatalog() {
+  if (connUi.catalog || connUi.catalogLoading) return;
+  connUi.catalogLoading = true;
+  try { connUi.catalog = await api("api/connectors/catalog"); connUi.catalogError = ""; } catch (err) { connUi.catalogError = errorText(err, tr("Der Katalog ist gerade nicht erreichbar.")); }
+  connUi.catalogLoading = false;
   if (state.view === "skills") renderSkills();
 }
 
@@ -1934,6 +2190,27 @@ function connBadges(c) {
   row.append(node("span", "skill-badge", c.scope === "global" ? tr("Für alle") : tr("Privat")));
   row.append(node("span", "skill-badge" + (c.status === "ok" ? " ext" : c.status === "new" ? " off" : ""), c.status === "ok" && !c.enabled ? tr("Ausgeschaltet") : connStatusLabel(c)));
   return row;
+}
+
+// Kachel mit Logo: eigenes Bild, mitgeliefertes Marken-Logo (weiße Kachel, damit dunkle Logos auch im dunklen Theme lesbar bleiben) oder Anfangsbuchstaben
+function connTile(item) {
+  const box = node("span", "tile");
+  box.setAttribute("aria-hidden", "true");
+  const name = item.name || item.label || "";
+  let src = "";
+  if (item.icon && typeof item.icon === "object") {
+    if (item.icon.kind === "custom") src = `api/connectors/${item.id}/icon?v=${item.icon.rev}`;
+    else if (item.icon.kind === "brand" && item.icon.slug) src = `static/connector-icons/${encodeURIComponent(item.icon.slug)}.svg`;
+  } else if (typeof item.icon === "string" && item.icon) src = `static/connector-icons/${encodeURIComponent(item.icon)}.svg`;
+  if (!src) { box.textContent = initials(name); return box; }
+  box.classList.add("logo");
+  const img = node("img");
+  img.src = src;
+  img.alt = "";
+  img.decoding = "async";
+  img.addEventListener("error", () => { box.classList.remove("logo"); box.replaceChildren(); box.textContent = initials(name); });
+  box.append(img);
+  return box;
 }
 
 function connSwitch(on, label, handler) {
@@ -1958,7 +2235,7 @@ function connCard(c) {
   open.type = "button";
   open.addEventListener("click", () => connOpen(c.id));
   const who = node("div", "skill-card-id");
-  who.append(tile(null, c.name), open);
+  who.append(connTile(c), open);
   top.append(who);
   if (c.status === "ok") top.append(connSwitch(c.enabled, c.enabled ? tr("{0} ausschalten", c.name) : tr("{0} einschalten", c.name), async (on) => {
     connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ enabled: on }) }));
@@ -1972,6 +2249,21 @@ function connCard(c) {
   return card;
 }
 
+function connEmpty(title, hint, ...buttons) {
+  const box = node("div", "skills-empty");
+  box.append(node("p", "", title));
+  if (hint) box.append(node("p", "skills-hint", hint));
+  box.append(...buttons);
+  return box;
+}
+
+function connResetButton(reset) {
+  const b = node("button", "pill ghost", tr("Suche zurücksetzen"));
+  b.type = "button";
+  b.addEventListener("click", reset);
+  return b;
+}
+
 function renderConnectors(wrap) {
   const status = node("p", "skills-status");
   status.setAttribute("role", "status");
@@ -1982,46 +2274,73 @@ function renderConnectors(wrap) {
     wrap.append(node("p", "mem-empty", connUi.loading ? tr("Lädt …") : connUi.error || tr("Die Konnektoren sind gerade nicht erreichbar.")));
     return;
   }
-  const tools = node("div", "skills-tools end");
-  if (data.can_create.private || data.can_create.global) {
-    const add = node("button", "pill primary");
+  const canAdd = data.can_create.private || data.can_create.global;
+  if (!canAdd) connUi.tab = "mine";
+  if (canAdd) {
+    const tools = node("div", "skills-tools");
+    const seg = node("div", "seg three");
+    for (const [id, label] of [["mine", tr("Meine")], ["discover", tr("Entdecken")], ["community", tr("Community")]]) {
+      const b = node("button", "", label);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(connUi.tab === id));
+      b.addEventListener("click", () => { connUi.tab = id; skillsUi.status = ""; renderSkills(); });
+      seg.append(b);
+    }
+    const add = node("button", "pill primary compact");
     add.type = "button";
+    add.setAttribute("aria-haspopup", "menu");
+    add.setAttribute("aria-label", tr("Hinzufügen"));
     add.append(icon("plus"), node("span", "", tr("Hinzufügen")));
-    add.addEventListener("click", () => connForm(null));
-    tools.append(add);
+    add.addEventListener("click", async () => {
+      const entries = [
+        { value: "catalog", icon: "stack", label: tr("Aus dem Katalog") },
+        { value: "registry", icon: "globe", label: tr("Im Register suchen") },
+        { value: "own", icon: "edit", label: tr("Selbst eintragen") },
+      ];
+      const choice = wideScreen() ? await openPopover(add, entries) : await openSheet({ title: tr("Konnektor hinzufügen"), items: entries });
+      if (choice === "catalog") { connUi.tab = "discover"; renderSkills(); }
+      else if (choice === "registry") { connUi.tab = "community"; renderSkills(); }
+      else if (choice === "own") connForm(null);
+    });
+    tools.append(seg, add);
     wrap.append(tools);
   }
-  wrap.append(node("p", "skills-hint", tr("Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant, zum Beispiel Mail, Kalender oder dein Überwachungssystem. Was sie dort liest, gilt als fremder Inhalt; Änderungen bestätigst du im Chat.")));
+  if (connUi.tab === "discover") renderConnDiscover(wrap);
+  else if (connUi.tab === "community") renderConnCommunity(wrap);
+  else renderConnMine(wrap, canAdd);
+  wrap.append(node("p", "skills-note", tr("Was ein Konnektor liefert (Mails, Dokumente, Tickets), gilt als fremder Inhalt. Änderungen bei einem Dienst bestätigst du im Chat.")));
+}
+
+// Meine: eigene Konnektoren zuerst, danach die für alle freigegebenen
+function renderConnMine(wrap, canAdd) {
+  const data = connUi.data;
+  wrap.append(node("p", "skills-hint", tr("Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant, zum Beispiel Mail, Kalender oder dein Überwachungssystem.")));
   const filter = node("div", "skills-filter");
-  const search = searchInput(tr("Konnektoren durchsuchen"), connUi.query);
+  const search = searchInput(tr("Konnektoren durchsuchen"), connUi.mineQuery);
   filter.append(search);
+  const count = node("p", "skills-count");
+  count.setAttribute("role", "status");
   const body = node("div", "skills-mine");
-  wrap.append(filter, body);
+  wrap.append(filter, count, body);
   const update = () => {
-    const q = connUi.query;
+    const q = connUi.mineQuery;
     const hits = data.items.filter((c) => wordsMatch(q, `${c.name} ${c.description} ${connStatusLabel(c)}`));
     body.replaceChildren();
+    count.textContent = q.trim() ? trn(hits.length, "1 Konnektor", "{0} Konnektoren") : "";
     if (!data.items.length) {
-      const empty = node("div", "skills-empty");
-      empty.append(
-        node("p", "", tr("Noch kein Konnektor.")),
-        node("p", "skills-hint", data.can_create.private || data.can_create.global
-          ? tr("Lege mit „Hinzufügen“ eine Verbindung zu einem MCP-Server an, zum Beispiel zu deinem Überwachungssystem.")
-          : tr("Die Administration hat noch keinen Konnektor für alle freigegeben.")),
-      );
-      body.append(empty);
+      if (canAdd) {
+        const go = node("button", "pill ghost", tr("Konnektoren entdecken"));
+        go.type = "button";
+        go.addEventListener("click", () => { connUi.tab = "discover"; renderSkills(); });
+        body.append(connEmpty(tr("Noch kein Konnektor."), tr("Such dir bei „Entdecken“ einen Dienst aus oder trage über „Hinzufügen“ einen eigenen MCP-Server ein."), go));
+      } else body.append(connEmpty(tr("Noch kein Konnektor."), tr("Die Administration hat noch keinen Konnektor für alle freigegeben.")));
       return;
     }
     if (!hits.length) {
-      const none = node("div", "skills-empty");
-      const reset = node("button", "pill ghost", tr("Suche zurücksetzen"));
-      reset.type = "button";
-      reset.addEventListener("click", () => { connUi.query = ""; search.value = ""; update(); search.focus(); });
-      none.append(node("p", "", tr("Nichts gefunden.")), node("p", "skills-hint", tr("Versuch es mit einem anderen Wort.")), reset);
-      body.append(none);
+      body.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort."), connResetButton(() => { connUi.mineQuery = ""; search.value = ""; update(); search.focus(); })));
       return;
     }
-    for (const [scope, title] of [["global", tr("Für alle freigegeben")], ["private", tr("Meine eigenen")]]) {
+    for (const [scope, title] of [["private", tr("Meine eigenen")], ["global", tr("Für alle freigegeben")]]) {
       const group = hits.filter((c) => c.scope === scope);
       if (!group.length) continue;
       if (hits.some((c) => c.scope !== scope)) body.append(node("h3", "skills-section", title));
@@ -2030,8 +2349,310 @@ function renderConnectors(wrap) {
       body.append(grid);
     }
   };
+  search.addEventListener("input", () => { connUi.mineQuery = search.value; update(); });
+  update();
+}
+
+// ---- Entdecken: Katalog mit Suche und Kategorien
+
+function renderConnDiscover(wrap) {
+  wrap.append(node("p", "skills-hint", tr("Dienste, für die ich die Adresse und die Anmeldung kenne. Mit „Hinzufügen“ landen sie bei „Meine“; verbunden wird danach mit einem Klick.")));
+  const cat = connUi.catalog;
+  if (!cat) {
+    wrap.append(node("p", "mem-empty", connUi.catalogError || tr("Lädt …")));
+    loadConnCatalog();
+    return;
+  }
+  const have = new Map(connUi.data.items.filter((c) => c.catalog_id).map((c) => [c.catalog_id, c]));
+  const cats = new Map(cat.categories.map((c) => [c.id, c.label]));
+  const all = cat.connectors.map((e) => ({ ...e, categoryLabel: cats.get(e.category) || "", haystack: `${e.label} ${e.provider} ${e.summary} ${cats.get(e.category) || ""}` }))
+    .sort((a, b) => a.label.localeCompare(b.label, kiLocale));
+  const controls = node("div", "skills-filter");
+  const search = searchInput(tr("Dienste durchsuchen"), connUi.query);
+  controls.append(search);
+  const chips = node("div", "skills-cats");
+  chips.setAttribute("role", "group");
+  chips.setAttribute("aria-label", tr("Kategorien"));
+  const count = node("p", "skills-count");
+  count.setAttribute("role", "status");
+  const grid = node("div", "skills-grid");
+  wrap.append(controls, chips, count, grid);
+  const update = () => {
+    const hits = all.filter((e) => wordsMatch(connUi.query, e.haystack));
+    const per = new Map();
+    for (const e of hits) per.set(e.category, (per.get(e.category) || 0) + 1);
+    if (connUi.category !== "all" && !cats.has(connUi.category)) connUi.category = "all";
+    chips.replaceChildren();
+    for (const [id, label] of [["all", tr("Alle")], ...cats]) {
+      const n = id === "all" ? hits.length : per.get(id) || 0;
+      const chip = node("button", "skills-cat", `${label} · ${n.toLocaleString(kiLocale)}`);
+      chip.type = "button";
+      chip.setAttribute("aria-pressed", String(connUi.category === id));
+      if (!n && connUi.category !== id) chip.disabled = true;
+      chip.addEventListener("click", () => { connUi.category = id; update(); });
+      chips.append(chip);
+    }
+    const shown = hits.filter((e) => connUi.category === "all" || e.category === connUi.category);
+    grid.replaceChildren();
+    if (!shown.length) {
+      grid.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort oder wähle eine andere Kategorie."), connResetButton(() => { connUi.query = ""; connUi.category = "all"; search.value = ""; update(); search.focus(); })));
+      return;
+    }
+    for (const e of shown) grid.append(connCatalogCard(e, have.get(e.id)));
+  };
   search.addEventListener("input", () => { connUi.query = search.value; update(); });
   update();
+}
+
+function connCatalogCard(e, installed) {
+  const card = node("article", "skill-card");
+  const top = node("div", "skill-card-top");
+  const open = node("button", "skill-open", e.label);
+  open.type = "button";
+  const go = () => (installed ? connOpen(installed.id) : connSetup(e));
+  open.addEventListener("click", go);
+  const who = node("div", "skill-card-id");
+  who.append(connTile(e), open);
+  top.append(who);
+  const badges = node("div", "skill-badges");
+  badges.append(node("span", "skill-badge", e.categoryLabel));
+  if (e.preview) badges.append(node("span", "skill-badge off", tr("Vorschau")));
+  if (e.kind === "guide") badges.append(node("span", "skill-badge off", tr("Anleitung")));
+  card.append(top, badges, node("p", "skill-desc", e.summary), node("small", "mem-meta", tr("von {0}", e.provider)));
+  const row = node("div", "skill-add");
+  if (installed) row.append(node("span", "skill-added", tr("Schon hinzugefügt")));
+  else {
+    const add = node("button", "pill primary", e.kind === "guide" ? tr("Anleitung ansehen") : tr("Hinzufügen"));
+    add.type = "button";
+    add.addEventListener("click", (event) => { event.stopPropagation(); connSetup(e); });
+    row.append(add);
+  }
+  card.append(row);
+  card.addEventListener("click", (event) => { if (!event.target.closest("button")) go(); });
+  return card;
+}
+
+// ---- Einrichten aus dem Katalog
+
+function connSetup(entry) {
+  connUi.setup = entry;
+  skillsGo("connector-setup");
+}
+
+function connSourceHint(e) {
+  if (e.source === "list") return tr("Die Adresse stammt aus der Liste der Konnektoren von Anthropic. Ich habe sie nicht selbst ausprobiert.");
+  if (e.source === "known") return tr("Die Adresse ist mir bekannt, ich konnte sie aber nicht selbst prüfen. Klappt die Anmeldung nicht, steht der Grund in der Meldung.");
+  return "";
+}
+
+function copyField(value) {
+  const row = node("div", "conn-copy");
+  const input = node("input", "field");
+  input.readOnly = true;
+  input.value = value;
+  input.addEventListener("focus", () => input.select());
+  const copy = node("button", "pill ghost");
+  copy.type = "button";
+  copy.append(icon("copy"), node("span", "", tr("Kopieren")));
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(value); toast(tr("Kopiert.")); } catch { input.select(); toast(tr("Zum Kopieren Strg+C drücken.")); }
+  });
+  row.append(input, copy);
+  return row;
+}
+
+function renderConnectorSetup(wrap) {
+  const e = connUi.setup;
+  const data = connUi.data;
+  if (!e || !data) { skillsGo("list"); return; }
+  const guide = connUi.catalog?.guides?.[e.guide];
+  const can = data.can_create;
+  const redirect = data.redirect_uri || "";
+  skillBack(wrap, tr("Zurück zu den Konnektoren"));
+  skillHead(wrap, e.label, e.summary);
+  wrap.lastElementChild.classList.add("with-tile");
+  wrap.lastElementChild.prepend(connTile(e));
+  const card = node("section", "skills-panel skills-form");
+  if (e.note) card.append(node("p", "skills-warn", e.note));
+  const hint = connSourceHint(e);
+  if (hint) card.append(node("p", "skills-hint", hint));
+  if (guide) {
+    if (guide.warn) card.append(node("p", "skills-warn", guide.warn));
+    card.append(node("p", "skills-label", e.kind === "guide" ? tr("So gehst du vor") : tr("Vorbereitung beim Dienst")));
+    const steps = node("ol", "conn-steps");
+    for (const line of guide.steps) steps.append(node("li", "", line.replaceAll("{redirect}", redirect || tr("(Adresse dieses Add-ons) /connectors/callback"))));
+    card.append(steps);
+    if (guide.steps.some((s) => s.includes("{redirect}")) && redirect) card.append(field(tr("Weiterleitungs-URI"), copyField(redirect), tr("Muss beim Dienst genau so eingetragen sein."), "div"));
+  }
+  if (e.apis?.length) card.append(node("p", "skills-hint", tr("APIs, die du bei Google einschalten musst: {0}", e.apis.join(", "))));
+  if (e.docs) {
+    const link = node("a", "skills-link", tr("Dokumentation des Anbieters"));
+    link.href = e.docs;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    card.append(link);
+  }
+
+  const foot = node("div", "skills-buttons");
+  const cancel = node("button", "pill ghost", tr("Abbrechen"));
+  cancel.type = "button";
+  cancel.addEventListener("click", () => skillsGo("list"));
+  if (e.kind === "guide") {
+    const next = node("button", "pill primary", tr("Weiter"));
+    next.type = "button";
+    next.addEventListener("click", () => connForm({ scope: "private", name: e.label, description: e.summary, url: "", auth: e.auth, mode: "per_user" }));
+    foot.append(next, cancel);
+    card.append(foot);
+    wrap.append(card);
+    return;
+  }
+
+  const form = node("form", "skills-form conn-setup");
+  form.noValidate = true;
+  const name = node("input", "field");
+  name.maxLength = 40;
+  name.value = e.label;
+  const scope = node("select", "field");
+  scope.append(new Option(tr("Privat: nur ich"), "private"), new Option(tr("Für alle: jede Person kann ihn nutzen"), "global"));
+  scope.disabled = !can.global || !can.private;
+  scope.value = can.private ? "private" : "global";
+  form.append(field(tr("Name"), name));
+  if (can.global && can.private) form.append(field(tr("Wer darf ihn nutzen?"), scope));
+  let clientId, clientSecret, scopes;
+  if (e.pre_registered) {
+    clientId = node("input", "field");
+    clientId.maxLength = 300;
+    clientSecret = node("input", "field");
+    clientSecret.type = "password";
+    clientSecret.maxLength = 500;
+    scopes = node("input", "field");
+    scopes.maxLength = 400;
+    scopes.value = e.scopes || "";
+    scopes.placeholder = tr("durch Leerzeichen getrennt");
+    form.append(
+      field(tr("Client-ID"), clientId, tr("Aus der App, die du beim Dienst angelegt hast.")),
+      field(tr("Client-Secret"), clientSecret, tr("Wird verschlüsselt im Add-on gespeichert und nie wieder angezeigt.")),
+      field(tr("Berechtigungen (Scopes)"), scopes, e.scopes_from_user ? tr("Hier musst du die Berechtigungen laut Dokumentation des Anbieters eintragen.") : tr("Vorgabe laut Anbieter; ändere sie nur, wenn du es genau weißt.")),
+    );
+  } else if (e.auth === "bearer" || e.auth === "header") {
+    form.append(node("p", "skills-hint", tr("Das Token trägst du nach dem Hinzufügen ein.")));
+  }
+  const save = node("button", "pill primary", tr("Hinzufügen"));
+  save.type = "submit";
+  foot.append(save, cancel);
+  form.append(foot);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!name.value.trim()) { toast(tr("Bitte einen Namen eingeben.")); return; }
+    if (e.pre_registered && !clientId.value.trim()) { toast(tr("Bitte die Client-ID eintragen.")); return; }
+    if (e.scopes_from_user && !scopes.value.trim()) { toast(tr("Bitte die Berechtigungen eintragen.")); return; }
+    const body = { catalog_id: e.id, name: name.value.trim(), scope: can.global && can.private ? scope.value : can.private ? "private" : "global" };
+    if (e.pre_registered) {
+      body.client_id = clientId.value.trim();
+      body.scopes = scopes.value.trim();
+      if (clientSecret.value) body.client_secret = clientSecret.value;
+    }
+    save.disabled = true;
+    try {
+      const view = connKeep(await api("api/connectors", { method: "POST", body: JSON.stringify(body) }));
+      toast(tr("Konnektor „{0}“ hinzugefügt.", view.name));
+      connUi.setup = null;
+      connOpen(view.id);
+    } catch (err) { toast(errorText(err, tr("Hinzufügen hat nicht geklappt."))); save.disabled = false; }
+  });
+  card.append(form);
+  wrap.append(card);
+  (e.pre_registered ? clientId : name).focus();
+}
+
+// ---- Community: Suche im offenen MCP-Register
+
+async function connRegistrySearch(more, paint) {
+  const r = connUi.registry;
+  const seq = ++r.seq;
+  r.loading = true;
+  r.error = "";
+  if (!more) { r.items = []; r.next = ""; }
+  paint();
+  try {
+    const out = await api(`api/connectors/registry?q=${encodeURIComponent(r.q)}${more && r.next ? `&cursor=${encodeURIComponent(r.next)}` : ""}`);
+    if (seq !== r.seq) return;
+    const seen = new Set(r.items.map((i) => i.id));
+    r.items = [...r.items, ...out.items.filter((i) => !seen.has(i.id))];
+    r.next = out.next || "";
+    r.loaded = true;
+  } catch (err) {
+    if (seq !== r.seq) return;
+    r.error = errorText(err, tr("Die Suche hat nicht geklappt."));
+  }
+  r.loading = false;
+  paint();
+}
+
+function connRegistryCard(item) {
+  const card = node("article", "skill-card");
+  const top = node("div", "skill-card-top");
+  const who = node("div", "skill-card-id");
+  const title = node("span", "skill-open static", item.name);
+  who.append(connTile({ name: item.name }), title);
+  top.append(who);
+  const badges = node("div", "skill-badges");
+  badges.append(node("span", "skill-badge off", item.auth === "none" ? tr("ohne Anmeldung") : tr("Token nötig")));
+  let host = "";
+  try { host = new URL(item.url).host; } catch { host = ""; }
+  card.append(top, badges, node("p", "skill-desc", item.description || tr("Keine Beschreibung.")), node("small", "mem-meta", host));
+  const row = node("div", "skill-add");
+  const add = node("button", "pill primary", tr("Hinzufügen"));
+  add.type = "button";
+  add.addEventListener("click", () => connForm({
+    scope: "private", name: item.name, description: item.description.slice(0, 300), url: item.url, auth: item.auth, header_name: item.header_name,
+    mode: "per_user", icon_url: item.icon_url, from_registry: true,
+  }));
+  row.append(add);
+  if (item.website) {
+    const link = node("a", "skills-link", tr("Webseite"));
+    link.href = item.website;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    row.append(link);
+  }
+  card.append(row);
+  return card;
+}
+
+function renderConnCommunity(wrap) {
+  const r = connUi.registry;
+  wrap.append(node("p", "skills-hint", tr("Hier suchst du im offenen Register für MCP-Server. Es zeigt nur Server, die du über das Internet erreichst.")));
+  wrap.append(node("p", "skills-warn", tr("Nicht geprüft: Im Register kann jede Person etwas eintragen. Füge nur hinzu, was du kennst und wem du vertraust. Alles, was ein solcher Server liefert, gilt als fremder Inhalt.")));
+  const filter = node("div", "skills-filter");
+  const search = searchInput(tr("Im Register suchen"), r.q);
+  filter.append(search);
+  const body = node("div", "skills-mine");
+  wrap.append(filter, body);
+  const paint = () => {
+    body.replaceChildren();
+    if (r.error) body.append(connEmpty(r.error, "", (() => { const b = node("button", "pill ghost", tr("Noch einmal versuchen")); b.type = "button"; b.addEventListener("click", () => connRegistrySearch(false, paint)); return b; })()));
+    else if (r.loaded && !r.items.length && !r.loading) body.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort.")));
+    if (r.items.length) {
+      const grid = node("div", "skills-grid");
+      for (const item of r.items) grid.append(connRegistryCard(item));
+      body.append(grid);
+    }
+    if (r.loading) body.append(node("p", "mem-empty", tr("Suche …")));
+    else if (r.next && !r.error) {
+      const more = node("button", "pill ghost", tr("Mehr laden"));
+      more.type = "button";
+      more.addEventListener("click", () => connRegistrySearch(true, paint));
+      body.append(more);
+    }
+  };
+  let timer = 0;
+  search.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { r.q = search.value.trim(); connRegistrySearch(false, paint); }, 400);
+  });
+  paint();
+  if (!r.loaded && !r.loading && !r.error) connRegistrySearch(false, paint);
 }
 
 function connOpen(id) {
@@ -2048,7 +2669,7 @@ function renderConnectorDetail(wrap) {
   skillBack(wrap);
   skillHead(wrap, c.name);
   wrap.lastElementChild.classList.add("with-tile");
-  wrap.lastElementChild.prepend(tile(null, c.name));
+  wrap.lastElementChild.prepend(connTile(c));
   const card = node("section", "skills-panel");
   const meta = node("div", "skills-detail-meta");
   meta.append(connBadges(c));
@@ -2235,6 +2856,83 @@ function connToolList(c) {
   return wrap;
 }
 
+// ---- Logo wählen: Link oder Upload (nur Rasterbilder, höchstens 128 kB; das prüft der Server noch einmal)
+
+const ICON_MAX = 128 * 1024;
+const ICON_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+function connLogoField(c, nameInput) {
+  const box = node("div", "conn-logo");
+  const brand = c.icon?.kind === "brand" ? c.icon : null;
+  let tileBox = connTile(c);
+  let data = "";
+  let clear = false;
+  const link = node("input", "field");
+  link.type = "url";
+  link.maxLength = 500;
+  link.placeholder = "https://…/logo.png";
+  link.value = c.icon_url || "";
+  const initialLink = link.value;
+  const picker = node("input");
+  picker.type = "file";
+  picker.accept = ICON_TYPES.join(",");
+  picker.hidden = true;
+  const upload = node("button", "pill ghost");
+  upload.type = "button";
+  upload.append(icon("upload"), node("span", "", tr("Bild hochladen")));
+  upload.addEventListener("click", () => picker.click());
+  const remove = node("button", "pill ghost", tr("Logo entfernen"));
+  remove.type = "button";
+  const hint = node("p", "f-hint", tr("Ein Link wird beim Speichern abgerufen. Oder lade ein Bild hoch: PNG, JPEG, GIF oder WebP, höchstens 128 kB. Ohne Logo zeigt die Kachel die Anfangsbuchstaben."));
+  const swap = (next) => { tileBox.replaceWith(next); tileBox = next; };
+  const showRemove = () => { remove.hidden = !(data || link.value.trim() || (c.icon?.kind === "custom" && !clear)); };
+  picker.addEventListener("change", () => {
+    const file = picker.files[0];
+    picker.value = "";
+    if (!file) return;
+    if (!ICON_TYPES.includes(file.type)) { toast(tr("Das Logo muss ein PNG-, JPEG-, GIF- oder WebP-Bild sein.")); return; }
+    if (file.size > ICON_MAX) { toast(tr("Das Logo ist zu groß (höchstens {0} kB).", ICON_MAX / 1024)); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      data = String(reader.result || "");
+      clear = false;
+      link.value = "";
+      const preview = node("span", "tile logo");
+      preview.setAttribute("aria-hidden", "true");
+      const img = node("img");
+      img.alt = "";
+      img.src = data;
+      preview.append(img);
+      swap(preview);
+      showRemove();
+    };
+    reader.onerror = () => toast(tr("Das Logo konnte nicht gelesen werden."));
+    reader.readAsDataURL(file);
+  });
+  link.addEventListener("input", () => { if (link.value.trim()) { data = ""; clear = false; } showRemove(); });
+  remove.addEventListener("click", () => {
+    data = "";
+    link.value = "";
+    clear = true;
+    swap(connTile({ name: nameInput.value || c.name, icon: brand || {} }));
+    showRemove();
+  });
+  const controls = node("div", "conn-logo-controls");
+  controls.append(link, node("div", "skills-buttons", ""), hint);
+  controls.children[1].append(upload, remove);
+  box.append(tileBox, controls, picker);
+  showRemove();
+  return {
+    el: box,
+    value() {
+      if (data) return { icon_data: data };
+      const url = link.value.trim();
+      if (url) return c.from_registry && url === initialLink ? { icon_url: url, icon_best_effort: true } : { icon_url: url };
+      return clear ? { clear_icon: true } : {};
+    },
+  };
+}
+
 // ---- Anlegen und Bearbeiten
 
 function connForm(c) {
@@ -2251,6 +2949,7 @@ function renderConnectorForm(wrap) {
   const form = node("form", "skills-panel skills-form");
   form.autocomplete = "off";
   form.noValidate = true;
+  if (c.from_registry) form.append(node("p", "skills-warn", tr("Diese Angaben stammen aus dem Register und sind nicht geprüft. Die Anmeldeart kann falsch sein: Verlangt der Server eine Anmeldung, wähle „Anmeldung beim Dienst (OAuth)“.")));
   const text = (value, max, placeholder = "") => {
     const i = node("input", "field");
     i.maxLength = max;
@@ -2266,6 +2965,7 @@ function renderConnectorForm(wrap) {
   };
   const name = text(c.name, 40, tr("z. B. Zabbix"));
   const description = text(c.description, 300, tr("Wofür ist das gut? (optional)"));
+  const logo = connLogoField(c, name);
   const url = text(c.url, 500, "https://…/mcp");
   const scope = select([["private", tr("Privat: nur ich")], ["global", tr("Für alle: jede Person kann ihn nutzen")]], c.scope);
   scope.disabled = editing || !can.global;
@@ -2318,7 +3018,7 @@ function renderConnectorForm(wrap) {
   };
   for (const el of [scope, auth, mode]) el.addEventListener("change", sync);
   form.append(
-    field(tr("Name"), name), field(tr("Beschreibung"), description), field(tr("Adresse des MCP-Servers"), url, tr("Aus Sicherheitsgründen nur https und öffentliche Adressen, außer du erlaubst unten das Heimnetz.")),
+    field(tr("Name"), name), field(tr("Beschreibung"), description), field(tr("Logo"), logo.el, "", "div"), field(tr("Adresse des MCP-Servers"), url, tr("Aus Sicherheitsgründen nur https und öffentliche Adressen, außer du erlaubst unten das Heimnetz.")),
     rows.scope, field(tr("Anmeldung"), auth), rows.header, rows.mode, rows.shared, oauthBox, rows.local,
   );
   const foot = node("div", "skills-buttons");
@@ -2352,6 +3052,7 @@ function renderConnectorForm(wrap) {
       }
       body.auth_params = extra;
     }
+    Object.assign(body, logo.value());
     save.disabled = true;
     try {
       const view = editing

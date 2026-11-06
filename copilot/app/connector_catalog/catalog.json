@@ -1,0 +1,774 @@
+{
+ "checked": "2026-11-06",
+ "categories": [
+  {
+   "id": "comm",
+   "label": {
+    "de": "Kommunikation",
+    "en": "Communication"
+   }
+  },
+  {
+   "id": "productivity",
+   "label": {
+    "de": "Produktivität",
+    "en": "Productivity"
+   }
+  },
+  {
+   "id": "files",
+   "label": {
+    "de": "Dateien & Dokumente",
+    "en": "Files & documents"
+   }
+  },
+  {
+   "id": "dev",
+   "label": {
+    "de": "Entwicklung",
+    "en": "Development"
+   }
+  },
+  {
+   "id": "data",
+   "label": {
+    "de": "Daten & Zahlungen",
+    "en": "Data & payments"
+   }
+  },
+  {
+   "id": "knowledge",
+   "label": {
+    "de": "Wissen & Recherche",
+    "en": "Knowledge & research"
+   }
+  }
+ ],
+ "guides": {
+  "google": {
+   "de": [
+    "Öffne die Google Cloud Console (console.cloud.google.com) und wähle oder lege ein Projekt an.",
+    "Schalte dort zwei APIs ein: die normale API des Dienstes und die zugehörige „MCP API“ (unten steht, welche).",
+    "Richte in der „Google Auth Platform“ den Zustimmungsbildschirm ein. Zielgruppe „Intern“ (nur dein Workspace) oder „Extern“ mit dir als Testnutzer. Trage unter „Datenzugriff“ die Berechtigungen ein.",
+    "Lege einen OAuth-Client vom Typ „Webanwendung“ an. Wichtig: Setze den Haken „Use this client for an AI-powered agent“. Er lässt sich später nicht mehr ändern. Als autorisierte Weiterleitungs-URI trägst du ein: {redirect}",
+    "Trage die Client-ID und das Client-Secret hier ein und klicke auf „Hinzufügen“. Danach auf „Anmelden“ klicken und bei Google zustimmen."
+   ],
+   "en": [
+    "Open the Google Cloud Console (console.cloud.google.com) and choose or create a project.",
+    "Enable two APIs there: the service's normal API and its matching “MCP API” (listed below).",
+    "In the “Google Auth Platform” set up the consent screen. Audience “Internal” (your workspace only) or “External” with you as a test user. Enter the permissions under “Data access”.",
+    "Create an OAuth client of type “Web application”. Important: tick “Use this client for an AI-powered agent”. It cannot be changed later. As authorised redirect URI enter: {redirect}",
+    "Enter the client ID and client secret here and click “Add”. Then click “Sign in” and agree at Google."
+   ],
+   "warn": {
+    "de": "Googles Workspace-Server sind eine „Developer Preview“. Laut Google ist die Mitgliedschaft im Google Workspace Developer Preview Program nötig; ob ein privates Gmail-Konto reicht, ist ungeprüft. Im Testmodus des Zustimmungsbildschirms laufen Anmeldungen externer Nutzer nach kurzer Zeit ab; für Dauerbetrieb muss die App „In Produktion“ sein.",
+    "en": "Google's Workspace servers are a “Developer Preview”. According to Google, membership in the Google Workspace Developer Preview Program is required; whether a private Gmail account is enough is unchecked. In testing mode of the consent screen, external users' sign-ins expire after a short time; for permanent use the app must be “In production”."
+   }
+  },
+  "slack": {
+   "de": [
+    "Lege auf api.slack.com/apps eine App für deinen Arbeitsbereich an.",
+    "Trage als Weiterleitungs-URL ein: {redirect}",
+    "Wähle die Berechtigungen laut Slack-Dokumentation zum MCP-Server und trage sie unten ein.",
+    "Trage Client-ID und Client-Secret der App hier ein und klicke auf „Hinzufügen“. Danach auf „Anmelden“ klicken."
+   ],
+   "en": [
+    "Create an app for your workspace at api.slack.com/apps.",
+    "Enter as redirect URL: {redirect}",
+    "Choose the permissions from Slack's MCP server documentation and enter them below.",
+    "Enter the app's client ID and client secret here and click “Add”. Then click “Sign in”."
+   ],
+   "warn": {
+    "de": "Die Adressen und Berechtigungen von Slack konnte ich nicht selbst prüfen. Falls „Anmelden“ scheitert, steht der Grund in der Meldung.",
+    "en": "I could not verify Slack's addresses and permissions myself. If “Sign in” fails, the reason is shown in the message."
+   }
+  },
+  "microsoft365": {
+   "de": [
+    "Nimm den Community-Server „ms-365-mcp-server“ von Softeria (github.com/Softeria/ms-365-mcp-server) und betreibe ihn selbst, zum Beispiel im Heimnetz.",
+    "Lege im Entra-Admin-Center (entra.microsoft.com) eine App-Registrierung (nur dein Verzeichnis) mit einem Client-Secret an, trage als Weiterleitungs-URI {redirect} ein und erteile die Admin-Zustimmung für die Graph-Berechtigungen. Welche das sind, zeigt der Server mit „--list-permissions“.",
+    "Starte den Server im HTTP-Modus an einem Ort, den das Add-on erreicht: ms-365-mcp-server --http 3000 --org-mode. Setze dazu MS365_MCP_CLIENT_ID, MS365_MCP_TENANT_ID, MS365_MCP_CLIENT_SECRET, MS365_MCP_PUBLIC_URL und MS365_MCP_ALLOWED_REDIRECT_URIS (genau {redirect}). Mit „--read-only“ bleibt er schreibgeschützt.",
+    "Klicke hier auf „Weiter“, trage die Adresse des Servers ein (endet auf /mcp), wähle „Anmeldung beim Dienst (OAuth)“ und, bei einer Adresse im Heimnetz, „Heimnetz erlauben“ (nur mit Stufe „global“)."
+   ],
+   "en": [
+    "Use the community server “ms-365-mcp-server” by Softeria (github.com/Softeria/ms-365-mcp-server) and run it yourself, for example in your home network.",
+    "In the Entra admin center (entra.microsoft.com) create an app registration (your directory only) with a client secret, enter {redirect} as redirect URI and grant admin consent for the Graph permissions. The server lists them with “--list-permissions”.",
+    "Start the server in HTTP mode where the add-on can reach it: ms-365-mcp-server --http 3000 --org-mode. Set MS365_MCP_CLIENT_ID, MS365_MCP_TENANT_ID, MS365_MCP_CLIENT_SECRET, MS365_MCP_PUBLIC_URL and MS365_MCP_ALLOWED_REDIRECT_URIS (exactly {redirect}). With “--read-only” it stays read-only.",
+    "Click “Continue” here, enter the server's address (ends in /mcp), choose “Sign in at the service (OAuth)” and, for a home-network address, “Allow home network” (only with level “global”)."
+   ],
+   "warn": {
+    "de": "Das ist ein Community-Projekt und nicht von Microsoft. Ich habe es nur anhand der Dokumentation beschrieben und nicht selbst ausprobiert; die Befehle sind der Stand von heute.",
+    "en": "This is a community project, not from Microsoft. I described it from its documentation only and have not tried it myself; the commands are as of today."
+   }
+  }
+ },
+ "connectors": [
+  {
+   "id": "gmail",
+   "category": "comm",
+   "label": "Gmail",
+   "provider": "Google",
+   "icon": "gmail",
+   "summary": {
+    "de": "Mails suchen und lesen, Entwürfe anlegen. Senden ist bei Google nicht vorgesehen.",
+    "en": "Search and read mail, create drafts. Google does not offer sending."
+   },
+   "url": "https://gmailmcp.googleapis.com/mcp/v1",
+   "auth": "oauth",
+   "pre_registered": true,
+   "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+   "token_endpoint": "https://oauth2.googleapis.com/token",
+   "auth_params": {
+    "access_type": "offline",
+    "prompt": "consent"
+   },
+   "scopes": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose",
+   "preview": true,
+   "source": "docs",
+   "guide": "google",
+   "apis": [
+    "gmail.googleapis.com",
+    "gmailmcp.googleapis.com"
+   ],
+   "docs": "https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server",
+   "note": {
+    "de": "Die KI legt Entwürfe an; abschicken tust du selbst in Gmail.",
+    "en": "The AI creates drafts; you send them yourself in Gmail."
+   },
+   "kind": "server"
+  },
+  {
+   "id": "gcalendar",
+   "category": "productivity",
+   "label": "Google Kalender",
+   "provider": "Google",
+   "icon": "googlecalendar",
+   "summary": {
+    "de": "Termine ansehen, suchen, anlegen und beantworten, freie Zeiten vorschlagen.",
+    "en": "View, search, create and answer events, suggest free times."
+   },
+   "url": "https://calendarmcp.googleapis.com/mcp/v1",
+   "auth": "oauth",
+   "pre_registered": true,
+   "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+   "token_endpoint": "https://oauth2.googleapis.com/token",
+   "auth_params": {
+    "access_type": "offline",
+    "prompt": "consent"
+   },
+   "scopes": "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy https://www.googleapis.com/auth/calendar.events.readonly",
+   "preview": true,
+   "source": "docs",
+   "guide": "google",
+   "apis": [
+    "calendar-json.googleapis.com",
+    "calendarmcp.googleapis.com"
+   ],
+   "docs": "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+   "note": {
+    "de": "Mit den drei vorgegebenen Berechtigungen kann die KI Termine nur lesen. Zum Anlegen musst du weitere Berechtigungen von Google ergänzen.",
+    "en": "With the three given permissions the AI can only read events. To create events, add more permissions from Google."
+   },
+   "kind": "server"
+  },
+  {
+   "id": "gdrive",
+   "category": "files",
+   "label": "Google Drive",
+   "provider": "Google",
+   "icon": "googledrive",
+   "summary": {
+    "de": "Dateien suchen, Inhalte lesen, Berechtigungen ansehen, Dateien kopieren oder anlegen.",
+    "en": "Search files, read content, view permissions, copy or create files."
+   },
+   "url": "https://drivemcp.googleapis.com/mcp/v1",
+   "auth": "oauth",
+   "pre_registered": true,
+   "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+   "token_endpoint": "https://oauth2.googleapis.com/token",
+   "auth_params": {
+    "access_type": "offline",
+    "prompt": "consent"
+   },
+   "scopes": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
+   "preview": true,
+   "source": "docs",
+   "guide": "google",
+   "apis": [
+    "drive.googleapis.com",
+    "drivemcp.googleapis.com"
+   ],
+   "docs": "https://developers.google.com/workspace/drive/api/guides/configure-mcp-server",
+   "kind": "server"
+  },
+  {
+   "id": "gdocs",
+   "category": "files",
+   "label": "Google Docs",
+   "provider": "Google",
+   "icon": "googledocs",
+   "summary": {
+    "de": "Dokumente in Google Docs lesen und bearbeiten.",
+    "en": "Read and edit documents in Google Docs."
+   },
+   "url": "https://docsmcp.googleapis.com/mcp/v1",
+   "auth": "oauth",
+   "pre_registered": true,
+   "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+   "token_endpoint": "https://oauth2.googleapis.com/token",
+   "auth_params": {
+    "access_type": "offline",
+    "prompt": "consent"
+   },
+   "scopes": "",
+   "preview": true,
+   "source": "docs",
+   "guide": "google",
+   "apis": [
+    "docs.googleapis.com",
+    "docsmcp.googleapis.com"
+   ],
+   "docs": "https://docs.cloud.google.com/mcp/supported-products",
+   "scopes_from_user": true,
+   "note": {
+    "de": "Welche Berechtigungen nötig sind, steht auf der Seite von Google (Link unten).",
+    "en": "The required permissions are listed on Google's page (link below)."
+   },
+   "kind": "server"
+  },
+  {
+   "id": "gsheets",
+   "category": "files",
+   "label": "Google Tabellen",
+   "provider": "Google",
+   "icon": "googlesheets",
+   "summary": {
+    "de": "Tabellen in Google Sheets lesen und bearbeiten.",
+    "en": "Read and edit spreadsheets in Google Sheets."
+   },
+   "url": "https://sheetsmcp.googleapis.com/mcp/v1",
+   "auth": "oauth",
+   "pre_registered": true,
+   "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+   "token_endpoint": "https://oauth2.googleapis.com/token",
+   "auth_params": {
+    "access_type": "offline",
+    "prompt": "consent"
+   },
+   "scopes": "",
+   "preview": true,
+   "source": "docs",
+   "guide": "google",
+   "apis": [
+    "sheets.googleapis.com",
+    "sheetsmcp.googleapis.com"
+   ],
+   "docs": "https://docs.cloud.google.com/mcp/supported-products",
+   "scopes_from_user": true,
+   "note": {
+    "de": "Welche Berechtigungen nötig sind, steht auf der Seite von Google (Link unten).",
+    "en": "The required permissions are listed on Google's page (link below)."
+   },
+   "kind": "server"
+  },
+  {
+   "id": "gslides",
+   "category": "files",
+   "label": "Google Präsentationen",
+   "provider": "Google",
+   "icon": "googleslides",
+   "summary": {
+    "de": "Präsentationen in Google Slides lesen und bearbeiten.",
+    "en": "Read and edit presentations in Google Slides."
+   },
+   "url": "https://slidesmcp.googleapis.com/mcp/v1",
+   "auth": "oauth",
+   "pre_registered": true,
+   "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+   "token_endpoint": "https://oauth2.googleapis.com/token",
+   "auth_params": {
+    "access_type": "offline",
+    "prompt": "consent"
+   },
+   "scopes": "",
+   "preview": true,
+   "source": "docs",
+   "guide": "google",
+   "apis": [
+    "slides.googleapis.com",
+    "slidesmcp.googleapis.com"
+   ],
+   "docs": "https://docs.cloud.google.com/mcp/supported-products",
+   "scopes_from_user": true,
+   "note": {
+    "de": "Welche Berechtigungen nötig sind, steht auf der Seite von Google (Link unten).",
+    "en": "The required permissions are listed on Google's page (link below)."
+   },
+   "kind": "server"
+  },
+  {
+   "id": "gchat",
+   "category": "comm",
+   "label": "Google Chat",
+   "provider": "Google",
+   "icon": "googlechat",
+   "summary": {
+    "de": "Nachrichten und Gruppen in Google Chat lesen.",
+    "en": "Read messages and spaces in Google Chat."
+   },
+   "url": "https://chatmcp.googleapis.com/mcp/v1",
+   "auth": "oauth",
+   "pre_registered": true,
+   "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+   "token_endpoint": "https://oauth2.googleapis.com/token",
+   "auth_params": {
+    "access_type": "offline",
+    "prompt": "consent"
+   },
+   "scopes": "",
+   "preview": true,
+   "source": "docs",
+   "guide": "google",
+   "apis": [
+    "chat.googleapis.com",
+    "chatmcp.googleapis.com"
+   ],
+   "docs": "https://docs.cloud.google.com/mcp/supported-products",
+   "scopes_from_user": true,
+   "note": {
+    "de": "Welche Berechtigungen nötig sind, steht auf der Seite von Google (Link unten).",
+    "en": "The required permissions are listed on Google's page (link below)."
+   },
+   "kind": "server"
+  },
+  {
+   "id": "gcontacts",
+   "category": "productivity",
+   "label": "Google Kontakte",
+   "provider": "Google",
+   "icon": "google",
+   "summary": {
+    "de": "Kontakte in deinem Google-Konto nachschlagen.",
+    "en": "Look up contacts in your Google account."
+   },
+   "url": "https://people.googleapis.com/mcp/v1",
+   "auth": "oauth",
+   "pre_registered": true,
+   "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+   "token_endpoint": "https://oauth2.googleapis.com/token",
+   "auth_params": {
+    "access_type": "offline",
+    "prompt": "consent"
+   },
+   "scopes": "",
+   "preview": true,
+   "source": "docs",
+   "guide": "google",
+   "apis": [
+    "people.googleapis.com",
+    "people.googleapis.com"
+   ],
+   "docs": "https://docs.cloud.google.com/mcp/supported-products",
+   "scopes_from_user": true,
+   "note": {
+    "de": "Welche Berechtigungen nötig sind, steht auf der Seite von Google (Link unten).",
+    "en": "The required permissions are listed on Google's page (link below)."
+   },
+   "kind": "server"
+  },
+  {
+   "id": "microsoft-365",
+   "category": "productivity",
+   "label": "Microsoft 365",
+   "provider": "Microsoft",
+   "icon": "",
+   "summary": {
+    "de": "Outlook-Mail, Kalender, OneDrive, SharePoint und Teams. Dafür brauchst du einen eigenen Server (Anleitung).",
+    "en": "Outlook mail, calendar, OneDrive, SharePoint and Teams. Needs a server of your own (guide)."
+   },
+   "url": "",
+   "auth": "oauth",
+   "source": "docs",
+   "note": {
+    "de": "Anthropics Microsoft-Server verlangt eine Freischaltung durch Anthropic, Microsofts eigene Server sind Vorschau. Deshalb: ein selbst betriebener Community-Server (Softeria).",
+    "en": "Anthropic's Microsoft server needs approval from Anthropic, and Microsoft's own servers are in preview. So: a community server you run yourself (Softeria)."
+   },
+   "kind": "guide",
+   "guide": "microsoft365",
+   "docs": "https://github.com/Softeria/ms-365-mcp-server",
+   "pre_registered": false
+  },
+  {
+   "id": "microsoft-learn",
+   "category": "knowledge",
+   "label": "Microsoft Learn",
+   "provider": "Microsoft",
+   "icon": "",
+   "summary": {
+    "de": "Offizielle Microsoft-Dokumentation und Codebeispiele durchsuchen.",
+    "en": "Search the official Microsoft documentation and code samples."
+   },
+   "url": "https://learn.microsoft.com/api/mcp",
+   "auth": "none",
+   "source": "docs",
+   "docs": "https://learn.microsoft.com/training/support/mcp",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "github",
+   "category": "dev",
+   "label": "GitHub",
+   "provider": "GitHub",
+   "icon": "github",
+   "summary": {
+    "de": "Repositories, Issues und Pull Requests. Das Add-on hat dafür schon eigene Werkzeuge; dieser Server bringt mehr Funktionen dazu.",
+    "en": "Repositories, issues and pull requests. The add-on already has its own GitHub tools; this server adds more."
+   },
+   "url": "https://api.githubcopilot.com/mcp/",
+   "auth": "bearer",
+   "source": "docs",
+   "note": {
+    "de": "Du brauchst ein persönliches Zugriffstoken (PAT) von GitHub.",
+    "en": "You need a personal access token (PAT) from GitHub."
+   },
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "sentry",
+   "category": "dev",
+   "label": "Sentry",
+   "provider": "Sentry",
+   "icon": "sentry",
+   "summary": {
+    "de": "Fehler und Abstürze deiner Anwendungen ansehen und auswerten.",
+    "en": "Look at and analyse errors and crashes of your applications."
+   },
+   "url": "https://mcp.sentry.dev/mcp",
+   "auth": "oauth",
+   "source": "docs",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "vercel",
+   "category": "dev",
+   "label": "Vercel",
+   "provider": "Vercel",
+   "icon": "vercel",
+   "summary": {
+    "de": "Projekte, Deployments und Protokolle bei Vercel ansehen.",
+    "en": "View projects, deployments and logs on Vercel."
+   },
+   "url": "https://mcp.vercel.com/",
+   "auth": "oauth",
+   "source": "list",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "supabase",
+   "category": "dev",
+   "label": "Supabase",
+   "provider": "Supabase",
+   "icon": "supabase",
+   "summary": {
+    "de": "Datenbanken und Projekte bei Supabase verwalten.",
+    "en": "Manage databases and projects on Supabase."
+   },
+   "url": "https://mcp.supabase.com/mcp",
+   "auth": "oauth",
+   "source": "list",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "huggingface",
+   "category": "knowledge",
+   "label": "Hugging Face",
+   "provider": "Hugging Face",
+   "icon": "huggingface",
+   "summary": {
+    "de": "Modelle, Datensätze und Papers auf Hugging Face suchen.",
+    "en": "Search models, datasets and papers on Hugging Face."
+   },
+   "url": "https://hf.co/mcp",
+   "auth": "none",
+   "source": "list",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "cloudflare-docs",
+   "category": "knowledge",
+   "label": "Cloudflare Docs",
+   "provider": "Cloudflare",
+   "icon": "cloudflare",
+   "summary": {
+    "de": "Die Dokumentation von Cloudflare durchsuchen.",
+    "en": "Search the Cloudflare documentation."
+   },
+   "url": "https://docs.mcp.cloudflare.com/mcp",
+   "auth": "none",
+   "source": "known",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "context7",
+   "category": "knowledge",
+   "label": "Context7",
+   "provider": "Context7",
+   "icon": "",
+   "summary": {
+    "de": "Aktuelle Dokumentation und Codebeispiele zu Programmbibliotheken.",
+    "en": "Current documentation and code examples for software libraries."
+   },
+   "url": "https://mcp.context7.com/mcp",
+   "auth": "none",
+   "source": "known",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "deepwiki",
+   "category": "knowledge",
+   "label": "DeepWiki",
+   "provider": "DeepWiki",
+   "icon": "",
+   "summary": {
+    "de": "Fragen zu öffentlichen GitHub-Projekten, beantwortet aus deren Quelltext.",
+    "en": "Questions about public GitHub projects, answered from their source code."
+   },
+   "url": "https://mcp.deepwiki.com/mcp",
+   "auth": "none",
+   "source": "known",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "exa",
+   "category": "knowledge",
+   "label": "Exa Suche",
+   "provider": "Exa Suche",
+   "icon": "",
+   "summary": {
+    "de": "Websuche, die für KI gebaut ist.",
+    "en": "Web search built for AI."
+   },
+   "url": "https://mcp.exa.ai/mcp",
+   "auth": "none",
+   "source": "list",
+   "note": {
+    "de": "Falls der Dienst einen Schlüssel verlangt, stelle die Anmeldung beim Bearbeiten auf „Token“.",
+    "en": "If the service asks for a key, set the sign-in to “Token” when editing."
+   },
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "notion",
+   "category": "productivity",
+   "label": "Notion",
+   "provider": "Notion",
+   "icon": "notion",
+   "summary": {
+    "de": "Seiten und Datenbanken in Notion suchen, lesen und bearbeiten.",
+    "en": "Search, read and edit pages and databases in Notion."
+   },
+   "url": "https://mcp.notion.com/mcp",
+   "auth": "oauth",
+   "source": "docs",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "linear",
+   "category": "productivity",
+   "label": "Linear",
+   "provider": "Linear",
+   "icon": "linear",
+   "summary": {
+    "de": "Tickets, Projekte und Zyklen in Linear ansehen und anlegen.",
+    "en": "View and create issues, projects and cycles in Linear."
+   },
+   "url": "https://mcp.linear.app/mcp",
+   "auth": "oauth",
+   "source": "known",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "atlassian",
+   "category": "productivity",
+   "label": "Atlassian (Jira, Confluence)",
+   "provider": "Atlassian",
+   "icon": "atlassian",
+   "summary": {
+    "de": "Tickets in Jira und Seiten in Confluence suchen und bearbeiten.",
+    "en": "Search and edit Jira issues and Confluence pages."
+   },
+   "url": "https://mcp.atlassian.com/v1/mcp",
+   "auth": "oauth",
+   "source": "known",
+   "note": {
+    "de": "Lehnt der Dienst die automatische Registrierung ab, trage beim Bearbeiten eine eigene OAuth-App ein.",
+    "en": "If the service rejects automatic registration, enter your own OAuth app when editing."
+   },
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "monday",
+   "category": "productivity",
+   "label": "monday.com",
+   "provider": "monday.com",
+   "icon": "",
+   "summary": {
+    "de": "Boards und Aufgaben in monday.com ansehen und bearbeiten.",
+    "en": "View and edit boards and items in monday.com."
+   },
+   "url": "https://mcp.monday.com/mcp",
+   "auth": "oauth",
+   "source": "known",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "airtable",
+   "category": "data",
+   "label": "Airtable",
+   "provider": "Airtable",
+   "icon": "airtable",
+   "summary": {
+    "de": "Tabellen und Datensätze in Airtable lesen und ändern.",
+    "en": "Read and change tables and records in Airtable."
+   },
+   "url": "https://mcp.airtable.com/mcp",
+   "auth": "oauth",
+   "source": "list",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "todoist",
+   "category": "productivity",
+   "label": "Todoist",
+   "provider": "Todoist",
+   "icon": "todoist",
+   "summary": {
+    "de": "Aufgaben in Todoist ansehen und anlegen.",
+    "en": "View and create tasks in Todoist."
+   },
+   "url": "https://ai.todoist.net/mcp",
+   "auth": "oauth",
+   "source": "known",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "canva",
+   "category": "files",
+   "label": "Canva",
+   "provider": "Canva",
+   "icon": "",
+   "summary": {
+    "de": "Designs in Canva suchen und erstellen.",
+    "en": "Search and create designs in Canva."
+   },
+   "url": "https://mcp.canva.com/mcp",
+   "auth": "oauth",
+   "source": "list",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "fireflies",
+   "category": "productivity",
+   "label": "Fireflies",
+   "provider": "Fireflies",
+   "icon": "",
+   "summary": {
+    "de": "Besprechungsprotokolle und Mitschriften aus Fireflies durchsuchen.",
+    "en": "Search meeting notes and transcripts from Fireflies."
+   },
+   "url": "https://api.fireflies.ai/mcp",
+   "auth": "oauth",
+   "source": "list",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "slack",
+   "category": "comm",
+   "label": "Slack",
+   "provider": "Slack",
+   "icon": "",
+   "summary": {
+    "de": "Nachrichten und Kanäle in Slack suchen und lesen.",
+    "en": "Search and read messages and channels in Slack."
+   },
+   "url": "https://mcp.slack.com/mcp",
+   "auth": "oauth",
+   "source": "known",
+   "note": {
+    "de": "Slack verlangt eine eigene App im Arbeitsbereich. Die genauen Berechtigungen stehen in der Slack-Dokumentation.",
+    "en": "Slack needs an app of your own in the workspace. The exact permissions are in the Slack documentation."
+   },
+   "pre_registered": true,
+   "guide": "slack",
+   "docs": "https://api.slack.com/apps",
+   "scopes_from_user": true,
+   "kind": "server"
+  },
+  {
+   "id": "stripe",
+   "category": "data",
+   "label": "Stripe",
+   "provider": "Stripe",
+   "icon": "stripe",
+   "summary": {
+    "de": "Kunden, Zahlungen und Rechnungen in Stripe ansehen.",
+    "en": "View customers, payments and invoices in Stripe."
+   },
+   "url": "https://mcp.stripe.com",
+   "auth": "oauth",
+   "source": "docs",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "paypal",
+   "category": "data",
+   "label": "PayPal",
+   "provider": "PayPal",
+   "icon": "paypal",
+   "summary": {
+    "de": "Transaktionen und Rechnungen bei PayPal ansehen.",
+    "en": "View transactions and invoices on PayPal."
+   },
+   "url": "https://mcp.paypal.com/mcp",
+   "auth": "oauth",
+   "source": "known",
+   "kind": "server",
+   "pre_registered": false
+  },
+  {
+   "id": "hubspot",
+   "category": "data",
+   "label": "HubSpot",
+   "provider": "HubSpot",
+   "icon": "hubspot",
+   "summary": {
+    "de": "Kontakte, Firmen und Geschäfte in HubSpot nachschlagen.",
+    "en": "Look up contacts, companies and deals in HubSpot."
+   },
+   "url": "https://mcp.hubspot.com/anthropic",
+   "auth": "oauth",
+   "source": "docs",
+   "kind": "server",
+   "pre_registered": false
+  }
+ ]
+}

@@ -25,6 +25,7 @@ README = (
     "chats/                  alle Chats als Markdown, je Projekt ein Ordner\n"
     "projekte.md             deine Projekte mit ihren Anweisungen\n"
     "gedaechtnis.md          dein persönliches Gedächtnis\n"
+    "anweisungen.md          deine persönlichen Anweisungen (falls vorhanden)\n"
     "geplante-aufgaben.md    deine geplanten Aufgaben\n\n"
     "Nicht enthalten: hochgeladene Projektdateien und vom Assistenten erzeugte Dateien.\n"
 )
@@ -143,6 +144,9 @@ def build_zip(store: Store, profile_id: str, app_name: str = "", now: datetime |
             archive.writestr(path, chat_markdown(chat, messages, names.get(chat["project_id"] or "", ""), app_name))
         archive.writestr(tr("projekte.md"), _projects_markdown(projects))
         archive.writestr(tr("gedaechtnis.md"), _memory_markdown(store.memory_list("person", profile_id)))
+        personal = store.profile_instructions(profile_id).strip()
+        if personal:
+            archive.writestr(tr("anweisungen.md"), "# " + tr("Meine Anweisungen") + "\n\n" + personal + "\n")
         archive.writestr(tr("geplante-aufgaben.md"), _schedules_markdown(store.schedule_list(profile_id)))
         for item in store.skill_list(profile_id):
             full = store.skill_get(profile_id, item["id"])
