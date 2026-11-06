@@ -1552,22 +1552,9 @@ function renderDiscover(wrap, data) {
   update();
 }
 
-// Installationszahlen aufgerundet auf zwei gültige Ziffern („245 Tsd.“ -> „250 Tsd.“), ohne Hinweis: so bleibt die Anzeige lange stimmig
-function roundedCount(n) {
-  const one = (x) => x.toLocaleString(kiLocale, { maximumFractionDigits: 1 });
-  let v = Math.max(0, Math.floor(n));
-  if (v >= 100) {
-    const step = 10 ** (String(v).length - 2);
-    v = Math.ceil(v / step) * step;
-  }
-  if (v >= 1_000_000) return tr("{0} Mio.", one(v / 1_000_000));
-  if (v >= 1000) return tr("{0} Tsd.", one(v / 1000));
-  return String(v);
-}
-
 function skillSource(s) {
   const by = tr("von {0}", s.author);
-  return s.installs ? `${by} · ${tr("{0} Installationen", roundedCount(s.installs))}` : by;
+  return by;
 }
 
 function skillCard(s) {

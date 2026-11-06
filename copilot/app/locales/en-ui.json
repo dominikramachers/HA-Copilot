@@ -612,7 +612,6 @@
  "Suche zurücksetzen": "Reset search",
  "Versuch es mit einem anderen Wort oder wähle eine andere Kategorie.": "Try another word or pick a different category.",
  "Zurück zu den Anpassungen": "Back to Customise",
- "{0} Installationen": "{0} installs",
  "Das Skill konnte nicht von GitHub geholt werden.": "The skill could not be fetched from GitHub.",
  "GitHub-Link": "GitHub link",
  "Hole das Skill von GitHub …": "Fetching the skill from GitHub …",
@@ -620,7 +619,5 @@
  "Link zu einem öffentlichen Skill-Ordner, zum Beispiel https://github.com/besitzer/repo/tree/main/skills/name. Gespeichert wird erst nach der Vorschau.": "Link to a public skill folder, for example https://github.com/owner/repo/tree/main/skills/name. Nothing is saved until after the preview.",
  "Quelle: {0}": "Source: {0}",
  "Skill von GitHub holen": "Fetch a skill from GitHub",
- "Von GitHub-Link": "From a GitHub link",
- "{0} Mio.": "{0}M",
- "{0} Tsd.": "{0}K"
+ "Von GitHub-Link": "From a GitHub link"
 }
