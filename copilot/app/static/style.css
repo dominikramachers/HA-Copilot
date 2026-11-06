@@ -989,9 +989,21 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .skills-cat:disabled { opacity: .45; cursor: default; }
 .skills-count { margin: 4px 0 10px; font-size: 13px; color: var(--muted); }
 .skills-section { margin: 28px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-.skills-soon { padding: 40px 0 24px; text-align: center; }
-.skills-soon-title { margin: 0; font-size: 20px; font-weight: 600; }
-.skills-soon .skills-hint { max-width: 46ch; margin: 8px auto 0; }
+.pl-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.pl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 0; border-top: 1px solid var(--line-2); }
+.pl-row:first-child { border-top: 0; }
+.pl-row .tile { flex: none; width: 28px; height: 28px; }
+.pl-name { flex: 1 1 140px; min-width: 0; display: grid; gap: 1px; font-size: 14.5px; overflow-wrap: anywhere; }
+.pl-pick { flex: 1 1 200px; min-width: 0; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.pl-pick input { flex: none; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+.pl-pick input:disabled { cursor: default; }
+.pl-url { overflow-wrap: anywhere; }
+.pl-state { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--text-2); font-size: 11.5px; font-weight: 600; }
+.pl-state.added, .pl-state.new { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.pl-state.missing, .pl-state.setup, .pl-state.taken, .pl-state.limit, .pl-state.no_rights, .pl-state.no_access, .pl-state.failed { color: var(--muted); }
+.pl-msg { flex-basis: 100%; font-size: 12.5px; line-height: 1.45; color: var(--text-2); overflow-wrap: anywhere; }
+.pl-auth { flex: 0 1 240px; height: 34px; font-size: 13.5px; }
+.pl-remove-hint { flex: 1 1 200px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 .skills-hint { margin: 8px 0 12px; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
 .skills-note { margin: 22px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
 .skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }

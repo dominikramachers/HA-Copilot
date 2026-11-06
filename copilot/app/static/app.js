@@ -1587,6 +1587,7 @@ async function openSkills() {
   Object.assign(skillsUi, { mode: "list", section: "skills", tab: "mine", mineQuery: "", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
   Object.assign(connUi, { id: null, form: null, flow: null, setup: null, tab: "mine", mineQuery: "", query: "", category: "all" });
   Object.assign(connUi.registry, { q: "", items: [], next: "", loaded: false, error: "" });
+  Object.assign(plUi, { data: null, tab: "mine", query: "", detail: null, preview: null, result: null, busy: false });
   await loadSkills();
   $("skills").scrollTop = 0;
 }
@@ -1612,6 +1613,9 @@ function renderSkills() {
   else if (skillsUi.mode === "connector") renderConnectorDetail(wrap);
   else if (skillsUi.mode === "connector-form") renderConnectorForm(wrap);
   else if (skillsUi.mode === "connector-setup") renderConnectorSetup(wrap);
+  else if (skillsUi.mode === "plugin") renderPluginDetail(wrap);
+  else if (skillsUi.mode === "plugin-preview") renderPluginPreview(wrap);
+  else if (skillsUi.mode === "plugin-result") renderPluginResult(wrap);
   else renderSkillList(wrap);
 }
 
@@ -1695,6 +1699,7 @@ function renderSkillList(wrap) {
       skillsUi.status = "";
       renderSkills();
       if (id === "connectors") loadConnectors();
+      if (id === "plugins") loadPlugins();
     });
     tabs.append(tab);
   }
@@ -1702,7 +1707,7 @@ function renderSkillList(wrap) {
   wrap.append(bar);
 
   if (skillsUi.section === "connectors") { renderConnectors(wrap); return; }
-  if (skillsUi.section !== "skills") { renderSoon(wrap, skillsUi.section); return; }
+  if (skillsUi.section === "plugins") { renderPlugins(wrap); return; }
 
   const status = node("p", "skills-status");
   status.setAttribute("role", "status");
@@ -1743,14 +1748,415 @@ function renderSkillList(wrap) {
   wrap.append(node("p", "skills-note", tr("Skripte in Skills werden nie ausgeführt. Ein importiertes Skill gilt als fremder Inhalt: Hat die KI eines genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
 }
 
-// Plugins folgen später: Platzhalter statt leerer Seite
-function renderSoon(wrap) {
-  const box = node("div", "skills-soon");
-  box.append(
-    node("p", "skills-soon-title", tr("Kommt bald")),
-    node("p", "skills-hint", tr("Hier findest du später Pakete, die Skills und Verbindungen zu einem Thema bündeln.")),
-  );
-  wrap.append(box);
+// ---- Plugins: Pakete aus Skills und Konnektoren zu einem Thema
+
+const plUi = { data: null, loading: false, error: "", tab: "mine", query: "", detail: null, preview: null, result: null, busy: false };
+
+async function loadPlugins() {
+  plUi.loading = true;
+  try { plUi.data = await api("api/plugins"); plUi.error = ""; } catch (err) { plUi.data = null; plUi.error = errorText(err, tr("Die Plugins sind gerade nicht erreichbar.")); }
+  plUi.loading = false;
+  if (state.view === "skills") renderSkills();
+}
+
+function plStateText(state) {
+  return {
+    added: tr("Hinzugefügt"), present: tr("Schon da"), missing: tr("Fehlt noch"), taken: tr("Name belegt, dein eigenes bleibt"),
+    limit: tr("Grenze erreicht"), setup: tr("Eigene App nötig"), no_rights: tr("Dafür fehlt dir das Recht"), no_access: tr("Nicht freigegeben"),
+    failed: tr("Hat nicht geklappt"), replaces: tr("Wird ersetzt"), new: tr("Neu"),
+  }[state] || state;
+}
+
+function plCounts(skills, connectors) {
+  return `${trn(skills, "1 Skill", "{0} Skills")} · ${trn(connectors, "1 Konnektor", "{0} Konnektoren")}`;
+}
+
+function renderPlugins(wrap) {
+  const status = node("p", "skills-status");
+  status.setAttribute("role", "status");
+  status.textContent = skillsUi.status;
+  wrap.append(status);
+  const data = plUi.data;
+  if (!data) {
+    wrap.append(node("p", "mem-empty", plUi.loading ? tr("Lädt …") : plUi.error || tr("Die Plugins sind gerade nicht erreichbar.")));
+    if (!plUi.loading && !plUi.error) loadPlugins();
+    return;
+  }
+  const tools = node("div", "skills-tools");
+  const seg = node("div", "seg");
+  for (const [id, label] of [["mine", tr("Meine")], ["discover", tr("Entdecken")]]) {
+    const b = node("button", "", label);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(plUi.tab === id));
+    b.addEventListener("click", () => { plUi.tab = id; skillsUi.status = ""; renderSkills(); });
+    seg.append(b);
+  }
+  const add = node("button", "pill primary compact");
+  add.type = "button";
+  add.disabled = plUi.busy;
+  add.setAttribute("aria-label", tr("Von GitHub-Link"));
+  add.title = tr("Von GitHub-Link");
+  add.append(icon("code"), node("span", "", tr("Von GitHub-Link")));
+  add.addEventListener("click", pluginGithub);
+  tools.append(seg, add);
+  wrap.append(tools);
+  if (plUi.tab === "discover") renderPluginDiscover(wrap, data);
+  else renderPluginMine(wrap, data);
+  wrap.append(node("p", "skills-note", tr("Ein Plugin legt Skills und Konnektoren an. Beim Entfernen verschwindet nur, was das Plugin selbst angelegt hat. Skills und Konnektoren aus fremden Plugins gelten als fremder Inhalt.")));
+}
+
+function pluginList(wrap, items, card, empty, label) {
+  const filter = node("div", "skills-filter");
+  const search = searchInput(label, plUi.query);
+  filter.append(search);
+  const count = node("p", "skills-count");
+  count.setAttribute("role", "status");
+  const body = node("div", "skills-grid");
+  wrap.append(filter, count, body);
+  const update = () => {
+    const hits = items.filter((p) => wordsMatch(plUi.query, p.haystack));
+    body.replaceChildren();
+    count.textContent = plUi.query.trim() ? trn(hits.length, "1 Plugin", "{0} Plugins") : "";
+    if (!items.length) { body.className = "skills-mine"; body.append(empty()); return; }
+    body.className = "skills-grid";
+    if (!hits.length) {
+      body.className = "skills-mine";
+      body.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort."), connResetButton(() => { plUi.query = ""; search.value = ""; update(); search.focus(); })));
+      return;
+    }
+    for (const p of hits) body.append(card(p));
+  };
+  search.addEventListener("input", () => { plUi.query = search.value; update(); });
+  update();
+}
+
+function renderPluginMine(wrap, data) {
+  wrap.append(node("p", "skills-hint", tr("Hier stehen die Plugins, die du hinzugefügt hast.")));
+  const items = data.mine.map((p) => ({ ...p, haystack: `${p.name} ${p.description}` }));
+  const empty = () => {
+    const go = node("button", "pill ghost", tr("Plugins entdecken"));
+    go.type = "button";
+    go.addEventListener("click", () => { plUi.tab = "discover"; renderSkills(); });
+    return connEmpty(tr("Noch kein Plugin."), tr("Such dir bei „Entdecken“ ein Paket zu deinem Thema aus oder hol dir ein Claude-Plugin von einem GitHub-Link."), go);
+  };
+  pluginList(wrap, items, (p) => pluginCard(p, "mine"), empty, tr("Plugins durchsuchen"));
+}
+
+function renderPluginDiscover(wrap, data) {
+  wrap.append(node("p", "skills-hint", tr("Pakete, die Skills und Konnektoren zu einem Thema zusammen anlegen. Du siehst vorher, was dazugehört.")));
+  const items = data.catalog.map((p) => ({ ...p, haystack: `${p.label} ${p.summary} ${p.skills.map((s) => s.label).join(" ")} ${p.connectors.map((c) => c.label).join(" ")}` }));
+  pluginList(wrap, items, (p) => pluginCard(p, "catalog"), () => connEmpty(tr("Noch keine Pakete.")), tr("Pakete durchsuchen"));
+}
+
+function pluginCard(p, kind) {
+  const mine = kind === "mine";
+  const name = mine ? p.name : p.label;
+  const card = node("article", "skill-card");
+  const top = node("div", "skill-card-top");
+  const open = node("button", "skill-open", name);
+  open.type = "button";
+  const go = () => pluginOpen(kind, p.id);
+  open.addEventListener("click", go);
+  const who = node("div", "skill-card-id");
+  who.append(tile(mine && p.kind === "imported" ? "code" : p.icon || "stack", name), open);
+  top.append(who);
+  const badges = node("div", "skill-badges");
+  if (mine) {
+    badges.append(node("span", "skill-badge" + (p.kind === "imported" ? " ext" : ""), p.kind === "imported" ? tr("von GitHub") : tr("aus dem Katalog")));
+    if (p.missing) badges.append(node("span", "skill-badge off", trn(p.missing, "1 Teil fehlt", "{0} Teile fehlen")));
+  } else if (p.installed) badges.append(node("span", "skill-badge" + (p.complete ? "" : " off"), p.complete ? tr("Hinzugefügt") : tr("Unvollständig")));
+  card.append(top, badges, node("p", "skill-desc", mine ? p.description || tr("Ohne Beschreibung.") : p.summary));
+  card.append(node("small", "mem-meta", mine ? plCounts(p.skills.length, p.connectors.length) : plCounts(p.skills.length, p.connectors.length)));
+  if (!mine) {
+    const row = node("div", "skill-add");
+    if (p.installed && p.complete) row.append(node("span", "skill-added", tr("Schon hinzugefügt")));
+    else {
+      const add = node("button", "pill primary", p.installed ? tr("Fehlendes ergänzen") : tr("Hinzufügen"));
+      add.type = "button";
+      add.addEventListener("click", (event) => { event.stopPropagation(); pluginOpen(kind, p.id); });
+      row.append(add);
+    }
+    card.append(row);
+  }
+  card.addEventListener("click", (event) => { if (!event.target.closest("button")) go(); });
+  return card;
+}
+
+function pluginOpen(kind, id) {
+  plUi.detail = { kind, id };
+  skillsGo("plugin");
+}
+
+function pluginRow(parts, name, stateKey, extra, stateText) {
+  const row = node("li", "pl-row");
+  if (parts) row.append(parts);
+  const text = node("span", "pl-name", name);
+  row.append(text);
+  if (stateKey) row.append(node("span", "pl-state " + stateKey, stateText || plStateText(stateKey)));
+  if (extra) row.append(extra);
+  return row;
+}
+
+function pluginHints(data, hasConnectors) {
+  const box = [];
+  if (!hasConnectors) return box;
+  if (!data.connector_access) box.push(node("p", "skills-warn", tr("Konnektoren sind für dich nicht freigegeben. Es kommen nur die Skills mit.")));
+  else if (!data.can_connectors) box.push(node("p", "skills-warn", tr("Du darfst keine eigenen Konnektoren anlegen. Es kommen nur die Skills mit.")));
+  return box;
+}
+
+function renderPluginDetail(wrap) {
+  const data = plUi.data;
+  const d = plUi.detail;
+  const list = d && data ? (d.kind === "mine" ? data.mine : data.catalog) : [];
+  const p = list.find((x) => x.id === d?.id);
+  skillBack(wrap, tr("Zurück zu den Plugins"));
+  if (!p) { wrap.append(node("p", "mem-empty", tr("Dieses Plugin gibt es nicht mehr."))); return; }
+  const mine = d.kind === "mine";
+  skillHead(wrap, mine ? p.name : p.label, mine ? p.description : p.summary);
+  const panel = node("section", "skills-panel");
+  panel.append(node("p", "skills-label", trn(p.skills.length, "1 Skill", "{0} Skills")));
+  const skills = node("ul", "pl-list");
+  for (const s of p.skills) skills.append(pluginRow(null, mine ? s.name : s.label, mine ? (s.present ? "present" : "missing") : s.state));
+  panel.append(skills.children.length ? skills : node("p", "skills-hint", tr("Keine.")));
+  panel.append(node("p", "skills-label", trn(p.connectors.length, "1 Konnektor", "{0} Konnektoren")));
+  const conns = node("ul", "pl-list");
+  for (const c of p.connectors) {
+    let open = null;
+    let stateKey;
+    let stateText = "";
+    if (mine) {
+      stateKey = c.connector_id ? (c.status === "ok" ? "added" : "present") : "missing";
+      if (c.connector_id) {
+        stateText = connStatusLabel(c);
+        open = node("button", "mem-link", tr("Öffnen"));
+        open.type = "button";
+        open.addEventListener("click", () => { skillsUi.section = "connectors"; connOpen(c.connector_id); loadConnectors(); });
+      }
+    } else stateKey = c.state;
+    conns.append(pluginRow(connTile({ label: c.label || c.name, icon: c.icon }), c.label || c.name, stateKey, open, stateText));
+  }
+  panel.append(conns.children.length ? conns : node("p", "skills-hint", tr("Keine.")));
+  for (const h of pluginHints(data, p.connectors.length > 0)) panel.append(h);
+  if (mine && p.source) panel.append(node("p", "skills-hint", tr("Quelle: {0}", p.source)));
+  if (mine && p.notes?.length) {
+    const notes = node("ul", "skills-files");
+    for (const n of p.notes) notes.append(node("li", "", n));
+    panel.append(node("p", "skills-label", tr("Nicht übernommen:")), notes);
+  }
+  if (!mine && p.connectors.some((c) => c.state === "setup")) panel.append(node("p", "skills-hint", tr("Für Google-Dienste brauchst du eine eigene Google-App. Die Anleitung steht bei den Konnektoren unter „Entdecken“.")));
+  const foot = node("div", "skills-buttons");
+  if (mine) {
+    foot.append(node("span", "pl-remove-hint", tr("Entfernt nur, was dieses Plugin selbst angelegt hat ({0}).", plCounts(p.added.skills, p.added.connectors))));
+    foot.append(confirmButton(tr("{0} entfernen", p.name), async () => {
+      try {
+        const out = await api(`api/plugins/${p.id}`, { method: "DELETE" });
+        toast(tr("„{0}“ entfernt ({1}).", p.name, plCounts(out.skills, out.connectors)));
+        skillsGo("list", { detail: null });
+        await Promise.all([loadPlugins(), loadSkills()]);
+        if (connUi.data) loadConnectors();
+      } catch (err) { toast(errorText(err, tr("Entfernen hat nicht geklappt."))); }
+    }));
+  } else if (!(p.installed && p.complete)) {
+    const add = node("button", "pill primary", p.installed ? tr("Fehlendes ergänzen") : tr("Hinzufügen"));
+    add.type = "button";
+    add.addEventListener("click", () => pluginInstall(p, add));
+    foot.append(add);
+  } else foot.append(node("span", "skill-added", tr("Schon hinzugefügt")));
+  panel.append(foot);
+  wrap.append(panel);
+}
+
+async function pluginInstall(entry, button) {
+  button.disabled = true;
+  try {
+    const result = await api(`api/plugins/catalog/${encodeURIComponent(entry.id)}`, { method: "POST" });
+    plUi.result = { name: entry.label, ...result };
+    plUi.tab = "mine";
+    skillsGo("plugin-result");
+    await Promise.all([loadPlugins(), loadSkills()]);
+    if (connUi.data) loadConnectors();
+  } catch (err) { toast(errorText(err, tr("Hinzufügen hat nicht geklappt."))); button.disabled = false; }
+}
+
+function renderPluginResult(wrap) {
+  const r = plUi.result;
+  skillBack(wrap, tr("Zurück zu den Plugins"));
+  if (!r) { wrap.append(node("p", "mem-empty", tr("Dieses Plugin gibt es nicht mehr."))); return; }
+  skillHead(wrap, tr("„{0}“ ist hinzugefügt", r.name), tr("Das ist passiert:"));
+  const panel = node("section", "skills-panel");
+  if (r.skills.length) {
+    panel.append(node("p", "skills-label", trn(r.skills.length, "1 Skill", "{0} Skills")));
+    const skills = node("ul", "pl-list");
+    for (const s of r.skills) skills.append(pluginRow(null, s.label || s.name, s.state));
+    panel.append(skills);
+  }
+  if (r.connectors.length) {
+    panel.append(node("p", "skills-label", trn(r.connectors.length, "1 Konnektor", "{0} Konnektoren")));
+    const conns = node("ul", "pl-list");
+    for (const c of r.connectors) {
+      const row = pluginRow(connTile({ label: c.label || c.name, icon: c.icon }), c.label || c.name, c.state);
+      if (c.message) row.append(node("small", "pl-msg", c.message));
+      conns.append(row);
+    }
+    panel.append(conns);
+    const added = r.connectors.some((c) => c.state === "added");
+    const setup = r.connectors.some((c) => c.state === "setup");
+    if (added) panel.append(node("p", "skills-hint", tr("Die neuen Konnektoren sind noch nicht verbunden. Das machst du bei den Konnektoren mit einem Klick.")));
+    if (setup) panel.append(node("p", "skills-hint", tr("Für Google-Dienste brauchst du eine eigene Google-App. Die Anleitung steht bei den Konnektoren unter „Entdecken“.")));
+    if (added || setup) {
+      const foot = node("div", "skills-buttons");
+      const go = node("button", "pill primary", tr("Zu den Konnektoren"));
+      go.type = "button";
+      go.addEventListener("click", () => {
+        skillsUi.section = "connectors";
+        connUi.tab = added ? "mine" : "discover";
+        skillsGo("list");
+        loadConnectors();
+      });
+      foot.append(go);
+      panel.append(foot);
+    }
+  }
+  wrap.append(panel);
+}
+
+// ---- Claude-Plugin von einem GitHub-Link
+
+async function pluginGithub() {
+  if (plUi.busy) return;
+  const url = await openSheet({
+    title: tr("Plugin von GitHub holen"),
+    sub: tr("Link zu einem öffentlichen Plugin-Ordner, zum Beispiel https://github.com/besitzer/repo/tree/main/plugins/name. Übernommen werden nur Skills und Server-Adressen; Befehle, Unteragenten und Skripte nie. Gespeichert wird erst nach der Vorschau."),
+    label: tr("GitHub-Link"), value: "", placeholder: "https://github.com/…", ok: tr("Holen"), maxLength: 500,
+  });
+  if (!url) return;
+  plUi.busy = true;
+  skillsUi.status = tr("Hole das Plugin von GitHub …");
+  renderSkills();
+  try {
+    const preview = await api("api/plugins/github", { method: "POST", body: JSON.stringify({ url }) });
+    plUi.busy = false;
+    plUi.preview = preview;
+    plUi.pick = {
+      skills: new Set(preview.skills.filter((s) => s.state !== "taken").map((s) => s.name)),
+      servers: new Map(preview.servers.map((s) => [s.name, { on: !s.present && preview.can_connectors, auth: s.auth }])),
+    };
+    skillsGo("plugin-preview");
+  } catch (err) {
+    plUi.busy = false;
+    skillsUi.status = errorText(err, tr("Das Plugin konnte nicht von GitHub geholt werden."));
+    renderSkills();
+  }
+}
+
+const PL_AUTH = () => [["none", tr("Keine Anmeldung")], ["bearer", tr("Token (Bearer)")], ["header", tr("Schlüssel in einem Header")], ["oauth", tr("Anmeldung beim Dienst (OAuth)")]];
+
+function renderPluginPreview(wrap) {
+  const p = plUi.preview;
+  const pick = plUi.pick;
+  if (!p || !pick) { skillBack(wrap, tr("Zurück zu den Plugins")); return; }
+  skillBack(wrap, tr("Abbrechen"));
+  skillHead(wrap, p.name, p.description || tr("So sieht das Plugin aus. Es wird erst nach „Hinzufügen“ gespeichert."));
+  const panel = node("section", "skills-panel");
+  const add = node("button", "pill primary", tr("Hinzufügen"));
+  add.type = "button";
+  const refresh = () => { add.disabled = plUi.busy || (!pick.skills.size && ![...pick.servers.values()].some((s) => s.on)); };
+
+  panel.append(node("p", "skills-label", trn(p.skills.length, "1 Skill", "{0} Skills")));
+  const skills = node("ul", "pl-list");
+  for (const s of p.skills) {
+    const row = node("li", "pl-row");
+    const label = node("label", "pl-pick");
+    const box = node("input");
+    box.type = "checkbox";
+    box.checked = pick.skills.has(s.name);
+    box.disabled = s.state === "taken";
+    box.addEventListener("change", () => { if (box.checked) pick.skills.add(s.name); else pick.skills.delete(s.name); refresh(); });
+    const text = node("span", "pl-name");
+    text.append(node("b", "", s.name), node("small", "mem-meta", s.description));
+    label.append(box, text);
+    row.append(label, node("span", "pl-state " + s.state, plStateText(s.state)));
+    for (const w of s.warnings) row.append(node("small", "pl-msg", w));
+    skills.append(row);
+  }
+  panel.append(p.skills.length ? skills : node("p", "skills-hint", tr("Keine.")));
+
+  panel.append(node("p", "skills-label", trn(p.servers.length, "1 Konnektor (Server-Adresse)", "{0} Konnektoren (Server-Adressen)")));
+  const servers = node("ul", "pl-list");
+  for (const s of p.servers) {
+    const cfg = pick.servers.get(s.name);
+    const row = node("li", "pl-row");
+    const label = node("label", "pl-pick");
+    const box = node("input");
+    box.type = "checkbox";
+    box.checked = cfg.on;
+    box.disabled = s.present || !p.can_connectors;
+    box.addEventListener("change", () => { cfg.on = box.checked; refresh(); });
+    const text = node("span", "pl-name");
+    text.append(node("b", "", s.name), node("small", "mem-meta pl-url", s.url));
+    label.append(box, text);
+    row.append(label);
+    if (s.present) row.append(node("span", "pl-state present", plStateText("present")));
+    else if (!s.catalog_id) {
+      const sel = node("select", "field pl-auth");
+      sel.setAttribute("aria-label", tr("Anmeldung für {0}", s.name));
+      for (const [value, text2] of PL_AUTH()) {
+        const o = node("option", "", text2);
+        o.value = value;
+        sel.append(o);
+      }
+      sel.value = cfg.auth;
+      sel.addEventListener("change", () => { cfg.auth = sel.value; });
+      row.append(sel);
+    } else row.append(node("span", "pl-state present", tr("Aus dem Katalog bekannt")));
+    servers.append(row);
+  }
+  panel.append(p.servers.length ? servers : node("p", "skills-hint", tr("Keine.")));
+  if (p.servers.length && !p.can_connectors) panel.append(node("p", "skills-warn", tr("Du darfst keine eigenen Konnektoren anlegen. Es kommen nur die Skills mit.")));
+  if (p.servers.some((s) => !s.present && !s.catalog_id)) panel.append(node("p", "skills-hint", tr("Die Anmeldeart ist geraten. Stimmt sie nicht, kannst du sie später beim Konnektor ändern.")));
+
+  const left = [...(p.notes || []), ...p.skipped.map((s) => `${s.name}: ${s.reason}`)];
+  if (left.length) {
+    const list = node("ul", "skills-files");
+    for (const n of left.slice(0, 20)) list.append(node("li", "", n));
+    panel.append(node("p", "skills-label", tr("Nicht übernommen:")), list);
+  }
+  if (p.ignored?.length) {
+    const list = node("ul", "skills-files");
+    for (const n of p.ignored) list.append(node("li", "", n));
+    panel.append(node("p", "skills-label", tr("Gibt es im Plugin, wird aber nie geladen:")), list);
+  }
+  if (p.source) panel.append(node("p", "skills-hint", tr("Quelle: {0}", p.source)));
+  if (p.replaces) panel.append(node("p", "skills-warn", tr("Dieses Plugin hast du schon. Es wird aktualisiert.")));
+  panel.append(node("p", "skills-hint", tr("Skills und Konnektoren aus einem fremden Plugin gelten als fremder Inhalt. Hat die KI einen genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
+
+  const foot = node("div", "skills-buttons");
+  const cancel = node("button", "pill ghost", tr("Abbrechen"));
+  cancel.type = "button";
+  cancel.addEventListener("click", () => skillsGo("list", { preview: null }));
+  add.addEventListener("click", async () => {
+    plUi.busy = true;
+    refresh();
+    try {
+      const body = {
+        data: p.data, source: p.source, skills: [...pick.skills],
+        servers: p.servers.filter((s) => pick.servers.get(s.name)?.on).map((s) => ({ name: s.name, auth: pick.servers.get(s.name).auth })),
+      };
+      const result = await api("api/plugins/import", { method: "POST", body: JSON.stringify(body) });
+      plUi.busy = false;
+      plUi.result = { name: p.name, skills: result.skills, connectors: result.connectors };
+      plUi.preview = null;
+      plUi.tab = "mine";
+      skillsGo("plugin-result");
+      await Promise.all([loadPlugins(), loadSkills()]);
+      if (connUi.data) loadConnectors();
+    } catch (err) { plUi.busy = false; toast(errorText(err, tr("Hinzufügen hat nicht geklappt."))); refresh(); }
+  });
+  refresh();
+  foot.append(add, cancel);
+  panel.append(foot);
+  wrap.append(panel);
 }
 
 function renderMine(wrap, data) {

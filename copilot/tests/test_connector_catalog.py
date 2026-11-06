@@ -230,7 +230,7 @@ def test_logo_files_are_small_safe_svgs():
     for path in catalog.ICON_DIR.glob("*.svg"):
         text = path.read_text(encoding="utf-8")
         assert len(text) < 6000 and text.startswith("<svg") and "<script" not in text.lower() and "href" not in text.lower(), path.name
-        assert text.count("<path") == 1
+        assert 1 <= text.count("<path") <= (4 if path.name == "microsoft.svg" else 1)  # das Microsoft-Zeichen hat vier Farben
 
 
 def test_create_from_catalog_fills_defaults_and_needs_own_app_for_google(store, tmp_path):
