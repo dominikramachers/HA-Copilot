@@ -1,5 +1,40 @@
 [
   {
+    "version": "0.43.0",
+    "items": [
+      {
+        "de": {
+          "title": "Plugins: Pakete zu einem Thema",
+          "text": "Unter Anpassungen gibt es jetzt Pakete, zum Beispiel für Büro, Entwicklung oder Recherche. Ein Klick legt die passenden Skills und Verbindungen für dich an."
+        },
+        "en": {
+          "title": "Plugins: packages for a topic",
+          "text": "Under Customizations there are now packages, for example for office work, development or research. One click sets up the matching skills and connections for you."
+        }
+      },
+      {
+        "de": {
+          "title": "Plugins von Claude holen",
+          "text": "Hast du ein Plugin für Claude auf GitHub gefunden? Gib mir den Link. Ich zeige dir vorher, was ich daraus übernehme, und du entscheidest."
+        },
+        "en": {
+          "title": "Bring plugins from Claude",
+          "text": "Found a plugin for Claude on GitHub? Give me the link. I show you first what I would take from it, and you decide."
+        }
+      },
+      {
+        "de": {
+          "title": "Mehr Logos bei den Verbindungen",
+          "text": "Microsoft-Dienste haben jetzt ein Logo, wenn du Verbindungen unter Entdecken ansiehst."
+        },
+        "en": {
+          "title": "More logos for connections",
+          "text": "Microsoft services now have a logo when you browse connections under Discover."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.42.0",
     "items": [
       {

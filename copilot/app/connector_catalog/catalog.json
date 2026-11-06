@@ -381,7 +381,7 @@
    "category": "productivity",
    "label": "Microsoft 365",
    "provider": "Microsoft",
-   "icon": "",
+   "icon": "microsoft",
    "summary": {
     "de": "Outlook-Mail, Kalender, OneDrive, SharePoint und Teams. Dafür brauchst du einen eigenen Server (Anleitung).",
     "en": "Outlook mail, calendar, OneDrive, SharePoint and Teams. Needs a server of your own (guide)."
@@ -403,7 +403,7 @@
    "category": "knowledge",
    "label": "Microsoft Learn",
    "provider": "Microsoft",
-   "icon": "",
+   "icon": "microsoft",
    "summary": {
     "de": "Offizielle Microsoft-Dokumentation und Codebeispiele durchsuchen.",
     "en": "Search the official Microsoft documentation and code samples."

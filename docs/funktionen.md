@@ -71,7 +71,7 @@ Mehr: [Projektwissen und Gedächtnis](../copilot/DOCS.md#projektwissen-und-gedä
 
 ## Skills
 
-Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, etwa „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Du findest sie auf der Seite **Anpassungen** in der Seitenleiste (Reiter „Skills“; „Plugins“ kommen später, „Konnektoren“ siehe unten). Sie gelten für dich in allen Chats. Du fügst Skills hinzu, indem du sie importierst (`SKILL.md`, `.skill` oder ZIP, mit Vorschau), per **GitHub-Link** aus einem öffentlichen Repository holst, selbst schreibst oder unter **Entdecken** mit einem Klick übernimmst (70 geprüfte Skills in acht Kategorien, mit Suche, zum Beispiel für Marketing, Social Media, Gestaltung und Büro). Auch deine eigenen Skills lassen sich durchsuchen; jede Karte hat ein kleines Symbol. Die KI sieht nur Name und Beschreibung und lädt ein Skill von selbst, wenn die Aufgabe passt; auch geplante Aufgaben nutzen sie (nur lesend).
+Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, etwa „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Du findest sie auf der Seite **Anpassungen** in der Seitenleiste (Reiter „Skills“; „Konnektoren“ und „Plugins“ siehe unten). Sie gelten für dich in allen Chats. Du fügst Skills hinzu, indem du sie importierst (`SKILL.md`, `.skill` oder ZIP, mit Vorschau), per **GitHub-Link** aus einem öffentlichen Repository holst, selbst schreibst oder unter **Entdecken** mit einem Klick übernimmst (70 geprüfte Skills in acht Kategorien, mit Suche, zum Beispiel für Marketing, Social Media, Gestaltung und Büro). Auch deine eigenen Skills lassen sich durchsuchen; jede Karte hat ein kleines Symbol. Die KI sieht nur Name und Beschreibung und lädt ein Skill von selbst, wenn die Aufgabe passt; auch geplante Aufgaben nutzen sie (nur lesend).
 
 Die mitgelieferten Gestaltungsregeln für Word, PowerPoint, Excel, PDF und HTML stehen als **Standard-Skills** unter „Meine“; sie lassen sich nicht abschalten, aber eigene Skills gehen ihnen vor. Skripte in einem Skill werden **nie ausgeführt**, und importierte Skills gelten als fremder Inhalt: Danach fragt die KI vor Änderungen in Home Assistant oder bei GitHub nach.
 
@@ -84,6 +84,12 @@ Ein **Konnektor** verbindet die KI mit einem Dienst außerhalb von Home Assistan
 Werkzeuge, die nur lesen, sind gleich an. Werkzeuge, die etwas verändern oder senden, sind aus, bis du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach. Was ein Konnektor liefert, gilt als fremder Inhalt (wie Webseiten): danach fragt die KI vor Änderungen auch in Home Assistant oder bei GitHub nach. Zugangsdaten liegen verschlüsselt im Add-on; Adressen im Heimnetz darf nur die Stufe `global` erlauben. Geplante Aufgaben nutzen nur lesende Werkzeuge.
 
 Mehr: [Konnektoren](../copilot/DOCS.md#konnektoren-ab-0410).
+
+## Plugins
+
+Ein **Plugin** ist ein Paket aus Skills und Konnektoren zu einem Thema, zum Beispiel „Entwicklung“ oder „Büro & Dokumente“. Du findest sie auf der Seite **Anpassungen** im Reiter „Plugins“, aufgebaut wie die anderen Reiter: **Meine**, **Entdecken** (10 Pakete) und **Von GitHub-Link**. Ein Klick auf **Hinzufügen** legt die Skills an und die Konnektoren als „nicht verbunden“ (verbunden wird bei den Konnektoren); wo eine eigene App nötig ist (Google), steht ein Hinweis. Wer ein Claude-Plugin auf GitHub gefunden hat, gibt den Link an: Du siehst in einer Vorschau, was übernommen wird, und kreuzt an, was du willst. Übernommen werden nur Skills und Server-Adressen, nie Befehle, Unteragenten oder Skripte; importierte Skills gelten als fremder Inhalt. Beim **Entfernen** verschwindet nur, was das Plugin selbst angelegt hat.
+
+Mehr: [Plugins](../copilot/DOCS.md#plugins-ab-0430).
 
 ## GitHub
 

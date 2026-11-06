@@ -1,0 +1,256 @@
+{
+ "checked": "2026-11-06",
+ "plugins": [
+  {
+   "id": "inbox",
+   "label": {
+    "de": "Posteingang & Termine",
+    "en": "Inbox & calendar"
+   },
+   "icon": "chat",
+   "summary": {
+    "de": "Mails lesen und Antworten vorbereiten, Termine im Blick behalten, Besprechungen festhalten.",
+    "en": "Read mail and prepare replies, keep appointments in view, capture meetings."
+   },
+   "skills": [
+    "e-mail-professionell",
+    "zusammenfassung-kernaussagen",
+    "protokoll-besprechung"
+   ],
+   "connectors": [
+    "gmail",
+    "gcalendar"
+   ],
+   "note": {
+    "de": "Google verlangt eine eigene App (Client-ID). Nach dem Hinzufügen führt dich die Anleitung durch die Einrichtung.",
+    "en": "Google requires your own app (client ID). After adding, the guide walks you through the setup."
+   }
+  },
+  {
+   "id": "office",
+   "label": {
+    "de": "Büro & Dokumente",
+    "en": "Office & documents"
+   },
+   "icon": "file",
+   "summary": {
+    "de": "Briefe, Protokolle und Präsentationen schreiben und Dokumente in Google Drive, Docs und Tabellen finden.",
+    "en": "Write letters, minutes and presentations and find documents in Google Drive, Docs and Sheets."
+   },
+   "skills": [
+    "geschaeftsbrief-din-5008",
+    "dokument-gemeinsam-schreiben",
+    "protokoll-besprechung",
+    "praesentation-storyline",
+    "zusammenfassung-kernaussagen",
+    "copy-editing"
+   ],
+   "connectors": [
+    "gdrive",
+    "gdocs",
+    "gsheets"
+   ],
+   "note": {
+    "de": "Google verlangt eine eigene App (Client-ID).",
+    "en": "Google requires your own app (client ID)."
+   }
+  },
+  {
+   "id": "dev",
+   "label": {
+    "de": "Entwicklung",
+    "en": "Development"
+   },
+   "icon": "code",
+   "summary": {
+    "de": "Code prüfen, Fehler eingrenzen, Entwürfe dokumentieren; dazu Fehlerberichte aus Sentry und Dokumentation zu Bibliotheken.",
+    "en": "Review code, narrow down bugs, document designs; plus error reports from Sentry and library documentation."
+   },
+   "skills": [
+    "code-review",
+    "debug",
+    "architecture",
+    "documentation",
+    "testing-strategy",
+    "incident-response"
+   ],
+   "connectors": [
+    "sentry",
+    "context7",
+    "deepwiki",
+    "cloudflare-docs"
+   ]
+  },
+  {
+   "id": "research",
+   "label": {
+    "de": "Recherche",
+    "en": "Research"
+   },
+   "icon": "search",
+   "summary": {
+    "de": "Quellen suchen, Ergebnisse zusammenführen und auf das Wesentliche bringen.",
+    "en": "Find sources, combine findings and boil them down to the essentials."
+   },
+   "skills": [
+    "research-synthesis",
+    "user-research",
+    "zusammenfassung-kernaussagen"
+   ],
+   "connectors": [
+    "exa",
+    "microsoft-learn",
+    "deepwiki",
+    "huggingface"
+   ]
+  },
+  {
+   "id": "it-ops",
+   "label": {
+    "de": "IT-Betrieb",
+    "en": "IT operations"
+   },
+   "icon": "setup",
+   "summary": {
+    "de": "Betriebsanleitungen, Änderungsanträge, Störungsberichte, Kapazitätsplanung und Statusberichte für die IT.",
+    "en": "Runbooks, change requests, incident reports, capacity planning and status reports for IT."
+   },
+   "skills": [
+    "runbook",
+    "incident-response",
+    "change-request",
+    "capacity-plan",
+    "risk-assessment",
+    "compliance-tracking",
+    "status-report",
+    "deploy-checklist"
+   ],
+   "connectors": [
+    "microsoft-learn",
+    "cloudflare-docs"
+   ]
+  },
+  {
+   "id": "project",
+   "label": {
+    "de": "Projekt & Team",
+    "en": "Project & team"
+   },
+   "icon": "users",
+   "summary": {
+    "de": "Aufgaben planen, Anforderungen aufschreiben und das Team auf dem Laufenden halten.",
+    "en": "Plan work, write requirements and keep the team up to date."
+   },
+   "skills": [
+    "sprint-planning",
+    "roadmap-update",
+    "write-spec",
+    "status-report",
+    "stakeholder-update",
+    "standup"
+   ],
+   "connectors": [
+    "notion",
+    "linear",
+    "atlassian"
+   ]
+  },
+  {
+   "id": "marketing",
+   "label": {
+    "de": "Marketing & Inhalte",
+    "en": "Marketing & content"
+   },
+   "icon": "megaphone",
+   "summary": {
+    "de": "Texte, Kampagnen, Social-Media-Beiträge und Suchmaschinen-Optimierung planen und prüfen.",
+    "en": "Plan and review copy, campaigns, social posts and search engine optimisation."
+   },
+   "skills": [
+    "copywriting",
+    "content-strategy",
+    "seo-audit",
+    "social",
+    "campaign-plan",
+    "brand-review",
+    "copy-editing"
+   ],
+   "connectors": [
+    "canva"
+   ]
+  },
+  {
+   "id": "data",
+   "label": {
+    "de": "Daten & Auswertung",
+    "en": "Data & analysis"
+   },
+   "icon": "chart",
+   "summary": {
+    "de": "Daten erkunden, Abfragen schreiben, Zahlen prüfen und verständlich darstellen.",
+    "en": "Explore data, write queries, check numbers and present them clearly."
+   },
+   "skills": [
+    "analyze",
+    "explore-data",
+    "sql-queries",
+    "data-visualization",
+    "statistical-analysis",
+    "validate-data",
+    "metrics-review"
+   ],
+   "connectors": [
+    "airtable",
+    "gsheets"
+   ],
+   "note": {
+    "de": "Google Tabellen verlangt eine eigene App (Client-ID).",
+    "en": "Google Sheets requires your own app (client ID)."
+   }
+  },
+  {
+   "id": "support",
+   "label": {
+    "de": "Kundenservice",
+    "en": "Customer support"
+   },
+   "icon": "headset",
+   "summary": {
+    "de": "Anfragen einordnen, Antworten entwerfen, Wissensartikel schreiben und heikle Fälle weitergeben.",
+    "en": "Triage requests, draft replies, write knowledge articles and escalate difficult cases."
+   },
+   "skills": [
+    "draft-response",
+    "ticket-triage",
+    "kb-article",
+    "customer-escalation"
+   ],
+   "connectors": [
+    "hubspot"
+   ]
+  },
+  {
+   "id": "design",
+   "label": {
+    "de": "Design & Gestaltung",
+    "en": "Design"
+   },
+   "icon": "pen",
+   "summary": {
+    "de": "Oberflächen gestalten und prüfen, Texte für Bedienelemente schreiben und Übergaben an die Entwicklung vorbereiten.",
+    "en": "Design and review interfaces, write interface copy and prepare handoffs to development."
+   },
+   "skills": [
+    "frontend-design",
+    "design-critique",
+    "ux-copy",
+    "accessibility-review",
+    "design-system",
+    "design-handoff"
+   ],
+   "connectors": [
+    "canva"
+   ]
+  }
+ ]
+}

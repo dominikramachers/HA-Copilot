@@ -209,6 +209,25 @@ CREATE TABLE IF NOT EXISTS connector_icons (
 );
 """
 
+PLUGINS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS plugins (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id   TEXT NOT NULL,
+    key          TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    source       TEXT NOT NULL DEFAULT '',
+    skills       TEXT NOT NULL DEFAULT '[]',
+    connectors   TEXT NOT NULL DEFAULT '[]',
+    added_skills TEXT NOT NULL DEFAULT '[]',
+    added_connectors TEXT NOT NULL DEFAULT '[]',
+    notes        TEXT NOT NULL DEFAULT '[]',
+    created_at   TEXT NOT NULL,
+    UNIQUE (profile_id, key)
+);
+"""
+
 SCHEDULES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS schedules (
     id           TEXT PRIMARY KEY,
@@ -271,7 +290,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 18  # 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 19  # 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id"
 
@@ -444,6 +463,7 @@ class Store:
         self._conn.executescript(IMAGE_USAGE_SCHEMA)
         self._conn.executescript(SKILLS_SCHEMA)
         self._conn.executescript(CONNECTORS_SCHEMA)
+        self._conn.executescript(PLUGINS_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -1191,6 +1211,69 @@ class Store:
         _require(profile_id)
         with self._lock, self._conn:
             cur = self._conn.execute("DELETE FROM skills WHERE id = ? AND profile_id = ?", (skill_id, profile_id))
+        return cur.rowcount == 1
+
+    # ------------------------------------------------------------------ Plugins (Bündel aus Skills und Konnektoren)
+
+    _PLUGIN_JSON = ("skills", "connectors", "added_skills", "added_connectors", "notes")
+
+    @classmethod
+    def _plugin_view(cls, row: Any) -> dict[str, Any]:
+        out = dict(row)
+        for key in cls._PLUGIN_JSON:
+            try:
+                out[key] = json.loads(out[key] or "[]")
+            except ValueError:
+                out[key] = []
+        return out
+
+    def plugin_list(self, profile_id: str) -> list[dict[str, Any]]:
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM plugins WHERE profile_id = ? ORDER BY name COLLATE NOCASE", (profile_id,)).fetchall()
+        return [self._plugin_view(r) for r in rows]
+
+    def plugin_get(self, profile_id: str, plugin_id: int) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM plugins WHERE profile_id = ? AND id = ?", (profile_id, plugin_id)).fetchone()
+        return self._plugin_view(row) if row else None
+
+    def plugin_by_key(self, profile_id: str, key: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM plugins WHERE profile_id = ? AND key = ?", (profile_id, key)).fetchone()
+        return self._plugin_view(row) if row else None
+
+    def plugin_count(self, profile_id: str) -> int:
+        _require(profile_id)
+        with self._lock:
+            return self._conn.execute("SELECT COUNT(*) AS n FROM plugins WHERE profile_id = ?", (profile_id,)).fetchone()["n"]
+
+    def plugin_save(self, profile_id: str, key: str, **fields: Any) -> dict[str, Any]:
+        """Plugin anlegen oder (gleicher Schlüssel) aktualisieren. Listen-Felder werden als JSON gespeichert."""
+        _require(profile_id)
+        values = {k: (json.dumps(v, ensure_ascii=False, separators=(",", ":")) if k in self._PLUGIN_JSON else v) for k, v in fields.items()}
+        with self._lock, self._conn:
+            old = self._conn.execute("SELECT id FROM plugins WHERE profile_id = ? AND key = ?", (profile_id, key)).fetchone()
+            if old:
+                if values:
+                    cols = ", ".join(f"{k} = ?" for k in values)
+                    self._conn.execute(f"UPDATE plugins SET {cols} WHERE id = ?", (*values.values(), old["id"]))
+                plugin_id = old["id"]
+            else:
+                cols = ["profile_id", "key", "created_at", *values]
+                plugin_id = self._conn.execute(
+                    f"INSERT INTO plugins ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+                    (profile_id, key, _now(), *values.values()),
+                ).lastrowid
+            row = self._conn.execute("SELECT * FROM plugins WHERE id = ?", (plugin_id,)).fetchone()
+        return self._plugin_view(row)
+
+    def plugin_delete(self, profile_id: str, plugin_id: int) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM plugins WHERE id = ? AND profile_id = ?", (plugin_id, profile_id))
         return cur.rowcount == 1
 
     def skills_active(self, profile_id: str) -> list[dict[str, Any]]:

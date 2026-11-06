@@ -58,6 +58,9 @@ from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
 from . import skills as skilllib
 from . import skills_github
+from . import plugins as pluginlib
+from . import plugins_github
+from . import package_catalog
 from . import memory_import as memlib
 from .context_tools import (
     CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
@@ -284,6 +287,8 @@ PREVIEW_PATH = re.compile(r"^/api/previews$")
 KNOWLEDGE_PATH = re.compile(r"^/api/projects/[^/]+/knowledge$")
 KNOWLEDGE_BODY_BYTES = knowlib.MAX_BASE64_CHARS + 64 * 1024
 SKILLS_PATH = re.compile(r"^/api/skills(/preview)?$")
+PLUGINS_PATH = re.compile(r"^/api/plugins/import$")
+PLUGINS_BODY_BYTES = int(plugins_github.MAX_BYTES * 4 / 3) + 128 * 1024  # ZIP aus dem GitHub-Abruf als Base64
 CONNECTORS_PATH = re.compile(r"^/api/connectors(/\d+)?$")
 MEMORY_IMPORT_PATH = re.compile(r"^/api/memory/import(/preview)?$")
 CONNECTORS_BODY_BYTES = connector_icons.MAX_ICON_BYTES * 4 // 3 + 64 * 1024  # Logo als Base64 im Anfragetext
@@ -313,6 +318,7 @@ class BodyLimit:
             else PREVIEW_BODY_BYTES if PREVIEW_PATH.match(scope["path"])
             else KNOWLEDGE_BODY_BYTES if KNOWLEDGE_PATH.match(scope["path"])
             else skilllib.MAX_BASE64_CHARS + 64 * 1024 if SKILLS_PATH.match(scope["path"])
+            else PLUGINS_BODY_BYTES if PLUGINS_PATH.match(scope["path"])
             else CONNECTORS_BODY_BYTES if CONNECTORS_PATH.match(scope["path"])
             else memlib.MAX_BASE64_CHARS + 64 * 1024 if MEMORY_IMPORT_PATH.match(scope["path"])
             else 0
@@ -644,6 +650,18 @@ class SkillWriteBody(BaseModel):
 
 class SkillPatchBody(BaseModel):
     enabled: bool
+
+
+class PluginServerBody(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    auth: str = Field(default="", max_length=20)
+
+
+class PluginImportBody(BaseModel):
+    data: str = Field(max_length=int(plugins_github.MAX_BYTES * 4 / 3) + 16)  # Base64; ZIP aus der Vorschau
+    source: str = Field(min_length=1, max_length=200)
+    skills: list[str] = Field(default_factory=list, max_length=pluginlib.MAX_IMPORT_SKILLS)
+    servers: list[PluginServerBody] = Field(default_factory=list, max_length=pluginlib.MAX_IMPORT_SERVERS)
 
 
 class MemoryBody(BaseModel):
@@ -1330,6 +1348,70 @@ def register_chat_routes(
         if not store.skill_delete(profile.id, skill_id):
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return Response(status_code=204)
+
+    # ------------------------------------------------------------------ Plugins
+
+    plugin_service = pluginlib.PluginService(store, connectors)
+    plugin_limit = RateLimiter(30, 600)  # Hinzufügen und GitHub-Abruf: nicht im Sekundentakt
+
+    def plugin_call_limit(profile: Profile) -> None:
+        if not plugin_limit.allow(profile.id):
+            raise HTTPException(status_code=429, detail=tr("Zu viele Versuche. Bitte in ein paar Minuten noch einmal."))
+
+    def plugin_fail(exc: Exception) -> HTTPException:
+        return HTTPException(status_code=getattr(exc, "status", 422), detail=str(exc))
+
+    @app.get("/api/plugins")
+    def plugins_list(profile: Profile = Depends(current_profile)) -> dict:
+        return {
+            "catalog": plugin_service.catalog(profile.id),
+            "mine": plugin_service.mine(profile.id),
+            "checked": package_catalog.checked(),
+            "max": pluginlib.MAX_PLUGINS,
+            "connector_access": connectors.level(profile.id) >= 1,
+            "can_connectors": connectors.can_create(profile.id)["private"],
+            "auth_choices": list(pluginlib.AUTH_CHOICES),
+        }
+
+    @app.post("/api/plugins/catalog/{plugin_id}", dependencies=[Depends(write_guard)])
+    async def plugin_install(plugin_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        plugin_call_limit(profile)
+        try:
+            return await plugin_service.install(profile.id, plugin_id)
+        except pluginlib.PluginError as exc:
+            raise plugin_fail(exc) from None
+
+    @app.post("/api/plugins/github", dependencies=[Depends(write_guard)])
+    async def plugin_github_preview(body: SkillGithubBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Claude-Plugin von einem öffentlichen GitHub-Link holen und prüfen; übernommen wird erst nach der Vorschau (``POST /api/plugins/import``)."""
+        plugin_call_limit(profile)
+        try:
+            got = await plugins_github.fetch(body.url)
+            preview = await asyncio.to_thread(plugin_service.preview_import, profile.id, got.data, pluginlib.fallback_name(got.source), got.source)
+        except (skilllib.SkillError, pluginlib.PluginError) as exc:
+            raise plugin_fail(exc) from None
+        preview["skipped"] = [*got.skipped, *preview["skipped"]][:50]
+        preview["ignored"] = got.ignored
+        return {**preview, "data": base64.b64encode(got.data).decode("ascii")}
+
+    @app.post("/api/plugins/import", dependencies=[Depends(write_guard)])
+    async def plugin_import(body: PluginImportBody, profile: Profile = Depends(current_profile)) -> dict:
+        plugin_call_limit(profile)
+        try:
+            raw = skilllib.decode(body.data)
+            body.data = ""
+            return await plugin_service.commit_import(
+                profile.id, raw, pluginlib.fallback_name(body.source), body.source, body.skills, [s.model_dump() for s in body.servers],
+            )
+        except (skilllib.SkillError, pluginlib.PluginError) as exc:
+            raise plugin_fail(exc) from None
+
+    @app.delete("/api/plugins/{plugin_id}", dependencies=[Depends(write_guard)])
+    def plugin_remove(plugin_id: int, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return plugin_service.remove(profile.id, plugin_id)
+        except pluginlib.PluginError as exc:
+            raise plugin_fail(exc) from None
 
     # --------------------------------------------------------------- Gedächtnis
 
