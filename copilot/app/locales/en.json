@@ -389,5 +389,17 @@
  "kein Text (wird nicht übernommen)": "not text (not imported)",
  "liegt außerhalb des Skill-Ordners": "lies outside the skill folder",
  "nicht lesbar": "not readable",
- "zu lang": "too long"
+ "zu lang": "too long",
+ "Das Repository ist zu groß zum Durchsuchen. Gib den Link zu einem Skill-Ordner an.": "The repository is too large to search. Give the link to a skill folder.",
+ "Das ist kein GitHub-Link. Beispiel: https://github.com/besitzer/repo/tree/main/skills/name": "That is not a GitHub link. Example: https://github.com/owner/repo/tree/main/skills/name",
+ "Der Ordner hat zu viele Dateien. Gib den Link zu einem einzelnen Skill-Ordner an.": "The folder has too many files. Give the link to a single skill folder.",
+ "Der Ordner ist zu groß (mehr als {mb} MB).": "The folder is too large (more than {mb} MB).",
+ "Dort gibt es nichts zu holen. Das Repository muss öffentlich sein und der Link auf einen vorhandenen Zweig und Ordner zeigen.": "There is nothing to fetch there. The repository must be public and the link must point to an existing branch and folder.",
+ "GitHub antwortet mit einem Fehler ({status}).": "GitHub answered with an error ({status}).",
+ "GitHub antwortet nicht (Zeitüberschreitung).": "GitHub does not answer (timeout).",
+ "GitHub begrenzt gerade die Anfragen. Versuch es in einigen Minuten noch einmal.": "GitHub is limiting requests right now. Try again in a few minutes.",
+ "GitHub hat auf eine andere Adresse umgeleitet. Das wird nicht verfolgt.": "GitHub redirected to another address. That is not followed.",
+ "GitHub ist nicht erreichbar.": "GitHub is not reachable.",
+ "Hier liegen mehrere Skills ({names}). Gib den Link zu einem einzelnen Skill-Ordner an.": "There are several skills here ({names}). Give the link to a single skill folder.",
+ "In diesem Ordner liegt keine SKILL.md. Gib den Link zu einem Skill-Ordner an.": "There is no SKILL.md in this folder. Give the link to a skill folder."
 }

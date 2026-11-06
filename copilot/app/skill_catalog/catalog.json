@@ -1,4 +1,5 @@
 {
+ "installs_asof": "2026-11",
  "categories": [
   {
    "id": "marketing",
@@ -563,6 +564,22 @@
    "author": "HA Copilot",
    "license": "MIT",
    "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/zusammenfassung-kernaussagen",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "dokument-gemeinsam-schreiben",
+   "category": "office",
+   "label": {
+    "de": "Dokumente gemeinsam schreiben",
+    "en": "Writing documents together"
+   },
+   "summary": {
+    "de": "Führt in drei Schritten durch längere Dokumente: Wissen sammeln, Abschnitt für Abschnitt ausarbeiten, mit Leserblick prüfen.",
+    "en": "Guides you through longer documents in three steps: gather knowledge, draft section by section, check with a reader's eye."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/dokument-gemeinsam-schreiben",
    "license_file": "MIT-ha-copilot.txt"
   },
   {

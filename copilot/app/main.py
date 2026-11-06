@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import hashlib
 import html
@@ -56,6 +57,7 @@ from .config import (
 from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
 from . import skills as skilllib
+from . import skills_github
 from .context_tools import RESERVED_TEXT, ContextToolbox, _RESERVED
 from .ha_tools import HaToolbox
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
@@ -572,6 +574,10 @@ class KnowledgeBody(BaseModel):
     data: str = Field(max_length=knowlib.MAX_BASE64_CHARS)  # Base64; Datei oder ZIP, wird nur im Arbeitsspeicher verarbeitet
 
 
+class SkillGithubBody(BaseModel):
+    url: str = Field(min_length=1, max_length=500)
+
+
 class SkillUploadBody(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     data: str = Field(max_length=skilllib.MAX_BASE64_CHARS)  # Base64; SKILL.md, .skill oder ZIP
@@ -957,6 +963,7 @@ def register_chat_routes(
             "standard": skilllib.standard_list(),
             "recommended": [{**r, "installed": have.get(r["name"]) == "recommended", "taken": r["name"] in have and have[r["name"]] != "recommended"} for r in skilllib.recommended_list()],
             "categories": skilllib.recommended_categories(),
+            "installs_asof": skilllib.installs_asof(),
             "skills": [skill_view(r) for r in rows],
             "max": skilllib.PER_PERSON,
         }
@@ -995,13 +1002,7 @@ def register_chat_routes(
             raise HTTPException(status_code=409, detail=tr("Ein Skill mit diesem Namen gibt es schon."))
         return store_skill(profile, pkg, "recommended")
 
-    @app.post("/api/skills/preview", dependencies=[Depends(write_guard)])
-    async def preview_skill(body: SkillUploadBody, profile: Profile = Depends(current_profile)) -> dict:
-        try:
-            pkg = await asyncio.to_thread(skilllib.parse_upload, body.name, skilllib.decode(body.data))
-        except skilllib.SkillError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from None
-        body.data = ""
+    def skill_preview(pkg: skilllib.Package, profile: Profile) -> dict:
         _, _, text = skilllib.parse_skill_md(pkg.files["SKILL.md"])
         return {
             "name": pkg.name, "description": pkg.description, "size": pkg.size,
@@ -1010,6 +1011,26 @@ def register_chat_routes(
             "replaces": store.skill_exists(profile.id, pkg.name),
             "excerpt": text.strip()[:600],
         }
+
+    @app.post("/api/skills/preview", dependencies=[Depends(write_guard)])
+    async def preview_skill(body: SkillUploadBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            pkg = await asyncio.to_thread(skilllib.parse_upload, body.name, skilllib.decode(body.data))
+        except skilllib.SkillError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        body.data = ""
+        return skill_preview(pkg, profile)
+
+    @app.post("/api/skills/github", dependencies=[Depends(write_guard)])
+    async def preview_github_skill(body: SkillGithubBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Skill von einem öffentlichen GitHub-Link holen und prüfen; gespeichert wird erst nach der Vorschau (``POST /api/skills`` mit ``data``)."""
+        try:
+            got = await skills_github.fetch(body.url)
+            pkg = await asyncio.to_thread(skilllib.parse_upload, "skill.zip", got.data)
+        except skilllib.SkillError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        pkg.skipped = [*got.skipped, *pkg.skipped]
+        return {**skill_preview(pkg, profile), "data": base64.b64encode(got.data).decode("ascii"), "file": f"{pkg.name}.skill", "source": got.source}
 
     @app.post("/api/skills", dependencies=[Depends(write_guard)])
     async def import_skill(body: SkillUploadBody, profile: Profile = Depends(current_profile)) -> dict:

@@ -10,7 +10,7 @@ Die Lizenztexte liegen in `licenses/`; beim Hinzufügen kommt der passende Text 
 | https://github.com/anthropics/skills (Commit ca45fc4) | `frontend-design`, `internal-comms` (unverändert, mit eigener `LICENSE.txt`), `theme-factory` (ohne die PDF-Vorschau) | Apache-2.0, Copyright Anthropic, PBC |
 | https://github.com/anthropics/knowledge-work-plugins (Commit d900840) | Skills aus Marketing, Design, Technik, Daten, Produkt, Kundenservice, Personal und Betrieb | Apache-2.0, Copyright Anthropic, PBC |
 | https://github.com/coreyhaines31/marketingskills (Commit 88c79f6) | Skills zu Texten, Social Media, SEO, Preisen, PR und Community | MIT, Copyright Corey Haines |
-| dieses Repository | `geschaeftsbrief-din-5008`, `protokoll-besprechung`, `e-mail-professionell`, `praesentation-storyline`, `zusammenfassung-kernaussagen` | MIT, Copyright DORALAB |
+| dieses Repository | `geschaeftsbrief-din-5008`, `protokoll-besprechung`, `e-mail-professionell`, `praesentation-storyline`, `zusammenfassung-kernaussagen`, `dokument-gemeinsam-schreiben` | MIT, Copyright DORALAB |
 
 ## Änderungen gegenüber den Quellen (Apache-2.0 verlangt diesen Hinweis)
 
@@ -21,8 +21,8 @@ Die Lizenztexte liegen in `licenses/`; beim Hinzufügen kommt der passende Text 
 
 ## Ausgewählt und ausgelassen
 
-Aufgenommen ist, was ohne eigene Zugänge, Konten oder Programme auf dem Rechner funktioniert und nicht für ein bestimmtes Produkt wirbt. Nicht aufgenommen sind Skills, die Werbung für Dienste enthalten, an Dienste von Dritten gebunden sind (Verkauf, Werbekonten, Analysewerkzeuge), Dateien in Office-Formaten über eigene Programme erzeugen (diese stehen unter einer nicht freien Lizenz) oder keine Lizenz haben (`doc-coauthoring`).
+Aufgenommen ist, was ohne eigene Zugänge, Konten oder Programme auf dem Rechner funktioniert und nicht für ein bestimmtes Produkt wirbt. Nicht aufgenommen sind Skills, die Werbung für Dienste enthalten, an Dienste von Dritten gebunden sind (Verkauf, Werbekonten, Analysewerkzeuge), Dateien in Office-Formaten über eigene Programme erzeugen (diese stehen unter einer nicht freien Lizenz) oder keine Lizenz haben (`doc-coauthoring`; im Repository von Anthropic liegt dafür weiterhin keine Lizenzdatei, deshalb gibt es stattdessen das eigene, neu geschriebene `dokument-gemeinsam-schreiben`).
 
-Die Zahlen zu Installationen sind öffentlichen Verzeichnissen entnommen (Stand November 2026) und werden nicht aktualisiert; ohne Zahl gab es keine verlässliche Angabe.
+Die Zahlen zu Installationen sind öffentlichen Verzeichnissen entnommen (Stand November 2026) und werden nicht zur Laufzeit abgerufen, sondern bei der Pflege des Katalogs von Hand nachgezogen (`installs_asof` in `catalog.json`); in der Oberfläche erscheinen sie gerundet. Ohne Zahl gab es keine verlässliche Angabe.
 
 Neue Einträge kommen in `catalog.json`; `tests/test_skills.py` prüft, dass jeder Eintrag einen Ordner, eine Lizenz, eine Quelle und beide Sprachen hat.
