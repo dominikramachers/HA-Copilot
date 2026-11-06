@@ -29,10 +29,13 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
+from . import connector_catalog as catalog
+from . import connector_icons as icons
 from .connector_oauth import OAuthError, OAuthHelper, ServerAuth, new_pkce, pack, unpack
 from .db import Store
 from .ha_tools import ToolError, ToolResult, ToolSpec
 from .i18n import tr
+from .connector_registry import Registry, RegistryError
 from .mcp_client import McpAuthRequired, McpClient, McpError
 from .netguard import UrlRejected, acheck_url
 from .vault import Vault
@@ -200,6 +203,7 @@ class ConnectorService:
         self._version = version
         self._pending: dict[str, dict[str, Any]] = {}
         self._locks: dict[tuple[int, str], asyncio.Lock] = {}
+        self._registry = Registry(lambda url: acheck_url(url, resolver=self._resolver), transport=transport)
 
     # ------------------------------------------------------------------ Rechte
 
@@ -265,6 +269,7 @@ class ConnectorService:
             ],
             "needs_secret": row["auth"] in ("bearer", "header") and not shared,
             "pre_registered": bool(row["client_id"]),
+            "icon": self._icon_view(row),
         }
         if can_edit:  # Einzelheiten nur für die, die den Konnektor bearbeiten dürfen (Adressen im Heimnetz sind kein Allgemeingut)
             view.update(
@@ -274,6 +279,14 @@ class ConnectorService:
                 local_ok=bool(row["local_ok"]), has_shared_secret=bool(row["shared_secret"]),
             )
         return view
+
+    @staticmethod
+    def _icon_view(row: dict[str, Any]) -> dict[str, Any]:
+        """Welches Logo gezeigt wird: eigenes Bild (mit Version), mitgeliefertes Marken-Logo oder keins (dann Anfangsbuchstabe)."""
+        if row.get("icon_rev"):
+            return {"kind": "custom", "rev": row["icon_rev"]}
+        slug = catalog.icon_slug(row.get("catalog_id") or "")
+        return {"kind": "brand", "slug": slug} if slug else {"kind": "", "slug": ""}
 
     # ------------------------------------------------------------------ Anlegen, ändern, löschen
 
@@ -344,7 +357,41 @@ class ConnectorService:
             fields["shared_secret"] = ""
         return fields, url
 
+    @staticmethod
+    def _with_catalog(data: dict[str, Any]) -> dict[str, Any]:
+        """Beim Anlegen aus dem Katalog fehlende Angaben (Adresse, Anmeldeart, Berechtigungen ...) ergänzen."""
+        cid = str(data.get("catalog_id") or "")
+        if not cid:
+            return data
+        defaults = catalog.defaults(cid)
+        if not defaults:
+            return {**data, "catalog_id": ""}  # unbekannt oder nur eine Anleitung: wie ein selbst eingetragener Konnektor
+        entry = catalog.find(cid) or {}
+        merged = {**defaults, **data}
+        if entry.get("pre_registered") and not str(merged.get("client_id") or "").strip():
+            raise ConnectorError(tr("Für diesen Dienst brauchst du eine eigene App. Bitte Client-ID eintragen."))
+        return merged
+
+    async def _icon_input(self, data: dict[str, Any]) -> tuple[str, bytes] | None:
+        """Logo aus ``icon_data`` (Upload) oder ``icon_url`` (Link). Mit ``icon_best_effort`` ist ein Fehler kein Abbruch."""
+        try:
+            if data.get("icon_data"):
+                return icons.from_base64(str(data["icon_data"]))
+            if data.get("icon_url"):
+                return await icons.fetch(str(data["icon_url"]), lambda url: acheck_url(url, resolver=self._resolver), self._transport)
+        except icons.IconError as exc:
+            if data.get("icon_best_effort"):
+                return None
+            raise ConnectorError(str(exc)) from None
+        return None
+
+    def icon(self, profile_id: str, connector_id: int) -> dict[str, Any] | None:
+        """Eigenes Logo (Bildart, Bytes, Version) für alle, die den Konnektor sehen dürfen."""
+        self._row_for(profile_id, connector_id)
+        return self._store.connector_icon_get(connector_id)
+
     async def create(self, profile_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        data = self._with_catalog(data)
         fields, url = self._fields(profile_id, data, None)
         scope = fields["scope"]
         owner = fields["owner"]
@@ -354,8 +401,10 @@ class ConnectorService:
         if self._store.connector_name_taken(scope, owner, fields["name"]):
             raise ConnectorError(tr("Diesen Namen gibt es schon."), 409)
         fields["url"] = await self._check_url(url, bool(fields["local_ok"]))
+        icon = await self._icon_input(data)
         row = self._store.connector_save(fields)
-        return self._view({**row, **self._no_account()}, profile_id, self.level(profile_id))
+        rev = self._store.connector_icon_set(row["id"], *icon) if icon else None
+        return self._view({**row, **self._no_account(), "icon_rev": rev}, profile_id, self.level(profile_id))
 
     async def update(self, profile_id: str, connector_id: int, data: dict[str, Any]) -> dict[str, Any]:
         row = self._row_for(profile_id, connector_id, edit=True)
@@ -363,8 +412,13 @@ class ConnectorService:
         if self._store.connector_name_taken(row["scope"], row["owner"], fields["name"], except_id=connector_id):
             raise ConnectorError(tr("Diesen Namen gibt es schon."), 409)
         fields["url"] = await self._check_url(url, bool(fields["local_ok"]))
+        icon = await self._icon_input(data)
         changed_target = fields["url"] != row["url"] or fields["auth"] != row["auth"] or fields.get("client_id", row["client_id"]) != row["client_id"]
         self._store.connector_save(fields, connector_id)
+        if icon:
+            self._store.connector_icon_set(connector_id, *icon)
+        elif data.get("clear_icon"):
+            self._store.connector_icon_delete(connector_id)
         if changed_target:  # andere Adresse oder Anmeldeart: bestehende Verbindungen müssen neu aufgebaut werden
             for account in self._accounts_of(connector_id):
                 self._store.account_save(connector_id, account, secret="", status="new", message="", tools="[]", tool_state="{}", tools_at="")
@@ -439,6 +493,15 @@ class ConnectorService:
     def _helper(self, row: dict[str, Any]) -> OAuthHelper:
         allow = self._allow_private(row)
         return OAuthHelper(lambda url: acheck_url(url, allow_private=allow, resolver=self._resolver), transport=self._transport)
+
+    async def registry_search(self, profile_id: str, query: str, cursor: str = "") -> dict[str, Any]:
+        """Suche im offenen MCP-Register; nur für Personen, die eigene Konnektoren anlegen dürfen."""
+        if not self.can_create(profile_id)["private"]:
+            raise ConnectorError(tr("Eigene Konnektoren darf diese Person nicht anlegen."), 403)
+        try:
+            return await self._registry.search(query, cursor)
+        except RegistryError as exc:
+            raise ConnectorError(str(exc), 502) from None
 
     # ------------------------------------------------------------------ Verbinden (Token, Schlüssel, ohne Anmeldung)
 

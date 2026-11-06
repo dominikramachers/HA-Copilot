@@ -456,5 +456,21 @@
  "Zu viele Versuche. Bitte in ein paar Minuten noch einmal.": "Too many attempts. Please try again in a few minutes.",
  "{n} Werkzeuge gefunden.": "{n} tools found.",
  "{n} weitere wurden ausgelassen (Grenze {max}).": "{n} more were left out (limit {max}).",
- "Der Dienst hat die Anmeldung nicht angenommen. Öffne im HA Copilot die Konnektoren und melde dich noch einmal an.": "The service did not accept the sign-in. Open Connectors in HA Copilot and sign in again."
+ "Der Dienst hat die Anmeldung nicht angenommen. Öffne im HA Copilot die Konnektoren und melde dich noch einmal an.": "The service did not accept the sign-in. Open Connectors in HA Copilot and sign in again.",
+ "Das Logo ist leer.": "The logo is empty.",
+ "Das Logo ist zu groß (höchstens {kb} kB).": "The logo is too large (at most {kb} kB).",
+ "Das Logo konnte nicht geholt werden (Antwort {code}).": "The logo could not be fetched (response {code}).",
+ "Das Logo konnte nicht geholt werden.": "The logo could not be fetched.",
+ "Das Logo konnte nicht gelesen werden.": "The logo could not be read.",
+ "Das Logo muss ein PNG-, JPEG-, GIF- oder WebP-Bild sein.": "The logo must be a PNG, JPEG, GIF or WebP image.",
+ "Das Logo wurde nicht rechtzeitig geliefert.": "The logo was not delivered in time.",
+ "Das Register hat mit einem Fehler geantwortet ({code}).": "The registry answered with an error ({code}).",
+ "Das Register hat nicht rechtzeitig geantwortet.": "The registry did not answer in time.",
+ "Das Register hat unerwartet geantwortet.": "The registry gave an unexpected answer.",
+ "Das Register ist unter der bekannten Adresse nicht erreichbar.": "The registry is not reachable at the known address.",
+ "Die Adresse des Logos muss mit https:// beginnen.": "The logo address must start with https://.",
+ "Die Antwort des Registers ist zu groß.": "The registry's answer is too large.",
+ "Für diesen Dienst brauchst du eine eigene App. Bitte Client-ID eintragen.": "This service needs an app of your own. Please enter the client ID.",
+ "Keine Verbindung zum Register.": "No connection to the registry.",
+ "Zu viele Weiterleitungen beim Holen des Logos.": "Too many redirects while fetching the logo."
 }

@@ -68,6 +68,7 @@ from . import schedule as sched
 from .scheduler import NOTIFY_MODES, PROMPT_MAX, NAME_MAX, Scheduler, plain_excerpt
 from .web_tools import WEB_NOTE, WebToolbox
 from .github_api import GithubApi, RepoPolicy
+from . import connector_catalog, connector_icons
 from .connectors import CONNECTOR_NOTE, ConnectorError, ConnectorService, ConnectorToolbox
 from .vault import Vault
 from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_RIGHT, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
@@ -185,6 +186,10 @@ class ConnectorBody(BaseModel):
     token_endpoint: str | None = Field(default=None, max_length=500)
     local_ok: bool | None = None
     catalog_id: str | None = Field(default=None, max_length=40)
+    icon_url: str | None = Field(default=None, max_length=500)
+    icon_data: str | None = Field(default=None, max_length=connector_icons.MAX_ICON_BYTES * 4 // 3 + 1024)
+    icon_best_effort: bool | None = None
+    clear_icon: bool | None = None
 
 
 class ConnectSecretBody(BaseModel):
@@ -276,6 +281,8 @@ PREVIEW_PATH = re.compile(r"^/api/previews$")
 KNOWLEDGE_PATH = re.compile(r"^/api/projects/[^/]+/knowledge$")
 KNOWLEDGE_BODY_BYTES = knowlib.MAX_BASE64_CHARS + 64 * 1024
 SKILLS_PATH = re.compile(r"^/api/skills(/preview)?$")
+CONNECTORS_PATH = re.compile(r"^/api/connectors(/\d+)?$")
+CONNECTORS_BODY_BYTES = connector_icons.MAX_ICON_BYTES * 4 // 3 + 64 * 1024  # Logo als Base64 im Anfragetext
 PREVIEW_BODY_BYTES = 700_000
 
 
@@ -302,6 +309,7 @@ class BodyLimit:
             else PREVIEW_BODY_BYTES if PREVIEW_PATH.match(scope["path"])
             else KNOWLEDGE_BODY_BYTES if KNOWLEDGE_PATH.match(scope["path"])
             else skilllib.MAX_BASE64_CHARS + 64 * 1024 if SKILLS_PATH.match(scope["path"])
+            else CONNECTORS_BODY_BYTES if CONNECTORS_PATH.match(scope["path"])
             else 0
         )
         if big and self.signed_in(scope):  # nur dann prüfen (Datenbankzugriff), wenn die Grenze davon abhängt
@@ -793,6 +801,39 @@ def register_chat_routes(
     def connectors_list(profile: Profile = Depends(current_profile)) -> dict:
         connector_guard(profile)
         return connector_overview(profile)
+
+    @app.get("/api/connectors/catalog")
+    def connectors_catalog(profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        return {
+            "checked": connector_catalog.checked(),
+            "categories": connector_catalog.categories(),
+            "connectors": connector_catalog.entries(),
+            "guides": connector_catalog.guides(),
+        }
+
+    @app.get("/api/connectors/registry")
+    async def connectors_registry(q: str = "", cursor: str = "", profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        connector_call_limit(profile)
+        try:
+            return await connectors.registry_search(profile.id, q, cursor)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+
+    @app.get("/api/connectors/{connector_id}/icon")
+    def connectors_icon(connector_id: int, profile: Profile = Depends(current_profile)) -> Response:
+        connector_guard(profile)
+        try:
+            icon = connectors.icon(profile.id, connector_id)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+        if icon is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(
+            content=icon["data"], media_type=icon["mime"],
+            headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox", "Cache-Control": "private, max-age=86400"},
+        )
 
     @app.post("/api/connectors", status_code=201, dependencies=[Depends(write_guard)])
     async def connectors_create(body: ConnectorBody, profile: Profile = Depends(current_profile)) -> dict:
