@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.40.0",
+    "items": [
+      {
+        "de": {
+          "title": "Skills durchsuchen, mit Symbolen",
+          "text": "Ich kann jetzt auch deine eigenen und die mitgelieferten Skills durchsuchen. Jede Skill-Karte hat außerdem ein kleines Symbol, damit du sie schneller erkennst."
+        },
+        "en": {
+          "title": "Search your skills, now with icons",
+          "text": "Your own and the bundled skills can now be searched. Each skill card also has a small icon, so you can spot them faster."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.39.0",
     "items": [
       {
