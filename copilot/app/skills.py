@@ -311,7 +311,12 @@ def catalog_entry(skill_id: str) -> dict | None:
 
 def catalog_files(skill_id: str) -> dict[str, str]:
     """Alle Dateien eines mitgelieferten Skills (Pfad -> Text) mit ``SKILL.md``; die Lizenz kommt als ``LICENSE.txt`` dazu."""
-    root = CATALOG_DIR / skill_id
+    base = CATALOG_DIR.resolve()
+    root = (CATALOG_DIR / skill_id).resolve()
+    try:
+        root.relative_to(base)
+    except ValueError:
+        return {}
     files = {p.relative_to(root).as_posix(): p.read_text(encoding="utf-8") for p in sorted(root.rglob("*")) if p.is_file()}
     entry = catalog_entry(skill_id)
     if entry and entry.get("license_file") and "LICENSE.txt" not in files:
