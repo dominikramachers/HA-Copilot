@@ -1860,9 +1860,7 @@ def build_public_app(
             raise HTTPException(status_code=403, detail=tr("Kein Zugang"))
         state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         verifier, challenge = pkce_pair()
-        browser = request.cookies.get(LOGIN_COOKIE, "")
-        if not _BROWSER_TOKEN.fullmatch(browser):
-            browser = secrets.token_urlsafe(32)
+        browser = secrets.token_urlsafe(32)
         try:
             pending.add(state, nonce, verifier, browser)
             url = await entra.authorize_url(state, nonce, challenge, address)
@@ -1916,9 +1914,7 @@ def build_public_app(
             log.warning("Anmeldung gedrosselt: %s", ip)
             return back_to_login("throttled")
         state = secrets.token_urlsafe(32)
-        browser = request.cookies.get(LOGIN_COOKIE, "")
-        if not _BROWSER_TOKEN.fullmatch(browser):
-            browser = secrets.token_urlsafe(32)
+        browser = secrets.token_urlsafe(32)
         try:
             ha_pending.add(state, "", "", browser)
         except OidcError:
