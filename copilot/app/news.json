@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.38.0",
+    "items": [
+      {
+        "de": {
+          "title": "Skills per Link holen",
+          "text": "Unter „Anpassungen“ kannst du jetzt den Link zu einem Skill auf GitHub einfügen. Ich zeige dir vorher, was darin steht, und speichere es erst, wenn du „Hinzufügen“ wählst."
+        },
+        "en": {
+          "title": "Get skills from a link",
+          "text": "Under “Customisations” you can now paste the link to a skill on GitHub. I show you what is in it first and only save it once you choose “Add”."
+        }
+      },
+      {
+        "de": {
+          "title": "Neu: Dokumente gemeinsam schreiben",
+          "text": "Ich kann jetzt Schritt für Schritt mit dir ein Dokument verfassen: erst klären, für wen und wozu, dann Abschnitt für Abschnitt schreiben und am Ende mit Leseraugen prüfen."
+        },
+        "en": {
+          "title": "New: writing documents together",
+          "text": "I can now write a document with you step by step: first clarify who it is for and why, then write section by section and finally check it through a reader’s eyes."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.37.2",
     "items": [
       {

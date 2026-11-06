@@ -7,6 +7,7 @@ import re
 import zipfile
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -488,3 +489,142 @@ def test_recommended_skill_is_used_like_an_own_one(store):
     assert "examples/3p-updates.md" in run(handler(box, "skill_load")({"name": "internal-comms"}))
     assert "Progress, Plans, Problems" in run(handler(box, "skill_file")({"name": "internal-comms", "path": "examples/3p-updates.md"}))
     assert box.events[-1]["kind"] == "skill"
+
+
+# ------------------------------------------------------------ Import von einem GitHub-Link
+
+SHA = "a" * 40
+
+
+def github_transport(tree, files, *, seen=None, commit_ok=("main",)):
+    """Nachgebautes GitHub: Commit-Auflösung, Dateiliste und Rohdateien (nur dieses Repository)."""
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if seen is not None:
+            seen.append(str(request.url))
+            assert "authorization" not in request.headers  # anonym, nie mit dem Token des Add-ons
+        url = request.url
+        if url.host == "api.github.com" and url.path.startswith("/repos/o/r/commits/"):
+            ref = url.path[len("/repos/o/r/commits/"):]
+            return httpx.Response(200, text=SHA) if ref in commit_ok or ref == "HEAD" else httpx.Response(404, json={"message": "No commit found"})
+        if url.host == "api.github.com" and url.path == f"/repos/o/r/git/trees/{SHA}":
+            return httpx.Response(200, json={"tree": tree, "truncated": False})
+        if url.host == "raw.githubusercontent.com" and url.path.startswith(f"/o/r/{SHA}/"):
+            path = url.path[len(f"/o/r/{SHA}/"):]
+            return httpx.Response(200, content=files[path]) if path in files else httpx.Response(404)
+        return httpx.Response(404)
+
+    return httpx.MockTransport(handler)
+
+
+def blobs(files):
+    return [{"path": p, "type": "blob", "size": len(c)} for p, c in files.items()]
+
+
+GH_FILES = {
+    "skills/zabbix/SKILL.md": SKILL_MD.encode(),
+    "skills/zabbix/references/regeln.md": b"# Regeln\n",
+    "skills/zabbix/evals/e.json": b"{}",
+    "skills/zabbix/.hidden": b"x",
+    "skills/zabbix/pic.png": b"\x89PNG\r\n\x1a\n\x00\x00",
+    "skills/other/SKILL.md": b"---\nname: other\ndescription: x\n---\n",
+    "README.md": b"hallo",
+}
+
+
+def test_github_urls_are_parsed_strictly():
+    from app import skills_github as gh
+
+    t = gh.parse_url("https://github.com/o/r/tree/main/skills/zabbix")
+    assert (t.owner, t.repo, t.rest, t.blob) == ("o", "r", ["main", "skills", "zabbix"], False)
+    assert gh.parse_url("o/r").rest == [] and gh.parse_url("https://github.com/o/r.git").repo == "r"
+    assert gh.parse_url("https://github.com/o/r/blob/main/skills/zabbix/SKILL.md").blob
+    for bad in ("", "http://github.com/o/r", "https://evil.example/o/r", "https://github.com.evil.example/o/r", "https://u:p@github.com/o/r",
+                "https://github.com/o", "https://github.com/o/r/issues/1", "https://github.com/o/r/tree/main/../x", "https://github.com/o/r/tree",
+                "ftp://github.com/o/r", "https://github.com:444/o/r", "o/r extra", "https://github.com/o/r%2F..%2Fx"):
+        with pytest.raises(sk.SkillError):
+            gh.parse_url(bad)
+
+
+def test_github_folder_is_fetched_checked_and_stays_foreign_content(store, api, monkeypatch):
+    from app import skills_github as gh
+
+    seen: list[str] = []
+    monkeypatch.setattr(gh, "TRANSPORT", github_transport(blobs(GH_FILES), GH_FILES, seen=seen))
+    client, _ = api
+    reply = client.post("/api/skills/github", json={"url": "https://github.com/o/r/tree/main/skills/zabbix"}, headers=as_user(DORA, True))
+    assert reply.status_code == 200, reply.text
+    body = reply.json()
+    assert body["name"] == "zabbix-templates" and body["source"] == f"o/r@{'a' * 7} skills/zabbix" and body["file"] == "zabbix-templates.skill"
+    assert {f["path"] for f in body["files"]} == {"SKILL.md", "references/regeln.md"}
+    assert not any(".hidden" in u or "evals" in u for u in seen)  # versteckte Dateien und evals/ werden gar nicht erst geladen
+    assert any("pic.png" in s["name"] for s in body["skipped"])  # Binärdatei: nicht übernommen, mit Grund
+    assert store.skill_list("dora") == []  # die Vorschau speichert nichts
+    done = client.post("/api/skills", json={"name": body["file"], "data": body["data"]}, headers=as_user(DORA, True))
+    assert done.status_code == 200 and store.skill_list("dora")[0]["origin"] == "imported"  # derselbe Weg wie beim Hochladen: fremder Inhalt
+
+
+def test_github_branch_with_slash_and_repo_root_and_single_skill_search(store, api, monkeypatch):
+    from app import skills_github as gh
+
+    files = {"skills/zabbix/SKILL.md": SKILL_MD.encode()}
+    monkeypatch.setattr(gh, "TRANSPORT", github_transport(blobs(files), files, commit_ok=("feature/x",)))
+    client, _ = api
+    # Zweig mit „/“: die erste Schreibweise („feature“) gibt es nicht, die zweite („feature/x“) schon
+    ok = client.post("/api/skills/github", json={"url": "https://github.com/o/r/tree/feature/x/skills/zabbix"}, headers=as_user(DORA, True))
+    assert ok.status_code == 200 and ok.json()["name"] == "zabbix-templates"
+    # nur das Repository: genau ein Skill darunter wird gefunden
+    root = client.post("/api/skills/github", json={"url": "o/r"}, headers=as_user(DORA, True))
+    assert root.status_code == 200 and root.json()["source"].endswith("skills/zabbix")
+
+
+def test_github_errors_are_explained(store, api, monkeypatch):
+    from app import skills_github as gh
+
+    monkeypatch.setattr(gh, "TRANSPORT", github_transport(blobs(GH_FILES), GH_FILES))
+    client, _ = api
+    post = lambda url: client.post("/api/skills/github", json={"url": url}, headers=as_user(DORA, True))
+    many = post("https://github.com/o/r/tree/main/skills")
+    assert many.status_code == 422 and "mehrere Skills" in many.json()["detail"] and "zabbix" in many.json()["detail"] and "other" in many.json()["detail"]
+    assert "keine SKILL.md" in post("https://github.com/o/r/tree/main/nichts").json()["detail"]
+    assert "nichts zu holen" in post("https://github.com/o/r/tree/gibtesnicht/skills/zabbix").json()["detail"]
+    assert "kein GitHub-Link" in post("https://example.org/o/r").json()["detail"]
+    assert post("https://github.com/o/r/tree/main/skills/zabbix").status_code == 200
+
+
+def test_github_limits_and_redirects(store, api, monkeypatch):
+    import httpx
+
+    from app import skills_github as gh
+
+    huge = {f"s/f{i}.md": b"x" for i in range(gh.MAX_FILES + 1)} | {"s/SKILL.md": SKILL_MD.encode()}
+    monkeypatch.setattr(gh, "TRANSPORT", github_transport(blobs(huge), huge))
+    client, _ = api
+    assert "zu viele Dateien" in client.post("/api/skills/github", json={"url": "https://github.com/o/r/tree/main/s"}, headers=as_user(DORA, True)).json()["detail"]
+
+    # eine einzelne zu große Datei wird übersprungen (der Skill bleibt brauchbar), mehrere zusammen begrenzen den Abruf
+    big = {"s/SKILL.md": SKILL_MD.encode(), "s/a.md": b"x"}
+    tree = [{"path": "s/SKILL.md", "type": "blob", "size": 100}, {"path": "s/a.md", "type": "blob", "size": sk.ZIP_MEMBER_BYTES + 1}]
+    monkeypatch.setattr(gh, "TRANSPORT", github_transport(tree, big))
+    ok = client.post("/api/skills/github", json={"url": "https://github.com/o/r/tree/main/s"}, headers=as_user(DORA, True))
+    assert ok.status_code == 200 and any(s["name"] == "a.md" for s in ok.json()["skipped"])
+    many = {"s/SKILL.md": SKILL_MD.encode()} | {f"s/f{i}.md": b"x" for i in range(3)}
+    tree = [{"path": p, "type": "blob", "size": gh.MAX_BYTES // 2} for p in many]
+    monkeypatch.setattr(gh, "TRANSPORT", github_transport(tree, many))
+    assert "zu groß" in client.post("/api/skills/github", json={"url": "https://github.com/o/r/tree/main/s"}, headers=as_user(DORA, True)).json()["detail"]
+
+    def limited(request):
+        return httpx.Response(403, json={"message": "rate limit"})
+
+    monkeypatch.setattr(gh, "TRANSPORT", httpx.MockTransport(limited))
+    assert "begrenzt" in client.post("/api/skills/github", json={"url": "o/r"}, headers=as_user(DORA, True)).json()["detail"]
+
+    def away(request):
+        if request.url.host == "evil.example":
+            return httpx.Response(200, text=SHA)
+        return httpx.Response(302, headers={"location": "https://evil.example/x"})
+
+    monkeypatch.setattr(gh, "TRANSPORT", httpx.MockTransport(away))
+    moved = client.post("/api/skills/github", json={"url": "o/r"}, headers=as_user(DORA, True))
+    assert moved.status_code == 422 and "umgeleitet" in moved.json()["detail"]  # andere Adressen als GitHub werden nicht verfolgt

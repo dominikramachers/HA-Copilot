@@ -119,7 +119,7 @@ function closeSheet(result) {
 // Ein Fenster von unten für drei Fälle: Bestätigen, Text eingeben, aus einer Liste wählen (``items``).
 // Ergebnis: ``null`` bei Abbruch, sonst true, der Text oder der ``value`` des gewählten Eintrags.
 let sheetMultiline = false;
-function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false }) {
+function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false, maxLength = 120 }) {
   return new Promise((resolve) => {
     if (sheetDone) closeSheet(null);
     sheetDone = resolve;
@@ -135,6 +135,7 @@ function openSheet({ title, sub = "", label = "", value = null, placeholder = ""
     const input = multiline ? $("sheet-text") : $("sheet-input");
     $("sheet-input").hidden = multiline || value === null || !!panel;
     $("sheet-text").hidden = !multiline || !!panel;
+    if (!multiline) input.maxLength = maxLength;
     input.value = value ?? "";
     input.placeholder = placeholder;
     const count = $("sheet-count");
@@ -1427,10 +1428,12 @@ function renderSkillList(wrap) {
   add.addEventListener("click", async () => {
     const entries = [
       { value: "import", icon: "upload", label: tr("Skill importieren") },
+      { value: "github", icon: "code", label: tr("Von GitHub-Link") },
       { value: "write", icon: "edit", label: tr("Selbst schreiben") },
     ];
     const choice = wideScreen() ? await openPopover(add, entries) : await openSheet({ title: tr("Skill hinzufügen"), items: entries });
     if (choice === "import") picker.click();
+    else if (choice === "github") await previewSkillGithub();
     else if (choice === "write") skillsGo("write");
   });
   tools.append(seg, add);
@@ -1551,7 +1554,7 @@ function renderDiscover(wrap, data) {
 
 function skillSource(s) {
   const by = tr("von {0}", s.author);
-  return s.installs ? `${by} · ${tr("{0} Installationen", s.installs.toLocaleString(kiLocale))}` : by;
+  return by;
 }
 
 function skillCard(s) {
@@ -1612,6 +1615,29 @@ async function previewSkillFile(file) {
   }
 }
 
+// Skill von einem öffentlichen GitHub-Link holen; danach dieselbe Vorschau wie beim Hochladen
+async function previewSkillGithub() {
+  if (skillsUi.busy) return;
+  const url = await openSheet({
+    title: tr("Skill von GitHub holen"),
+    sub: tr("Link zu einem öffentlichen Skill-Ordner, zum Beispiel https://github.com/besitzer/repo/tree/main/skills/name. Gespeichert wird erst nach der Vorschau."),
+    label: tr("GitHub-Link"), value: "", placeholder: "https://github.com/…", ok: tr("Holen"), maxLength: 500,
+  });
+  if (!url) return;
+  skillsUi.busy = true;
+  skillsUi.status = tr("Hole das Skill von GitHub …");
+  renderSkills();
+  try {
+    const preview = await api("api/skills/github", { method: "POST", body: JSON.stringify({ url }) });
+    skillsUi.busy = false;
+    skillsGo("preview", { preview });
+  } catch (err) {
+    skillsUi.busy = false;
+    skillsUi.status = errorText(err, tr("Das Skill konnte nicht von GitHub geholt werden."));
+    renderSkills();
+  }
+}
+
 function renderSkillPreview(wrap) {
   const p = skillsUi.preview;
   skillBack(wrap, tr("Abbrechen"));
@@ -1622,6 +1648,7 @@ function renderSkillPreview(wrap) {
   const files = node("ul", "skills-files");
   for (const f of p.files) files.append(node("li", "", `${f.path} · ${formatSize(f.size)}`));
   card.append(files);
+  if (p.source) card.append(node("p", "skills-hint", tr("Quelle: {0}", p.source)));
   if (p.replaces) card.append(node("p", "skills-warn", tr("Ein Skill mit diesem Namen gibt es schon. Es wird ersetzt.")));
   for (const w of p.warnings) card.append(node("p", "skills-warn", w));
   if (p.skipped.length) {
