@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.41.0",
+    "items": [
+      {
+        "de": {
+          "title": "Konnektoren: Dienste verbinden",
+          "text": "Ich kann jetzt mit Diensten außerhalb von Home Assistant arbeiten, zum Beispiel mit deinem Überwachungssystem. Du verbindest sie unter Anpassungen. Änderungen mache ich nur nach deiner Bestätigung."
+        },
+        "en": {
+          "title": "Connectors: link other services",
+          "text": "I can now work with services outside Home Assistant, for example your monitoring system. You link them under Customize. I only make changes after you confirm."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.40.0",
     "items": [
       {

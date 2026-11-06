@@ -21,6 +21,9 @@ configuration:
       github_access:
         name: GitHub-Zugriff (optional)
         description: 'Was die KI für diesen Benutzer bei GitHub darf: none = nichts, read = Repositories lesen, write = lesen und ändern (Dateien einchecken, Pull Requests, Issues, Repositories anlegen). Leer: es gilt der Standard unten. Das Token gehört dir als Betreiber: jeder Benutzer mit read oder write sieht damit auch deine privaten Repositories (außer die Freigabeliste schränkt es ein).'
+      connector_access:
+        name: Konnektoren (optional)
+        description: 'Was die KI für diesen Benutzer bei Konnektoren (MCP-Server wie Microsoft 365, Google Workspace oder Zabbix) darf: none = keine, use = freigegebene (globale) Konnektoren nutzen, own = zusätzlich eigene anlegen, global = zusätzlich globale Konnektoren für alle anlegen und ändern (auch Adressen im Heimnetz). Leer: es gilt der Standard unten.'
       web_access:
         name: Websuche (optional)
         description: 'on = die KI darf für diesen Benutzer im Web suchen und Seiten lesen, off = nicht. Leer: es gilt der Standard unten.'
@@ -162,6 +165,12 @@ configuration:
   github_repos:
     name: Erlaubte Repositories (optional)
     description: 'Freigabeliste, durch Komma getrennt: „doralab/smarthome, doralab/*“. besitzer/* erlaubt alle Repositories eines Besitzers. Leer: alles, was das Token erreicht. Die KI kann auf andere Repositories dann gar nicht zugreifen.'
+  connector_access_default:
+    name: Standard-Recht für Konnektoren
+    description: 'Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte.'
+  connector_write_confirm:
+    name: Bestätigung bei Änderungen über Konnektoren
+    description: 'ask (Standard): Jede Änderung über einen Konnektor (Mail entwerfen, Termin anlegen, Ticket ändern …) muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Nach dem Lesen fremder Inhalte wird immer nachgefragt. Schreibende Werkzeuge sind ohnehin erst nach dem Einschalten bei der Verbindung verfügbar.'
   files_enabled:
     name: Dateien erzeugen
     description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'

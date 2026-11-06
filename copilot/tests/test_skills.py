@@ -244,10 +244,13 @@ def test_other_person_never_sees_skills_and_they_apply_in_projects(store):
 
 
 def test_imported_skills_count_as_tainted_in_every_confirmation_rule():
+    from app import main
+
     source = (Path(__file__).resolve().parent.parent / "app" / "main.py").read_text(encoding="utf-8")
-    rules = re.findall(r"a\[\"kind\"\] in \(([^)]*)\)", source)
-    rules = [r for r in rules if '"web"' in r]  # die Regeln „Fremdinhalt gelesen“; nicht die Zählung eigener Änderungen
-    assert len(rules) >= 4 and all('"skill-ext"' in r for r in rules)
+    assert {"skill-ext", "file-read", "web", "gh-read", "mcp-read"} <= main.TAINTING_KINDS
+    rules = re.findall(r"a\[\"kind\"\] in ([^\n]*) for a in run\.actions", source)
+    rules = [r for r in rules if "TAINTING_KINDS" in r or '"web"' in r]  # die Regeln „Fremdinhalt gelesen“; nicht die Zählung eigener Änderungen
+    assert len(rules) >= 4 and all("TAINTING_KINDS" in r or '"skill-ext"' in r for r in rules)
 
 
 def test_list_is_capped_in_the_note():

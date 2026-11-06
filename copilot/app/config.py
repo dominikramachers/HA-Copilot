@@ -66,6 +66,7 @@ class Profile:
     ha_user: str = ""  # HA-Benutzername oder Personenname; das Add-on löst ihn zur ID auf (ha_user_id hat Vorrang)
     ha_access: str = ""  # Zugriff auf Home Assistant: none | read | execute | write; leer = ha_access_default
     github_access: str = ""  # Zugriff auf GitHub: none | read | write; leer = github_access_default
+    connector_access: str = ""  # Konnektoren: none | use | own | global; leer = connector_access_default
     web_access: str = ""  # Websuche und Seiten lesen: on | off; leer = web_access_default
     notify_service: str = ""  # Benachrichtigungsdienst dieser Person, z. B. notify.mobile_app_pixel; leer = keiner
 
@@ -119,6 +120,9 @@ class Settings:
     github_access_default: str = "none"
     github_write_confirm: str = "ask"  # ask = jede Änderung bestätigen lassen, always_allow = ohne Rückfrage (Sensibles fragt immer)
     github_repos: tuple[str, ...] = ()  # Freigabeliste „besitzer/name“ oder „besitzer/*“; leer = alles, was das Token erreicht
+    # Konnektoren (MCP-Server): wer sie nutzen, selbst anlegen oder für alle verwalten darf, steht je Profil bzw. hier
+    connector_access_default: str = "use"
+    connector_write_confirm: str = "ask"  # ask = jede Änderung über einen Konnektor bestätigen lassen, always_allow = ohne Rückfrage
     # Dateien, die die KI erzeugt (Word, Excel, PDF, PowerPoint, Skripte …)
     files_enabled: bool = True
     files_edit: bool = True  # Anhänge im Chat aufbewahren; die KI kann Dateien lesen und bearbeiten
@@ -165,6 +169,10 @@ class Settings:
             return []
         return [{"id": m, "label": model_label(m)} for m in (self.model, *self.models)]
 
+    def connector_level(self, profile: Profile) -> str:
+        """Was darf diese Person bei Konnektoren? (none | use | own | global)"""
+        return profile.connector_access or self.connector_access_default
+
     def web_level(self, profile: Profile) -> str:
         """Darf diese Person die Websuche nutzen? (on | off)"""
         return profile.web_access or self.web_access_default
@@ -176,6 +184,7 @@ WEB_ACCESS_LEVELS = ("on", "off")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
 _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$")
 GITHUB_ACCESS_LEVELS = ("none", "read", "write")
+CONNECTOR_ACCESS_LEVELS = ("none", "use", "own", "global")  # none = keine, use = globale nutzen, own = zusätzlich eigene, global = zusätzlich globale verwalten
 DEFAULT_MODELS = ("claude-opus-5-5", "claude-haiku-5-5")  # Auswahl, solange ``models`` leer ist
 MODELS_OFF = ("none", "off", "aus", "-")  # ``models`` auf eines davon: keine Modellauswahl
 
@@ -254,6 +263,9 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         github_access = _optional(entry, "github_access").lower()
         if github_access and github_access not in GITHUB_ACCESS_LEVELS:
             raise ConfigError(f"github_access bei Profil {profile_id!r} muss none, read oder write sein")
+        connector_access = _optional(entry, "connector_access").lower()
+        if connector_access and connector_access not in CONNECTOR_ACCESS_LEVELS:
+            raise ConfigError(f"connector_access bei Profil {profile_id!r} muss none, use, own oder global sein")
         web_access = _optional(entry, "web_access").lower()
         if web_access and web_access not in WEB_ACCESS_LEVELS:
             raise ConfigError(f"web_access bei Profil {profile_id!r} muss on oder off sein")
@@ -262,7 +274,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
             raise ConfigError(f"notify_service bei Profil {profile_id!r} muss ein Benachrichtigungsdienst wie notify.mobile_app_pixel sein")
         profile = Profile(
             id=profile_id, label=label, ha_user_id=ha_user_id, entra_upn=entra_upn, ha_user=ha_user,
-            ha_access=ha_access, github_access=github_access, web_access=web_access, notify_service=notify_service,
+            ha_access=ha_access, github_access=github_access, connector_access=connector_access, web_access=web_access, notify_service=notify_service,
         )
         for key in seen:
             value = getattr(profile, key)
@@ -305,6 +317,12 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     github_write_confirm = str(raw.get("github_write_confirm") or "ask").strip().lower()
     if github_write_confirm not in ("ask", "always_allow"):
         raise ConfigError("github_write_confirm muss ask oder always_allow sein")
+    connector_access_default = str(raw.get("connector_access_default") or "use").strip().lower()
+    if connector_access_default not in CONNECTOR_ACCESS_LEVELS:
+        raise ConfigError("connector_access_default muss none, use, own oder global sein")
+    connector_write_confirm = str(raw.get("connector_write_confirm") or "ask").strip().lower()
+    if connector_write_confirm not in ("ask", "always_allow"):
+        raise ConfigError("connector_write_confirm muss ask oder always_allow sein")
     repos_raw = raw.get("github_repos") or ""
     if isinstance(repos_raw, str):
         repos_raw = re.split(r"[,;\s]+", repos_raw)
@@ -462,6 +480,8 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         github_access_default=github_access_default,
         github_write_confirm=github_write_confirm,
         github_repos=github_repos,
+        connector_access_default=connector_access_default,
+        connector_write_confirm=connector_write_confirm,
         files_enabled=bool(raw.get("files_enabled", True)),
         files_edit=bool(raw.get("files_edit", True)),
         files_keep_days=files_keep_days,

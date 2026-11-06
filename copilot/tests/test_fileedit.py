@@ -475,7 +475,7 @@ def test_old_database_gets_origin_column(tmp_path):
         first._conn.execute("PRAGMA user_version = 12")
     first.close()
     second = Store(path)
-    assert second._conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 15
+    assert second._conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     assert second.outfile_list("adm01", chat)[0]["origin"] == "ai"
     second.close()
     raw = sqlite3.connect(path)
@@ -577,7 +577,8 @@ def test_file_read_makes_later_ha_actions_need_confirmation():
     from app import main
 
     source = inspect.getsource(main)
-    assert source.count('"file-read"') >= 3
+    assert "file-read" in main.TAINTING_KINDS
+    assert source.count("TAINTING_KINDS") >= 4  # Konstante plus Home Assistant, Gedächtnis, Bilder und GitHub nutzen sie
 
 
 def test_legacy_and_image_formats_are_not_editable():

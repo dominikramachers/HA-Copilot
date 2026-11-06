@@ -554,6 +554,7 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .sheet-sub:empty { display: none; }
 .field { display: block; width: 100%; height: 48px; margin-top: 16px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--panel); outline: 0; font-size: 16px; }
 .field:focus { border-color: var(--accent); }
+select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; background-size: 16px; cursor: pointer; }
 .field[hidden] { display: none; }
 .field.area { height: auto; min-height: 150px; max-height: 42vh; padding: 12px 14px; border-radius: var(--r-2); resize: none; line-height: 1.5; }
 .sheet-count { margin: 6px 6px 0; text-align: right; font-size: 12px; color: var(--muted); }
@@ -934,7 +935,7 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .skills-filter .field { margin: 0; height: 40px; font-size: 14.5px; }
 .skills-filter input.field { flex: 1; min-width: 0; }
 .skills-filter select.field { flex: none; width: auto; min-width: 150px; }
-.skills-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.skills-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
 .skills-cat { height: 32px; padding: 0 12px; border-radius: 999px; background: var(--chip); color: var(--text-2); font-size: 13px; font-weight: 550; white-space: nowrap; transition: background .15s, color .15s; }
 .skills-cat:hover:not(:disabled) { color: var(--text); }
 .skills-cat[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
@@ -1002,3 +1003,21 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 @media (max-width: 800px) {
   :root[data-embed="ha"][data-view="skills"] #menu { display: grid; }
 }
+
+.plain-page { max-width: 32rem; margin: 12vh auto 0; padding: 0 20px; }
+.plain-page h1 { font-size: 1.25rem; margin: 0 0 12px; }
+.skills-tools.end { justify-content: flex-end; }
+.conn-tools { display: grid; gap: 4px; margin-top: 10px; }
+.conn-tool { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 8px 0; border-top: 1px solid var(--line-2); }
+.conn-tool-text { display: grid; gap: 2px; min-width: 0; }
+.conn-tool-text strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.conn-tool-text small { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.conn-flow { display: grid; gap: 6px; margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line-2); }
+.conn-flow .pill { justify-self: start; display: inline-flex; align-items: center; height: 38px; padding: 0 16px; text-decoration: none; }
+.conn-secret { margin-top: 12px; }
+.conn-secret .pill { justify-self: start; margin-top: 8px; }
+.conn-check { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 14px; }
+.conn-oauth { margin-top: 6px; }
+.conn-oauth[hidden] { display: none; }
+.conn-steps { margin: 0 0 4px; padding-left: 20px; font-size: 13.5px; line-height: 1.6; color: var(--text-2); }
+.conn-flow .skills-form .pill { margin-top: 8px; }

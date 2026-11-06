@@ -1342,6 +1342,7 @@ async function openSkills() {
   closeMenu();
   setTitle(tr("Anpassungen"));
   Object.assign(skillsUi, { mode: "list", section: "skills", tab: "mine", mineQuery: "", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
+  Object.assign(connUi, { id: null, form: null, flow: null, query: "" });
   await loadSkills();
   $("skills").scrollTop = 0;
 }
@@ -1364,6 +1365,8 @@ function renderSkills() {
   if (skillsUi.mode === "detail") renderSkillDetail(wrap);
   else if (skillsUi.mode === "write") renderSkillWrite(wrap);
   else if (skillsUi.mode === "preview") renderSkillPreview(wrap);
+  else if (skillsUi.mode === "connector") renderConnectorDetail(wrap);
+  else if (skillsUi.mode === "connector-form") renderConnectorForm(wrap);
   else renderSkillList(wrap);
 }
 
@@ -1437,16 +1440,23 @@ function renderSkillList(wrap) {
   const tabs = node("div", "skills-tabs");
   tabs.setAttribute("role", "tablist");
   for (const [id, label] of [["skills", tr("Skills")], ["connectors", tr("Konnektoren")], ["plugins", tr("Plugins")]]) {
+    if (id === "connectors" && state.me?.connectors === false) continue;
     const tab = node("button", "skills-tab", label);
     tab.type = "button";
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", String(skillsUi.section === id));
-    tab.addEventListener("click", () => { skillsUi.section = id; skillsUi.status = ""; renderSkills(); });
+    tab.addEventListener("click", () => {
+      skillsUi.section = id;
+      skillsUi.status = "";
+      renderSkills();
+      if (id === "connectors") loadConnectors();
+    });
     tabs.append(tab);
   }
   bar.append(tabs);
   wrap.append(bar);
 
+  if (skillsUi.section === "connectors") { renderConnectors(wrap); return; }
   if (skillsUi.section !== "skills") { renderSoon(wrap, skillsUi.section); return; }
 
   const status = node("p", "skills-status");
@@ -1488,14 +1498,12 @@ function renderSkillList(wrap) {
   wrap.append(node("p", "skills-note", tr("Skripte in Skills werden nie ausgeführt. Ein importiertes Skill gilt als fremder Inhalt: Hat die KI eines genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
 }
 
-// Konnektoren und Plugins folgen später: Platzhalter statt leerer Seite
-function renderSoon(wrap, section) {
+// Plugins folgen später: Platzhalter statt leerer Seite
+function renderSoon(wrap) {
   const box = node("div", "skills-soon");
   box.append(
     node("p", "skills-soon-title", tr("Kommt bald")),
-    node("p", "skills-hint", section === "connectors"
-      ? tr("Hier verbindest du später weitere Dienste mit der KI, damit sie dort nachschlagen und etwas erledigen kann.")
-      : tr("Hier findest du später Pakete, die Skills und Verbindungen zu einem Thema bündeln.")),
+    node("p", "skills-hint", tr("Hier findest du später Pakete, die Skills und Verbindungen zu einem Thema bündeln.")),
   );
   wrap.append(box);
 }
@@ -1597,7 +1605,6 @@ function renderDiscover(wrap, data) {
     shown.sort(skillsUi.sort === "az"
       ? (a, b) => a.label.localeCompare(b.label, kiLocale)
       : (a, b) => (b.installs || 0) - (a.installs || 0) || a.label.localeCompare(b.label, kiLocale));
-    count.textContent = trn(shown.length, "1 Skill", "{0} Skills");
     grid.replaceChildren();
     if (!shown.length) {
       const none = node("div", "skills-empty");
@@ -1899,6 +1906,465 @@ function renderSkillDetail(wrap) {
   wrap.append(card);
 }
 
+// ------------------------------------------------------------------- Konnektoren (Tab in den Anpassungen)
+
+const connUi = { data: null, query: "", id: null, form: null, flow: null, error: "", loading: false };
+
+async function loadConnectors() {
+  connUi.loading = true;
+  try { connUi.data = await api("api/connectors"); connUi.error = ""; } catch (err) { connUi.data = null; connUi.error = errorText(err, tr("Die Konnektoren sind gerade nicht erreichbar.")); }
+  connUi.loading = false;
+  if (state.view === "skills") renderSkills();
+}
+
+function connKeep(view) {
+  const items = connUi.data?.items || [];
+  const at = items.findIndex((c) => c.id === view.id);
+  if (at >= 0) items[at] = view; else items.push(view);
+  return view;
+}
+
+function connStatusLabel(c) {
+  return { ok: tr("Verbunden"), new: tr("Nicht verbunden"), reauth: tr("Neu anmelden"), error: tr("Fehler") }[c.status] || c.status;
+}
+
+function connBadges(c) {
+  const row = node("div", "skill-badges");
+  row.append(node("span", "skill-badge", c.scope === "global" ? tr("Für alle") : tr("Privat")));
+  row.append(node("span", "skill-badge" + (c.status === "ok" ? " ext" : c.status === "new" ? " off" : ""), c.status === "ok" && !c.enabled ? tr("Ausgeschaltet") : connStatusLabel(c)));
+  return row;
+}
+
+function connSwitch(on, label, handler) {
+  const toggle = node("button", "sched-switch");
+  toggle.type = "button";
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-checked", String(on));
+  toggle.setAttribute("aria-label", label);
+  toggle.append(node("span", "knob"));
+  toggle.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    toggle.disabled = true;
+    try { await handler(!on); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); toggle.disabled = false; }
+  });
+  return toggle;
+}
+
+function connCard(c) {
+  const card = node("article", "skill-card" + (c.status === "ok" && !c.enabled ? " off" : ""));
+  const top = node("div", "skill-card-top");
+  const open = node("button", "skill-open", c.name);
+  open.type = "button";
+  open.addEventListener("click", () => connOpen(c.id));
+  const who = node("div", "skill-card-id");
+  who.append(tile(null, c.name), open);
+  top.append(who);
+  if (c.status === "ok") top.append(connSwitch(c.enabled, c.enabled ? tr("{0} ausschalten", c.name) : tr("{0} einschalten", c.name), async (on) => {
+    connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ enabled: on }) }));
+    renderSkills();
+  }));
+  card.append(top, connBadges(c));
+  if (c.description) card.append(node("p", "skill-desc", c.description));
+  const on = c.tools.filter((t) => t.enabled).length;
+  card.append(node("small", "mem-meta", c.status === "ok" ? tr("{0} von {1} Werkzeugen an", on, c.tools.length) : c.message || tr("Noch nicht verbunden.")));
+  card.addEventListener("click", (event) => { if (!event.target.closest("button")) connOpen(c.id); });
+  return card;
+}
+
+function renderConnectors(wrap) {
+  const status = node("p", "skills-status");
+  status.setAttribute("role", "status");
+  status.textContent = skillsUi.status;
+  wrap.append(status);
+  const data = connUi.data;
+  if (!data) {
+    wrap.append(node("p", "mem-empty", connUi.loading ? tr("Lädt …") : connUi.error || tr("Die Konnektoren sind gerade nicht erreichbar.")));
+    return;
+  }
+  const tools = node("div", "skills-tools end");
+  if (data.can_create.private || data.can_create.global) {
+    const add = node("button", "pill primary");
+    add.type = "button";
+    add.append(icon("plus"), node("span", "", tr("Hinzufügen")));
+    add.addEventListener("click", () => connForm(null));
+    tools.append(add);
+    wrap.append(tools);
+  }
+  wrap.append(node("p", "skills-hint", tr("Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant, zum Beispiel Mail, Kalender oder dein Überwachungssystem. Was sie dort liest, gilt als fremder Inhalt; Änderungen bestätigst du im Chat.")));
+  const filter = node("div", "skills-filter");
+  const search = searchInput(tr("Konnektoren durchsuchen"), connUi.query);
+  filter.append(search);
+  const body = node("div", "skills-mine");
+  wrap.append(filter, body);
+  const update = () => {
+    const q = connUi.query;
+    const hits = data.items.filter((c) => wordsMatch(q, `${c.name} ${c.description} ${connStatusLabel(c)}`));
+    body.replaceChildren();
+    if (!data.items.length) {
+      const empty = node("div", "skills-empty");
+      empty.append(
+        node("p", "", tr("Noch kein Konnektor.")),
+        node("p", "skills-hint", data.can_create.private || data.can_create.global
+          ? tr("Lege mit „Hinzufügen“ eine Verbindung zu einem MCP-Server an, zum Beispiel zu deinem Überwachungssystem.")
+          : tr("Die Administration hat noch keinen Konnektor für alle freigegeben.")),
+      );
+      body.append(empty);
+      return;
+    }
+    if (!hits.length) {
+      const none = node("div", "skills-empty");
+      const reset = node("button", "pill ghost", tr("Suche zurücksetzen"));
+      reset.type = "button";
+      reset.addEventListener("click", () => { connUi.query = ""; search.value = ""; update(); search.focus(); });
+      none.append(node("p", "", tr("Nichts gefunden.")), node("p", "skills-hint", tr("Versuch es mit einem anderen Wort.")), reset);
+      body.append(none);
+      return;
+    }
+    for (const [scope, title] of [["global", tr("Für alle freigegeben")], ["private", tr("Meine eigenen")]]) {
+      const group = hits.filter((c) => c.scope === scope);
+      if (!group.length) continue;
+      if (hits.some((c) => c.scope !== scope)) body.append(node("h3", "skills-section", title));
+      const grid = node("div", "skills-grid");
+      for (const c of group) grid.append(connCard(c));
+      body.append(grid);
+    }
+  };
+  search.addEventListener("input", () => { connUi.query = search.value; update(); });
+  update();
+}
+
+function connOpen(id) {
+  connUi.id = id;
+  connUi.flow = null;
+  skillsGo("connector");
+}
+
+// ---- Ansicht eines Konnektors
+
+function renderConnectorDetail(wrap) {
+  const c = connUi.data?.items.find((x) => x.id === connUi.id);
+  if (!c) { skillsGo("list"); return; }
+  skillBack(wrap);
+  skillHead(wrap, c.name);
+  wrap.lastElementChild.classList.add("with-tile");
+  wrap.lastElementChild.prepend(tile(null, c.name));
+  const card = node("section", "skills-panel");
+  const meta = node("div", "skills-detail-meta");
+  meta.append(connBadges(c));
+  if (c.status === "ok") {
+    const box = node("label", "skills-onoff");
+    box.append(connSwitch(c.enabled, c.enabled ? tr("{0} ausschalten", c.name) : tr("{0} einschalten", c.name), async (on) => {
+      connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ enabled: on }) }));
+      renderSkills();
+    }), node("span", "", c.enabled ? tr("An") : tr("Aus")));
+    meta.append(box);
+  }
+  card.append(meta);
+  if (c.description) card.append(node("p", "skill-desc full", c.description));
+  if (c.can_edit && c.url) card.append(node("p", "skills-label", tr("Adresse")), node("p", "skill-desc full", c.url));
+  if (c.message && c.status !== "ok") card.append(node("p", "skills-warn", c.message));
+  else if (c.message) card.append(node("p", "skills-hint", c.message));
+
+  const actions = node("div", "skills-buttons");
+  const shot = (label, iconName, run, primary = false) => {
+    const b = node("button", "pill " + (primary ? "primary" : "ghost"));
+    b.type = "button";
+    if (iconName) b.append(icon(iconName));
+    b.append(node("span", "", label));
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      try { await run(); } catch (err) { skillsUi.status = errorText(err, tr("Das hat nicht geklappt.")); await loadConnectors(); }
+      b.disabled = false;
+    });
+    return b;
+  };
+  if (c.status !== "ok") {
+    if (c.auth === "oauth") actions.append(shot(c.status === "reauth" ? tr("Neu anmelden") : tr("Anmelden"), "globe", () => connStartOAuth(c), true));
+    else if (!c.needs_secret) actions.append(shot(tr("Verbinden"), "bolt", () => connConnect(c, ""), true));
+  }
+  if (c.status === "ok") actions.append(shot(tr("Neu einlesen"), "fold", async () => {
+    connKeep(await api(`api/connectors/${c.id}/refresh`, { method: "POST" }));
+    skillsUi.status = tr("Die Werkzeuge sind neu eingelesen.");
+    renderSkills();
+  }));
+  if (c.status !== "new") actions.append(shot(tr("Trennen"), "logout", async () => {
+    await api(`api/connectors/${c.id}/disconnect`, { method: "POST" });
+    skillsUi.status = tr("Getrennt.");
+    await loadConnectors();
+  }));
+  if (c.can_edit) {
+    actions.append(shot(tr("Bearbeiten"), "edit", async () => connForm(c)));
+    actions.append(confirmButton(tr("{0} entfernen", c.name), async () => {
+      try {
+        await api(`api/connectors/${c.id}`, { method: "DELETE" });
+        toast(tr("Konnektor „{0}“ entfernt.", c.name));
+        skillsGo("list");
+        await loadConnectors();
+      } catch (err) { toast(errorText(err, tr("Entfernen hat nicht geklappt."))); }
+    }));
+  }
+  if (actions.children.length) card.append(actions);
+  if (c.needs_secret && c.status !== "ok") card.append(connSecretForm(c));
+  if (connUi.flow && connUi.flow.id === c.id) card.append(connFlowPanel(c));
+
+  if (c.status === "ok") card.append(connToolList(c));
+  wrap.append(card);
+}
+
+function connSecretForm(c) {
+  const form = node("form", "skills-form conn-secret");
+  form.autocomplete = "off";
+  const input = node("input", "field");
+  input.type = "password";
+  input.autocomplete = "off";
+  input.maxLength = 4000;
+  input.placeholder = c.auth === "header" ? tr("Schlüssel") : tr("Token");
+  const go = node("button", "pill primary", tr("Verbinden"));
+  go.type = "submit";
+  form.append(field(c.auth === "header" ? tr("Schlüssel") : tr("Zugangs-Token"), input, tr("Wird verschlüsselt im Add-on gespeichert und nie wieder angezeigt.")), go);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    go.disabled = true;
+    try { await connConnect(c, input.value); } catch (err) { skillsUi.status = errorText(err, tr("Das hat nicht geklappt.")); await loadConnectors(); }
+  });
+  return form;
+}
+
+async function connConnect(c, secret) {
+  connKeep(await api(`api/connectors/${c.id}/connect`, { method: "POST", body: JSON.stringify({ secret }) }));
+  skillsUi.status = tr("Verbunden.");
+  renderSkills();
+}
+
+async function connStartOAuth(c) {
+  const flow = await api(`api/connectors/${c.id}/oauth/start`, { method: "POST" });
+  connUi.flow = { id: c.id, ...flow };
+  renderSkills();
+  if (!flow.manual) connWatch(c.id);
+}
+
+// Mit Domain-Zugang kehrt der Browser von selbst zurück: ab und zu nachsehen, ob die Anmeldung angekommen ist
+function connWatch(id) {
+  let tries = 0;
+  const timer = setInterval(async () => {
+    tries += 1;
+    if (state.view !== "skills" || connUi.id !== id || !connUi.flow || tries > 60) { clearInterval(timer); return; }
+    try {
+      const data = await api("api/connectors");
+      const now = data.items.find((x) => x.id === id);
+      if (now && now.status === "ok") {
+        clearInterval(timer);
+        connUi.data = data;
+        connUi.flow = null;
+        skillsUi.status = tr("Verbunden.");
+        renderSkills();
+      }
+    } catch { /* beim nächsten Mal noch einmal */ }
+  }, 3000);
+}
+
+function connFlowPanel(c) {
+  const flow = connUi.flow;
+  const box = node("div", "conn-flow");
+  const link = node("a", "pill primary", tr("Beim Dienst anmelden"));
+  link.href = flow.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  box.append(
+    node("p", "skills-label", tr("Anmeldung")),
+  );
+  if (flow.manual) {
+    const steps = node("ol", "conn-steps");
+    for (const line of [tr("Öffne den Link und melde dich an."), tr("Am Ende zeigt der Browser eine Fehlerseite (localhost). Das ist normal."), tr("Kopiere die ganze Adresse aus der Adresszeile und füge sie unten ein.")]) steps.append(node("li", "", line));
+    box.append(steps);
+  } else {
+    box.append(node("p", "skills-hint", tr("Öffne den Link, melde dich an und stimme zu. Danach geht es hier von selbst weiter.")));
+  }
+  box.append(link);
+  if (flow.manual) {
+    const form = node("form", "skills-form");
+    form.autocomplete = "off";
+    const input = node("input", "field");
+    input.placeholder = "http://localhost/connectors/callback?code=…";
+    input.maxLength = 3000;
+    const done = node("button", "pill primary", tr("Anmeldung abschließen"));
+    done.type = "submit";
+    form.append(field(tr("Adresse aus dem Browser"), input), done);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!input.value.trim()) return;
+      done.disabled = true;
+      try {
+        connKeep(await api("api/connectors/oauth/finish", { method: "POST", body: JSON.stringify({ redirect_url: input.value.trim() }) }));
+        connUi.flow = null;
+        skillsUi.status = tr("Verbunden.");
+      } catch (err) { skillsUi.status = errorText(err, tr("Das hat nicht geklappt.")); connUi.flow = null; }
+      renderSkills();
+    });
+    box.append(form);
+  } else {
+    const cancel = node("button", "pill ghost", tr("Abbrechen"));
+    cancel.type = "button";
+    cancel.addEventListener("click", () => { connUi.flow = null; renderSkills(); });
+    box.append(cancel);
+  }
+  return box;
+}
+
+function connToolList(c) {
+  const wrap = node("div", "conn-tools");
+  if (!c.tools.length) { wrap.append(node("p", "skills-hint", tr("Der Server meldet keine Werkzeuge."))); return wrap; }
+  const confirm = connUi.data.write_confirm === "ask";
+  const part = (title, hint, list) => {
+    if (!list.length) return;
+    wrap.append(node("p", "skills-label", title), node("p", "skills-hint", hint));
+    for (const t of list) {
+      const row = node("div", "conn-tool");
+      const text = node("div", "conn-tool-text");
+      text.append(node("strong", "", t.title), node("small", "mem-meta", t.description || t.name));
+      row.append(text, connSwitch(t.enabled, t.enabled ? tr("{0} ausschalten", t.title) : tr("{0} einschalten", t.title), async (on) => {
+        connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ tools: { [t.name]: on } }) }));
+        renderSkills();
+      }));
+      wrap.append(row);
+    }
+  };
+  part(tr("Lesen"), tr("Diese Werkzeuge verändern nichts. Die KI darf sie ohne Rückfrage nutzen."), c.tools.filter((t) => t.read_only));
+  part(tr("Ändern"), confirm ? tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach.") : tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest."), c.tools.filter((t) => !t.read_only));
+  return wrap;
+}
+
+// ---- Anlegen und Bearbeiten
+
+function connForm(c) {
+  connUi.form = c ? { ...c } : { scope: "private", name: "", description: "", url: "", auth: "none", mode: "per_user" };
+  skillsGo("connector-form");
+}
+
+function renderConnectorForm(wrap) {
+  const c = connUi.form;
+  const editing = !!c.id;
+  const can = connUi.data.can_create;
+  skillBack(wrap, tr("Abbrechen"));
+  skillHead(wrap, editing ? tr("Konnektor bearbeiten") : tr("Neuer Konnektor"), tr("Verbinde einen MCP-Server (Streamable HTTP). Die Adresse endet oft auf „/mcp“."));
+  const form = node("form", "skills-panel skills-form");
+  form.autocomplete = "off";
+  form.noValidate = true;
+  const text = (value, max, placeholder = "") => {
+    const i = node("input", "field");
+    i.maxLength = max;
+    i.value = value || "";
+    i.placeholder = placeholder;
+    return i;
+  };
+  const select = (options, value) => {
+    const s = node("select", "field");
+    for (const [v, label] of options) s.append(new Option(label, v));
+    s.value = value;
+    return s;
+  };
+  const name = text(c.name, 40, tr("z. B. Zabbix"));
+  const description = text(c.description, 300, tr("Wofür ist das gut? (optional)"));
+  const url = text(c.url, 500, "https://…/mcp");
+  const scope = select([["private", tr("Privat: nur ich")], ["global", tr("Für alle: jede Person kann ihn nutzen")]], c.scope);
+  scope.disabled = editing || !can.global;
+  const auth = select([["none", tr("Keine Anmeldung")], ["bearer", tr("Token (Bearer)")], ["header", tr("Schlüssel in einem Header")], ["oauth", tr("Anmeldung beim Dienst (OAuth)")]], c.auth);
+  const header = text(c.header_name, 60, "X-API-Key");
+  const mode = select([["per_user", tr("Jede Person meldet sich selbst an")], ["shared", tr("Ein gemeinsamer Zugang für alle")]], c.mode || "per_user");
+  const shared = text("", 4000);
+  shared.type = "password";
+  shared.placeholder = c.has_shared_secret ? tr("gespeichert; leer lassen, um ihn zu behalten") : tr("Token oder Schlüssel");
+  const local = node("input");
+  local.type = "checkbox";
+  local.checked = !!c.local_ok;
+  const clientId = text(c.client_id, 300);
+  const clientSecret = text("", 500);
+  clientSecret.type = "password";
+  clientSecret.placeholder = c.has_client_secret ? tr("gespeichert; leer lassen, um es zu behalten") : "";
+  const scopes = text(c.scopes, 400, tr("durch Leerzeichen getrennt, leer = Vorgabe des Dienstes"));
+  const authEndpoint = text(c.authorization_endpoint, 500, "https://…/authorize");
+  const tokenEndpoint = text(c.token_endpoint, 500, "https://…/token");
+  const params = node("textarea", "field area");
+  params.rows = 3;
+  params.maxLength = 800;
+  params.placeholder = "access_type=offline\nprompt=consent";
+  params.value = Object.entries(c.auth_params || {}).map(([k, v]) => `${k}=${v}`).join("\n");
+
+  const rows = {
+    scope: field(tr("Wer darf ihn nutzen?"), scope, editing ? tr("Lässt sich nach dem Anlegen nicht mehr ändern.") : can.global ? "" : tr("Für alle freigeben darf nur eine Person mit der Stufe „global“.")),
+    header: field(tr("Name des Headers"), header, tr("In diesem Header sendet die KI den Schlüssel, z. B. X-API-Key.")),
+    mode: field(tr("Zugang"), mode, tr("Bei „gemeinsam“ hinterlegst du den Zugang einmal; alle nutzen ihn, ohne ihn zu sehen.")),
+    shared: field(tr("Gemeinsamer Zugang"), shared, tr("Wird verschlüsselt gespeichert und nie wieder angezeigt.")),
+    local: field(tr("Heimnetz"), (() => { const l = node("label", "conn-check"); l.append(local, node("span", "", tr("Adresse im Heimnetz oder ohne https erlauben"))); return l; })(), tr("Nur für Adressen, die du kennst und kontrollierst. Das Add-on spricht dann auch Geräte in deinem Netz an.")),
+  };
+  const oauthBox = node("details", "skill-more conn-oauth");
+  oauthBox.open = !!(c.client_id || c.authorization_endpoint);
+  oauthBox.append(
+    node("summary", "", tr("Erweitert: eigene App beim Dienst (OAuth)")),
+    node("p", "skills-hint", tr("Ohne diese Angaben meldet sich das Add-on beim Dienst selbst an, wenn der das anbietet. Dienste wie Google verlangen eine eigene App: Trage deren Client-ID und das Secret ein.")),
+    field(tr("Client-ID"), clientId), field(tr("Client-Secret"), clientSecret), field(tr("Berechtigungen (Scopes)"), scopes),
+    field(tr("Anmelde-Adresse"), authEndpoint, tr("Nur nötig, wenn der Dienst sie nicht selbst mitteilt.")), field(tr("Token-Adresse"), tokenEndpoint),
+    field(tr("Zusätzliche Angaben"), params, tr("Eine pro Zeile als name=wert.")),
+  );
+
+  const sync = () => {
+    const global = scope.value === "global";
+    rows.header.hidden = auth.value !== "header";
+    rows.mode.hidden = !(global && auth.value !== "oauth");
+    rows.shared.hidden = rows.mode.hidden || mode.value !== "shared";
+    rows.local.hidden = !can.global;
+    oauthBox.hidden = auth.value !== "oauth";
+  };
+  for (const el of [scope, auth, mode]) el.addEventListener("change", sync);
+  form.append(
+    field(tr("Name"), name), field(tr("Beschreibung"), description), field(tr("Adresse des MCP-Servers"), url, tr("Aus Sicherheitsgründen nur https und öffentliche Adressen, außer du erlaubst unten das Heimnetz.")),
+    rows.scope, field(tr("Anmeldung"), auth), rows.header, rows.mode, rows.shared, oauthBox, rows.local,
+  );
+  const foot = node("div", "skills-buttons");
+  const save = node("button", "pill primary", tr("Speichern"));
+  save.type = "submit";
+  const cancel = node("button", "pill ghost", tr("Abbrechen"));
+  cancel.type = "button";
+  cancel.addEventListener("click", () => skillsGo(editing ? "connector" : "list"));
+  foot.append(save, cancel);
+  form.append(foot);
+  sync();
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!name.value.trim() || !url.value.trim()) { toast(tr("Bitte Name und Adresse eintragen.")); return; }
+    const body = { name: name.value, description: description.value, url: url.value, auth: auth.value, mode: rows.mode.hidden ? "per_user" : mode.value };
+    if (!editing) body.scope = scope.value;
+    if (auth.value === "header") body.header_name = header.value;
+    if (!rows.shared.hidden && shared.value) body.shared_secret = shared.value;
+    if (can.global) body.local_ok = local.checked;
+    if (auth.value === "oauth") {
+      body.client_id = clientId.value;
+      body.scopes = scopes.value;
+      body.authorization_endpoint = authEndpoint.value;
+      body.token_endpoint = tokenEndpoint.value;
+      if (clientSecret.value) body.client_secret = clientSecret.value;
+      const extra = {};
+      for (const line of params.value.split("\n")) {
+        const at = line.indexOf("=");
+        if (at > 0) extra[line.slice(0, at).trim()] = line.slice(at + 1).trim();
+      }
+      body.auth_params = extra;
+    }
+    save.disabled = true;
+    try {
+      const view = editing
+        ? await api(`api/connectors/${c.id}`, { method: "PATCH", body: JSON.stringify(body) })
+        : await api("api/connectors", { method: "POST", body: JSON.stringify(body) });
+      connKeep(view);
+      toast(tr("Konnektor gespeichert."));
+      connOpen(view.id);
+    } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); save.disabled = false; }
+  });
+  wrap.append(form);
+  name.focus();
+}
+
 // ------------------------------------------------------------- Nachrichten
 
 function greeting() {
@@ -2051,6 +2517,8 @@ function actionsEl(list = [], open = false) {
     const pics = items.filter((a) => a.kind === "image" && a.status === "ok").length;
     const gh = items.filter((a) => a.kind === "gh-read" || a.kind === "gh-write");
     const ghChanges = gh.filter((a) => a.kind === "gh-write" && a.status === "ok").length;
+    const mcp = items.filter((a) => a.kind === "mcp-read" || a.kind === "mcp-write");
+    const mcpChanges = mcp.filter((a) => a.kind === "mcp-write" && a.status === "ok").length;
     const other = items.filter((a) => a.kind === "memory-read").length;
     const web = items.filter((a) => a.kind === "web");
     const searches = web.filter((a) => a.label.startsWith(tr("Websuche"))).length;
@@ -2064,6 +2532,7 @@ function actionsEl(list = [], open = false) {
     }
     if (ha.length) parts.push(trn(ha.length, "1 Aktion in Home Assistant", "{0} Aktionen in Home Assistant") + (changes ? trn(changes, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (gh.length) parts.push(trn(gh.length, "1 Aktion bei GitHub", "{0} Aktionen bei GitHub") + (ghChanges ? trn(ghChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
+    if (mcp.length) parts.push(trn(mcp.length, "1 Aktion über Konnektoren", "{0} Aktionen über Konnektoren") + (mcpChanges ? trn(mcpChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (wissen) parts.push(trn(wissen, "im Wissen nachgeschlagen", "{0}× im Wissen nachgeschlagen"));
     if (skillsUsed) parts.push(trn(skillsUsed, "Skill genutzt", "{0} Skills genutzt"));
     if (memory) parts.push(trn(memory, "Gedächtnis aktualisiert", "Gedächtnis {0}× aktualisiert"));
@@ -2946,8 +3415,8 @@ const THINK_WORDS = [tr("Denkt nach"), tr("Überlegt"), tr("Tüftelt"), tr("Sort
 // Welches Zeichen zur Tätigkeit passt: Feder beim Schreiben von Dateien und Bildern, Lupe beim Suchen und Lesen, Blitz bei Aktionen, sonst Punkte.
 const BUSY_ART = {
   file: "pen", "file-edit": "pen", image: "pen",
-  web: "look", read: "look", knowledge: "look", skill: "look", "skill-ext": "look", "memory-read": "look", "gh-read": "look", "file-read": "look",
-  execute: "act", write: "act", "gh-write": "act", memory: "act",
+  web: "look", read: "look", knowledge: "look", skill: "look", "skill-ext": "look", "memory-read": "look", "gh-read": "look", "file-read": "look", "mcp-read": "look",
+  execute: "act", write: "act", "gh-write": "act", "mcp-write": "act", memory: "act",
 };
 const HA_KINDS = ["read", "execute", "write"];
 
@@ -2976,6 +3445,10 @@ function recapOf(actions) {
       if (searches) bits.push(trn(searches, "1 Suche", "{0} Suchen"));
       if (pages) bits.push(trn(pages, "1 Seite gelesen", "{0} Seiten gelesen"));
       return tr("Recherche im Web ({0})", bits.join(", "));
+    }
+    case "mcp-read": case "mcp-write": {
+      const mcp = done.filter((a) => a.kind.startsWith("mcp-")).length;
+      return trn(mcp, "1 Aktion über Konnektoren", "{0} Aktionen über Konnektoren");
     }
     case "gh-read": case "gh-write": {
       const gh = done.filter((a) => a.kind.startsWith("gh-")).length;
@@ -3112,7 +3585,7 @@ function approvalCard(chatId, ev) {
   const card = node("div", "ask-card");
   card.setAttribute("role", "group");
   card.setAttribute("aria-label", tr("Rückfrage"));
-  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), image: tr("Soll dieses Bild erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
+  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
   card.append(node("div", "ask-title", question), node("div", "ask-what", ev.label));
   if (ev.details) {
     const more = document.createElement("details");

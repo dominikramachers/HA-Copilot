@@ -165,6 +165,43 @@ CREATE TABLE IF NOT EXISTS image_usage (
 );
 """
 
+CONNECTORS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS connectors (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope          TEXT NOT NULL,
+    owner          TEXT NOT NULL DEFAULT '',
+    name           TEXT NOT NULL,
+    description    TEXT NOT NULL DEFAULT '',
+    url            TEXT NOT NULL,
+    auth           TEXT NOT NULL DEFAULT 'none',
+    mode           TEXT NOT NULL DEFAULT 'per_user',
+    client_id      TEXT NOT NULL DEFAULT '',
+    client_secret  TEXT NOT NULL DEFAULT '',
+    scopes         TEXT NOT NULL DEFAULT '',
+    extra          TEXT NOT NULL DEFAULT '',
+    shared_secret  TEXT NOT NULL DEFAULT '',
+    local_ok       INTEGER NOT NULL DEFAULT 0,
+    catalog_id     TEXT NOT NULL DEFAULT '',
+    created_by     TEXT NOT NULL DEFAULT '',
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL,
+    UNIQUE (scope, owner, name)
+);
+CREATE TABLE IF NOT EXISTS connector_accounts (
+    connector_id  INTEGER NOT NULL REFERENCES connectors(id) ON DELETE CASCADE,
+    profile_id    TEXT NOT NULL,
+    secret        TEXT NOT NULL DEFAULT '',
+    status        TEXT NOT NULL DEFAULT 'new',
+    message       TEXT NOT NULL DEFAULT '',
+    enabled       INTEGER NOT NULL DEFAULT 1,
+    tools         TEXT NOT NULL DEFAULT '[]',
+    tool_state    TEXT NOT NULL DEFAULT '{}',
+    tools_at      TEXT NOT NULL DEFAULT '',
+    connected_at  TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (connector_id, profile_id)
+);
+"""
+
 SCHEDULES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS schedules (
     id           TEXT PRIMARY KEY,
@@ -227,7 +264,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 15  # 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 16  # 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id"
 
@@ -397,6 +434,7 @@ class Store:
             self._conn.execute("ALTER TABLE outfiles ADD COLUMN origin TEXT NOT NULL DEFAULT 'ai'")  # 'ai' = erzeugt/bearbeitet, 'attached' = von der Person angehängt
         self._conn.executescript(IMAGE_USAGE_SCHEMA)
         self._conn.executescript(SKILLS_SCHEMA)
+        self._conn.executescript(CONNECTORS_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -946,6 +984,104 @@ class Store:
                 (knowledge_id, project_id, profile_id),
             )
         return cur.rowcount == 1
+
+    # ------------------------------------------------------------------ Konnektoren
+
+    _CONNECTOR_COLS = (
+        "id", "scope", "owner", "name", "description", "url", "auth", "mode", "client_id", "client_secret", "scopes", "extra",
+        "shared_secret", "local_ok", "catalog_id", "created_by", "created_at", "updated_at",
+    )
+
+    def connector_list(self, profile_id: str) -> list[dict[str, Any]]:
+        """Globale und eigene private Konnektoren mit dem Konto dieser Person (Felder ``acc_*``)."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT c.*, a.secret AS acc_secret, a.status AS acc_status, a.message AS acc_message, a.enabled AS acc_enabled, "
+                "a.tools AS acc_tools, a.tool_state AS acc_tool_state, a.tools_at AS acc_tools_at, a.connected_at AS acc_connected_at, "
+                "(a.connector_id IS NOT NULL) AS acc_exists "
+                "FROM connectors c LEFT JOIN connector_accounts a ON a.connector_id = c.id AND a.profile_id = ? "
+                "WHERE c.scope = 'global' OR c.owner = ? ORDER BY c.scope DESC, lower(c.name)",
+                (profile_id, profile_id),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def connector_get(self, connector_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM connectors WHERE id = ?", (connector_id,)).fetchone()
+        return dict(row) if row else None
+
+    def connector_name_taken(self, scope: str, owner: str, name: str, *, except_id: int = 0) -> bool:
+        with self._lock:
+            return bool(self._conn.execute(
+                "SELECT 1 FROM connectors WHERE scope = ? AND owner = ? AND lower(name) = lower(?) AND id != ?", (scope, owner, name, except_id)
+            ).fetchone())
+
+    def connector_count(self, owner: str) -> int:
+        with self._lock:
+            return self._conn.execute("SELECT COUNT(*) AS n FROM connectors WHERE owner = ?", (owner,)).fetchone()["n"]
+
+    def connector_save(self, fields: dict[str, Any], connector_id: int | None = None) -> dict[str, Any]:
+        """Anlegen (``connector_id`` leer) oder ändern. Unbekannte Felder werden abgelehnt."""
+        allowed = set(self._CONNECTOR_COLS) - {"id", "created_at", "updated_at"}
+        if set(fields) - allowed:
+            raise ValueError("Unbekannte Felder")
+        now = _now()
+        with self._lock, self._conn:
+            if connector_id is None:
+                data = {**fields, "created_at": now, "updated_at": now}
+                cur = self._conn.execute(
+                    f"INSERT INTO connectors ({', '.join(data)}) VALUES ({', '.join('?' for _ in data)})", tuple(data.values())
+                )
+                connector_id = cur.lastrowid
+            else:
+                data = {**fields, "updated_at": now}
+                self._conn.execute(
+                    f"UPDATE connectors SET {', '.join(f'{k} = ?' for k in data)} WHERE id = ?", (*data.values(), connector_id)
+                )
+            row = self._conn.execute("SELECT * FROM connectors WHERE id = ?", (connector_id,)).fetchone()
+        return dict(row)
+
+    def connector_delete(self, connector_id: int) -> bool:
+        with self._lock, self._conn:
+            return self._conn.execute("DELETE FROM connectors WHERE id = ?", (connector_id,)).rowcount == 1
+
+    def account_get(self, connector_id: int, profile_id: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM connector_accounts WHERE connector_id = ? AND profile_id = ?", (connector_id, profile_id)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def account_save(self, connector_id: int, profile_id: str, **fields: Any) -> dict[str, Any]:
+        """Konto einer Person bei einem Konnektor anlegen oder ändern (nur die übergebenen Felder)."""
+        _require(profile_id)
+        allowed = {"secret", "status", "message", "enabled", "tools", "tool_state", "tools_at", "connected_at"}
+        if set(fields) - allowed:
+            raise ValueError("Unbekannte Felder")
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO connector_accounts (connector_id, profile_id) VALUES (?, ?)", (connector_id, profile_id)
+            )
+            if fields:
+                self._conn.execute(
+                    f"UPDATE connector_accounts SET {', '.join(f'{k} = ?' for k in fields)} WHERE connector_id = ? AND profile_id = ?",
+                    (*fields.values(), connector_id, profile_id),
+                )
+            row = self._conn.execute(
+                "SELECT * FROM connector_accounts WHERE connector_id = ? AND profile_id = ?", (connector_id, profile_id)
+            ).fetchone()
+        return dict(row)
+
+    def account_delete(self, connector_id: int, profile_id: str) -> None:
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute("DELETE FROM connector_accounts WHERE connector_id = ? AND profile_id = ?", (connector_id, profile_id))
+
+    def accounts_active(self, profile_id: str) -> list[dict[str, Any]]:
+        """Eingeschaltete, verbundene Konten dieser Person samt Konnektor (für den Chat)."""
+        return [r for r in self.connector_list(profile_id) if r["acc_exists"] and r["acc_enabled"] and r["acc_status"] == "ok"]
 
     # ------------------------------------------------------------------ Skills
 
