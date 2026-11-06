@@ -98,7 +98,6 @@ LONG_ANSWER_SECONDS = 45  # ab dieser Dauer meldet sich die Antwort per Benachri
 KEEPALIVE_SECONDS = 15  # Cloudflare trennt Verbindungen, über die ~100 s nichts fließt
 SESSION_COOKIE = "__Host-ki_session"
 LOGIN_COOKIE = "__Host-ki_login"
-_BROWSER_TOKEN = re.compile(r"[A-Za-z0-9_-]{32,64}")  # Form von secrets.token_urlsafe(32); nur so ein Wert wird aus dem Cookie übernommen
 DEFAULT_TITLES = frozenset({"Neuer Chat", "New chat"})  # Standardtitel aus jeder Sprache gelten als „noch nicht benannt“
 
 

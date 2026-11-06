@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.38.2",
+    "items": [
+      {
+        "de": {
+          "title": "Anmeldung noch besser geschützt",
+          "text": "Ich habe die Anmeldung und das Laden mitgelieferter Skills noch einmal strenger abgesichert. Im Alltag siehst du keinen Unterschied."
+        },
+        "en": {
+          "title": "Sign-in better protected",
+          "text": "I have secured sign-in and the loading of bundled skills even more strictly. You will not see any difference in daily use."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.38.1",
     "items": [
       {
