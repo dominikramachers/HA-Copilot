@@ -98,7 +98,6 @@ LONG_ANSWER_SECONDS = 45  # ab dieser Dauer meldet sich die Antwort per Benachri
 KEEPALIVE_SECONDS = 15  # Cloudflare trennt Verbindungen, über die ~100 s nichts fließt
 SESSION_COOKIE = "__Host-ki_session"
 LOGIN_COOKIE = "__Host-ki_login"
-_BROWSER_TOKEN = re.compile(r"[A-Za-z0-9_-]{32,64}")  # Form von secrets.token_urlsafe(32); nur so ein Wert wird aus dem Cookie übernommen
 DEFAULT_TITLES = frozenset({"Neuer Chat", "New chat"})  # Standardtitel aus jeder Sprache gelten als „noch nicht benannt“
 
 
@@ -1860,9 +1859,7 @@ def build_public_app(
             raise HTTPException(status_code=403, detail=tr("Kein Zugang"))
         state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         verifier, challenge = pkce_pair()
-        browser = request.cookies.get(LOGIN_COOKIE, "")
-        if not _BROWSER_TOKEN.fullmatch(browser):
-            browser = secrets.token_urlsafe(32)
+        browser = secrets.token_urlsafe(32)
         try:
             pending.add(state, nonce, verifier, browser)
             url = await entra.authorize_url(state, nonce, challenge, address)
@@ -1916,9 +1913,7 @@ def build_public_app(
             log.warning("Anmeldung gedrosselt: %s", ip)
             return back_to_login("throttled")
         state = secrets.token_urlsafe(32)
-        browser = request.cookies.get(LOGIN_COOKIE, "")
-        if not _BROWSER_TOKEN.fullmatch(browser):
-            browser = secrets.token_urlsafe(32)
+        browser = secrets.token_urlsafe(32)
         try:
             ha_pending.add(state, "", "", browser)
         except OidcError:

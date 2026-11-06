@@ -321,13 +321,12 @@ def test_entra_login_still_works_next_to_home_assistant(store, backend, hass):
     assert unknown.status_code == 403  # Entra-Zuordnung wie bisher
 
 
-def test_login_cookie_only_reuses_well_formed_values(store, backend, hass):
+def test_login_cookie_is_always_a_fresh_server_made_value(store, backend, hass):
     client = make_domain(store, backend, hass, ha_url=HA)
-    good = "g" * 43
-    client.cookies.set("__Host-ki_login", good, domain="testserver", path="/")
-    first = client.get("/auth/ha-start", headers={"cookie": f"__Host-ki_login={good}"})
-    assert f"__Host-ki_login={good}" in first.headers["set-cookie"]  # gültige Form: bleibt, die Anmeldung im selben Browser läuft weiter
-    for odd in ("x" * 31, "a.b" * 20, "x" * 200, "%41" * 20):
-        reply = client.get("/auth/ha-start", headers={"cookie": f"__Host-ki_login={odd}"})
+    seen = set()
+    for sent in ("", "g" * 43, "x" * 31, "a.b" * 20, "%41" * 20):  # was der Browser schickt, wird nie übernommen
+        reply = client.get("/auth/ha-start", headers={"cookie": f"__Host-ki_login={sent}"} if sent else {})
         cookie = reply.headers["set-cookie"].split(";")[0].split("=", 1)[1]
-        assert cookie != odd and re.fullmatch(r"[A-Za-z0-9_-]{43}", cookie)  # sonst wird ein frischer Wert erzeugt
+        assert cookie != sent and re.fullmatch(r"[A-Za-z0-9_-]{43}", cookie)
+        seen.add(cookie)
+    assert len(seen) == 5

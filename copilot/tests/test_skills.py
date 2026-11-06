@@ -628,3 +628,8 @@ def test_github_limits_and_redirects(store, api, monkeypatch):
     monkeypatch.setattr(gh, "TRANSPORT", httpx.MockTransport(away))
     moved = client.post("/api/skills/github", json={"url": "o/r"}, headers=as_user(DORA, True))
     assert moved.status_code == 422 and "umgeleitet" in moved.json()["detail"]  # andere Adressen als GitHub werden nicht verfolgt
+
+
+def test_catalog_files_stay_inside_the_catalog_folder():
+    assert sk.catalog_files("") == {} and sk.catalog_files(".") == {} and sk.catalog_files("frontend-design/..") == {} and sk.catalog_files("../") == {} and sk.catalog_files("../../etc") == {} and sk.catalog_files("/etc") == {}
+    assert "SKILL.md" in sk.catalog_files("frontend-design")

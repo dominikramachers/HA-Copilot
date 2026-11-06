@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.38.2
+- **Nachbesserung zu den CodeQL-Meldungen aus 0.38.1** (Vorschläge von Copilot Autofix, geprüft und angepasst):
+  - *Cookie aus Nutzereingabe* (`/auth/start`, `/auth/ha-start`): Der Browser-Wert des Anmelde-Cookies `__Host-ki_login` wird gar nicht mehr übernommen, bei jedem Start entsteht ein frischer, vom Server erzeugter Wert (`secrets.token_urlsafe(32)`); die Prüfung auf die Form aus 0.38.1 entfällt. Folge: Wer die Anmeldung in zwei Tabs gleichzeitig beginnt, kann nur die zuletzt gestartete abschließen.
+  - *Unkontrollierte Daten im Pfad* (`skills.catalog_files`): Der Ordner eines mitgelieferten Skills muss direkt im Katalogordner liegen (nach `resolve()`); sonst eine leere Antwort. Die Aufrufer prüften die Kennung schon über `catalog_entry`.
+- Neue Tests (`test_ha_access.py`, `test_skills.py`). Keine neuen Optionen, kein Schemawechsel; für Nutzer nichts Sichtbares.
+
 ## 0.38.1
 - **Drei Meldungen der Codeanalyse (CodeQL) behoben.** Es sind Härtungen ohne bekannten Angriffsweg, in jedem Fall war der Wert vorher schon durch eine Prüfung eingeschränkt, die das Werkzeug nicht als solche erkennt:
   - *Reflektierte Skripteinschleusung* (`denied_page`, `main.py`): Die Kennung aus der Kopfzeile `X-Remote-User-Id` wird jetzt mit `html.escape` ausgegeben (bisher nur nach der Prüfung auf 32 Hexzeichen) und mit `fullmatch` statt `match` geprüft.
