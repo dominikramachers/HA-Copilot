@@ -31,6 +31,7 @@ from .backend import BackendError
 from .config import Profile, Settings
 from .context_tools import ContextToolbox
 from .github_api import GithubApi
+from .connectors import ConnectorToolbox
 from .github_tools import GITHUB_NOTE, GithubToolbox, RepoPolicy, level_text as github_level_text
 from .ha_client import HaApi, HaApiError
 from .ha_tools import HaToolbox
@@ -90,6 +91,7 @@ class Scheduler:
         *,
         clock: Callable[[], float] = time.time,
         backup_dir: Any = None,
+        connectors: Any = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -102,6 +104,7 @@ class Scheduler:
         self.new_run = new_run
         self.clock = clock
         self.policy = RepoPolicy(settings.github_repos)
+        self.connectors = connectors
         self._tasks: set[asyncio.Task] = set()
         self.live: dict[str, tuple[str, str]] = {}  # Aufgabe → Schlüssel des laufenden Laufs
 
@@ -269,6 +272,14 @@ class Scheduler:
                 ask=_no_ask, record=run.push, chat_allowed=lambda: False, allow_chat=lambda: None,
                 next_id=run.next_tool_id,
             ).specs()
+        connector_note = ""
+        if self.connectors is not None and self.connectors.level(profile.id) >= 1:
+            box = ConnectorToolbox(  # geplante Läufe nutzen nur lesende Werkzeuge der Konnektoren
+                self.connectors, profile.id, confirm_writes=True, force_confirm=lambda: True, ask=_no_ask, record=run.push,
+                chat_allowed=lambda cid: False, allow_chat=lambda cid: None, next_id=run.next_tool_id, read_only=True,
+            )
+            specs += box.specs()
+            connector_note = box.note()
         web = settings.web_level(profile) == "on" and row.get("web", True)
         if web:
             specs += WebToolbox(run.push, run.next_tool_id).specs()
@@ -279,6 +290,8 @@ class Scheduler:
             note += "\n" + DESIGN_NOTE
         if web:
             note += "\n" + WEB_NOTE
+        if connector_note:
+            note += "\n" + connector_note
         if gh != "none":
             note += "\n" + GITHUB_NOTE + " " + github_level_text("read", self.policy)
         extra["note"] = note

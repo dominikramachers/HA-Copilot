@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.41.0",
+    "items": [
+      {
+        "de": {
+          "title": "Konnektoren: Dienste verbinden",
+          "text": "Ich kann jetzt mit Diensten außerhalb von Home Assistant arbeiten, zum Beispiel mit deinem Überwachungssystem. Du verbindest sie unter Anpassungen. Änderungen mache ich nur nach deiner Bestätigung."
+        },
+        "en": {
+          "title": "Connectors: link other services",
+          "text": "I can now work with services outside Home Assistant, for example your monitoring system. You link them under Customize. I only make changes after you confirm."
+        }
+      },
+      {
+        "de": {
+          "title": "Suche mit Vorschlägen",
+          "text": "Ich zeige dir in der Suche gleich deine letzten Chats und laufende Antworten. Du kannst nur in Chats, Projekten oder geplanten Aufgaben suchen und alles mit der Tastatur bedienen."
+        },
+        "en": {
+          "title": "Search with suggestions",
+          "text": "Search now shows your recent chats and running answers right away. You can search only chats, projects or scheduled tasks, and control everything with the keyboard."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.40.0",
     "items": [
       {

@@ -21,6 +21,9 @@ configuration:
       github_access:
         name: GitHub access (optional)
         description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default below applies. The token belongs to you as the operator: every user with read or write can see your private repositories through it (unless the allow-list restricts it).'
+      connector_access:
+        name: Connectors (optional)
+        description: 'What the AI may do with connectors (MCP servers such as Microsoft 365, Google Workspace or Zabbix) for this user: none, use (use shared/global connectors), own (also create their own), global (also create and change global connectors for everyone, including home-network addresses). Empty: the default below applies.'
       web_access:
         name: Web search (optional)
         description: 'on = the AI may search the web and read pages for this user, off = not. Empty: the default below applies.'
@@ -162,6 +165,12 @@ configuration:
   github_repos:
     name: Allowed repositories (optional)
     description: 'Allow-list, comma separated: ''doralab/smarthome, doralab/*''. owner/* allows all repositories of an owner. Empty: everything the token can reach. The AI cannot access other repositories at all.'
+  connector_access_default:
+    name: Default connector access
+    description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'
+  connector_write_confirm:
+    name: Confirmation for changes through connectors
+    description: 'ask (default): every change through a connector (draft a mail, create an event, change a ticket …) must be confirmed in the chat (once, or ''always allow in this chat''). always_allow: without asking. After reading foreign content it always asks. Write tools are only available once switched on for the connection anyway.'
   files_enabled:
     name: Create files
     description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'

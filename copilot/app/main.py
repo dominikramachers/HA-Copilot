@@ -68,6 +68,8 @@ from . import schedule as sched
 from .scheduler import NOTIFY_MODES, PROMPT_MAX, NAME_MAX, Scheduler, plain_excerpt
 from .web_tools import WEB_NOTE, WebToolbox
 from .github_api import GithubApi, RepoPolicy
+from .connectors import CONNECTOR_NOTE, ConnectorError, ConnectorService, ConnectorToolbox
+from .vault import Vault
 from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_RIGHT, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
 from .ha_scan import OverviewScanner
 from .db import INSTRUCTIONS_MAX, Store
@@ -90,6 +92,7 @@ REQUEST_TIMEOUT = 600  # Sekunden
 TOOL_EXTRA_TIMEOUT = 1500  # zusätzlich, wenn die KI Home Assistant benutzen darf (Rückfragen dauern)
 APPROVAL_TIMEOUT = 600  # so lange wartet eine Rückfrage auf Antwort, danach gilt sie als abgelehnt
 HA_BACKUP_DIR = DB_PATH.parent / "ha-backups"
+VAULT_PATH = DB_PATH.parent / "connector.key"  # Schlüssel der Konnektoren: im Datenordner, nicht im Config-Ordner und nicht in den Schnappschüssen
 TITLE_TIMEOUT = 40  # Sekunden für den automatischen Chat-Titel
 SUMMARY_TIMEOUT = 240  # Sekunden für das Zusammenfassen eines langen Verlaufs
 SWEEP_SECONDS = 1800  # Aufräumen der Zwischendateien des Claude-Programms
@@ -147,6 +150,10 @@ SECURITY_HEADERS = {
 }
 
 
+# Aktionsarten, nach denen fremde Inhalte im Chat sein können: danach fragen schreibende Werkzeuge immer nach
+TAINTING_KINDS = frozenset({"read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext", "mcp-read", "mcp-write"})
+
+
 class TitleBody(BaseModel):
     title: str = Field(min_length=1, max_length=120)
 
@@ -158,6 +165,39 @@ class FileBody(BaseModel):
 
 class PreviewBody(BaseModel):
     html: str = Field(min_length=1, max_length=PREVIEW_MAX_CHARS)
+
+
+class ConnectorBody(BaseModel):
+    scope: str | None = Field(default=None, max_length=10)
+    name: str | None = Field(default=None, max_length=80)
+    description: str | None = Field(default=None, max_length=600)
+    url: str | None = Field(default=None, max_length=500)
+    auth: str | None = Field(default=None, max_length=10)
+    mode: str | None = Field(default=None, max_length=10)
+    scopes: str | None = Field(default=None, max_length=600)
+    client_id: str | None = Field(default=None, max_length=300)
+    client_secret: str | None = Field(default=None, max_length=600)
+    clear_client_secret: bool | None = None
+    shared_secret: str | None = Field(default=None, max_length=4100)
+    header_name: str | None = Field(default=None, max_length=80)
+    auth_params: dict[str, str] | None = None
+    authorization_endpoint: str | None = Field(default=None, max_length=500)
+    token_endpoint: str | None = Field(default=None, max_length=500)
+    local_ok: bool | None = None
+    catalog_id: str | None = Field(default=None, max_length=40)
+
+
+class ConnectSecretBody(BaseModel):
+    secret: str = Field(default="", max_length=4100)
+
+
+class OauthFinishBody(BaseModel):
+    redirect_url: str = Field(min_length=1, max_length=3000)
+
+
+class AccountBody(BaseModel):
+    enabled: bool | None = None
+    tools: dict[str, bool] | None = None
 
 
 class SeenBody(BaseModel):
@@ -622,10 +662,13 @@ def register_chat_routes(
     registry: Registry | None = None,
     public_peers: PeerLog | None = None,
     images: ImageService | None = None,
+    connectors: ConnectorService | None = None,
 ) -> None:
     """Chat-API; für Ingress und Domain identisch, nur die Zuordnung der Person unterscheidet sich."""
     chat_allow: set[tuple[str, str]] = set()  # Chats, in denen Änderungen in Home Assistant dauerhaft erlaubt wurden (nur Arbeitsspeicher)
     github_allow: set[tuple[str, str]] = set()  # dasselbe für GitHub
+    connector_allow: set[tuple[str, str, int]] = set()  # dasselbe je Konnektor: (Person, Chat, Konnektor)
+    connectors = connectors or make_connectors(settings, store, registry or Registry.from_settings(settings, store))
     limits = limitlib.shared(store)
     welcome = newslib.Welcome(store)
     model_ids = {m["id"] for m in settings.model_choices()}
@@ -675,6 +718,7 @@ def register_chat_routes(
             "ha_access": ha_level(profile),
             "github": github_level(profile),
             "web": settings.web_level(profile) == "on",
+            "connectors": connectors.level(profile.id) >= 1,
             "models": settings.model_choices(),
             "default_model": settings.model,
             "limits": limits.current(),
@@ -718,6 +762,141 @@ def register_chat_routes(
         )
         await setup_check.run_live(items, ha if ha is not None and ha.enabled else None, github if github is not None and github.enabled else None, profile)
         return {"items": items, "open": setup_check.open_count(items)}
+
+    # ------------------------------------------------------------ Konnektoren
+
+    connector_limit = RateLimiter(40, 600)  # Verbinden, Anmelden und Neu-Einlesen sprechen mit fremden Servern: nicht im Sekundentakt
+    callback_limit = RateLimiter(30, 600)
+
+    def connector_guard(profile: Profile) -> None:
+        if connectors.level(profile.id) < 1:
+            raise HTTPException(status_code=403, detail=tr("Kein Zugriff"))
+
+    def connector_call_limit(profile: Profile) -> None:
+        if not connector_limit.allow(profile.id):
+            raise HTTPException(status_code=429, detail=tr("Zu viele Versuche. Bitte in ein paar Minuten noch einmal."))
+
+    def connector_fail(exc: ConnectorError) -> HTTPException:
+        return HTTPException(status_code=exc.status, detail=str(exc))
+
+    def connector_overview(profile: Profile) -> dict:
+        redirect, manual = connectors.redirect_uri()
+        return {
+            "items": connectors.listing(profile.id),
+            "can_create": connectors.can_create(profile.id),
+            "redirect_uri": redirect,
+            "manual_redirect": manual,
+            "write_confirm": settings.connector_write_confirm,
+        }
+
+    @app.get("/api/connectors")
+    def connectors_list(profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        return connector_overview(profile)
+
+    @app.post("/api/connectors", status_code=201, dependencies=[Depends(write_guard)])
+    async def connectors_create(body: ConnectorBody, profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        try:
+            return await connectors.create(profile.id, body.model_dump(exclude_unset=True, exclude_none=True))
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+
+    @app.patch("/api/connectors/{connector_id}", dependencies=[Depends(write_guard)])
+    async def connectors_update(connector_id: int, body: ConnectorBody, profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        try:
+            return await connectors.update(profile.id, connector_id, body.model_dump(exclude_unset=True, exclude_none=True))
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+
+    @app.delete("/api/connectors/{connector_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def connectors_delete(connector_id: int, profile: Profile = Depends(current_profile)) -> Response:
+        connector_guard(profile)
+        try:
+            connectors.delete(profile.id, connector_id)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+        return Response(status_code=204)
+
+    @app.post("/api/connectors/{connector_id}/connect", dependencies=[Depends(write_guard)])
+    async def connectors_connect(connector_id: int, body: ConnectSecretBody, profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        connector_call_limit(profile)
+        try:
+            return await connectors.connect(profile.id, connector_id, body.secret)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+
+    @app.post("/api/connectors/{connector_id}/refresh", dependencies=[Depends(write_guard)])
+    async def connectors_refresh(connector_id: int, profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        connector_call_limit(profile)
+        try:
+            return await connectors.refresh_tools(profile.id, connector_id)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+
+    @app.post("/api/connectors/{connector_id}/disconnect", status_code=204, dependencies=[Depends(write_guard)])
+    def connectors_disconnect(connector_id: int, profile: Profile = Depends(current_profile)) -> Response:
+        connector_guard(profile)
+        try:
+            connectors.disconnect(profile.id, connector_id)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+        return Response(status_code=204)
+
+    @app.patch("/api/connectors/{connector_id}/account", dependencies=[Depends(write_guard)])
+    def connectors_account(connector_id: int, body: AccountBody, profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        try:
+            return connectors.set_account(profile.id, connector_id, enabled=body.enabled, tools=body.tools)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+
+    @app.post("/api/connectors/{connector_id}/oauth/start", dependencies=[Depends(write_guard)])
+    async def connectors_oauth_start(connector_id: int, profile: Profile = Depends(current_profile)) -> dict:
+        connector_guard(profile)
+        connector_call_limit(profile)
+        try:
+            return await connectors.begin_oauth(profile.id, connector_id)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+
+    @app.post("/api/connectors/oauth/finish", dependencies=[Depends(write_guard)])
+    async def connectors_oauth_finish(body: OauthFinishBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Ohne Domain-Zugang: die Person fügt die Adresse ein, zu der der Browser nach der Anmeldung weitergeleitet hat."""
+        connector_guard(profile)
+        connector_call_limit(profile)
+        code, state, error = connectors.parse_redirect(body.redirect_url)
+        if error and not code:
+            raise HTTPException(status_code=400, detail=tr("Der Dienst hat die Anmeldung abgelehnt") + f": {error[:200]}")
+        try:
+            done = await connectors.finish_oauth(state, code, profile_id=profile.id)
+        except ConnectorError as exc:
+            raise connector_fail(exc) from None
+        return next((v for v in connectors.listing(profile.id) if v["id"] == done["connector"]), {})
+
+    @app.get("/connectors/callback", response_class=HTMLResponse)
+    async def connectors_callback(request: Request) -> HTMLResponse:
+        """Rückkehr des Browsers nach der Anmeldung beim Dienst (nur mit Domain-Zugang). Keine Sitzung nötig: ``state`` bindet an Person und Konnektor."""
+        peer = request.client.host if request.client else ""
+        if not callback_limit.allow(peer or "?"):
+            return _connector_page(False, tr("Zu viele Versuche. Bitte in ein paar Minuten noch einmal."))
+        code = request.query_params.get("code", "")
+        state = request.query_params.get("state", "")
+        error = request.query_params.get("error_description") or request.query_params.get("error") or ""
+        if error and not code:
+            connectors.drop_flow(state)
+            return _connector_page(False, tr("Der Dienst hat die Anmeldung abgelehnt") + f": {error[:200]}")
+        try:
+            await connectors.finish_oauth(state, code)
+        except ConnectorError as exc:
+            # Feste Texte statt der Fehlermeldung selbst: die Seite ist ohne Anmeldung erreichbar und soll keine Einzelheiten preisgeben.
+            if exc.status == 502:
+                return _connector_page(False, tr("Der Dienst hat die Anmeldung nicht angenommen. Öffne im HA Copilot die Konnektoren und melde dich noch einmal an."))
+            return _connector_page(False, tr("Die Anmeldung ist abgelaufen oder gehört nicht zu dieser Sitzung. Bitte noch einmal anmelden."))
+        return _connector_page(True, tr("Der Konnektor ist verbunden. Du kannst dieses Fenster schließen und zum HA Copilot zurückkehren."))
 
     @app.get("/api/limits")
     def usage_limits(profile: Profile = Depends(current_profile)) -> list[dict]:
@@ -838,6 +1017,7 @@ def register_chat_routes(
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         chat_allow.discard((profile.id, chat_id))
         github_allow.discard((profile.id, chat_id))
+        connector_allow.difference_update({k for k in connector_allow if k[:2] == (profile.id, chat_id)})
         run = runs.pop((profile.id, chat_id), None)
         if run and not run.finished and run.task:
             run.task.cancel()  # niemand wartet mehr auf diese Antwort
@@ -888,7 +1068,7 @@ def register_chat_routes(
         count = store.delete_all_chats(profile.id)
         for key in [k for k in runs if k[0] == profile.id]:
             runs.pop(key, None)
-        for allowed in (chat_allow, github_allow):
+        for allowed in (chat_allow, github_allow, connector_allow):
             for key in [k for k in allowed if k[0] == profile.id]:
                 allowed.discard(key)
         return {"deleted": count}
@@ -1407,6 +1587,9 @@ def register_chat_routes(
         async def ask_image(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("image", label, details, offer_chat)
 
+        async def ask_connector(label: str, details: str, offer_chat: bool) -> str:
+            return await ask_about("connector", label, details, offer_chat)
+
         images_enabled = settings.files_enabled and settings.images_enabled
         stored_files: list[str] = []
         skipped_files: list[str] = []
@@ -1423,7 +1606,7 @@ def register_chat_routes(
                 limit_to_exposed=settings.ha_limit_to_exposed,
                 confirm_writes=settings.ha_write_confirm == "ask",
                 # Dateien können eingeschleuste Anweisungen enthalten: dann nichts ohne ausdrückliches Zulassen
-                force_confirm=lambda: bool(files) or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write") for a in run.actions.values()),
                 ask=ask,
                 record=run.push,
                 chat_allowed=lambda: key in chat_allow,
@@ -1439,7 +1622,7 @@ def register_chat_routes(
             household_write=household_writable(profile),
             force_confirm=bool(files),
             ask=ask_memory, record=run.push, next_id=run.next_tool_id,
-            tainted=lambda: any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext") for a in run.actions.values()),
+            tainted=lambda: any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             overview=overview_allowed(profile),
         )
         specs += context.specs()
@@ -1455,7 +1638,7 @@ def register_chat_routes(
                 store, profile.id, chat_id, images, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, limit_month=settings.image_limit_month, ask=ask_image,
                 # Gelesene Web- oder Dateiinhalte (und angehängte Dokumente) können Anweisungen enthalten: dann vor jedem Bild nachfragen
-                tainted=lambda: any(f.kind != "image" for f in files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext") for a in run.actions.values()),
+                tainted=lambda: any(f.kind != "image" for f in files) or any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             )
             specs += image_box.specs()
         gh_level = github_level(profile)
@@ -1471,10 +1654,21 @@ def register_chat_routes(
                 github, gh_level,
                 policy=github_policy,
                 confirm_writes=settings.github_write_confirm == "ask",
-                force_confirm=lambda: bool(files) or any(a["kind"] in ("read", "execute", "write", "knowledge", "gh-read", "web", "file-read", "skill-ext") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or any(a["kind"] in TAINTING_KINDS - {"gh-write"} for a in run.actions.values()),
                 ask=ask_github, record=run.push, chat_allowed=lambda: key in github_allow, allow_chat=lambda: github_allow.add(key),
                 next_id=run.next_tool_id, file_bytes=attachment_bytes,
             ).specs()
+        connector_box = ConnectorToolbox(
+            connectors, profile.id,
+            confirm_writes=settings.connector_write_confirm == "ask",
+            force_confirm=lambda: bool(files) or any(a["kind"] in TAINTING_KINDS - {"mcp-write"} for a in run.actions.values()),
+            ask=ask_connector, record=run.push,
+            chat_allowed=lambda cid: (profile.id, chat_id, cid) in connector_allow,
+            allow_chat=lambda cid: connector_allow.add((profile.id, chat_id, cid)),
+            next_id=run.next_tool_id,
+        )
+        connector_specs = connector_box.specs()
+        specs += connector_specs
         if web_on:
             specs += WebToolbox(run.push, run.next_tool_id).specs()
             extra.update(web=True, record=run.push, next_id=run.next_tool_id)
@@ -1498,6 +1692,8 @@ def register_chat_routes(
                 extra["note"] += " Für Fotos und Kunstbilder ist kein Bildanbieter eingerichtet (OpenAI- oder Google-Schlüssel fehlt in der Konfiguration); es geht nur SVG, und das sagst du der Person, wenn sie ein Foto möchte."
         if web_on:
             extra["note"] += "\n" + WEB_NOTE
+        if connectors.level(profile.id) >= 1:
+            extra["note"] += "\n" + connector_box.note()
         if any(s.name.startswith("github_") for s in specs):
             extra["note"] += "\n" + GITHUB_NOTE + " " + github_level_text(gh_level, github_policy)
         else:
@@ -1641,14 +1837,42 @@ def register_chat_routes(
         return Response(status_code=204)
 
 
+
+def _connector_page(ok: bool, message: str) -> HTMLResponse:
+    """Schlichte Seite nach der Anmeldung bei einem Konnektor (ohne Inline-Stile: die Domain-Seite erlaubt keine)."""
+    title = tr("Konnektor verbunden") if ok else tr("Anmeldung nicht abgeschlossen")
+    return HTMLResponse(
+        f"<!doctype html><html lang='{i18n.language()}'><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+        f"<title>{html.escape(title)}</title><link rel=stylesheet href='/static/style.css'>"
+        f"<body><main class='plain-page'><h1>{html.escape(title)}</h1><p>{html.escape(message)}</p></main>",
+        status_code=200 if ok else 400,
+    )
+
+
 _HA_ID = re.compile(r"^[0-9a-f]{32}$")
 
 
-def make_scheduler(settings: Settings, store: Store, backend: ChatBackend, registry: Registry, ha: HaApi, github: GithubApi, runs: dict) -> Scheduler:
+def make_connectors(settings: Settings, store: Store, registry: Registry, *, vault: Vault | None = None) -> ConnectorService:
+    """Konnektoren: ein gemeinsamer Dienst für beide Zugänge (Anmeldungen laufen über den Browser, dort wartet der Zwischenstand)."""
+
+    def level_for(profile_id: str) -> str:
+        profile = registry.by_id(profile_id)
+        return settings.connector_level(profile) if profile is not None else settings.connector_access_default
+
+    return ConnectorService(
+        store, vault or Vault(VAULT_PATH),
+        level_for=level_for,
+        base_url=lambda: settings.public_base_url if settings.public_enabled else "",
+        version=_asset_version(),
+    )
+
+
+def make_scheduler(settings: Settings, store: Store, backend: ChatBackend, registry: Registry, ha: HaApi, github: GithubApi, runs: dict, connectors: ConnectorService | None = None) -> Scheduler:
     """Geplante Aufgaben: ein gemeinsamer Ausführer für beide Zugänge (laufende Antworten zählen zusammen)."""
     return Scheduler(
         settings, store, backend, registry, ha, github, limitlib.shared(store), runs,
         lambda key, text: Run(key, text, False),
+        connectors=connectors,
     )
 
 
@@ -1666,6 +1890,7 @@ def build_ingress_app(
     scheduler: Scheduler | None = None,
     public_peers: PeerLog | None = None,
     images: ImageService | None = None,
+    connectors: ConnectorService | None = None,
 ) -> FastAPI:
     i18n.set_language(settings.language)
     registry = registry or Registry.from_settings(settings, store)
@@ -1674,7 +1899,8 @@ def build_ingress_app(
     github = github or GithubApi(settings.github_token)
     branding = branding or Branding(BRANDING_DIR, settings, ha)
     busy = busy if busy is not None else {}
-    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy)
+    connectors = connectors or make_connectors(settings, store, registry)
+    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy, connectors)
     asset_version = _asset_version()
     app = FastAPI(title="HA Copilot", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.scheduler = scheduler
@@ -1726,7 +1952,7 @@ def build_ingress_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "ingress", "can_logout": False},
-        health, ha, "ingress", scanner, github, scheduler, registry, public_peers, images,
+        health, ha, "ingress", scanner, github, scheduler, registry, public_peers, images, connectors,
     )
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -1753,6 +1979,7 @@ def build_public_app(
     scheduler: Scheduler | None = None,
     public_peers: PeerLog | None = None,
     images: ImageService | None = None,
+    connectors: ConnectorService | None = None,
 ) -> FastAPI:
     """Domain-Zugang (Cloudflare Tunnel): eigene Anmeldeseite, Entra-Login (und optional Home Assistant), Sitzungs-Cookie.
 
@@ -1766,7 +1993,8 @@ def build_public_app(
     github = github or GithubApi(settings.github_token)
     branding = branding or Branding(BRANDING_DIR, settings, ha)
     busy = busy if busy is not None else {}
-    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy)
+    connectors = connectors or make_connectors(settings, store, registry)
+    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy, connectors)
     origin = settings.public_base_url
     version = _asset_version()
     pending = PendingLogins()
@@ -1960,7 +2188,7 @@ def build_public_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "domain", "can_logout": True},
-        health, ha, "public", scanner, github, scheduler, registry, public_peers, images,
+        health, ha, "public", scanner, github, scheduler, registry, public_peers, images, connectors,
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
@@ -2078,9 +2306,10 @@ async def _serve(
     ha = ha or HaApi("", HA_WEBSOCKET_URL)
     scanner = OverviewScanner(store, ha) if ha.enabled else None  # ein gemeinsamer Stand für beide Zugänge
     github = GithubApi(settings.github_token)
-    scheduler = make_scheduler(settings, store, backend, registry, ha, github, busy)
+    connectors = make_connectors(settings, store, registry)
+    scheduler = make_scheduler(settings, store, backend, registry, ha, github, busy, connectors)
     public_peers = PeerLog()  # Gegenstellen der Domain-Seite (für die Einrichtungsprüfung)
-    servers = [server(build_ingress_app(settings, store, backend, busy, health, branding, ha, registry, scanner, github, scheduler, public_peers), INGRESS_PORT)]
+    servers = [server(build_ingress_app(settings, store, backend, busy, health, branding, ha, registry, scanner, github, scheduler, public_peers, connectors=connectors), INGRESS_PORT)]
     if settings.public_enabled:
         entra = (
             EntraClient(
@@ -2098,7 +2327,7 @@ async def _serve(
             else None
         )
         servers.append(
-            server(build_public_app(settings, store, backend, entra, busy, health, branding, ha, registry, ha_login, scanner, github, scheduler, public_peers), PUBLIC_PORT)
+            server(build_public_app(settings, store, backend, entra, busy, health, branding, ha, registry, ha_login, scanner, github, scheduler, public_peers, connectors=connectors), PUBLIC_PORT)
         )
         log.info("Domain-Zugang aktiv: %s (Port %d)", settings.public_base_url, PUBLIC_PORT)
     snapshots = asyncio.create_task(_snapshot_loop(store))

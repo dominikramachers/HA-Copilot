@@ -24,6 +24,7 @@ Wer die App nutzen darf. Ausführlich in [Benutzer und Rechte](benutzer.md).
 | `entra_upn` | Text | **E-Mail / UPN für die Domain-Anmeldung (optional).** Konto, mit dem sich die Person über die öffentliche Domain per Microsoft Entra anmeldet. |
 | `ha_access` | `none` \| `read` \| `execute` \| `write` | **Zugriff auf Home Assistant (optional).** Was die KI für diesen Benutzer in Home Assistant darf: none = nichts, read = lesen, execute = lesen und ausführen (Geräte schalten), write = lesen, ausführen und ändern (Automationen, Skripte, Dashboards, Helfer). Leer: es gilt der Standard unten. |
 | `github_access` | `none` \| `read` \| `write` | **GitHub-Zugriff (optional).** Was die KI für diesen Benutzer bei GitHub darf: none = nichts, read = Repositories lesen, write = lesen und ändern (Dateien einchecken, Pull Requests, Issues, Repositories anlegen). Leer: es gilt der Standard unten. Das Token gehört dir als Betreiber: jeder Benutzer mit read oder write sieht damit auch deine privaten Repositories (außer die Freigabeliste schränkt es ein). |
+| `connector_access` | `none` \| `use` \| `own` \| `global` | **Konnektoren (optional).** Was die KI für diesen Benutzer bei Konnektoren (MCP-Server wie Microsoft 365, Google Workspace oder Zabbix) darf: none = keine, use = freigegebene (globale) Konnektoren nutzen, own = zusätzlich eigene anlegen, global = zusätzlich globale Konnektoren für alle anlegen und ändern (auch Adressen im Heimnetz). Leer: es gilt der Standard unten. |
 | `web_access` | `on` \| `off` | **Websuche (optional).** on = die KI darf für diesen Benutzer im Web suchen und Seiten lesen, off = nicht. Leer: es gilt der Standard unten. |
 | `notify_service` | Text | **Benachrichtigungsdienst (optional).** Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Damit meldet sich die KI, wenn eine längere Antwort fertig ist, während niemand zusieht, und geplante Aufgaben können aufs Handy melden. Leer: keine Benachrichtigung aufs Handy. |
 | `id` | a–z, 0–9, `-`, `_` (2 bis 32 Zeichen) | **Kurzname (optional).** Interne Kennung, a–z, 0–9, Bindestrich. Leer lassen: wird aus dem Anzeigenamen gebildet. Nachträglich nicht mehr ändern, die Chats hängen daran. |
@@ -65,6 +66,15 @@ Optional: die KI arbeitet mit deinen Repositories.
 | `github_access_default` | `none` \| `read` \| `write` | `none` | **Standard-Zugriff auf GitHub.** Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Ohne Token in der Konfiguration hat das keine Wirkung. |
 | `github_write_confirm` | `ask` \| `always_allow` | `ask` | **Bestätigung bei GitHub-Änderungen.** ask (Standard): Jede Änderung (Commit, Pull Request, Issue, Kommentar …) muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Immer nachgefragt wird bei Commits auf den Hauptzweig, Merge, neuen Repositories, Löschen, Workflow-Dateien und nach dem Lesen fremder Inhalte oder mit Dateianhang. |
 | `github_repos` | Text | leer | **Erlaubte Repositories (optional).** Freigabeliste, durch Komma getrennt: „doralab/smarthome, doralab/*“. besitzer/* erlaubt alle Repositories eines Besitzers. Leer: alles, was das Token erreicht. Die KI kann auf andere Repositories dann gar nicht zugreifen. |
+
+## Konnektoren
+
+Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (Microsoft 365, Google Workspace, Zabbix …). Ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410).
+
+| Option | Werte | Standard | Bedeutung |
+|---|---|---|---|
+| `connector_access_default` | `none` \| `use` \| `own` \| `global` | `use` | **Standard-Recht für Konnektoren.** Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte. |
+| `connector_write_confirm` | `ask` \| `always_allow` | `ask` | **Bestätigung bei Änderungen über Konnektoren.** ask (Standard): Jede Änderung über einen Konnektor (Mail entwerfen, Termin anlegen, Ticket ändern …) muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Nach dem Lesen fremder Inhalte wird immer nachgefragt. Schreibende Werkzeuge sind ohnehin erst nach dem Einschalten bei der Verbindung verfügbar. |
 
 ## Funktionen
 
