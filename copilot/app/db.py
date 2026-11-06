@@ -14,6 +14,7 @@ import secrets
 import json
 import sqlite3
 import threading
+import time
 import unicodedata
 import uuid
 from collections.abc import Iterable
@@ -1063,7 +1064,7 @@ class Store:
         """Logo speichern; liefert die neue Version (sie steckt in der Bildadresse, damit der Browser nicht Altes zeigt)."""
         with self._lock, self._conn:
             row = self._conn.execute("SELECT rev FROM connector_icons WHERE connector_id = ?", (connector_id,)).fetchone()
-            rev = (row["rev"] + 1) if row else 1
+            rev = max(int(time.time() * 1000), (row["rev"] + 1) if row else 0)  # nie zweimal dieselbe Version, auch nicht nach Entfernen und neu Setzen
             self._conn.execute(
                 "INSERT INTO connector_icons (connector_id, mime, data, rev) VALUES (?, ?, ?, ?) "
                 "ON CONFLICT(connector_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, rev = excluded.rev",

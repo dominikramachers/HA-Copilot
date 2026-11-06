@@ -85,15 +85,15 @@
   },
   "microsoft365": {
    "de": [
-    "Für Microsoft 365 gibt es keinen Server, den du hier mit einem Klick anbinden kannst: Anthropics Server verlangt eine Freischaltung durch Anthropic, und Microsofts eigene Server (Agent 365) sind Vorschau. Realistisch ist ein Community-Server, den du selbst betreibst: „ms-365-mcp-server“ von Softeria (github.com/Softeria/ms-365-mcp-server).",
+    "Nimm den Community-Server „ms-365-mcp-server“ von Softeria (github.com/Softeria/ms-365-mcp-server) und betreibe ihn selbst, zum Beispiel im Heimnetz.",
     "Lege im Entra-Admin-Center (entra.microsoft.com) eine App-Registrierung (nur dein Verzeichnis) mit einem Client-Secret an, trage als Weiterleitungs-URI {redirect} ein und erteile die Admin-Zustimmung für die Graph-Berechtigungen. Welche das sind, zeigt der Server mit „--list-permissions“.",
-    "Starte den Server im HTTP-Modus an einem Ort, den das Add-on erreicht, z. B. im Heimnetz: ms-365-mcp-server --http 3000 --org-mode. Setze dazu MS365_MCP_CLIENT_ID, MS365_MCP_TENANT_ID, MS365_MCP_CLIENT_SECRET, MS365_MCP_PUBLIC_URL und MS365_MCP_ALLOWED_REDIRECT_URIS (genau {redirect}). Mit „--read-only“ bleibt er schreibgeschützt.",
+    "Starte den Server im HTTP-Modus an einem Ort, den das Add-on erreicht: ms-365-mcp-server --http 3000 --org-mode. Setze dazu MS365_MCP_CLIENT_ID, MS365_MCP_TENANT_ID, MS365_MCP_CLIENT_SECRET, MS365_MCP_PUBLIC_URL und MS365_MCP_ALLOWED_REDIRECT_URIS (genau {redirect}). Mit „--read-only“ bleibt er schreibgeschützt.",
     "Klicke hier auf „Weiter“, trage die Adresse des Servers ein (endet auf /mcp), wähle „Anmeldung beim Dienst (OAuth)“ und, bei einer Adresse im Heimnetz, „Heimnetz erlauben“ (nur mit Stufe „global“)."
    ],
    "en": [
-    "There is no Microsoft 365 server you can connect here with one click: Anthropic's server needs approval from Anthropic, and Microsoft's own servers (Agent 365) are in preview. A realistic option is a community server you run yourself: “ms-365-mcp-server” by Softeria (github.com/Softeria/ms-365-mcp-server).",
+    "Use the community server “ms-365-mcp-server” by Softeria (github.com/Softeria/ms-365-mcp-server) and run it yourself, for example in your home network.",
     "In the Entra admin center (entra.microsoft.com) create an app registration (your directory only) with a client secret, enter {redirect} as redirect URI and grant admin consent for the Graph permissions. The server lists them with “--list-permissions”.",
-    "Start the server in HTTP mode where the add-on can reach it, e.g. in your home network: ms-365-mcp-server --http 3000 --org-mode. Set MS365_MCP_CLIENT_ID, MS365_MCP_TENANT_ID, MS365_MCP_CLIENT_SECRET, MS365_MCP_PUBLIC_URL and MS365_MCP_ALLOWED_REDIRECT_URIS (exactly {redirect}). With “--read-only” it stays read-only.",
+    "Start the server in HTTP mode where the add-on can reach it: ms-365-mcp-server --http 3000 --org-mode. Set MS365_MCP_CLIENT_ID, MS365_MCP_TENANT_ID, MS365_MCP_CLIENT_SECRET, MS365_MCP_PUBLIC_URL and MS365_MCP_ALLOWED_REDIRECT_URIS (exactly {redirect}). With “--read-only” it stays read-only.",
     "Click “Continue” here, enter the server's address (ends in /mcp), choose “Sign in at the service (OAuth)” and, for a home-network address, “Allow home network” (only with level “global”)."
    ],
    "warn": {

@@ -136,15 +136,19 @@ def test_custom_icon_by_upload_link_replace_and_clear(store, tmp_path):
 
     async def scenario():
         made = await service.create("dora", {**BASE, "icon_data": b64(PNG)})
-        assert made["icon"] == {"kind": "custom", "rev": 1}
-        assert service.icon("dora", made["id"]) == {"mime": "image/png", "data": PNG, "rev": 1}
+        first = made["icon"]["rev"]
+        assert made["icon"] == {"kind": "custom", "rev": first}
+        assert service.icon("dora", made["id"]) == {"mime": "image/png", "data": PNG, "rev": first}
         changed = await service.update("dora", made["id"], {"icon_url": "https://img.example.com/logo.png"})
-        assert changed["icon"] == {"kind": "custom", "rev": 2}  # neue Version, damit der Browser kein altes Bild zeigt
-        assert service.listing("dora")[0]["icon"]["rev"] == 2
+        second = changed["icon"]["rev"]
+        assert second > first  # neue Version, damit der Browser kein altes Bild zeigt
+        assert service.listing("dora")[0]["icon"]["rev"] == second
         kept = await service.update("dora", made["id"], {"description": "neu"})
-        assert kept["icon"]["rev"] == 2
+        assert kept["icon"]["rev"] == second
         cleared = await service.update("dora", made["id"], {"clear_icon": True})
         assert cleared["icon"] == {"kind": "", "slug": ""} and service.icon("dora", made["id"]) is None
+        again = await service.update("dora", made["id"], {"icon_data": b64(PNG)})
+        assert again["icon"]["rev"] > second  # auch nach Entfernen keine alte Bildadresse wiederverwenden
         service.delete("dora", made["id"])
         assert store.connector_icon_get(made["id"]) is None
 

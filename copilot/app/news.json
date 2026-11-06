@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.42.0",
+    "items": [
+      {
+        "de": {
+          "title": "Konnektoren: Katalog und Logos",
+          "text": "Ich kenne jetzt viele Dienste vorab, zum Beispiel Gmail, Google Kalender, Notion oder Sentry. Du suchst sie unter Entdecken aus. Eigene Verbindungen bekommen auf Wunsch ein Logo."
+        },
+        "en": {
+          "title": "Connectors: catalog and logos",
+          "text": "I now know many services in advance, for example Gmail, Google Calendar, Notion or Sentry. You pick them under Discover. Your own connections can get a logo if you like."
+        }
+      },
+      {
+        "de": {
+          "title": "Verbindungen im Netz suchen",
+          "text": "Unter Community kann ich dir offene Dienste aus einem öffentlichen Verzeichnis zeigen. Ich habe sie nicht geprüft, schau also genau hin, bevor du etwas hinzufügst."
+        },
+        "en": {
+          "title": "Find connections online",
+          "text": "Under Community I can show you open services from a public directory. I have not checked them, so look closely before you add anything."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.41.0",
     "items": [
       {

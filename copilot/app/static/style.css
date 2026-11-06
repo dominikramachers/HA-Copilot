@@ -1015,6 +1015,9 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   .skills-buttons .pill { flex: 1 1 auto; justify-content: center; }
   .skills-scope { width: 100%; }
   .skills-tools .seg { flex: 1; }
+  .skills-tools .seg.three button { min-width: 0; padding: 0 6px; }
+  .skills-tools .pill.compact { width: 40px; padding: 0; justify-content: center; }
+  .skills-tools .pill.compact span { display: none; }
   .skills-filter select.field { min-width: 0; max-width: 42%; }
   .skills-cats { flex-wrap: nowrap; overflow-x: auto; margin-right: -16px; padding-right: 16px; scrollbar-width: none; }
   .skills-cats::-webkit-scrollbar { display: none; }
@@ -1041,3 +1044,26 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .conn-oauth[hidden] { display: none; }
 .conn-steps { margin: 0 0 4px; padding-left: 20px; font-size: 13.5px; line-height: 1.6; color: var(--text-2); }
 .conn-flow .skills-form .pill { margin-top: 8px; }
+.tile.logo { background: #fff; box-shadow: inset 0 0 0 1px var(--line-2); }
+.tile.logo img { width: 62%; height: 62%; object-fit: contain; display: block; }
+.skills-top.with-tile .tile.logo img { width: 62%; height: 62%; }
+.skill-open.static { cursor: default; }
+.skill-open.static:hover { color: var(--text); }
+.skills-link { font-size: 13.5px; color: var(--accent); text-decoration: none; }
+.skills-link:hover { text-decoration: underline; }
+.skill-add .skills-link { margin-left: 14px; }
+.skills-count:empty { display: none; }
+.skills-mine > .pill { margin-top: 14px; }
+.conn-copy { display: flex; align-items: center; gap: 8px; }
+.conn-copy .field { flex: 1; min-width: 0; font-size: 13px; }
+.conn-copy .pill { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; }
+.conn-copy .pill .icon { width: 15px; height: 15px; }
+.conn-setup { margin-top: 14px; }
+.conn-setup .skills-buttons { margin-top: 6px; }
+.conn-logo { display: flex; align-items: flex-start; gap: 14px; }
+.conn-logo > .tile { width: 52px; height: 52px; font-size: 16px; }
+.conn-logo-controls { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.conn-logo-controls .skills-buttons { margin: 0; }
+.conn-logo-controls .pill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; font-size: 13.5px; }
+.conn-logo-controls .pill .icon { width: 15px; height: 15px; }
+.conn-logo-controls .f-hint { margin: 0; }
