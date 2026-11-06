@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.38.1",
+    "items": [
+      {
+        "de": {
+          "title": "Noch sicherer",
+          "text": "Ich prüfe Anmeldung, Fehlerseite und Downloads jetzt noch strenger. Du merkst im Alltag nichts davon, es ist eine zusätzliche Absicherung."
+        },
+        "en": {
+          "title": "Even safer",
+          "text": "I now check sign-in, the error page and downloads even more strictly. You will not notice anything in daily use; it is an extra layer of protection."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.38.0",
     "items": [
       {

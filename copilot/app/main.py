@@ -98,6 +98,7 @@ LONG_ANSWER_SECONDS = 45  # ab dieser Dauer meldet sich die Antwort per Benachri
 KEEPALIVE_SECONDS = 15  # Cloudflare trennt Verbindungen, über die ~100 s nichts fließt
 SESSION_COOKIE = "__Host-ki_session"
 LOGIN_COOKIE = "__Host-ki_login"
+_BROWSER_TOKEN = re.compile(r"[A-Za-z0-9_-]{32,64}")  # Form von secrets.token_urlsafe(32); nur so ein Wert wird aus dem Cookie übernommen
 DEFAULT_TITLES = frozenset({"Neuer Chat", "New chat"})  # Standardtitel aus jeder Sprache gelten als „noch nicht benannt“
 
 
@@ -118,13 +119,13 @@ def denied_page(headers) -> str:
     damit sie in der Add-on-Konfiguration eingetragen werden kann."""
     own_id = headers.get("x-remote-user-id", "").strip().lower()
     hint = ""
-    if _HA_ID.match(own_id):
+    if _HA_ID.fullmatch(own_id):
         name = html.escape(re.sub(r"[^\w.@ -]", "", headers.get("x-remote-user-name", ""))[:64])
         hint = (
             "<p>" + tr("Trage in der Add-on-Konfiguration beim Profil entweder deinen Home-Assistant-Benutzernamen")
             + (f" (<b>{name}</b>)" if name else "")
             + " " + tr("unter <code>ha_user</code> oder diese ID unter <code>ha_user_id</code> ein:") + "</p>"
-            f"<p><code style='font-size:1.05rem;word-break:break-all'>{own_id}</code></p>"
+            f"<p><code style='font-size:1.05rem;word-break:break-all'>{html.escape(own_id)}</code></p>"
         )
     return denied_html() + hint
 
@@ -1860,7 +1861,7 @@ def build_public_app(
         state, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         verifier, challenge = pkce_pair()
         browser = request.cookies.get(LOGIN_COOKIE, "")
-        if len(browser) < 32:
+        if not _BROWSER_TOKEN.fullmatch(browser):
             browser = secrets.token_urlsafe(32)
         try:
             pending.add(state, nonce, verifier, browser)
@@ -1916,7 +1917,7 @@ def build_public_app(
             return back_to_login("throttled")
         state = secrets.token_urlsafe(32)
         browser = request.cookies.get(LOGIN_COOKIE, "")
-        if len(browser) < 32:
+        if not _BROWSER_TOKEN.fullmatch(browser):
             browser = secrets.token_urlsafe(32)
         try:
             ha_pending.add(state, "", "", browser)
