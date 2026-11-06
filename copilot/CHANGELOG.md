@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.37.2
+- **Codeblöcke kompakter, wie bei Claude.** Statt einer eigenen Zeile mit den großen Knöpfen „Herunterladen“ und „Kopieren“ stehen jetzt kleine Symbolknöpfe (28 px) oben rechts im Kasten, ohne eigenen Rand und mit dem Namen als Hinweis beim Darüberfahren (`title` und `aria-label`). Bei HTML kommt der Knopf „Vorschau“ (Auge) dazu; nach Kopieren oder Speichern zeigt der Knopf 1,5 s lang einen Haken, bei einem Fehler ein Kreuz. Der Kasten hat weniger Innenabstand (11 × 14 px statt 14 × 16 px) und kleinere Schrift (13,5 px, Zeilenhöhe 1,5).
+- **Lange Zeilen brechen um** (`pre-wrap`, `overflow-wrap: anywhere`) statt seitlich zu scrollen, wie bei Claude; die erste Zeile weicht den Knöpfen aus (leerer Platzhalter `.code-gap` mit `float`, ohne Einfluss auf den kopierten Text).
+- Technik: `markdown.js` baut `div.codebox` mit `pre` und `.code-tools`; die Vorschau hängt hinter dem Kasten (`togglePreview(anchor, …)`), `window.kiIcon` gibt die Symbole an `markdown.js` weiter. Keine neuen Texte, keine neuen Optionen, kein neues Datenbankschema.
+
 ## 0.37.1
 - **Projekt in der Seitenleiste nur noch markiert, wenn kein Chat ausgewählt ist.** Ein geöffnetes Projekt blieb bisher immer hinterlegt, auch wenn man einen seiner Chats geöffnet hatte; dann waren Projekt und Chat zugleich markiert. Jetzt ist die Zeile nur hinterlegt, solange man in diesem Projekt einen neuen Chat beginnt (`state.newProject`, kein aktiver Chat); sonst ist nur der Chat markiert, wie bei Claude. Der geöffnete Ordner bleibt am Symbol erkennbar. CSS: `.project-row.current` statt `.project-row.open`.
 - Keine neuen Optionen, kein neues Datenbankschema.

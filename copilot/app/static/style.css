@@ -297,10 +297,14 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .md hr { border: 0; border-top: 1px solid var(--line-2); margin: 1.2em 0; }
 .md a { color: var(--accent); text-underline-offset: 2px; }
 .md code { font: .9em var(--mono); background: var(--chip); padding: .12em .4em; border-radius: 4px; }
-.md pre { position: relative; margin: .9em 0; padding: 14px 16px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-2); overflow-x: auto; }
-.md pre code { background: none; padding: 0; font-size: 14px; line-height: 1.55; white-space: pre; }
-.md .code-tools { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; margin: -4px -6px 8px 0; position: sticky; left: 0; }
-.md .copy { font-family: var(--font); height: 28px; padding: 0 10px; border-radius: var(--r-1); font-size: 12px; font-weight: 600; background: var(--panel); border: 1px solid var(--line); color: var(--text-2); }
+.md .codebox { position: relative; margin: .8em 0; }
+.md pre { margin: 0; padding: 11px 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-2); overflow-x: auto; }
+.md pre code { background: none; padding: 0; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.md .code-gap { float: right; height: 1em; }
+.md .code-tools { position: absolute; top: 5px; right: 6px; display: flex; gap: 1px; padding: 1px; border-radius: 8px; background: var(--panel-2); }
+.md .code-btn { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; color: var(--text-2); transition: background .12s, color .12s; }
+.md .code-btn .icon { width: 16px; height: 16px; }
+.md .code-btn:hover, .md .code-btn:focus-visible { background: var(--chip); color: var(--text); }
 .md .tbl { margin: .9em 0; overflow-x: auto; border: 1px solid var(--line-2); border-radius: var(--r-2); }
 .md table { border-collapse: collapse; width: 100%; font-size: .95em; }
 .md th, .md td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -658,7 +662,7 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 }
 
 /* ---------- Vorschau (HTML-Artefakte) ---------- */
-.preview { margin: -.3em 0 1em; border: 1px solid var(--line-2); border-radius: var(--r-2); overflow: hidden; background: #fff; }
+.preview { margin: -.2em 0 1em; border: 1px solid var(--line-2); border-radius: var(--r-2); overflow: hidden; background: #fff; }
 .preview-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; background: var(--panel-2); border-bottom: 1px solid var(--line); font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .preview-bar span { flex: 1; }
 .preview-bar button { height: 28px; padding: 0 10px; border-radius: var(--r-1); font-size: 12px; font-weight: 600; background: var(--panel); border: 1px solid var(--line); color: var(--text-2); }

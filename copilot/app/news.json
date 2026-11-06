@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.37.2",
+    "items": [
+      {
+        "de": {
+          "title": "Schlankere Kopierfelder",
+          "text": "Befehle und Code zeige ich jetzt in kompakteren Feldern. Die Knöpfe zum Kopieren und Herunterladen sind klein und sitzen oben rechts. Lange Zeilen brechen um, sodass nichts mehr seitlich wandert."
+        },
+        "en": {
+          "title": "Slimmer copy boxes",
+          "text": "I now show commands and code in more compact boxes. The buttons for copying and downloading are small and sit at the top right. Long lines wrap, so nothing scrolls sideways any more."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.37.1",
     "items": [
       {

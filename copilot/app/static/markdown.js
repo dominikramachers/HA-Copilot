@@ -70,45 +70,61 @@
     return { language, name, mime: MIME[dot >= 0 ? name.slice(dot + 1).toLowerCase() : ""] || "text/plain" };
   }
 
+  // Codeblock wie bei Claude: kompakter Kasten, oben rechts kleine Symbolknöpfe (Vorschau, Herunterladen, Kopieren)
   function codeBlock(lines, info) {
     const meta = parseInfo(info);
+    const box = document.createElement("div");
+    box.className = "codebox";
     const pre = document.createElement("pre");
     const code = document.createElement("code");
     code.textContent = lines.join("\n");
     const tools = document.createElement("div");
     tools.className = "code-tools";
-    const action = (label, handler) => {
+    const show = (button, name, label) => {
+      button.replaceChildren(window.kiIcon ? window.kiIcon(name) : document.createTextNode(label));
+      button.title = label;
+      button.setAttribute("aria-label", label);
+    };
+    const action = (name, label, handler) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "copy";
-      button.textContent = label;
-      button.addEventListener("click", () => handler(button, label));
+      button.className = "code-btn";
+      show(button, name, label);
+      button.addEventListener("click", () => handler(button, () => show(button, name, label)));
       tools.append(button);
       return button;
     };
-    const flash = (button, label, text) => {
-      button.textContent = text;
-      setTimeout(() => { button.textContent = label; }, 1500);
+    // kurz das Ergebnis zeigen (Haken oder Kreuz), dann wieder das Symbol
+    const flash = (button, restore, ok, text) => {
+      show(button, ok ? "check" : "close", text);
+      setTimeout(restore, 1500);
     };
     if (meta.language === "html" && window.kiFile) {
-      action(tr("Vorschau"), (button) => window.kiFile.preview(pre, button, code.textContent));
+      action("eye", tr("Vorschau"), (button) => window.kiFile.preview(box, button, code.textContent));
     }
     if (window.kiFile) {
-      action(tr("Herunterladen"), async (button, label) => {
-        try { flash(button, label, (await window.kiFile.save(meta.name, code.textContent, meta.mime)) ? tr("Gespeichert") : label); }
-        catch { flash(button, label, tr("Nicht möglich")); }
+      action("download", tr("Herunterladen"), async (button, restore) => {
+        try {
+          if (await window.kiFile.save(meta.name, code.textContent, meta.mime)) flash(button, restore, true, tr("Gespeichert"));
+        } catch { flash(button, restore, false, tr("Nicht möglich")); }
       });
     }
-    action(tr("Kopieren"), async (button, label) => {
+    action("copy", tr("Kopieren"), async (button, restore) => {
       try {
         await navigator.clipboard.writeText(code.textContent);
-        flash(button, label, tr("Kopiert"));
+        flash(button, restore, true, tr("Kopiert"));
       } catch {
-        flash(button, label, tr("Nicht möglich"));
+        flash(button, restore, false, tr("Nicht möglich"));
       }
     });
-    pre.append(tools, code);
-    return pre;
+    // Platz für die Knöpfe, damit die erste Zeile nicht darunter läuft (der Text bricht um sie herum)
+    const gap = document.createElement("span");
+    gap.className = "code-gap";
+    gap.style.width = `${tools.children.length * 29 + 8}px`;
+    code.prepend(gap);
+    pre.append(code);
+    box.append(pre, tools);
+    return box;
   }
 
   function render(source) {
