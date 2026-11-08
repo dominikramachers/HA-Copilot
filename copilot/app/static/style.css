@@ -1170,6 +1170,7 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   .set-user-text { min-width: 0; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .set-group { margin: 18px 6px 6px; font-size: 13px; }
   .set-nav > .set-sec:first-of-type .set-group { margin-top: 14px; }
+  .set-sec-plain { margin-top: 18px; }
   .set-card { gap: 0; border-radius: 16px; background: var(--chip); overflow: hidden; }
   .set-item { position: relative; min-height: 48px; padding: 0 14px; border-radius: 0; font-size: 15.5px; }
   .set-item:hover { background: none; }

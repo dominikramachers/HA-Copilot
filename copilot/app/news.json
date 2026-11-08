@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.48.4",
+    "items": [
+      {
+        "de": {
+          "title": "Ordentlicher auf dem Handy",
+          "text": "In den Einstellungen auf dem Handy hat „Abmelden“ jetzt etwas Abstand zu den anderen Einträgen und ist leichter zu treffen."
+        },
+        "en": {
+          "title": "Tidier on your phone",
+          "text": "In the settings on your phone, “Log out” now has some space from the other entries and is easier to tap."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.48.3",
     "items": [
       {
