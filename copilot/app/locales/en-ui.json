@@ -890,7 +890,6 @@
  "Neu starten": "Start again",
  "Token einfügen": "Paste a token",
  "Verbinde dein GitHub-Konto, dann kann die KI deine Repositories lesen und, wenn du es erlaubst, Änderungen vorschlagen. Jede Änderung bestätigst du im Chat.": "Connect your GitHub account and the AI can read your repositories and, if you allow it, propose changes. You confirm every change in the chat.",
- "Verbinde dein eigenes GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann.": "Connect your own GitHub account so the AI can work with your repositories.",
  "Verbunden als {0}": "Connected as {0}",
  "Warte auf deine Bestätigung bei GitHub …": "Waiting for your confirmation at GitHub …"
 }

@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.46.1
+- **GitHub verbinden über die Domain.** Das Nachfragen, ob die Person bei GitHub bestätigt hat, war ein `GET` (`/api/github/device`). Die Domain-Seite prüft bei ändernden Anfragen die Herkunft (`Origin`), die der Browser nur bei Nicht-GET-Anfragen mitschickt; die Abfrage endete deshalb mit „Kein Zugriff“, obwohl die Bestätigung bei GitHub geklappt hatte. Jetzt `POST /api/github/device/poll` (das alte `GET` gibt es nicht mehr; ein Test stellt sicher, dass es 405 liefert). Über Ingress war nichts betroffen.
+- **Dialog „GitHub“ überarbeitet.** GitHub-Zeichen im Titel und auf den Knöpfen, der Code mit Kopierknopf in einer Zeile (statt Code, Feld und Knopf getrennt), gleich hohe Knöpfe in einer Reihe, doppelte Einleitung entfernt. Per Playwright als Desktop und Handy geprüft.
+
 ## 0.46.0
 - **GitHub pro Person.** Jede Person verbindet ihr eigenes GitHub im Konto-Menü (neuer Eintrag „GitHub“, sichtbar bei `github_access` ≠ `none`). Wer nichts verbindet, hat kein GitHub; das Token der Konfiguration (`github_token`) bleibt als Ersatz für alle ohne eigenes Konto. Rechte bleiben in der Konfiguration (`github_access`, `github_access_default`); ein verbundenes Konto erweitert sie nicht.
 - **Zwei Wege zum Verbinden.** (1) „Mit GitHub verbinden“: OAuth Device Flow (`POST github.com/login/device/code`, Nachfragen bei `login/oauth/access_token`, Recht `repo`); die öffentliche Client-ID steht als `CLIENT_ID` in `app/github_accounts.py`, kein Geheimnis nötig. Der `device_code` bleibt im Arbeitsspeicher des Add-ons, der Browser bekommt nur Code und Adresse; Nachfragen wird getrennt gedrosselt (`interval`, `slow_down` wird beachtet, 15 Minuten Frist). (2) „Token einfügen“: Form-Prüfung, dann `GET /user` bei GitHub; ungültige Token werden nicht gespeichert.
