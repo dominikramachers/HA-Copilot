@@ -313,6 +313,26 @@ def test_run_is_read_only_and_asks_nothing(store):
     assert levels <= {"read"}
 
 
+def test_scheduled_run_uses_the_personal_github_account_read_only(store, tmp_path):
+    from app.github_accounts import GithubAccounts  # noqa: PLC0415
+    from app.vault import Vault  # noqa: PLC0415
+
+    s = parse_settings({**RAW, "github_access_default": "write"}, frozenset({"testclient"}))  # kein Token in der Konfiguration
+    scheduler, backend, _, _, _ = build(store, settings=s, now=2_000)
+    accounts = GithubAccounts(store, Vault(tmp_path / "k.key"), scheduler.github, ["fremd/*"])
+    scheduler.github_accounts = accounts
+    make_task(store, next_run=1_000)
+    run_tick(scheduler)
+    assert not [t for t in backend.calls[0]["tools"] if t.name.startswith("github_")]  # nichts verbunden, nichts da
+    store.github_account_save("adm01", accounts.vault.seal("gho_persoenlich_abcdefghijklmnop"), "dora-gh", "token")
+    store.delete_all_chats("adm01")
+    make_task(store, next_run=1_000, name="Zweite")
+    run_tick(scheduler)
+    names = [t.name for t in backend.calls[-1]["tools"] if t.name.startswith("github_")]
+    assert names and "github_commit_files" not in names and "github_create_pr" not in names  # weiterhin nur lesen
+    assert scheduler.github_api(scheduler.profile_for("adm01")).personal and not scheduler.github_policy(scheduler.profile_for("adm01")).restricted
+
+
 def test_task_without_web_and_without_rights(store):
     s = parse_settings({**RAW, "ha_access_default": "none"}, frozenset({"testclient"}))
     scheduler, backend, _, _, _ = build(store, settings=s, now=2_000)
