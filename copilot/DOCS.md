@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.48.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.48.1.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -447,7 +447,7 @@ Die Benachrichtigung zeigt den Anfang der Antwort, also auch auf dem Sperrbildsc
 
 Alles gilt nur für das eigene Profil; andere Personen sind nie betroffen. Die Löschfunktion ist keine Einstellung für alle, sondern bewusst nur für die eigenen Daten gedacht.
 
-## Einstellungen und Konto-Menü (ab 0.48.0)
+## Einstellungen und Konto-Menü (ab 0.48.1)
 
 Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noch das Wichtigste: **Einstellungen**, **Nutzung**, **Gedächtnis**, **Kurzanleitung**, **Das ist neu**, **Einrichtungsprüfung** (wenn der Chat über Home Assistant läuft) und, nur über die eigene Domain, **Abmelden**. Alles Weitere liegt in den **Einstellungen**, einer eigenen Seite mit Liste links und Inhalt rechts (auf dem Handy erst die Liste, dann der Inhalt mit „Zurück“):
 
