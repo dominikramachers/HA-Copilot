@@ -6515,7 +6515,6 @@ function renderSettings() {
 
   const nav = node("nav", "set-nav");
   nav.setAttribute("aria-label", tr("Einstellungen"));
-  nav.append(node("h2", "", tr("Einstellungen")));
   for (const group of groups) {
     nav.append(node("p", "set-group", group.title));
     for (const item of group.items) {
@@ -6539,7 +6538,7 @@ function renderSettings() {
   const main = node("section", "set-main");
   const back = node("button", "set-back");
   back.type = "button";
-  back.append(icon("chevron"), node("span", "", tr("Einstellungen")));
+  back.append(icon("chevron"), node("span", "", tr("Zurück")));
   back.addEventListener("click", () => { settingsUi.content = false; renderSettings(); });
   const title = node("h3", "", current.label);
   main.append(back, title);
@@ -6577,12 +6576,9 @@ async function openSettings(page = "") {
 
 const THEMES = [["auto", tr("Auto")], ["light", tr("Hell")], ["dark", tr("Dunkel")]];
 
-// Wie bei Claude: nur das Wichtigste im Popup, alles andere in den Einstellungen.
+// Wie bei Claude: nur das Wichtigste im Popup; Gedächtnis, Kurzanleitung, Neuerungen usw. stehen in den Einstellungen.
 function accountEntries() {
   const entries = [{ value: "settings", icon: "sliders", label: tr("Einstellungen") }, { value: "usage", icon: "gauge", label: tr("Nutzung") }];
-  if (state.me?.memory) entries.push({ value: "memory", icon: "memory", label: tr("Gedächtnis") });
-  entries.push({ value: "guide", icon: "info", label: tr("Kurzanleitung") });
-  entries.push({ value: "news", icon: "bolt", label: tr("Das ist neu") });
   if (state.me?.setup) entries.push({ value: "setup", icon: "setup", label: tr("Einrichtungsprüfung") });
   if (state.me?.can_logout) {
     entries.push({ divider: true });
@@ -6609,7 +6605,7 @@ async function accountMenu() {
     button.setAttribute("aria-expanded", "false");
   }
   closeMenu();
-  const pages = { settings: "", usage: "usage", memory: "memory", guide: "guide", news: "news", setup: "setup" };
+  const pages = { settings: "", usage: "usage", setup: "setup" };
   if (typeof choice === "string" && choice in pages) openSettings(pages[choice]).catch(() => {});
   else if (choice === "logout") await logout();
 }

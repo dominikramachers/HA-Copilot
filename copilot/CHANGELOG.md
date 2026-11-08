@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.48.3
+- **Konto-Menü weiter verschlankt.** Es enthält nur noch *Einstellungen*, *Nutzung*, *Einrichtungsprüfung* (HA) und *Abmelden* (Domain). *Gedächtnis*, *Kurzanleitung* und *Das ist neu* sind nur noch über die Einstellungen erreichbar.
+- **Doppelte Überschrift entfernt.** Auf der Einstellungen-Seite stand „Einstellungen“ in der Kopfzeile und noch einmal über der Liste (Laptop wie Handy). Die Überschrift über der Liste entfällt; der Zurück-Knopf im Handy-Inhalt heißt „Zurück“.
+
 ## 0.48.2
 - **Nutzung mit Balken je Zeitfenster.** Die Seite *Einstellungen → Nutzung* zeigt für jedes vom Abo gemeldete Fenster (`five_hour` als „Aktuelle Sitzung“, `seven_day` als „Diese Woche“, dazu `seven_day_opus`/`seven_day_sonnet`/`overage`, wenn gemeldet) einen Balken mit „N % verwendet“, „Noch M % übrig“, der Rücksetzzeit und dem Zeitpunkt des letzten Stands; orange ab „fast erreicht“, rot bei „erreicht“. Ist die Rücksetzzeit vorbei, steht „zurückgesetzt“, bis die nächste Antwort einen neuen Wert bringt. Davor zeigte die Seite nur Warnungen.
 - **Technik.** `LimitState.overview()` liefert alle bekannten Fenster (auch mit Status `allowed`; Einträge ohne Wert und Rücksetzzeit werden ausgelassen, Reihenfolge Sitzung, Woche, Rest); `GET /api/usage` hat dazu das Feld `windows` (`limits` bleibt: nur Warnungen, speist die Hinweise im Chat). `backend.py` protokolliert jede Limit-Meldung der CLI auf Stufe DEBUG (Status, Fenster, Auslastung, Rücksetzzeit), um zu sehen, was das Programm tatsächlich schickt. Grenze: Die Werte kommen nur mit Antworten der KI und nur, soweit die Claude-CLI sie meldet; ohne Antwort seit der Installation steht „Noch keine Angabe zum Limit“.

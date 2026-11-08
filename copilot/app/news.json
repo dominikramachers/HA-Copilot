@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.48.3",
+    "items": [
+      {
+        "de": {
+          "title": "Aufgeräumteres Menü",
+          "text": "Das Menü unten links ist kürzer. Gedächtnis, Kurzanleitung und Neuigkeiten findest du jetzt nur noch in den Einstellungen."
+        },
+        "en": {
+          "title": "Tidier menu",
+          "text": "The menu at the bottom left is shorter. Memory, quick guide and what’s new are now only in the settings."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.48.2",
     "items": [
       {
