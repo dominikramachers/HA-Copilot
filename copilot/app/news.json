@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.43.2",
+    "items": [
+      {
+        "de": {
+          "title": "Mehr Namen im Heimnetz",
+          "text": "Ich komme jetzt auch mit Servernamen im Heimnetz zurecht, bei denen der Router IPv6 absichtlich abstellt. So kann ich zum Beispiel deinen Überwachungsserver unter seinem Namen erreichen."
+        },
+        "en": {
+          "title": "More names in your home network",
+          "text": "I can now also use server names in your home network where the router switches IPv6 off on purpose. For example, I can reach your monitoring server by its name."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.43.1",
     "items": [
       {
