@@ -3619,6 +3619,7 @@ function actionsEl(list = [], open = false) {
     const changes = ha.filter((a) => a.kind !== "read").length;
     const wissen = items.filter((a) => a.kind === "knowledge").length;
     const memory = items.filter((a) => a.kind === "memory").length;
+    const noted = items.filter((a) => a.kind === "knowledge-write" && a.status === "ok").length;
     const skillsUsed = items.filter((a) => (a.kind === "skill" || a.kind === "skill-ext") && a.label.startsWith(tr("Skill genutzt"))).length;
     const made = items.filter((a) => a.kind === "file" && a.status === "ok").length;
     const edited = items.filter((a) => a.kind === "file-edit" && a.status === "ok").length;
@@ -3645,6 +3646,7 @@ function actionsEl(list = [], open = false) {
     if (wissen) parts.push(trn(wissen, "im Wissen nachgeschlagen", "{0}× im Wissen nachgeschlagen"));
     if (skillsUsed) parts.push(trn(skillsUsed, "Skill genutzt", "{0} Skills genutzt"));
     if (memory) parts.push(trn(memory, "Gedächtnis aktualisiert", "Gedächtnis {0}× aktualisiert"));
+    if (noted) parts.push(trn(noted, "Im Projektwissen gespeichert", "{0}× im Projektwissen gespeichert"));
     if (made) parts.push(trn(made, "Datei erstellt", "{0} Dateien erstellt"));
     if (edited) parts.push(trn(edited, "Datei bearbeitet", "{0} Dateien bearbeitet"));
     if (pics) parts.push(trn(pics, "Bild erzeugt", "{0} Bilder erzeugt"));
@@ -4525,7 +4527,7 @@ const THINK_WORDS = [tr("Denkt nach"), tr("Überlegt"), tr("Tüftelt"), tr("Sort
 const BUSY_ART = {
   file: "pen", "file-edit": "pen", image: "pen",
   web: "look", read: "look", knowledge: "look", skill: "look", "skill-ext": "look", "memory-read": "look", "gh-read": "look", "file-read": "look", "mcp-read": "look",
-  execute: "act", write: "act", "gh-write": "act", "mcp-write": "act", memory: "act",
+  execute: "act", write: "act", "gh-write": "act", "mcp-write": "act", memory: "act", "knowledge-write": "pen",
 };
 const HA_KINDS = ["read", "execute", "write"];
 
@@ -4546,6 +4548,7 @@ function recapOf(actions) {
       return trn(used, "Skill genutzt", "{0} Skills genutzt");
     }
     case "memory": return tr("Gedächtnis aktualisiert");
+    case "knowledge-write": return tr("Im Projektwissen gespeichert");
     case "web": {
       const web = done.filter((a) => a.kind === "web");
       const searches = web.filter((a) => a.label.startsWith(tr("Websuche"))).length;

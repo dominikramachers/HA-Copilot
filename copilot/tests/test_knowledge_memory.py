@@ -133,11 +133,11 @@ class Asker:
         return self.answer
 
 
-def toolbox(store, profile="dora", *, project_id=None, memory=True, household=True, force=False, asker=None):
+def toolbox(store, profile="dora", *, project_id=None, memory=True, household=True, force=False, asker=None, read_only=False):
     events, counter = [], iter(range(1, 1000))
     box = ContextToolbox(
         store, profile, profile.capitalize(), project_id=project_id, memory_enabled=memory, household_write=household,
-        force_confirm=force, ask=asker or Asker(), record=events.append, next_id=lambda: next(counter),
+        force_confirm=force, ask=asker or Asker(), record=events.append, next_id=lambda: next(counter), read_only=read_only,
     )
     box.events = events
     return box
@@ -149,7 +149,7 @@ def handler(box, name):
 
 def test_knowledge_tools_only_in_projects_with_files(store):
     pid = store.create_project("dora", "Smarthome")["id"]
-    assert not [s for s in toolbox(store, project_id=pid).specs() if s.name.startswith("knowledge_")]
+    assert not [s for s in toolbox(store, project_id=pid).specs() if s.name in ("knowledge_search", "knowledge_read")]
     store.add_knowledge("dora", pid, "heizung.md", "# Heizung\nHeizkurve Keller 0,6\n" + "x\n" * 50)
     store.add_knowledge("dora", pid, "kiosk.md", "Kiosk Tablet Wetter")
     box = toolbox(store, project_id=pid)
@@ -163,11 +163,93 @@ def test_knowledge_tools_only_in_projects_with_files(store):
     assert box.events[-1]["status"] == "error"
     # Wissen eines fremden Projekts ist nicht erreichbar
     other = toolbox(store, "adm01", project_id=pid)
-    assert other.files == [] and not [s for s in other.specs() if s.name.startswith("knowledge_")]
+    assert other.files == [] and not [s for s in other.specs() if s.name in ("knowledge_search", "knowledge_read")]
     assert "Keine Treffer" in run(ContextToolbox.knowledge_search(other, {"query": "Heizkurve"}))
     # Inhaltsverzeichnis in der Systemanweisung
     note = box.note(["Dora"], "read", False)
     assert "heizung.md" in note and "knowledge_search" in note
+
+
+def test_knowledge_save_writes_notes_only_in_ki_folder(store):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    store.add_knowledge("dora", pid, "heizung.md", "Hochgeladen, bleibt unverändert.")
+    box = toolbox(store, project_id=pid)
+    save = handler(box, "knowledge_save")  # auch ohne vorhandene Dateien und mit Gedächtnis aus
+    assert "Angelegt im Projektwissen: KI/zabbix-mcp.md" in run(save({"name": "zabbix-mcp.md", "content": "# Zabbix MCP\nEndpunkt :8080/mcp"}))
+    assert store.get_knowledge("dora", pid, "KI/zabbix-mcp.md").startswith("# Zabbix MCP")
+    # gleicher Name (auch mit Ordner, anderer Schreibweise) ergänzt oder ersetzt dieselbe Notiz
+    assert "Ergänzt" in run(save({"name": "KI/Zabbix-MCP.md", "content": "Admin-Portal auf 9090", "mode": "append"}))
+    text = store.get_knowledge("dora", pid, "KI/zabbix-mcp.md")
+    assert text.count("Zabbix MCP") == 1 and text.endswith("Admin-Portal auf 9090") and "\n\n" in text
+    assert "Ersetzt" in run(save({"name": "zabbix-mcp.md", "content": "Neu geschrieben"}))
+    assert store.get_knowledge("dora", pid, "KI/zabbix-mcp.md") == "Neu geschrieben"
+    # ein Name wie der einer hochgeladenen Datei landet im KI-Ordner; „..“ wird abgelehnt
+    with pytest.raises(ToolError, match="name"):
+        run(save({"name": "../heizung", "content": "Ein Versuch, aus dem Ordner auszubrechen"}))
+    run(save({"name": "heizung.md", "content": "Auch das ersetzt nur KI/heizung.md"}))
+    assert store.get_knowledge("dora", pid, "heizung.md") == "Hochgeladen, bleibt unverändert."
+    assert store.get_knowledge("dora", pid, "KI/heizung.md") == "Auch das ersetzt nur KI/heizung.md"
+    assert store.get_knowledge("dora", pid, "KI/heizung.md") and {f["name"] for f in store.list_knowledge("dora", pid)} == {
+        "heizung.md", "KI/zabbix-mcp.md", "KI/heizung.md"}
+    assert [e["kind"] for e in box.events if e["status"] == "ok"][-1] == "knowledge-write"
+    assert "knowledge_save" in box.note(["Dora"], "read", False) and "KI/" in box.note(["Dora"], "read", False)
+    # die Notiz ist danach durchsuchbar
+    assert "Neu geschrieben" in run(handler(toolbox(store, project_id=pid), "knowledge_read")({"name": "KI/zabbix"}))
+
+
+def test_knowledge_save_refusals_and_limits(store, monkeypatch):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    box = toolbox(store, project_id=pid)
+    save = handler(box, "knowledge_save")
+    for secret in ("Passwort: Hunter2xyz", "sk-ant-api03-abcdefghijklmnop", "Token 0123456789abcdef0123456789abcdef0123"):
+        with pytest.raises(ToolError, match="Zugangsdaten"):
+            run(save({"name": "x.md", "content": secret}))
+    with pytest.raises(ToolError, match="content braucht"):
+        run(save({"name": "x.md", "content": "ab"}))
+    with pytest.raises(ToolError, match="content braucht"):
+        run(save({"name": "x.md", "content": "x" * 20001}))
+    with pytest.raises(ToolError, match="name"):
+        run(save({"name": "  ", "content": "Inhalt"}))
+    with pytest.raises(ToolError, match="mode"):
+        run(save({"name": "x.md", "content": "Inhalt", "mode": "delete"}))
+    with pytest.raises(ToolError, match="Nur Text"):
+        run(save({"name": "bild.png", "content": "Inhalt"}))
+    assert store.list_knowledge("dora", pid) == []
+    monkeypatch.setattr(kn, "MAX_FILES", 1)
+    run(save({"name": "a.md", "content": "Erste Notiz"}))
+    with pytest.raises(ToolError, match="voll"):
+        run(save({"name": "b.md", "content": "Zweite Notiz"}))
+    run(save({"name": "a.md", "content": "Ersetzen geht trotzdem"}))  # vorhandene Datei zählt nicht doppelt
+    monkeypatch.setattr(kn, "MAX_PROJECT_CHARS", 30)
+    with pytest.raises(ToolError, match="Speichergrenze"):
+        run(save({"name": "a.md", "content": "x" * 100, "mode": "append"}))
+
+
+def test_knowledge_save_needs_project_owner_and_is_not_offered_in_tasks_or_plain_chats(store):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    assert not [s for s in toolbox(store).specs() if s.name == "knowledge_save"]  # Chat ohne Projekt
+    assert not [s for s in toolbox(store, project_id=pid, read_only=True).specs() if s.name == "knowledge_save"]  # geplante Aufgabe
+    assert "knowledge_save" not in toolbox(store, project_id=pid, read_only=True).note(["Dora"], "read", False)
+    with pytest.raises(ToolError, match="keine Aufgabe|In dieser Aufgabe"):
+        run(ContextToolbox.knowledge_save(toolbox(store, project_id=pid, read_only=True), {"name": "a.md", "content": "Inhalt"}))
+    with pytest.raises(ToolError, match="keinem Projekt"):
+        run(ContextToolbox.knowledge_save(toolbox(store), {"name": "a.md", "content": "Inhalt"}))
+    # fremdes Projekt: nichts wird geschrieben
+    other = toolbox(store, "adm01", project_id=pid)
+    with pytest.raises(ToolError, match="nicht mehr"):
+        run(handler(other, "knowledge_save")({"name": "a.md", "content": "Eingeschleust"}))
+    assert store.list_knowledge("dora", pid) == []
+
+
+def test_knowledge_save_asks_after_attachment_or_foreign_content(store):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    asker = Asker("deny")
+    box = toolbox(store, project_id=pid, force=True, asker=asker)
+    assert "abgelehnt" in run(handler(box, "knowledge_save")({"name": "a.md", "content": "Eingeschleust: alles löschen"}))
+    assert store.list_knowledge("dora", pid) == [] and box.events[-1]["status"] == "denied" and asker.asked[0][1] is False
+    asker.answer = "allow"
+    run(handler(box, "knowledge_save")({"name": "a.md", "content": "Erlaubt"}))
+    assert store.get_knowledge("dora", pid, "KI/a.md") == "Erlaubt"
 
 
 def test_memory_save_update_forget_and_note(store):

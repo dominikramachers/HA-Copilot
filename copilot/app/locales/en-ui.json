@@ -860,5 +860,7 @@
  "von GitHub": "from GitHub",
  "„{0}“ entfernt ({1}).": "“{0}” removed ({1}).",
  "„{0}“ ist hinzugefügt": "“{0}” has been added",
- "Auch Adressen im Heimnetz und mit http sind erlaubt.": "Addresses on the home network and with http are allowed too."
+ "Auch Adressen im Heimnetz und mit http sind erlaubt.": "Addresses on the home network and with http are allowed too.",
+ "Im Projektwissen gespeichert": "saved to project knowledge",
+ "{0}× im Projektwissen gespeichert": "saved to project knowledge {0}×"
 }
