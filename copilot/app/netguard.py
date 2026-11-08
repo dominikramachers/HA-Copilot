@@ -22,11 +22,19 @@ from urllib.parse import urlsplit
 from .i18n import tr
 
 BLOCKED_NAMES = frozenset({"supervisor", "hassio"})
+# 100::/64 (RFC 6666) ist das „Discard-Präfix“: Pakete dorthin werden verworfen. Heimnetz-DNS (Pi-hole, AdGuard, Router)
+# setzt es gern als IPv6-Antwort, damit ein Name nur über IPv4 erreichbar ist. Es führt nirgendwohin, ist also harmlos.
+DISCARD_NET = ipaddress.ip_network("100::/64")
 Resolver = Callable[..., list]
 
 
 class UrlRejected(ValueError):
     """Die Adresse ist nicht erlaubt; die Meldung darf der Person gezeigt werden."""
+
+
+def _is_discard(address: str) -> bool:
+    ip = ipaddress.ip_address(address.split("%")[0])
+    return isinstance(ip, ipaddress.IPv6Address) and ip in DISCARD_NET
 
 
 def _kind(address: str) -> str:
@@ -69,6 +77,10 @@ def check_url(url: str, *, allow_private: bool = False, resolver: Resolver = soc
     addresses = {info[4][0] for info in infos}
     if not addresses:
         raise UrlRejected(tr("Der Servername „{host}“ lässt sich nicht auflösen.", host=host[:80]))
+    # Discard-Adressen (100::) übergehen, solange der Name noch eine brauchbare Adresse hat; steht nur 100:: da, bleibt es abgelehnt.
+    usable = {a for a in addresses if not _is_discard(a)}
+    if usable:
+        addresses = usable
     kinds = {_kind(a) for a in addresses}
     if "never" in kinds:
         bad = sorted(a for a in addresses if _kind(a) == "never")[0].split("%")[0]

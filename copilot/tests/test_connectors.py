@@ -67,6 +67,21 @@ def test_netguard_blocks_home_network_unless_allowed_and_link_local_always():
         check_url("https://mix.example/", resolver=mixed)
 
 
+def test_netguard_skips_discard_prefix_when_other_address_exists():
+    # Heimnetz-DNS setzt den IPv6-Eintrag oft auf 100:: (Discard), damit nur IPv4 benutzt wird
+    both = lambda host, port, type=0: [(10, 1, 6, "", ("100::", port, 0, 0)), (2, 1, 6, "", ("10.1.0.10", port))]  # noqa: E731
+    assert check_url("http://mon.example/mcp", allow_private=True, resolver=both)
+    with pytest.raises(UrlRejected, match="Heimnetz"):
+        check_url("https://mon.example/mcp", resolver=both)
+    # nur 100:: bleibt abgelehnt; 100:: neben einer gesperrten Adresse ebenfalls
+    only = lambda host, port, type=0: [(10, 1, 6, "", ("100::", port, 0, 0))]  # noqa: E731
+    with pytest.raises(UrlRejected, match="nicht erlaubt"):
+        check_url("http://mon.example/mcp", allow_private=True, resolver=only)
+    bad = lambda host, port, type=0: [(10, 1, 6, "", ("100::", port, 0, 0)), (2, 1, 6, "", ("169.254.169.254", port))]  # noqa: E731
+    with pytest.raises(UrlRejected, match="169.254.169.254"):
+        check_url("http://mon.example/mcp", allow_private=True, resolver=bad)
+
+
 def test_netguard_unresolvable_name():
     def boom(host, port, type=0):
         raise OSError("nope")
