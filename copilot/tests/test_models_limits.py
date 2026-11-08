@@ -81,6 +81,23 @@ def test_limit_state_lifecycle_and_persistence(tmp_path):
     store.close()
 
 
+def test_overview_lists_every_window_even_without_warning(tmp_path):
+    store = Store(tmp_path / "t.sqlite3")
+    now = [1_000_000.0]
+    state = LimitState(store, clock=lambda: now[0])
+    assert state.overview() == []
+    state.update({"status": "allowed", "type": "seven_day", "resets_at": 1_500_000, "utilization": 0.11})
+    state.update({"status": "allowed", "type": "five_hour", "resets_at": 1_005_000, "utilization": 0.29})
+    state.update({"status": "allowed", "type": "", "resets_at": None, "utilization": None})  # nichtssagend: wird nicht gezeigt
+    rows = state.overview()
+    assert [r["type"] for r in rows] == ["five_hour", "seven_day"]  # Sitzung vor Woche
+    assert rows[0]["utilization"] == 0.29 and rows[0]["resets_at"] == 1_005_000 and rows[0]["expired"] is False and rows[0]["seen_at"] == 1_000_000
+    assert state.current() == []  # ohne Warnung kein Banner
+    now[0] = 1_006_000  # Sitzungsfenster ist vorbei
+    assert [(r["type"], r["expired"]) for r in state.overview()] == [("five_hour", True), ("seven_day", False)]
+    store.close()
+
+
 def test_limit_state_survives_garbage(tmp_path):
     store = Store(tmp_path / "t.sqlite3")
     store.state_set("usage_limits", "{kaputt")

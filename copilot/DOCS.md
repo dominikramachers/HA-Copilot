@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.48.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.48.2.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -447,7 +447,7 @@ Die Benachrichtigung zeigt den Anfang der Antwort, also auch auf dem Sperrbildsc
 
 Alles gilt nur für das eigene Profil; andere Personen sind nie betroffen. Die Löschfunktion ist keine Einstellung für alle, sondern bewusst nur für die eigenen Daten gedacht.
 
-## Einstellungen und Konto-Menü (ab 0.48.0)
+## Einstellungen und Konto-Menü (ab 0.48.1)
 
 Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noch das Wichtigste: **Einstellungen**, **Nutzung**, **Gedächtnis**, **Kurzanleitung**, **Das ist neu**, **Einrichtungsprüfung** (wenn der Chat über Home Assistant läuft) und, nur über die eigene Domain, **Abmelden**. Alles Weitere liegt in den **Einstellungen**, einer eigenen Seite mit Liste links und Inhalt rechts (auf dem Handy erst die Liste, dann der Inhalt mit „Zurück“):
 
@@ -455,11 +455,11 @@ Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noc
 - **Hilfe:** *Kurzanleitung*, *Das ist neu* (die Neuerungen der letzten Versionen), *Einrichtungsprüfung*.
 - **Anpassungen:** Verweise auf Skills, Konnektoren und Plugins (die bisherige Seite „Anpassungen“).
 
-**Nutzung** zeigt zwei Dinge: den Stand des Claude-Abos und deine Bilder im laufenden Monat. Ein Abo-Limit meldet Claude nur, wenn es fast oder ganz erreicht ist; deshalb steht dort „Das Limit ist nicht erreicht“ oder ein Balken mit Rücksetzzeit, aber keine laufende Prozentzahl. Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Bei den Bildern zählt die Seite Fotos und Kunstbilder von OpenAI oder Google (`image_limit_month`); SVG-Grafiken zählen nicht.
+**Nutzung** zeigt zwei Dinge. **Claude-Abo:** je Zeitfenster ein Balken mit Prozent verwendet, Rest und Zeitpunkt der Rücksetzung: *Aktuelle Sitzung* (Fenster von 5 Stunden) und *Diese Woche* (Wochenlimit; je nach Abo auch Opus oder Sonnet getrennt). Die Werte meldet Claude mit den Antworten der KI; die Seite zeigt den letzten gemeldeten Stand („Stand: heute, 14:03 Uhr“). Ist die Rücksetzzeit vorbei, steht dort „zurückgesetzt“, der neue Wert erscheint mit der nächsten Antwort. Solange noch nichts gemeldet wurde (zum Beispiel nach der Installation), steht „Noch keine Angabe zum Limit“. Orange Balken heißen „fast erreicht“, rote „erreicht“. Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. **Bilder:** Fotos und Kunstbilder von OpenAI oder Google im laufenden Monat (`image_limit_month`); SVG-Grafiken zählen nicht.
 
 **Seite merken.** Wer neu lädt (zum Beispiel weil Home Assistant das Fenster neu aufbaut), bleibt auf der Seite: Einstellungen mit der gewählten Unterseite, Geplant oder Anpassungen mit Skills, Konnektoren oder Plugins. Das Add-on merkt sich das im Browser (`sessionStorage`), nicht in der Adresse, weil Home Assistant die Adresse im eingebetteten Fenster nicht behält. Ein geöffneter Chat wurde schon vorher gemerkt.
 
-**Technik:** Schnittstelle `GET /api/usage` (Abo-Limits, Bilder der Person im Monat). Keine neuen Optionen. Die Sprache bleibt eine Einstellung des Administrators; eine Sprachwahl je Person ist nicht enthalten.
+**Technik:** Schnittstelle `GET /api/usage` (`windows`: alle bekannten Zeitfenster des Abos, `limits`: nur Warnungen, `images`: Bilder der Person im Monat). Keine neuen Optionen. Die Sprache bleibt eine Einstellung des Administrators; eine Sprachwahl je Person ist nicht enthalten.
 
 ## Einrichtungsprüfung (ab 0.25.0)
 

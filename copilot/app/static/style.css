@@ -1162,3 +1162,4 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   .set-nav { position: static; }
   .set-item { min-height: 48px; }
 }
+.usage-row { padding-bottom: 6px; }

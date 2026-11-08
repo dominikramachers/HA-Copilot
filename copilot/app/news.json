@@ -1,6 +1,21 @@
 [
   {
-    "version": "0.48.0",
+    "version": "0.48.2",
+    "items": [
+      {
+        "de": {
+          "title": "Nutzung mit Balken",
+          "text": "Bei „Nutzung“ siehst du jetzt für die Sitzung und für die Woche einen Balken, wie viel schon verbraucht ist, wie viel übrig bleibt und wann es zurückgesetzt wird."
+        },
+        "en": {
+          "title": "Usage with bars",
+          "text": "Under “Usage” you now see a bar for the session and for the week: how much is used, how much is left and when it resets."
+        }
+      }
+    ]
+  },
+  {
+    "version": "0.48.1",
     "items": [
       {
         "de": {
