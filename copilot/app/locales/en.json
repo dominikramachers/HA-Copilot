@@ -517,5 +517,6 @@
  "{name}: Adresse fehlt, ist nicht https oder enthält Platzhalter": "{name}: address is missing, not https or contains placeholders",
  "{name}: alter SSE-Transport wird nicht unterstützt": "{name}: the old SSE transport is not supported",
  "{name}: läuft als Programm auf dem eigenen Rechner (wird nicht übernommen)": "{name}: runs as a program on your own computer (not taken over)",
- "Der Servername „{host}“ zeigt auf {ip}. Diese Adresse ist nicht erlaubt (Link-Local, Multicast oder reserviert), auch nicht mit der Option „Alle Adressen für Konnektoren erlauben“.": "The server name “{host}” points to {ip}. This address is not allowed (link-local, multicast or reserved), not even with the option “Allow all addresses for connectors”."
+ "Der Servername „{host}“ zeigt auf {ip}. Diese Adresse ist nicht erlaubt (Link-Local, Multicast oder reserviert), auch nicht mit der Option „Alle Adressen für Konnektoren erlauben“.": "The server name “{host}” points to {ip}. This address is not allowed (link-local, multicast or reserved), not even with the option “Allow all addresses for connectors”.",
+ "Im Projektwissen gespeichert: {name}": "Saved to project knowledge: {name}"
 }

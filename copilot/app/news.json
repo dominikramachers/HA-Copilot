@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.44.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich schreibe ins Projektwissen",
+          "text": "Wenn du mich darum bittest, halte ich Ergebnisse als Notiz in deinem Projekt fest. Deine hochgeladenen Dateien lasse ich dabei unverändert. Die Notizen findest du im Projekt unter „Wissen verwalten“."
+        },
+        "en": {
+          "title": "I can write to project knowledge",
+          "text": "When you ask me to, I keep results as a note in your project. I leave your uploaded files untouched. You will find the notes in the project under “Manage knowledge”."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.43.2",
     "items": [
       {

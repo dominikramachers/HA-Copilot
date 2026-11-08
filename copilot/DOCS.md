@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.43.2.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.44.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -252,6 +252,7 @@ Zu jedem Projekt lassen sich Dateien hinterlegen, auf die die KI in allen Chats 
 - Das Wissen gehört dem Projekt und damit der Person, der das Projekt gehört. Andere Benutzer sehen es nicht.
 - Gespeichert wird nur der Text (Datenbank, damit in der HA-Sicherung enthalten). Bilder, Programme und ähnliche Dateien in einem ZIP werden übersprungen; die Übersicht nach dem Import nennt jede übersprungene Datei mit Grund.
 - Grenzen: 8 MB je Hochladen, 1 000 000 Zeichen je Datei, 300 Dateien und 15 Mio. Zeichen je Projekt, im ZIP höchstens 600 Einträge (4 MB je Datei, 60 MB entpackt). Eine Datei mit gleichem Namen wird ersetzt.
+- **Die KI kann Notizen ins Projektwissen schreiben (ab 0.44.0).** In einem Projekt-Chat gibt es das Werkzeug `knowledge_save`: Die KI legt eine Markdown-Notiz an, ergänzt sie (`mode=append`) oder ersetzt sie (`mode=replace`). Sie tut das nur, wenn du es möchtest („speichere das im Projektwissen“), und nur mit dem, was im Chat gesagt oder erarbeitet wurde. Geschrieben wird immer in den Ordner `KI/` (zum Beispiel `KI/zabbix-mcp.md`); eine hochgeladene Datei kann die KI nie ändern, auch nicht mit gleichem Namen, und Namen mit `..` lehnt der Server ab. Die Notizen erscheinen unter **Wissen verwalten** und lassen sich dort wie andere Dateien löschen. Es gelten dieselben Grenzen (300 Dateien, 15 Mio. Zeichen je Projekt, 1 000 000 Zeichen je Datei, 20 000 Zeichen je Aufruf), Zugangsdaten und Kontonummern lehnt der Server ab. Nach einem Dateianhang oder nach gelesenem Fremdinhalt (Home Assistant, Web, GitHub, Konnektoren, Dateien, Wissen) fragt die KI vor dem Schreiben im Chat nach. In geplanten Aufgaben und in Chats ohne Projekt gibt es das Werkzeug nicht. Das Gedächtnis (kurze Merkzettel, unten) bleibt davon getrennt.
 
 ### Gedächtnis
 
@@ -407,7 +408,7 @@ Auf der Seite lässt sich jede Aufgabe pausieren und fortsetzen (Schalter), sofo
 **Bewusst enger als ein Chat:** Weil niemand zusieht und Rückfragen nicht beantworten kann, ist alles Verändernde gar nicht erst angeboten:
 
 - Home Assistant nur **lesen** (Zustände, Verlauf, Logbuch), auch wenn die Person Schalten oder Ändern darf. Bei Stufe `none` ganz ohne Home Assistant.
-- GitHub nur **lesen**, das Gedächtnis nur **lesen**, nichts speichern oder löschen.
+- GitHub nur **lesen**, das Gedächtnis nur **lesen**, nichts speichern oder löschen; auch ins Projektwissen schreibt die KI in einem Lauf nicht.
 - Websuche und Seiten lesen (wenn für die Person und die Aufgabe erlaubt) und erzeugte Dateien (Word, Excel, PDF …) bleiben möglich. Gelesene Web-Inhalte sind wie immer Daten und keine Anweisungen; ändern kann der Lauf ohnehin nichts.
 - Antworten und Dateien landen nur im Chat der Person.
 

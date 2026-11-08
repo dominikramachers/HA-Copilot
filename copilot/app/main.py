@@ -2005,7 +2005,7 @@ def register_chat_routes(
             try:
                 answer = "".join(run.parts)
                 actions = run.action_log()
-                if not answer and any(a["kind"] in ("execute", "write", "memory", "file") and a["status"] in ("ok", "abgebrochen") for a in actions):
+                if not answer and any(a["kind"] in ("execute", "write", "memory", "knowledge-write", "file") and a["status"] in ("ok", "abgebrochen") for a in actions):
                     answer = tr("_Die Aktionen wurden ausgeführt, die Antwort dazu fehlt. Das Protokoll steht oberhalb._")
                     run.push({"type": "delta", "text": answer})
                 if answer:
