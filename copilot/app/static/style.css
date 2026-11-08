@@ -752,12 +752,16 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 @media (min-width: 640px) and (min-height: 520px) { :root .sheet[data-kind="panel"] { width: min(560px, calc(100% - 48px)); } }
 .mem-section { margin-bottom: 18px; }
 .mem-section h4, .mem-form h4 { margin: 0; font-size: 14px; font-weight: 700; }
-.gh-who { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; font-weight: 600; }
-.gh-who svg { width: 18px; height: 18px; color: var(--accent); }
-.gh-code { margin: 12px 0 8px; padding: 14px 0; border-radius: var(--r-2); background: var(--chip); text-align: center; font-family: var(--mono, ui-monospace, monospace); font-size: 28px; font-weight: 600; letter-spacing: .14em; user-select: all; }
-.gh-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
-.gh-actions a.pill { display: inline-flex; align-items: center; text-decoration: none; }
-.gh-wait { margin-top: 10px; }
+.gh-who { display: flex; align-items: center; gap: 10px; margin: 2px 0 10px; font-weight: 600; }
+.gh-who .icon { width: 22px; height: 22px; color: var(--text); }
+.gh-title-logo { width: 22px; height: 22px; margin-right: 10px; vertical-align: -3px; }
+.gh-code { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 6px; padding: 10px 10px 10px 56px; border-radius: var(--r-2); background: var(--chip); }
+.gh-code-text { flex: 1; text-align: center; font-family: var(--mono, ui-monospace, monospace); font-size: 28px; font-weight: 600; letter-spacing: .14em; user-select: all; }
+.gh-copy { flex: none; }
+.gh-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 6px; }
+.gh-actions .pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 18px; font-size: 14px; line-height: 1; text-decoration: none; }
+.gh-actions .pill .icon { width: 17px; height: 17px; }
+.gh-wait { margin: 12px 0 4px; }
 .mem-hint { margin: 2px 0 8px; font-size: 13px; color: var(--text-2); line-height: 1.45; }
 .mem-empty { margin: 6px 0; font-size: 14px; color: var(--text-2); }
 .mem-entry, .know-file { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line-2); }

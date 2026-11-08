@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.46.1",
+    "items": [
+      {
+        "de": {
+          "title": "GitHub verbinden klappt überall",
+          "text": "Die Anmeldung bei GitHub funktioniert jetzt auch, wenn du mich über deine eigene Adresse öffnest. Der Dialog sieht aufgeräumter aus und zeigt das GitHub-Zeichen."
+        },
+        "en": {
+          "title": "Connecting GitHub works everywhere",
+          "text": "Signing in to GitHub now also works when you open me through your own address. The window looks tidier and shows the GitHub logo."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.46.0",
     "items": [
       {

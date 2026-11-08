@@ -237,7 +237,7 @@ def test_endpoints_follow_the_configured_level(store, vault, gh, clock):
     assert me["github_connect"] is False
     info = client.get("/api/github/account", headers=headers(ADM01)).json()
     assert info["level"] == "none" and info["source"] == "shared" and info["shared"] is True and info["repos"] == ["dora/*"]
-    for method, path in (("post", "/api/github/device"), ("get", "/api/github/device")):
+    for method, path in (("post", "/api/github/device"), ("post", "/api/github/device/poll")):
         assert getattr(client, method)(path, headers=headers(ADM01)).status_code == 403
     assert client.post("/api/github/token", json={"token": PERSONAL}, headers=headers(ADM01)).status_code == 403
 
@@ -279,10 +279,11 @@ def test_device_endpoints_and_other_people_stay_separate(store, vault, gh, clock
     assert client.get("/api/github/account", headers=headers(DORA)).json()["pending"] is False
     gh.answers.append({"access_token": PERSONAL})
     clock.now += 6
-    done = client.get("/api/github/device", headers=headers(ADM01)).json()
+    done = client.post("/api/github/device/poll", headers=headers(ADM01)).json()
     assert done == {"status": "ok", "login": "dora-gh"}
     assert accounts.source("adm01") == "personal" and accounts.source("dora") == "shared"
-    assert client.get("/api/github/device", headers=headers(DORA)).json() == {"status": "none"}
+    assert client.post("/api/github/device/poll", headers=headers(DORA)).json() == {"status": "none"}
+    assert client.get("/api/github/device/poll", headers=headers(ADM01)).status_code == 405  # Abfragen, die etwas speichern, sind nie GET
 
 
 def test_changing_endpoints_need_the_csrf_header(store, vault, gh, clock):
@@ -290,7 +291,7 @@ def test_changing_endpoints_need_the_csrf_header(store, vault, gh, clock):
     client, _ = app_client(store, vault, gh, clock, github_access_default="write")
     plain = as_user(ADM01)
     assert client.post("/api/github/device", headers=plain).status_code == 403
-    assert client.get("/api/github/device", headers=plain).status_code == 403
+    assert client.post("/api/github/device/poll", headers=plain).status_code == 403
     assert client.post("/api/github/token", json={"token": PERSONAL}, headers=plain).status_code == 403
     assert client.delete("/api/github/account", headers=plain).status_code == 403
 

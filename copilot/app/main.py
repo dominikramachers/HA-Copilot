@@ -863,8 +863,9 @@ def register_chat_routes(
         except AccountError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc)) from None
 
-    @app.get("/api/github/device", dependencies=[Depends(write_guard)])
+    @app.post("/api/github/device/poll", dependencies=[Depends(write_guard)])
     async def github_device_poll(profile: Profile = Depends(current_profile)) -> dict:
+        """Stand der Anmeldung; bewusst POST: über die Domain prüft der Schutz die Herkunft, und die sendet der Browser nur bei POST."""
         github_allowed(profile)
         github_limit(github_poll_limit, profile)
         try:
