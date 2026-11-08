@@ -3,15 +3,19 @@ import asyncio
 import base64
 import json
 import re
+import tempfile
+from pathlib import Path
 
 import httpx
 import pytest
 
 from app.config import ConfigError, parse_settings
+from app.github_accounts import GithubAccounts
 from app.github_api import GithubApi, GithubError, RepoPolicy, parse_repo
 from app.github_tools import GithubToolbox
 from app.ha_tools import ToolError
 from app.main import build_ingress_app
+from app.vault import Vault
 from conftest import ADM01, DORA, RAW
 from test_background_run import asgi, jget, new_chat, sse
 
@@ -549,14 +553,12 @@ def test_errors_become_tool_errors_with_event_and_never_leak_the_token():
 
 def test_github_config_options_and_validation():
     s = parse_settings(RAW, frozenset())
-    assert s.github_access_default == "none" and s.github_write_confirm == "ask" and s.github_repos == () and s.github_token == ""
-    s = parse_settings({**RAW, "github_token": f" {TOKEN} ", "github_access_default": "READ", "github_write_confirm": "always_allow",
-                        "github_repos": "Dora/Smarthome, labor/*  dora/smarthome"}, frozenset())
-    assert s.github_token == TOKEN and s.github_access_default == "read" and s.github_write_confirm == "ask"  # Rückfrage ist fest
-    assert s.github_repos == ("dora/smarthome", "labor/*")
+    assert s.github_access_default == "none" and s.github_write_confirm == "ask"
+    assert not hasattr(s, "github_token") and not hasattr(s, "github_repos")  # ein gemeinsames Token gibt es seit 0.47.0 nicht mehr
+    s = parse_settings({**RAW, "github_token": TOKEN, "github_repos": "a/b", "github_access_default": "READ", "github_write_confirm": "always_allow"}, frozenset())
+    assert s.github_access_default == "read" and s.github_write_confirm == "ask"  # Rückfrage ist fest; alte Schlüssel stören nicht
     assert TOKEN not in repr(s)
-    assert parse_settings({**RAW, "github_repos": ["a/b", "c/*"]}, frozenset()).github_repos == ("a/b", "c/*")
-    for bad in ({"github_access_default": "admin"}, {"github_repos": "kein-slash"}, {"github_repos": "a/b/c"}, {"github_repos": "*/x"}):
+    for bad in ({"github_access_default": "admin"},):
         with pytest.raises(ConfigError):
             parse_settings({**RAW, **bad}, frozenset())
     profiles = [{**RAW["profiles"][0], "github_access": "write"}, RAW["profiles"][1]]
@@ -567,8 +569,9 @@ def test_github_config_options_and_validation():
 
 # --------------------------------------------------------------------- Einbindung in die App
 
-def gh_app(store, script, github=None, **options):
-    settings = parse_settings({**RAW, "github_token": TOKEN, **options}, frozenset({"testclient"}))
+def gh_app(store, script, connected=True, **options):
+    """App mit simuliertem GitHub; ``connected``: adm01 und dora haben ihr eigenes Konto verbunden."""
+    settings = parse_settings({**RAW, **options}, frozenset({"testclient"}))
     seen = {}
 
     class ToolBackend:
@@ -584,8 +587,11 @@ def gh_app(store, script, github=None, **options):
             yield "Fertig."
 
     gh = FakeGithub()
-    api = github if github is not None else GithubApi(TOKEN, transport=gh.transport())
-    return build_ingress_app(settings, store, ToolBackend(), github=api), seen, gh
+    accounts = GithubAccounts(store, Vault(Path(tempfile.mkdtemp()) / "connector.key"), transport=gh.transport())
+    if connected:
+        for person in ("adm01", "dora"):
+            store.github_account_save(person, accounts.vault.seal(TOKEN), "dora-gh", "token")
+    return build_ingress_app(settings, store, ToolBackend(), github_accounts=accounts), seen, gh
 
 
 def test_me_reports_github_level_and_tools_follow_the_level(store):
@@ -596,18 +602,18 @@ def test_me_reports_github_level_and_tools_follow_the_level(store):
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
         assert "github_read_file" in seen["tools"] and "github_commit_files" not in seen["tools"] and "GitHub" in seen["note"] and "nur lesen" in seen["note"]
-        # ohne Token oder Stufe „none“ gibt es nichts
+        # ohne Konto oder Stufe „none“ gibt es nichts
         app, seen, _gh = gh_app(store, [], github_access_default="none")
         assert jget(await asgi(app, "GET", "/api/me"))["github"] == "none"
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
         assert not [t for t in seen["tools"] if t.startswith("github_")] and "keine GitHub-Werkzeuge" in seen["note"]
-        assert "github_access" in seen["note"] and "github_token" not in seen["note"]  # Stufe fehlt, Token ist da
-        app, seen, _gh = gh_app(store, [], github=GithubApi(""), github_access_default="write")
+        assert "github_access" in seen["note"] and "verbinden" not in seen["note"]  # Stufe fehlt, Konto ist da
+        app, seen, _gh = gh_app(store, [], connected=False, github_access_default="write")
         assert jget(await asgi(app, "GET", "/api/me"))["github"] == "none"
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert "github_token" in seen["note"] and TOKEN not in seen["note"]  # Token fehlt: Hinweis auf die Einrichtung
+        assert "Konto-Menü" in seen["note"] and TOKEN not in seen["note"]  # Konto fehlt: Hinweis auf das Verbinden
 
     run(scenario())
 

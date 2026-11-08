@@ -1,6 +1,6 @@
 """Verbindung zu GitHub (REST-API) und die Freigabeliste für Repositories.
 
-Das Token (aus der Add-on-Konfiguration oder das verschlüsselt gespeicherte Konto einer Person, siehe github_accounts) geht ausschließlich als Anmelde-Kopfzeile an ``api.github.com``;
+Das Token (das verschlüsselt gespeicherte Konto einer Person, siehe github_accounts) geht ausschließlich als Anmelde-Kopfzeile an ``api.github.com``;
 es taucht weder in Meldungen noch in Ergebnissen für die KI auf.
 """
 from __future__ import annotations
@@ -86,7 +86,7 @@ class GithubApi:
     ) -> Any:
         """Eine Anfrage; liefert JSON (Liste/Objekt) oder, bei Rohdaten, Text. Wirft :class:`GithubError`."""
         if not self.enabled:
-            raise GithubError("GitHub ist nicht eingerichtet (kein Konto verbunden und kein Token in der Add-on-Konfiguration).")
+            raise GithubError("GitHub ist nicht eingerichtet (die Person hat kein Konto verbunden).")
         headers = {
             "Authorization": f"Bearer {self._token}",
             "Accept": accept,
@@ -126,7 +126,7 @@ class GithubApi:
         if status == 401:
             if self.personal:
                 return GithubError("Dein GitHub-Zugang wurde abgelehnt (widerrufen oder abgelaufen). Die Person muss GitHub im Konto-Menü neu verbinden.", 401)
-            return GithubError("Das GitHub-Token wurde abgelehnt (ungültig oder abgelaufen). Der Administrator muss es in der Add-on-Konfiguration erneuern.", 401)
+            return GithubError("Das GitHub-Token wurde abgelehnt (ungültig oder abgelaufen). Die Person muss GitHub im Konto-Menü neu verbinden.", 401)
         if status in (403, 429) and ("rate limit" in message.lower() or response.headers.get("x-ratelimit-remaining") == "0"):
             return GithubError("Das Anfragelimit von GitHub ist erreicht. Bitte später erneut versuchen.", status)
         if status == 403:

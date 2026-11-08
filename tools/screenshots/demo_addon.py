@@ -7,7 +7,8 @@ import httpx, uvicorn
 from app.config import parse_settings
 from app.db import Store
 from app.branding import Branding
-from app.github_api import GithubApi
+from app.github_accounts import GithubAccounts
+from app.vault import Vault
 from app.images import ImageService
 from app.main import build_ingress_app
 from app.ops import Health
@@ -91,7 +92,7 @@ class Backend:
 
 raw = {
     "language": LANG, "anthropic_api_key": "sk-ant-platzhalter",
-    "github_token": "ghp_platzhalter", "github_access_default": "read", "ha_access_default": "read",
+    "github_access_default": "read", "ha_access_default": "read",
     "google_api_key": "AIza-platzhalter", "image_limit_month": 2,
     "app_name": "HA Copilot",
     "profiles": [{"id": "demo", "label": "Demo Nutzer", "ha_user_id": DEMO_ID, "ha_access": "write", "github_access": "read",
@@ -125,8 +126,9 @@ def gh(request):
     if request.url.path == "/user":
         return httpx.Response(200, json={"login": "demo-konto"}, headers={"x-oauth-scopes": ""})
     return httpx.Response(404, json={"message": "Not Found"})
-github = GithubApi("ghp_platzhalter", transport=httpx.MockTransport(gh))
+github_accounts = GithubAccounts(store, Vault(d / "connector.key"), transport=httpx.MockTransport(gh))
+store.github_account_save(U, github_accounts.vault.seal("ghp_platzhalter_abcdefghij"), "demo-konto", "token")
 ha = Ha({"location_name": "Zuhause", "version": "2026.10.1"}, {"notify": {"mobile_app_handy": {}}})
-app = build_ingress_app(settings, store, Backend(), health=Health(settings), ha=ha, github=github, branding=Branding(brand, settings, None),
+app = build_ingress_app(settings, store, Backend(), health=Health(settings), ha=ha, github_accounts=github_accounts, branding=Branding(brand, settings, None),
                         images=ImageService(settings, httpx.MockTransport(fake_image_api)))
 uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")

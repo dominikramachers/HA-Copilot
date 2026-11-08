@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.47.0",
+    "items": [
+      {
+        "de": {
+          "title": "GitHub nur noch mit deinem Konto",
+          "text": "Ich arbeite bei GitHub nur noch mit dem Konto, das du selbst verbunden hast. Ein gemeinsamer Zugang des Administrators ist nicht mehr nötig."
+        },
+        "en": {
+          "title": "GitHub only with your own account",
+          "text": "I now work with GitHub only through the account you connected yourself. A shared access set up by the administrator is no longer needed."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.46.1",
     "items": [
       {

@@ -1,6 +1,6 @@
 """Persönliche GitHub-Konten: jede Person verbindet ihr eigenes GitHub, das Token des Add-ons wird nur noch als Ersatz genutzt.
 
-Zwei Wege zum Verbinden, beide ohne dass ein Token in der Add-on-Konfiguration stehen muss:
+Zwei Wege zum Verbinden (ein gemeinsames Token in der Add-on-Konfiguration gibt es seit 0.47.0 nicht mehr):
 
 * **Anmeldung bei GitHub (Device Flow):** Die Person bekommt einen Code, gibt ihn auf ``github.com/login/device`` ein und bestätigt dort.
   Das Add-on fragt in der Zwischenzeit nach, bis GitHub das Token herausgibt. Dafür braucht es nur die öffentliche Client-ID der
@@ -9,15 +9,15 @@ Zwei Wege zum Verbinden, beide ohne dass ein Token in der Add-on-Konfiguration s
 
 Das Token liegt verschlüsselt in der Datenbank (Fernet, Schlüssel wie bei den Konnektoren im Datenordner). Es geht nie an den Browser,
 nie in Protokoll, Fehlermeldungen oder „Meine Daten“. Der Code der Anmeldung (``device_code``) bleibt im Arbeitsspeicher des Add-ons.
-Wer welche Rechte hat (``none``, ``read``, ``write``), bleibt Sache der Konfiguration (``github_access``); ``github_repos`` gilt nur
-für das gemeinsame Token des Add-ons, denn ein persönliches Token reicht ohnehin nur so weit, wie die Person selbst darf.
+Wer welche Rechte hat (``none``, ``read``, ``write``), bleibt Sache der Konfiguration (``github_access``); ein persönliches Token reicht
+ohnehin nur so weit, wie die Person selbst darf.
 """
 from __future__ import annotations
 
 import logging
 import re
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -52,8 +52,6 @@ class GithubAccounts:
         self,
         store: Store,
         vault: Vault,
-        shared: GithubApi,
-        shared_repos: Iterable[str] = (),
         *,
         client_id: str = CLIENT_ID,
         transport: httpx.AsyncBaseTransport | None = None,
@@ -61,8 +59,7 @@ class GithubAccounts:
     ) -> None:
         self.store = store
         self.vault = vault
-        self.shared = shared
-        self.shared_policy = RepoPolicy(shared_repos)
+        self.none = GithubApi("")  # ausgeschalteter Zugang für Personen ohne verbundenes Konto
         self.client_id = client_id
         self._transport = transport
         self._clock = clock
@@ -88,17 +85,16 @@ class GithubAccounts:
         return api
 
     def api_for(self, profile_id: str) -> GithubApi:
-        """Das eigene Konto der Person, sonst das gemeinsame Token des Add-ons (kann ausgeschaltet sein)."""
-        return self.personal(profile_id) or self.shared
+        """Das eigene Konto der Person, sonst ein ausgeschalteter Zugang (``enabled`` ist dann falsch)."""
+        return self.personal(profile_id) or self.none
 
     def policy_for(self, profile_id: str) -> RepoPolicy:
-        return RepoPolicy() if self.personal(profile_id) is not None else self.shared_policy
+        """Keine Freigabeliste: ein persönliches Konto reicht nur so weit, wie die Person selbst darf."""
+        return RepoPolicy()
 
     def source(self, profile_id: str) -> str:
-        """``personal``, ``shared`` (Token der Konfiguration) oder ``none``."""
-        if self.personal(profile_id) is not None:
-            return "personal"
-        return "shared" if self.shared.enabled else "none"
+        """``personal`` (Konto verbunden) oder ``none``."""
+        return "personal" if self.personal(profile_id) is not None else "none"
 
     def enabled_for(self, profile_id: str) -> bool:
         return self.source(profile_id) != "none"

@@ -109,11 +109,9 @@ class Settings:
     memory_enabled: bool = True
     memory_household_writers: str = "all"  # fest: jeder darf das Haushaltsgedächtnis ändern (ha_write = nur Stufe write, nur noch in Tests)
     ha_scan_days: int = 7  # fest: Überblick über Home Assistant beim ersten Start und dann alle 7 Tage einlesen (Knopf im Gedächtnis-Dialog)
-    # GitHub (Token des Betreibers; wer was darf, steht je Profil bzw. in github_access_default)
-    github_token: str = field(default="", repr=False)
+    # GitHub (jede Person verbindet ihr eigenes Konto; wer was darf, steht je Profil bzw. in github_access_default)
     github_access_default: str = "none"
     github_write_confirm: str = "ask"  # fest: jede Änderung wird im Chat bestätigt
-    github_repos: tuple[str, ...] = ()  # Freigabeliste „besitzer/name“ oder „besitzer/*“; leer = alles, was das Token erreicht
     # Konnektoren (MCP-Server): wer sie nutzen, selbst anlegen oder für alle verwalten darf, steht je Profil bzw. hier
     connector_access_default: str = "use"
     connector_write_confirm: str = "ask"  # fest: jede Änderung über einen Konnektor wird im Chat bestätigt
@@ -173,7 +171,6 @@ class Settings:
 
 
 HA_ACCESS_LEVELS = ("none", "read", "execute", "write")
-_GITHUB_PATTERN = re.compile(r"^[a-z0-9_.-]{1,100}/([a-z0-9_.-]{1,100}|\*)$")
 WEB_ACCESS_LEVELS = ("on", "off")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
 GITHUB_ACCESS_LEVELS = ("none", "read", "write")
@@ -293,15 +290,6 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     connector_access_default = str(raw.get("connector_access_default") or "use").strip().lower()
     if connector_access_default not in CONNECTOR_ACCESS_LEVELS:
         raise ConfigError("connector_access_default muss none, use, own oder global sein")
-    repos_raw = raw.get("github_repos") or ""
-    if isinstance(repos_raw, str):
-        repos_raw = re.split(r"[,;\s]+", repos_raw)
-    if not isinstance(repos_raw, list):
-        raise ConfigError("github_repos muss eine Liste von Repositories sein (besitzer/name, durch Komma getrennt)")
-    github_repos = tuple(dict.fromkeys(str(x).strip().lower() for x in repos_raw if str(x).strip()))
-    for entry in github_repos:
-        if not _GITHUB_PATTERN.match(entry):
-            raise ConfigError(f"Ungültiger Eintrag in github_repos: {entry[:60]!r} (erwartet besitzer/name oder besitzer/*)")
     try:
         image_limit_month = int(raw.get("image_limit_month", 30))
     except (TypeError, ValueError):
@@ -397,9 +385,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         ha_access_default=ha_access_default,
         ha_limit_to_exposed=bool(raw.get("ha_limit_to_exposed", True)),
         memory_enabled=bool(raw.get("memory_enabled", True)),
-        github_token=str(raw.get("github_token") or "").strip(),
         github_access_default=github_access_default,
-        github_repos=github_repos,
         connector_access_default=connector_access_default,
         files_enabled=bool(raw.get("files_enabled", True)),
         openai_api_key=str(raw.get("openai_api_key") or "").strip(),

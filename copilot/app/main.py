@@ -74,7 +74,6 @@ from . import schedule as sched
 from .scheduler import NOTIFY_MODES, PROMPT_MAX, NAME_MAX, Scheduler, plain_excerpt
 from .web_tools import WEB_NOTE, WebToolbox
 from .github_accounts import AccountError, GithubAccounts
-from .github_api import GithubApi, RepoPolicy
 from . import connector_catalog, connector_icons
 from .connectors import CONNECTOR_NOTE, ConnectorError, ConnectorService, ConnectorToolbox
 from .vault import Vault
@@ -715,7 +714,6 @@ def register_chat_routes(
     ha: HaApi | None = None,
     channel: str = "ingress",
     scanner: OverviewScanner | None = None,
-    github: GithubApi | None = None,
     scheduler: Scheduler | None = None,
     registry: Registry | None = None,
     public_peers: PeerLog | None = None,
@@ -731,7 +729,7 @@ def register_chat_routes(
     limits = limitlib.shared(store)
     welcome = newslib.Welcome(store)
     model_ids = {m["id"] for m in settings.model_choices()}
-    accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH), github or GithubApi(settings.github_token), settings.github_repos)
+    accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH))
     images = images or ImageService(settings)
     title_lock = asyncio.Lock()  # Titel einzeln nacheinander, damit sie keine Antworten ausbremsen
     previews = PreviewStore()  # HTML-Vorschauen, nur im Arbeitsspeicher
@@ -814,7 +812,6 @@ def register_chat_routes(
             settings, profile,
             ha_enabled=ha is not None and ha.enabled,
             github_enabled=accounts.enabled_for(profile.id),
-            github_source=accounts.source(profile.id),
             ha_level=ha_level(profile),
             github_level=github_level(profile),
             db_problem=health.db_problem if health else None,
@@ -849,8 +846,6 @@ def register_chat_routes(
         return {
             **accounts.info(profile.id),
             "level": github_configured_level(profile),
-            "shared": accounts.shared.enabled,
-            "repos": list(accounts.shared_policy.patterns),
         }
 
     @app.post("/api/github/device", dependencies=[Depends(write_guard)])
@@ -2200,10 +2195,10 @@ def make_connectors(settings: Settings, store: Store, registry: Registry, *, vau
     )
 
 
-def make_scheduler(settings: Settings, store: Store, backend: ChatBackend, registry: Registry, ha: HaApi, github: GithubApi, runs: dict, connectors: ConnectorService | None = None, github_accounts: GithubAccounts | None = None) -> Scheduler:
+def make_scheduler(settings: Settings, store: Store, backend: ChatBackend, registry: Registry, ha: HaApi, runs: dict, connectors: ConnectorService | None = None, github_accounts: GithubAccounts | None = None) -> Scheduler:
     """Geplante Aufgaben: ein gemeinsamer Ausführer für beide Zugänge (laufende Antworten zählen zusammen)."""
     return Scheduler(
-        settings, store, backend, registry, ha, github, limitlib.shared(store), runs,
+        settings, store, backend, registry, ha, limitlib.shared(store), runs,
         lambda key, text: Run(key, text, False),
         connectors=connectors,
         github_accounts=github_accounts,
@@ -2220,7 +2215,6 @@ def build_ingress_app(
     ha: HaApi | None = None,
     registry: Registry | None = None,
     scanner: OverviewScanner | None = None,
-    github: GithubApi | None = None,
     scheduler: Scheduler | None = None,
     public_peers: PeerLog | None = None,
     images: ImageService | None = None,
@@ -2231,12 +2225,11 @@ def build_ingress_app(
     registry = registry or Registry.from_settings(settings, store)
     ha = ha or HaApi("", HA_WEBSOCKET_URL)
     scanner = scanner or (OverviewScanner(store, ha) if ha.enabled else None)
-    github = github or GithubApi(settings.github_token)
-    github_accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH), github, settings.github_repos)
+    github_accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH))
     branding = branding or Branding(BRANDING_DIR, settings, ha)
     busy = busy if busy is not None else {}
     connectors = connectors or make_connectors(settings, store, registry)
-    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy, connectors, github_accounts)
+    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, busy, connectors, github_accounts)
     asset_version = _asset_version()
     app = FastAPI(title="HA Copilot", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.scheduler = scheduler
@@ -2288,7 +2281,7 @@ def build_ingress_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "ingress", "can_logout": False},
-        health, ha, "ingress", scanner, github, scheduler, registry, public_peers, images, connectors, github_accounts,
+        health, ha, "ingress", scanner, scheduler, registry, public_peers, images, connectors, github_accounts,
     )
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -2311,7 +2304,6 @@ def build_public_app(
     registry: Registry | None = None,
     ha_login: HaLoginClient | None = None,
     scanner: OverviewScanner | None = None,
-    github: GithubApi | None = None,
     scheduler: Scheduler | None = None,
     public_peers: PeerLog | None = None,
     images: ImageService | None = None,
@@ -2327,12 +2319,11 @@ def build_public_app(
     registry = registry or Registry.from_settings(settings, store)
     ha = ha or HaApi("", HA_WEBSOCKET_URL)
     scanner = scanner or (OverviewScanner(store, ha) if ha.enabled else None)
-    github = github or GithubApi(settings.github_token)
-    github_accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH), github, settings.github_repos)
+    github_accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH))
     branding = branding or Branding(BRANDING_DIR, settings, ha)
     busy = busy if busy is not None else {}
     connectors = connectors or make_connectors(settings, store, registry)
-    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy, connectors, github_accounts)
+    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, busy, connectors, github_accounts)
     origin = settings.public_base_url
     version = _asset_version()
     pending = PendingLogins()
@@ -2526,7 +2517,7 @@ def build_public_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "domain", "can_logout": True},
-        health, ha, "public", scanner, github, scheduler, registry, public_peers, images, connectors, github_accounts,
+        health, ha, "public", scanner, scheduler, registry, public_peers, images, connectors, github_accounts,
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
@@ -2643,12 +2634,11 @@ async def _serve(
     busy: dict = {}  # laufende Antworten, gilt für beide Zugänge zusammen (MAX_PARALLEL)
     ha = ha or HaApi("", HA_WEBSOCKET_URL)
     scanner = OverviewScanner(store, ha) if ha.enabled else None  # ein gemeinsamer Stand für beide Zugänge
-    github = GithubApi(settings.github_token)
-    github_accounts = GithubAccounts(store, Vault(VAULT_PATH), github, settings.github_repos)
+    github_accounts = GithubAccounts(store, Vault(VAULT_PATH))
     connectors = make_connectors(settings, store, registry)
-    scheduler = make_scheduler(settings, store, backend, registry, ha, github, busy, connectors, github_accounts)
+    scheduler = make_scheduler(settings, store, backend, registry, ha, busy, connectors, github_accounts)
     public_peers = PeerLog()  # Gegenstellen der Domain-Seite (für die Einrichtungsprüfung)
-    servers = [server(build_ingress_app(settings, store, backend, busy, health, branding, ha, registry, scanner, github, scheduler, public_peers, connectors=connectors, github_accounts=github_accounts), INGRESS_PORT)]
+    servers = [server(build_ingress_app(settings, store, backend, busy, health, branding, ha, registry, scanner, scheduler, public_peers, connectors=connectors, github_accounts=github_accounts), INGRESS_PORT)]
     if settings.public_enabled:
         entra = (
             EntraClient(
@@ -2666,7 +2656,7 @@ async def _serve(
             else None
         )
         servers.append(
-            server(build_public_app(settings, store, backend, entra, busy, health, branding, ha, registry, ha_login, scanner, github, scheduler, public_peers, connectors=connectors, github_accounts=github_accounts), PUBLIC_PORT)
+            server(build_public_app(settings, store, backend, entra, busy, health, branding, ha, registry, ha_login, scanner, scheduler, public_peers, connectors=connectors, github_accounts=github_accounts), PUBLIC_PORT)
         )
         log.info("Domain-Zugang aktiv: %s (Port %d)", settings.public_base_url, PUBLIC_PORT)
     snapshots = asyncio.create_task(_snapshot_loop(store))

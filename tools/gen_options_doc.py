@@ -25,7 +25,7 @@ def render(root: Path = ROOT) -> str:
      ("Benutzer", "Wer die App nutzen darf. Ausführlich in [Benutzer und Rechte](benutzer.md).", ["profiles", "all_ha_users", "ha_users_excluded"]),
      ("Claude (Antworten)", "Zugang zu Claude und Modelle. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).", ["claude_oauth_token", "anthropic_api_key", "model"]),
      ("Zugriff auf Home Assistant", "Was die KI in Home Assistant sehen und tun darf.", ["ha_access_default", "ha_limit_to_exposed"]),
-     ("GitHub", "Optional: die KI arbeitet mit deinen Repositories. Jede Person verbindet ihr eigenes GitHub im Konto-Menü; hier stehen nur Rechte und ein gemeinsames Ersatz-Token.", ["github_token", "github_access_default", "github_repos"]),
+     ("GitHub", "Optional: die KI arbeitet mit deinen Repositories. Jede Person verbindet ihr eigenes GitHub in den Einstellungen; hier steht nur, wer lesen oder schreiben darf.", ["github_access_default"]),
      ("Konnektoren", "Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (Microsoft 365, Google Workspace, Zabbix …). Ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410).", ["connector_access_default"]),
      ("Funktionen", "Gedächtnis, geplante Aufgaben, Dateien und Sprache.", ["language", "memory_enabled", "schedules_enabled", "files_enabled"]),
      ("Bilder", "Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).", ["openai_api_key", "google_api_key", "image_provider", "image_limit_month"]),

@@ -41,6 +41,7 @@ from .outbox import DESIGN_NOTE, OutboxToolbox
 from .web_tools import WEB_NOTE, WebToolbox
 
 log = logging.getLogger("copilot.scheduler")
+_NO_GITHUB = GithubApi("")  # ohne Kontenverwaltung (Tests): GitHub ist aus
 
 TICK_SECONDS = 30
 START_DELAY = 20  # nach dem Start Home Assistant erst hochfahren lassen
@@ -84,7 +85,6 @@ class Scheduler:
         backend: Any,
         registry: Registry,
         ha: HaApi,
-        github: GithubApi,
         limits: LimitState,
         runs: dict,
         new_run: Callable[[tuple[str, str], str], Any],
@@ -99,14 +99,12 @@ class Scheduler:
         self.backend = backend
         self.registry = registry
         self.ha = ha
-        self.github = github
         self.limits = limits
         self.runs = runs
         self.new_run = new_run
         self.clock = clock
-        self.policy = RepoPolicy(settings.github_repos)
         self.connectors = connectors
-        self.github_accounts = github_accounts  # persönliche GitHub-Konten; ohne: nur das Token der Konfiguration
+        self.github_accounts = github_accounts  # persönliche GitHub-Konten; ohne: kein GitHub
         self._tasks: set[asyncio.Task] = set()
         self.live: dict[str, tuple[str, str]] = {}  # Aufgabe → Schlüssel des laufenden Laufs
 
@@ -133,10 +131,10 @@ class Scheduler:
         return "none" if (profile.ha_access or self.settings.ha_access_default) == "none" else "read"
 
     def github_api(self, profile: Profile) -> GithubApi:
-        return self.github_accounts.api_for(profile.id) if self.github_accounts is not None else self.github
+        return self.github_accounts.api_for(profile.id) if self.github_accounts is not None else _NO_GITHUB
 
     def github_policy(self, profile: Profile) -> RepoPolicy:
-        return self.github_accounts.policy_for(profile.id) if self.github_accounts is not None else self.policy
+        return RepoPolicy()
 
     def github_level(self, profile: Profile) -> str:
         if not self.github_api(profile).enabled:

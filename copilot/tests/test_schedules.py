@@ -9,7 +9,6 @@ from app import schedule as sched
 from app.backend import BackendError
 from app.config import ConfigError, parse_settings
 from app.db import SCHEDULE_LIMIT, Store
-from app.github_api import GithubApi
 from app.identity import Registry
 from app.limits import LimitState
 from app.main import Run, build_ingress_app
@@ -257,7 +256,7 @@ def build(store, *, settings=SETTINGS, backend=None, ha=None, limits=None, now=N
     clock = [now or datetime.now().timestamp()]
     runs: dict = {}
     scheduler = Scheduler(
-        settings, store, backend, Registry.from_settings(settings, store), ha, GithubApi(""),
+        settings, store, backend, Registry.from_settings(settings, store), ha,
         limits or LimitState(store), runs, lambda key, text: Run(key, text, False), clock=lambda: clock[0],
     )
     return scheduler, backend, ha, runs, clock
@@ -297,10 +296,14 @@ def test_tick_runs_due_task_into_a_new_chat(store):
     assert call["history"] == [] and call["message"] == "Fasse das Haus zusammen." and "geplante Aufgabe" in call["note"]
 
 
-def test_run_is_read_only_and_asks_nothing(store):
-    s = parse_settings({**RAW, "ha_access_default": "write", "github_access_default": "write", "github_token": "t"}, frozenset({"testclient"}))
+def test_run_is_read_only_and_asks_nothing(store, tmp_path):
+    from app.github_accounts import GithubAccounts  # noqa: PLC0415
+    from app.vault import Vault  # noqa: PLC0415
+
+    s = parse_settings({**RAW, "ha_access_default": "write", "github_access_default": "write"}, frozenset({"testclient"}))
     scheduler, backend, ha, _, _ = build(store, settings=s, now=2_000)
-    scheduler.github = GithubApi("token")  # GitHub ist eingerichtet
+    scheduler.github_accounts = GithubAccounts(store, Vault(tmp_path / "k.key"))
+    store.github_account_save("adm01", scheduler.github_accounts.vault.seal("gho_persoenlich_abcdefghijklmnop"), "dora-gh", "token")  # GitHub ist verbunden
     make_task(store, next_run=1_000)
     run_tick(scheduler)
     names = [t.name for t in backend.calls[0]["tools"]]
@@ -317,9 +320,9 @@ def test_scheduled_run_uses_the_personal_github_account_read_only(store, tmp_pat
     from app.github_accounts import GithubAccounts  # noqa: PLC0415
     from app.vault import Vault  # noqa: PLC0415
 
-    s = parse_settings({**RAW, "github_access_default": "write"}, frozenset({"testclient"}))  # kein Token in der Konfiguration
+    s = parse_settings({**RAW, "github_access_default": "write"}, frozenset({"testclient"}))
     scheduler, backend, _, _, _ = build(store, settings=s, now=2_000)
-    accounts = GithubAccounts(store, Vault(tmp_path / "k.key"), scheduler.github, ["fremd/*"])
+    accounts = GithubAccounts(store, Vault(tmp_path / "k.key"))
     scheduler.github_accounts = accounts
     make_task(store, next_run=1_000)
     run_tick(scheduler)
