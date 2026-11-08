@@ -50,13 +50,11 @@ Was die KI in Home Assistant sehen und tun darf.
 
 ## GitHub
 
-Optional: die KI arbeitet mit deinen Repositories. Jede Person verbindet ihr eigenes GitHub im Konto-Menü; hier stehen nur Rechte und ein gemeinsames Ersatz-Token.
+Optional: die KI arbeitet mit deinen Repositories. Jede Person verbindet ihr eigenes GitHub in den Einstellungen; hier steht nur, wer lesen oder schreiben darf.
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `github_token` | Text (geheim) | leer | **Gemeinsames GitHub-Token (optional).** Normalerweise nicht nötig: Jede Person verbindet ihr eigenes GitHub im Konto-Menü. Dieses Token ist nur der Ersatz für alle, die nichts verbunden haben. Persönliches Zugriffstoken von GitHub (Einstellungen → Entwicklereinstellungen → Fine-grained tokens). Gib ihm nur die Repositories und Rechte, die die KI haben soll: Contents, Pull requests und Issues (je lesen und schreiben), Metadata (lesen); zum Anlegen neuer Repositories ein klassisches Token mit dem Recht „repo“. Leer: ohne eigenes Konto der Person ist GitHub aus. |
-| `github_access_default` | `none` \| `read` \| `write` | `none` | **Standard-Zugriff auf GitHub.** Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub verbunden hat oder ein gemeinsames Token eingetragen ist. Je Benutzer überschreibbar mit github_access. |
-| `github_repos` | Text | leer | **Erlaubte Repositories (optional).** Freigabeliste, durch Komma getrennt: „doralab/smarthome, doralab/*“. besitzer/* erlaubt alle Repositories eines Besitzers. Gilt nur für das gemeinsame Token, nicht für verbundene Konten. Leer: alles, was das Token erreicht. Die KI kann auf andere Repositories dann gar nicht zugreifen. |
+| `github_access_default` | `none` \| `read` \| `write` | `none` | **Standard-Zugriff auf GitHub.** Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub im Konto-Menü verbunden hat. Je Benutzer überschreibbar mit github_access. |
 
 ## Konnektoren
 

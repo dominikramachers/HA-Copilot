@@ -116,19 +116,14 @@ def test_image_rows():
 def test_github_rows():
     off = rows(make())["github"]
     assert off["status"] == "off" and "Mit GitHub verbinden" in " ".join(off["steps"]) and "github_access" in " ".join(off["steps"])
-    muted = rows(make(github_token=TOKEN), github_enabled=True, github_level="none")["github"]
+    muted = rows(make(), github_enabled=True, github_level="none")["github"]
     assert muted["status"] == "warn" and "github_access_default" in " ".join(muted["steps"])
-    ok = rows(make(github_token=TOKEN, github_repos="doralab/*"), github_enabled=True, github_level="write")["github"]
-    assert ok["status"] == "ok" and "schreiben" in ok["detail"] and "doralab/*" in ok["detail"] and TOKEN not in str(ok)
+    ok = rows(make(), github_enabled=True, github_level="write")["github"]
+    assert ok["status"] == "ok" and "schreiben" in ok["detail"] and "eigenes GitHub-Konto" in ok["detail"] and TOKEN not in str(ok)
 
 
-def test_github_row_for_a_personal_account_says_so_and_ignores_the_shared_repo_list():
-    ok = rows(make(github_repos="doralab/*"), github_enabled=True, github_level="write", github_source="personal")["github"]
-    assert ok["status"] == "ok" and "eigenes GitHub-Konto" in ok["detail"] and "doralab/*" not in ok["detail"]
-
-
-def test_live_personal_github_rejection_asks_to_reconnect():
-    items = list(rows(make(), github_enabled=True, github_level="read", github_source="personal").values())
+def test_live_github_rejection_asks_to_reconnect():
+    items = list(rows(make(), github_enabled=True, github_level="read").values())
     api = GithubApi(TOKEN, transport=httpx.MockTransport(lambda r: httpx.Response(401, json={"message": "Bad credentials"})), personal=True)
     asyncio.run(sc.run_live(items, None, api, make().profiles[0]))
     github = next(i for i in items if i["id"] == "github")
@@ -143,21 +138,14 @@ def github_api(status, body=None):
 
 
 def test_live_github_valid_token_names_the_account():
-    items = list(rows(make(github_token=TOKEN), github_enabled=True, github_level="read").values())
+    items = list(rows(make(), github_enabled=True, github_level="read").values())
     asyncio.run(sc.run_live(items, None, github_api(200, {"login": "doralab"}), make().profiles[0]))
     github = next(i for i in items if i["id"] == "github")
     assert github["status"] == "ok" and "doralab" in github["detail"] and TOKEN not in str(github)
 
 
-def test_live_github_rejected_token_becomes_a_todo_with_steps():
-    items = list(rows(make(github_token=TOKEN), github_enabled=True, github_level="read").values())
-    asyncio.run(sc.run_live(items, None, github_api(401, {"message": "Bad credentials"}), make().profiles[0]))
-    github = next(i for i in items if i["id"] == "github")
-    assert github["status"] == "todo" and "abgelaufen" in github["detail"] and "github_token" in " ".join(github["steps"])
-
-
 def test_live_github_unreachable_does_not_turn_red():
-    items = list(rows(make(github_token=TOKEN), github_enabled=True, github_level="read").values())
+    items = list(rows(make(), github_enabled=True, github_level="read").values())
     asyncio.run(sc.run_live(items, None, github_api(502), make().profiles[0]))
     github = next(i for i in items if i["id"] == "github")
     assert github["status"] == "ok" and "nicht geprüft" in github["detail"]
@@ -245,7 +233,7 @@ def test_expiry_reminder_rows():
 
 
 def test_every_open_row_has_steps_and_no_row_leaks_secrets():
-    settings = domain_settings(backend="claude", claude_oauth_token=ABO, github_token=TOKEN, anthropic_api_key=KEY)
+    settings = domain_settings(backend="claude", claude_oauth_token=ABO, anthropic_api_key=KEY)
     items = list(rows(settings, github_enabled=True, github_level="none", db_problem="kaputt").values())
     asyncio.run(sc.run_live(items, None, None, settings.profiles[0]))
     for item in items:

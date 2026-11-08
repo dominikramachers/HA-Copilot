@@ -80,7 +80,6 @@ def static_items(
     github_enabled: bool,
     ha_level: str,
     github_level: str,
-    github_source: str = "shared",
     db_problem: str | None = None,
     pending_users: Iterable[Profile] = (),
     hostname: str = "",
@@ -195,10 +194,7 @@ def static_items(
             ],
         ))
     else:
-        if github_source == "personal":
-            scope = tr(" Es ist dein eigenes GitHub-Konto.")
-        else:
-            scope = tr(" Zugriff nur auf: ") + ", ".join(settings.github_repos) + "." if settings.github_repos else tr(" Zugriff auf alle Repositories, die das Token erreicht.")
+        scope = tr(" Es ist dein eigenes GitHub-Konto.")
         mode = tr("lesen und schreiben") if github_level == "write" else tr("nur lesen")
         items.append(_item("github", "optional", "ok", "GitHub", tr("Eingerichtet, du darfst {mode}.", mode=mode) + scope))
 
@@ -353,22 +349,11 @@ async def _check_github(items: list[dict], github: GithubApi) -> None:
         async with asyncio.timeout(12):
             user = await github.request("GET", "/user")
     except GithubError as exc:
-        if exc.status == 401 and getattr(github, "personal", False):
+        if exc.status == 401:
             item.update(
                 status="todo",
                 detail=tr("GitHub lehnt deinen Zugang ab. Er wurde widerrufen oder ist abgelaufen."),
                 steps=[tr("Öffne das Konto-Menü, wähle „GitHub“ und verbinde dich neu.")],
-            )
-        elif exc.status == 401:
-            item.update(
-                status="todo",
-                detail=tr("GitHub lehnt das Token ab. Es ist ungültig oder abgelaufen."),
-                steps=[
-                    tr("Erzeuge bei GitHub unter Settings → Developer settings → Personal access tokens ein neues Token mit denselben Rechten."),
-                    tr(CONFIG_STEP),
-                    tr("Ersetze den Wert bei `github_token`."),
-                    tr(RESTART_STEP),
-                ],
             )
         else:
             item["detail"] += tr(" (Das Token konnte gerade nicht geprüft werden: {error})", error=str(exc)[:80])
@@ -378,7 +363,7 @@ async def _check_github(items: list[dict], github: GithubApi) -> None:
         return
     login = re.sub(r"[^\w-]", "", str(user.get("login") or ""))[:40] if isinstance(user, dict) else ""
     if login:
-        item["detail"] += tr(" Verbunden als {login}; der Zugang ist gültig.", login=login) if getattr(github, "personal", False) else tr(" Das Token gehört zum Konto {login} und ist gültig.", login=login)
+        item["detail"] += tr(" Verbunden als {login}; der Zugang ist gültig.", login=login)
 
 
 async def run_live(items: list[dict], ha: HaApi | None, github: GithubApi | None, profile: Profile) -> list[dict]:

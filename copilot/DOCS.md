@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.46.1.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.47.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -339,7 +339,7 @@ Ein **Plugin** ist ein Paket aus Skills und Konnektoren zu einem Thema, zum Beis
 
 Die KI kann mit GitHub arbeiten (ab 0.46.0 mit dem eigenen Konto jeder Person): Repositories und Dateien lesen, Code durchsuchen, Issues, Pull Requests, Commits und Workflow-Läufe ansehen, und (mit Schreibrecht) Dateien einchecken, Zweige und Pull Requests anlegen, Issues schreiben, Pull Requests mergen und neue Repositories anlegen. Beispiele: „Schau in doralab/smarthome, warum der letzte Lauf fehlschlägt“, „Lege das Skript aus dem Chat als Pull Request in doralab/smarthome ab“, „Fass die offenen Issues zusammen“.
 
-**Einrichten, Weg 1: jede Person verbindet ihr eigenes GitHub (ab 0.46.0, empfohlen).** Im Konto-Menü (unten links) gibt es den Eintrag **GitHub**, sobald die Person Rechte dafür hat (`github_access` ist `read` oder `write`). Dort:
+**Einrichten: jede Person verbindet ihr eigenes GitHub (ab 0.46.0).** Im Konto-Menü (unten links) gibt es den Eintrag **GitHub**, sobald die Person Rechte dafür hat (`github_access` ist `read` oder `write`). Dort:
 
 1. **Mit GitHub verbinden** wählen. Es erscheint ein Code und der Knopf „GitHub öffnen“.
 2. Bei GitHub den Code eingeben und den Zugriff bestätigen. Der Dialog wartet und meldet sich von selbst mit „Verbunden als …“; der Code gilt 15 Minuten.
@@ -350,7 +350,7 @@ Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connect
 
 **Welche Rechte jemand hat, bleibt Sache der Konfiguration:** `github_access` im Benutzer-Eintrag, sonst `github_access_default` (Standard `none`). Ein verbundenes Konto ändert daran nichts: Bei `read` kann die KI auch mit dem eigenen Konto nur lesen.
 
-**Einrichten, Weg 2: gemeinsames Token des Add-ons (Ersatz).** Wer kein eigenes Konto verbunden hat, nutzt weiterhin das Token aus `github_token`, falls eines eingetragen ist (so bleibt alles wie vor 0.46.0). Das Token erzeugst du bei GitHub unter Settings → Developer settings → Personal access tokens → *Fine-grained tokens*; Empfehlung: nur die Repositories auswählen, mit denen die KI arbeiten soll. Rechte (Repository permissions): *Contents* = Read and write, *Pull requests* = Read and write, *Issues* = Read and write, *Actions* = Read-only, *Metadata* = Read-only; zum Lesen reichen jeweils Read-only. Neue Repositories im eigenen Konto kann GitHub nur mit einem klassischen Token (Recht „repo“) anlegen; ohne meldet die KI beim Anlegen einen Fehler, alles andere funktioniert. Das Token liegt nur in der Konfiguration, geht ausschließlich an `api.github.com` und taucht weder im Chat noch im Verlauf noch in Fehlermeldungen auf. Mit `github_repos` lässt sich dieser Weg auf bestimmte Repositories beschränken.
+**Kein gemeinsames Token mehr (ab 0.47.0).** Die Optionen `github_token` und `github_repos` gibt es nicht mehr. Wer kein eigenes Konto verbunden hat, hat kein GitHub, auch nicht in geplanten Aufgaben. Ein altes `github_token` in der Konfiguration wird ignoriert und kann gelöscht werden. Wer ein Token selbst erzeugen will, fügt es im Dialog „GitHub“ unter **Token einfügen** ein: bei GitHub unter Settings → Developer settings → Personal access tokens, Empfehlung *Fine-grained tokens* mit nur den nötigen Repositories und den Rechten *Contents*, *Pull requests*, *Issues* (je Read and write, zum Lesen Read-only) sowie *Actions* und *Metadata* (Read-only). Neue Repositories im eigenen Konto kann GitHub nur mit einem klassischen Token (Recht „repo“) anlegen.
 
 **Stufen** (`github_access` je Benutzer, sonst `github_access_default`):
 
@@ -362,7 +362,7 @@ Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connect
 
 **Weitere Optionen:**
 
-- `github_repos`: Freigabeliste, durch Komma getrennt, z. B. `doralab/smarthome, doralab/*`. Gilt **nur für das gemeinsame Token** des Add-ons, nicht für verbundene Konten (die reichen ohnehin nur so weit wie die Person selbst). Leer = alles, was das Token erreicht. Mit Liste kann die KI nur diese Repositories sehen und ändern; auch der allgemeine Zugang (`github_api`) ist dann auf `/repos/besitzer/name/…` beschränkt.
+- Eine Freigabeliste für Repositories gibt es nicht mehr (`github_repos` entfiel mit dem gemeinsamen Token in 0.47.0): Ein verbundenes Konto reicht ohnehin nur so weit, wie die Person bei GitHub selbst darf. Wer die KI auf bestimmte Repositories beschränken will, fügt ein Fine-grained Token ein, das nur diese Repositories enthält.
 - Jede GitHub-**Änderung** fragt im Chat nach (Zulassen, Ablehnen, „In diesem Chat immer zulassen“); das ist seit 0.45.0 fest, die Option `github_write_confirm` gibt es nicht mehr.
 
 **Immer mit Rückfrage**, egal wie eingestellt, und ohne „immer zulassen“: Commit auf den Hauptzweig, Commits mit Workflow-Dateien (`.github/workflows/`, sie führen bei GitHub Code aus), Pull Requests mergen, Repositories anlegen, jedes `DELETE`, sowie jede Änderung, nachdem die KI in derselben Antwort Inhalte aus Home Assistant, Projektwissen oder GitHub gelesen hat oder wenn die Nachricht einen Dateianhang hat. Die Rückfrage zeigt Repository, Zweig, Nachricht und jede Datei. Den Zweig prüft der Server vor der Rückfrage, damit du nichts bestätigst, was ohnehin scheitern würde. Empfehlung für bestehende Projekte: Änderungen auf einem neuen Zweig mit Pull Request, nicht direkt auf den Hauptzweig; die KI ist so angewiesen.
@@ -371,7 +371,7 @@ Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connect
 
 **Wichtig zu wissen:**
 
-- Beim **gemeinsamen Token** gehört das Token dem Betreiber des Add-ons: Wer die Stufe `read` oder `write` hat und kein eigenes Konto verbunden hat, sieht damit alle Repositories, die das Token erreicht (auch private), soweit `github_repos` nichts anderes festlegt. Ein verbundenes Konto hat Vorrang und gilt in Chats ebenso wie in geplanten Aufgaben (dort nur lesend). Vergib die Stufe also nur an Personen, denen du das zutraust, und beschränke das Token und die Liste auf das Nötige.
+- Das Konto einer Person gilt in Chats ebenso wie in geplanten Aufgaben (dort nur lesend). Die KI sieht damit **alles, was dieses Konto sieht** (auch private Repositories); vergib die Stufe `write` also nur an Personen, denen du das zutraust. Ein Konto, das die Person bei GitHub widerruft, meldet sich beim nächsten Zugriff mit der Bitte, neu zu verbinden; die Einrichtungsprüfung zeigt es ebenfalls.
 - Alles, was aus GitHub kommt (Dateien, Issues, Kommentare, Commit-Nachrichten), ist für die KI Information und keine Anweisung und entsprechend gekennzeichnet. Wegen des Risikos untergeschobener Anweisungen fragt jede Änderung nach, sobald in derselben Antwort GitHub-Inhalte gelesen wurden.
 - Commits laufen über die Git-Schnittstelle von GitHub: mehrere Dateien landen in **einem** Commit; es wird nie erzwungen überschrieben (`force` ist aus), ein Konflikt wird gemeldet. Dateien bis 8 MB, bis 60 Dateien und 24 MB je Commit.
 - **Sichtbarkeit:** Unter der Antwort steht einklappbar „N Aktionen bei GitHub, davon M Änderungen“ mit jedem Schritt; bei Commits, Pull Requests und Issues gibt es einen Link „Öffnen“ (nur Adressen auf github.com werden angezeigt).

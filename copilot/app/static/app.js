@@ -6240,9 +6240,7 @@ function githubPanel(body, alive) {
 
   const renderStart = (info) => {
     const parts = [];
-    parts.push(hint(info.shared
-      ? tr("Du bist nicht selbst verbunden. Solange das so ist, nutzt die KI das gemeinsame GitHub-Token des Administrators{0}.", info.repos?.length ? tr(" (nur {0})", info.repos.join(", ")) : "")
-      : tr("Verbinde dein GitHub-Konto, dann kann die KI deine Repositories lesen und, wenn du es erlaubst, Änderungen vorschlagen. Jede Änderung bestätigst du im Chat.")));
+    parts.push(hint(tr("Verbinde dein GitHub-Konto, dann kann die KI deine Repositories lesen und, wenn du es erlaubst, Änderungen vorschlagen. Jede Änderung bestätigst du im Chat.")));
     parts.push(hint(githubLevelText(info.level)));
     parts.push(actions(
       button(tr("Mit GitHub verbinden"), "primary", (b) => startDevice(b), true),

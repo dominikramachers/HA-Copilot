@@ -93,7 +93,7 @@ Mehr: [Plugins](../copilot/DOCS.md#plugins-ab-0430).
 
 ## GitHub
 
-Sobald du dein GitHub-Konto verbunden hast, arbeitet die KI mit deinen Repositories: lesen, Code durchsuchen, Issues und Pull Requests ansehen, und mit Schreibrecht Dateien einchecken, Zweige und Pull Requests anlegen. Jede Änderung wird im Chat bestätigt; Commits auf den Hauptzweig, Workflow-Dateien und das Mergen immer. Wer nichts verbindet, hat kein GitHub; der Administrator kann stattdessen ein gemeinsames Token (`github_token`, optional mit `github_repos`) eintragen.
+Sobald du dein GitHub-Konto verbunden hast, arbeitet die KI mit deinen Repositories: lesen, Code durchsuchen, Issues und Pull Requests ansehen, und mit Schreibrecht Dateien einchecken, Zweige und Pull Requests anlegen. Jede Änderung wird im Chat bestätigt; Commits auf den Hauptzweig, Workflow-Dateien und das Mergen immer. Wer nichts verbindet, hat kein GitHub: ein gemeinsames Token des Administrators gibt es nicht mehr.
 
 Einrichtung für dich:
 
@@ -101,7 +101,7 @@ Einrichtung für dich:
 2. **Mit GitHub verbinden** wählen, den angezeigten Code bei GitHub eingeben und bestätigen. Alternativ **Token einfügen**.
 3. Fertig: Der Dialog zeigt „Verbunden als …“. **Trennen** löscht das Token wieder.
 
-Für den Administrator: Die Rechte (`github_access` je Benutzer, `github_access_default`, Standard `none`) stehen weiter in der Konfiguration. Die Tokens der Personen liegen verschlüsselt im Add-on. Ein Token in `github_token` ist nur noch ein Ersatz für alle, die nichts verbunden haben.
+Für den Administrator: Die Rechte (`github_access` je Benutzer, `github_access_default`, Standard `none`) stehen weiter in der Konfiguration. Die Tokens der Personen liegen verschlüsselt im Add-on. Ein gemeinsames Token (`github_token`) und die Freigabeliste `github_repos` gibt es seit 0.47.0 nicht mehr; alte Einträge in der Konfiguration kannst du löschen.
 
 Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 

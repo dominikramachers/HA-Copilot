@@ -12,7 +12,6 @@ from app.main import build_ingress_app
 from app.vault import Vault
 from conftest import RAW, WRITE
 
-SHARED = "ghp_gemeinsames_token_abcdefghij"
 PERSONAL = "gho_persoenliches_token_abcdefghij"
 CODE = "geheimer-device-code-xyz"
 
@@ -76,7 +75,7 @@ def clock():
 
 @pytest.fixture()
 def accounts(store, vault, gh, clock):
-    return GithubAccounts(store, vault, GithubApi(SHARED, transport=gh.transport()), ["dora/*"], transport=gh.transport(), clock=clock)
+    return GithubAccounts(store, vault, transport=gh.transport(), clock=clock)
 
 
 def run(coro):
@@ -85,12 +84,12 @@ def run(coro):
 
 # ----------------------------------------------------------------------- Device Flow
 
-def test_device_flow_stores_an_encrypted_token_and_prefers_it_over_the_shared_one(accounts, store, vault, gh, clock):
+def test_device_flow_stores_an_encrypted_token(accounts, store, vault, gh, clock):
     started = run(accounts.device_start("dora"))
     assert started["user_code"] == "ABCD-1234" and started["verification_uri"] == "https://github.com/login/device"
     assert CODE not in str(started)  # der Gerätecode bleibt im Add-on
     assert gh.sent[0]["client_id"] and gh.sent[0]["scope"] == "repo"
-    assert accounts.info("dora")["pending"] is True and accounts.source("dora") == "shared"
+    assert accounts.info("dora")["pending"] is True and accounts.source("dora") == "none"
 
     clock.now += 6
     assert run(accounts.device_poll("dora"))["status"] == "pending"
@@ -105,9 +104,9 @@ def test_device_flow_stores_an_encrypted_token_and_prefers_it_over_the_shared_on
     assert row["token"] != PERSONAL and PERSONAL not in str(row) and vault.unseal(row["token"]) == PERSONAL
     assert row["login"] == "dora-gh" and row["via"] == "device"
     api = accounts.api_for("dora")
-    assert api.personal and api.enabled and api is not accounts.shared
-    assert accounts.source("dora") == "personal" and not accounts.policy_for("dora").restricted  # github_repos gilt nur für das gemeinsame Token
-    assert accounts.api_for("adm01") is accounts.shared and accounts.policy_for("adm01").restricted
+    assert api.personal and api.enabled and api is not accounts.none
+    assert accounts.source("dora") == "personal" and not accounts.policy_for("dora").restricted
+    assert accounts.api_for("adm01") is accounts.none and not accounts.api_for("adm01").enabled and not accounts.enabled_for("adm01")
     assert accounts.info("dora")["pending"] is False
 
 
@@ -137,7 +136,7 @@ def test_denied_and_expired_end_the_attempt(accounts, gh, clock, answer, status)
     clock.now += 6
     assert run(accounts.device_poll("dora"))["status"] == status
     assert run(accounts.device_poll("dora"))["status"] == "none"
-    assert accounts.source("dora") == "shared"
+    assert accounts.source("dora") == "none"
 
 
 def test_code_expires_by_the_clock(accounts, clock):
@@ -181,15 +180,15 @@ def test_rejected_token_is_not_stored_and_not_echoed(accounts, store, gh):
     assert PERSONAL not in str(err.value) and store.github_account_get("dora") is None
 
 
-def test_disconnect_returns_to_the_shared_token(accounts, store):
+def test_disconnect_switches_github_off_for_the_person(accounts, store):
     run(accounts.connect_token("dora", PERSONAL))
     assert accounts.disconnect("dora") is True and accounts.disconnect("dora") is False
-    assert store.github_account_get("dora") is None and accounts.api_for("dora") is accounts.shared
+    assert store.github_account_get("dora") is None and accounts.api_for("dora") is accounts.none and not accounts.enabled_for("dora")
 
 
 def test_token_that_no_longer_fits_the_key_is_ignored(accounts, store, tmp_path, gh, clock):
     run(accounts.connect_token("dora", PERSONAL))
-    other = GithubAccounts(store, Vault(tmp_path / "anderer.key"), GithubApi("", transport=gh.transport()), clock=clock)
+    other = GithubAccounts(store, Vault(tmp_path / "anderer.key"), transport=gh.transport(), clock=clock)
     assert other.personal("dora") is None and other.source("dora") == "none"  # kein Absturz, kein Klartext
 
 
@@ -211,8 +210,8 @@ def test_personal_rejection_names_the_person_not_the_administrator():
 # ----------------------------------------------------------------------- Einbindung in die App
 
 def app_client(store, vault, gh, clock, **options):
-    settings = parse_settings({**RAW, "github_token": SHARED, "github_repos": "dora/*", **options}, frozenset({"testclient"}))
-    accounts = GithubAccounts(store, vault, GithubApi(SHARED, transport=gh.transport()), settings.github_repos, transport=gh.transport(), clock=clock)
+    settings = parse_settings({**RAW, **options}, frozenset({"testclient"}))
+    accounts = GithubAccounts(store, vault, transport=gh.transport(), clock=clock)
     return TestClient(build_ingress_app(settings, store, FakeChat(), github_accounts=accounts)), accounts
 
 
@@ -236,7 +235,7 @@ def test_endpoints_follow_the_configured_level(store, vault, gh, clock):
     me = client.get("/api/me", headers=headers(ADM01)).json()
     assert me["github_connect"] is False
     info = client.get("/api/github/account", headers=headers(ADM01)).json()
-    assert info["level"] == "none" and info["source"] == "shared" and info["shared"] is True and info["repos"] == ["dora/*"]
+    assert info["level"] == "none" and info["source"] == "none" and "shared" not in info and "repos" not in info
     for method, path in (("post", "/api/github/device"), ("post", "/api/github/device/poll")):
         assert getattr(client, method)(path, headers=headers(ADM01)).status_code == 403
     assert client.post("/api/github/token", json={"token": PERSONAL}, headers=headers(ADM01)).status_code == 403
@@ -250,16 +249,15 @@ def test_connect_with_token_end_to_end_and_chat_uses_the_personal_token(store, v
     assert answer.status_code == 200 and answer.json() == {"login": "dora-gh"} and PERSONAL not in answer.text
     info = client.get("/api/github/account", headers=headers(ADM01)).json()
     assert info["source"] == "personal" and info["login"] == "dora-gh" and info["via"] == "token" and PERSONAL not in str(info)
-    assert client.get("/api/github/account", headers=headers(ADM01)).json()["repos"] == ["dora/*"]
     assert accounts.api_for("adm01")._token == PERSONAL
     assert client.delete("/api/github/account", headers=headers(ADM01)).status_code == 204
-    assert client.get("/api/github/account", headers=headers(ADM01)).json()["source"] == "shared"
+    assert client.get("/api/github/account", headers=headers(ADM01)).json()["source"] == "none"
 
 
-def test_without_any_token_the_person_can_connect_and_tools_appear(store, vault, gh, clock):
+def test_without_a_connected_account_the_person_can_connect_and_tools_appear(store, vault, gh, clock):
     from conftest import ADM01  # noqa: PLC0415
     settings = parse_settings({**RAW, "github_access_default": "read"}, frozenset({"testclient"}))
-    accounts = GithubAccounts(store, vault, GithubApi(""), (), transport=gh.transport(), clock=clock)
+    accounts = GithubAccounts(store, vault, transport=gh.transport(), clock=clock)
     chat = FakeChat()
     client = TestClient(build_ingress_app(settings, store, chat, github_accounts=accounts))
     assert client.get("/api/me", headers=headers(ADM01)).json()["github"] == "none"  # noch nichts verbunden
@@ -281,7 +279,7 @@ def test_device_endpoints_and_other_people_stay_separate(store, vault, gh, clock
     clock.now += 6
     done = client.post("/api/github/device/poll", headers=headers(ADM01)).json()
     assert done == {"status": "ok", "login": "dora-gh"}
-    assert accounts.source("adm01") == "personal" and accounts.source("dora") == "shared"
+    assert accounts.source("adm01") == "personal" and accounts.source("dora") == "none"
     assert client.post("/api/github/device/poll", headers=headers(DORA)).json() == {"status": "none"}
     assert client.get("/api/github/device/poll", headers=headers(ADM01)).status_code == 405  # Abfragen, die etwas speichern, sind nie GET
 

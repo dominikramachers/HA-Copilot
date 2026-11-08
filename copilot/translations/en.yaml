@@ -99,15 +99,9 @@ configuration:
   memory_enabled:
     name: AI memory
     description: 'On (default): the AI remembers facts on its own, for the whole household and separately for each person. Everyone can view, edit and delete entries in the chat under “Memory”. Off: no memory.'
-  github_token:
-    name: Shared GitHub token (optional)
-    description: 'Usually not needed: every person connects their own GitHub in the account menu. This token is only the fallback for everyone who has not connected anything. Personal access token from GitHub (Settings → Developer settings → Fine-grained tokens). Give it only the repositories and permissions the AI should have: Contents, Pull requests and Issues (read and write), Metadata (read); to create new repositories use a classic token with the ''repo'' scope. Empty: without a connected account of their own, GitHub is off for a person.'
   github_access_default:
     name: Default GitHub access
-    description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub or a shared token is set. Can be overridden per user with github_access.'
-  github_repos:
-    name: Allowed repositories (optional)
-    description: 'Allow-list, comma separated: ''doralab/smarthome, doralab/*''. owner/* allows all repositories of an owner. Applies to the shared token only, not to connected accounts. Empty: everything the token can reach. The AI cannot access other repositories at all.'
+    description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub in the account menu. Can be overridden per user with github_access.'
   connector_access_default:
     name: Default connector access
     description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'
