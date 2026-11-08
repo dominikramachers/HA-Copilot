@@ -127,5 +127,5 @@ def test_news_texts_are_free_of_technical_terms_and_german_free_in_english():
 @pytest.mark.parametrize("path", ["app.js"])
 def test_menu_and_popup_are_wired_in_the_browser_code(path):
     js = (APP / "static" / path).read_text(encoding="utf-8")
-    for needle in ("api/welcome/seen", "showWelcome", "openIntro", "openNewsHistory", 'value: "guide"', 'value: "news"'):
+    for needle in ("api/welcome/seen", "showWelcome", "openIntro", "openNewsHistory", 'page("guide"', 'page("news"'):
         assert needle in js

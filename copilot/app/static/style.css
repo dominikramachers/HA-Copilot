@@ -1122,15 +1122,19 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .settings[hidden] { display: none; }
 .set-wrap { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 8px 40px; max-width: 960px; margin: 0 auto; padding: 22px 20px 48px; align-items: start; }
 .set-nav { display: grid; gap: 2px; position: sticky; top: 0; }
-.set-nav h2 { margin: 0 0 12px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.set-sec, .set-card { display: grid; gap: 2px; }
+.set-user { display: none; }
+.set-chev { display: none; }
+.set-item.is-link .set-chev { display: block; }
+.set-item.is-out { display: none; }
 .set-group { margin: 16px 10px 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
-.set-group:first-of-type { margin-top: 0; }
+.set-nav > .set-sec:first-of-type .set-group { margin-top: 0; }
 .set-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0 10px; border-radius: var(--r-2); font-size: 14.5px; color: var(--text); text-align: left; transition: background .12s; }
 .set-item:hover { background: var(--chip); }
 .set-item[aria-current="page"] { background: var(--chip); font-weight: 600; }
 .set-item .icon { width: 18px; height: 18px; flex: none; color: var(--text-2); }
 .set-item span { flex: 1; min-width: 0; }
-.set-item .icon:last-child:not(:first-child) { width: 14px; height: 14px; color: var(--muted); }
+.set-item .set-chev { width: 14px; height: 14px; color: var(--muted); }
 .set-main { min-width: 0; }
 .set-main h3 { margin: 4px 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
 .set-sub { margin: 0 0 18px; max-width: 58ch; font-size: 14.5px; line-height: 1.5; color: var(--text-2); }
@@ -1155,11 +1159,26 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .usage-bar.warn span { background: #d99a2b; }
 .usage-bar.bad span { background: var(--danger); }
 @media (max-width: 760px) {
-  .set-wrap { grid-template-columns: minmax(0, 1fr); padding: 16px 16px 40px; }
+  .set-wrap { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 40px; }
   .set-wrap:not(.on-content) .set-main { display: none; }
   .set-wrap.on-content .set-nav { display: none; }
   .set-wrap.on-content .set-back { display: inline-flex; }
-  .set-nav { position: static; }
-  .set-item { min-height: 48px; }
+  .set-nav { position: static; gap: 0; }
+  /* Wie in der Claude-App: Gruppen als abgesetzte Karten, jede Zeile mit Symbol, Name und Pfeil. */
+  .set-user { display: flex; align-items: center; gap: 12px; margin: 0 0 4px; padding: 12px 14px; border-radius: 16px; background: var(--chip); }
+  .set-user .avatar { flex: none; }
+  .set-user-text { min-width: 0; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .set-group { margin: 18px 6px 6px; font-size: 13px; }
+  .set-nav > .set-sec:first-of-type .set-group { margin-top: 14px; }
+  .set-card { gap: 0; border-radius: 16px; background: var(--chip); overflow: hidden; }
+  .set-item { position: relative; min-height: 48px; padding: 0 14px; border-radius: 0; font-size: 15.5px; }
+  .set-item:hover { background: none; }
+  .set-item:active { background: var(--line-2); }
+  .set-item[aria-current="page"] { background: none; font-weight: inherit; }
+  .set-item + .set-item::before { content: ""; position: absolute; top: 0; right: 0; left: 46px; border-top: 1px solid var(--line-2); }
+  .set-item .set-chev, .set-item.is-link .set-chev { display: block; }
+  .set-item.is-out { display: flex; color: var(--danger); }
+  .set-item.is-out .icon { color: inherit; }
+  .account .chev { display: none; }
 }
 .usage-row { padding-bottom: 6px; }
