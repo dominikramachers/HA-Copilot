@@ -758,7 +758,7 @@ GITHUB_OFF_NOTE = (
     "GitHub: Du hast hier keine GitHub-Werkzeuge. {why} Sag das knapp, wenn danach gefragt wird; "
     "Inhalte öffentlicher Repositories kannst du, falls Websuche an ist, über web_fetch lesen. Schicke oder erfrage nie ein Token im Chat."
 )
-GITHUB_OFF_NO_TOKEN = "Die Person hat GitHub noch nicht verbunden: im Konto-Menü unten links „GitHub“ öffnen und „Mit GitHub verbinden“ wählen."
+GITHUB_OFF_NO_TOKEN = "Die Person hat GitHub noch nicht verbunden: im Konto-Menü unten links „Einstellungen“ öffnen, dort „GitHub“ wählen und „Mit GitHub verbinden“ klicken."
 GITHUB_OFF_NO_RIGHT = "Für diese Person ist GitHub nicht freigegeben (Add-on-Konfiguration: github_access_default oder github_access des Benutzers auf read oder write stellen)."
 
 

@@ -1064,6 +1064,17 @@ def register_chat_routes(
         """Warnungen zum Nutzungslimit des Abos (leer, solange alles in Ordnung ist)."""
         return limits.current()
 
+    @app.get("/api/usage")
+    def usage(profile: Profile = Depends(current_profile)) -> dict:
+        """Seite „Nutzung“: Stand des Abo-Limits (nur Warnungen, kein laufender Zähler) und die Bilder dieser Person im Monat."""
+        generate = bool(settings.images_enabled and settings.files_enabled and images.providers())
+        month = datetime.now().strftime("%Y-%m")
+        return {
+            "limits": limits.current(),
+            "subscription": settings.backend == "claude" and bool(settings.claude_oauth_token),
+            "images": {"enabled": generate, "month": month, "used": store.image_usage(profile.id, month) if generate else 0, "limit": settings.image_limit_month},
+        }
+
     @app.get("/api/chats")
     def list_chats(profile: Profile = Depends(current_profile)) -> list[dict]:
         # "running": Antwort wird gerade erzeugt (auch wenn der Browser nicht mehr zuhört)

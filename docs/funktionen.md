@@ -12,6 +12,7 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 - **Anhänge** (bis zu 5 je Nachricht, zusammen 60 MB): Bilder, PDF, Word, Excel, PowerPoint, Text und Code. Mit der Option „Dateien bearbeiten“ (Standard) bleibt eine Kopie für diesen Chat erhalten, damit die KI die Datei später lesen und **bearbeiten** kann (z. B. PDF-Felder sperren, PDF-Text ersetzen, Word-Text ändern, Excel-Zellen setzen, Code anpassen; Excel-Diagramme und -Bilder bleiben dabei erhalten); die bearbeitete Fassung gibt es als Download, das Original bleibt unverändert. Ohne die Option gibt es die Anhänge nur im Arbeitsspeicher. Einfügen mit Strg/Cmd+V oder Ziehen auf die Seite geht auch.
 - **Auf einen Ausschnitt antworten:** Text in einer Antwort markieren und **Antworten** wählen: der Ausschnitt steht als Zitat über dem Eingabefeld (mit **x** wieder entfernbar) und über deiner Nachricht im Chat. Die KI bekommt das Zitat mit.
 - **Einführung und Neuerungen:** Beim ersten Anmelden erklärt ein Fenster („Hallo, ich bin …“), wofür die KI da ist, was sie kann und wie man sie am Computer oder am Handy bedient; mit **Okay** erscheint es nie wieder. Nach einem Update zeigt ein Fenster einmalig, was neu ist, in einfacher Sprache. Beides lässt sich im Konto-Menü unten links nachlesen (**Kurzanleitung**, **Das ist neu**).
+- **Einstellungen und Konto-Menü:** Unten links öffnet das Konto-Menü **Einstellungen**, **Nutzung**, **Gedächtnis**, **Kurzanleitung**, **Das ist neu** und die **Einrichtungsprüfung**. In den Einstellungen (eigene Seite mit Liste links) stehen Allgemein (Design), Nutzung (Abo-Limit und Bilder im Monat), Gedächtnis, GitHub, Meine Daten, Hilfe und Verweise auf Skills, Konnektoren und Plugins. Nach dem Neuladen bleibst du auf der Seite, auf der du warst. Mehr: [Einstellungen](../copilot/DOCS.md#einstellungen-und-konto-menü-ab-0480).
 - **Nachrichten bearbeiten:** Unter jeder eigenen Nachricht erscheint beim Darüberfahren, wann sie gesendet wurde („vor 33 Minuten“, „vor 2 Stunden“, „Heute Morgen“, „Gestern“, „Vorgestern“, „vor 3 Tagen“, ab einer Woche das Datum), dazu **Bearbeiten** (Stift) und **Kopieren**. Beim Bearbeiten ersetzt die neue Frage die alte und alles danach in diesem Chat; scheitert die neue Antwort, bleibt der alte Verlauf erhalten. Dateien der alten Frage müssen neu angehängt werden.
 - **Unter den Antworten der KI** stehen **Kopieren** und **Als Datei** als dezente Symbole, bei der letzten Antwort dauerhaft, bei älteren beim Darüberfahren. Dort erscheint dann auch, wann die Antwort fertig wurde.
 
@@ -38,7 +39,7 @@ Mehr: [Bilder](../copilot/DOCS.md#bilder-ab-0280), [Oberfläche](../copilot/DOCS
 
 ![Chat-Menü](screenshots/menue.png)
 
-- Unter **Meine Daten** (Konto-Menü) exportierst du alle Chats als ZIP oder löschst sie unwiderruflich.
+- Unter **Einstellungen → Meine Daten** exportierst du alle Chats als ZIP oder löschst sie unwiderruflich.
 
 Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigene-daten-ab-0220).
 
@@ -61,7 +62,7 @@ Mehr: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant
 
 ![Gedächtnis](screenshots/gedaechtnis.png)
 
-Die KI merkt sich dauerhafte Dinge in kurzen Einträgen, getrennt in **Haushalt** (für alle) und **Person** (nur du). Du siehst, ergänzt und löschst Einträge im Konto-Menü unter **Gedächtnis**. Alle Personen dürfen den Haushalt ergänzen. Mit `memory_enabled: false` ist die Funktion aus.
+Die KI merkt sich dauerhafte Dinge in kurzen Einträgen, getrennt in **Haushalt** (für alle) und **Person** (nur du). Du siehst, ergänzt und löschst Einträge in den **Einstellungen** unter **Gedächtnis**. Alle Personen dürfen den Haushalt ergänzen. Mit `memory_enabled: false` ist die Funktion aus.
 
 Im selben Fenster stehen **Meine Anweisungen** (ein Text, der in all deinen Chats mitgeht, etwa „Antworte kurz und duze mich“) und **Aus Claude übernehmen**: Du exportierst dein Gedächtnis bei Claude als ZIP mit Markdown, wählst die Datei hier aus, siehst jeden Fund mit Haken und übernimmst nur, was du willst. Die Vorlieben aus Claude werden zu deinen Anweisungen.
 
@@ -97,7 +98,7 @@ Sobald du dein GitHub-Konto verbunden hast, arbeitet die KI mit deinen Repositor
 
 Einrichtung für dich:
 
-1. Im Konto-Menü unten links **GitHub** öffnen (der Eintrag erscheint, wenn der Administrator dir `read` oder `write` gegeben hat).
+1. Unten links im Konto-Menü **Einstellungen** öffnen und dort **GitHub** wählen (der Eintrag erscheint, wenn der Administrator dir `read` oder `write` gegeben hat).
 2. **Mit GitHub verbinden** wählen, den angezeigten Code bei GitHub eingeben und bestätigen. Alternativ **Token einfügen**.
 3. Fertig: Der Dialog zeigt „Verbunden als …“. **Trennen** löscht das Token wieder.
 
@@ -177,7 +178,7 @@ Die Oberfläche passt sich dem Gerät an: Die Chat-Liste öffnet als Fenster von
 
 ## Einrichtungsprüfung
 
-Im Konto-Menü zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Schritten, und prüft Home Assistant, GitHub und den Benachrichtigungsdienst live. Siehe [Installation](installation.md#6-einrichtungsprüfung).
+In den **Einstellungen** zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Schritten, und prüft Home Assistant, GitHub und den Benachrichtigungsdienst live. Siehe [Installation](installation.md#6-einrichtungsprüfung).
 
 ## Sicherheit und Datenschutz
 

@@ -101,7 +101,7 @@ configuration:
     description: 'An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis.'
   github_access_default:
     name: Standard-Zugriff auf GitHub
-    description: 'Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub im Konto-Menü verbunden hat. Je Benutzer überschreibbar mit github_access.'
+    description: 'Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub in den Einstellungen verbunden hat. Je Benutzer überschreibbar mit github_access.'
   connector_access_default:
     name: Standard-Recht für Konnektoren
     description: 'Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte.'

@@ -33,7 +33,7 @@ Stolperstein **Verifizierung der Organisation:** Für einige Bildmodelle verlang
 ## Im Add-on eintragen und prüfen
 
 1. Schlüssel bei `google_api_key` und/oder `openai_api_key` eintragen, speichern, Add-on neu starten. Die Schlüssel stehen nur in der Konfiguration, nie im Chat.
-2. Im Konto-Menü die **Einrichtungsprüfung** öffnen. Die Zeile „Bilder erzeugen“ zeigt, welche Anbieter bereit sind.
+2. In den Einstellungen die **Einrichtungsprüfung** öffnen. Die Zeile „Bilder erzeugen“ zeigt, welche Anbieter bereit sind.
 3. Bitte HA Copilot im Chat um ein Foto-Motiv („Male mir ein gemütliches Wohnzimmer bei Sonnenuntergang“) und danach um eine Änderung („anderer Himmel“). Die KI nennt in einem Satz, welchen Anbieter sie genommen hat; die Änderung entsteht als neue Fassung („Version 2“).
 4. Meldet ein Anbieter „Modell unbekannt“, hat der Anbieter das Modell umbenannt. Die Namen sind fest im Add-on hinterlegt; ein Add-on-Update bringt die neuen. Melde es gern als Fehler.
 

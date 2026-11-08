@@ -613,7 +613,7 @@ def test_me_reports_github_level_and_tools_follow_the_level(store):
         assert jget(await asgi(app, "GET", "/api/me"))["github"] == "none"
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert "Konto-Menü" in seen["note"] and TOKEN not in seen["note"]  # Konto fehlt: Hinweis auf das Verbinden
+        assert "Einstellungen" in seen["note"] and TOKEN not in seen["note"]  # Konto fehlt: Hinweis auf das Verbinden
 
     run(scenario())
 
