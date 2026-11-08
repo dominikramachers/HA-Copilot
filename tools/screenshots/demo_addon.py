@@ -90,10 +90,10 @@ class Backend:
 
 
 raw = {
-    "language": LANG, "backend": "claude", "anthropic_api_key": "sk-ant-platzhalter",
+    "language": LANG, "anthropic_api_key": "sk-ant-platzhalter",
     "github_token": "ghp_platzhalter", "github_access_default": "read", "ha_access_default": "read",
     "google_api_key": "AIza-platzhalter", "image_limit_month": 2,
-    "public_enabled": False, "app_name": "HA Copilot",
+    "app_name": "HA Copilot",
     "profiles": [{"id": "demo", "label": "Demo Nutzer", "ha_user_id": DEMO_ID, "ha_access": "write", "github_access": "read",
                   "notify_service": "notify.mobile_app_handy"}],
 }

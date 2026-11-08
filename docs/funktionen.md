@@ -8,7 +8,7 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 
 - Antworten erscheinen als **Live-Stream** mit Markdown, Tabellen und Codeblöcken (kompakt, mit Knöpfen zum Kopieren und Herunterladen). Vollständige HTML-Seiten bekommen eine **Vorschau**, die abgeschottet und ohne Netzwerk läuft.
 - **Antworten laufen auf dem Server weiter.** Du kannst den Chat wechseln, die Seite neu laden oder den Tab schließen; die Antwort wird trotzdem fertig und steht danach als ungelesen in der Liste. Mit „Stopp“ brichst du sie ab.
-- Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** (Einstellung `models`) und die **Websuche**. Alles steht in einem Menü (Knopf z. B. „Sonnet 5.5 Mittel“; am Computer rechts unter dem Eingabefeld, am Handy im Eingabefeld neben der Büroklammer), wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs.
+- Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** und die **Websuche**. Alles steht in einem Menü (Knopf z. B. „Sonnet 5.5 Mittel“; am Computer rechts unter dem Eingabefeld, am Handy im Eingabefeld neben der Büroklammer), wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs.
 - **Anhänge** (bis zu 5 je Nachricht, zusammen 60 MB): Bilder, PDF, Word, Excel, PowerPoint, Text und Code. Mit der Option „Dateien bearbeiten“ (Standard) bleibt eine Kopie für diesen Chat erhalten, damit die KI die Datei später lesen und **bearbeiten** kann (z. B. PDF-Felder sperren, PDF-Text ersetzen, Word-Text ändern, Excel-Zellen setzen, Code anpassen; Excel-Diagramme und -Bilder bleiben dabei erhalten); die bearbeitete Fassung gibt es als Download, das Original bleibt unverändert. Ohne die Option gibt es die Anhänge nur im Arbeitsspeicher. Einfügen mit Strg/Cmd+V oder Ziehen auf die Seite geht auch.
 - **Auf einen Ausschnitt antworten:** Text in einer Antwort markieren und **Antworten** wählen: der Ausschnitt steht als Zitat über dem Eingabefeld (mit **x** wieder entfernbar) und über deiner Nachricht im Chat. Die KI bekommt das Zitat mit.
 - **Einführung und Neuerungen:** Beim ersten Anmelden erklärt ein Fenster („Hallo, ich bin …“), wofür die KI da ist, was sie kann und wie man sie am Computer oder am Handy bedient; mit **Okay** erscheint es nie wieder. Nach einem Update zeigt ein Fenster einmalig, was neu ist, in einfacher Sprache. Beides lässt sich im Konto-Menü unten links nachlesen (**Kurzanleitung**, **Das ist neu**).
@@ -22,7 +22,7 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 | ![Eigene Nachricht mit Zeitpunkt, Stift und Kopieren](screenshots/nachricht-zeit.png) | ![Eigene Nachricht im Editor](screenshots/nachricht-bearbeiten.png) |
 
 - Lange Chats werden **automatisch zusammengefasst**, statt abgeschnitten zu werden.
-- Ein kurzer **Titel** entsteht automatisch (`title_model`), und jeder Chat lässt sich umbenennen.
+- Ein kurzer **Titel** entsteht automatisch, und jeder Chat lässt sich umbenennen.
 
 Mehr: [Bilder](../copilot/DOCS.md#bilder-ab-0280), [Oberfläche](../copilot/DOCS.md#oberfläche), [So arbeitet die KI](../copilot/DOCS.md#so-arbeitet-die-ki), [Dateien bearbeiten](../copilot/DOCS.md#dateien-bearbeiten-ab-0270), [Anhänge und Speicherplatz](../copilot/DOCS.md#anhänge-und-speicherplatz).
 
@@ -51,7 +51,7 @@ Die KI kann Home Assistant benutzen: Zustände ansehen, Verlauf und Logbuch lese
 - „Lege eine Szene für den Abend an.“
 - „Warum ging die Automation ‚Flurlicht‘ gestern nicht an?“
 
-Was erlaubt ist, hängt von der **Stufe je Benutzer** ab (`none`, `read`, `execute`, `write`, siehe [Benutzer und Rechte](benutzer.md#rechte-der-ki)). Änderungen fragen im Chat nach (`ha_write_confirm`), Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung sind **nie** möglich. Unter jeder Antwort steht einklappbar, was die KI in Home Assistant getan hat. Vor jeder Änderung an Automationen, Skripten, Szenen und Dashboards sichert das Add-on die alte Fassung (die letzten 60).
+Was erlaubt ist, hängt von der **Stufe je Benutzer** ab (`none`, `read`, `execute`, `write`, siehe [Benutzer und Rechte](benutzer.md#rechte-der-ki)). Änderungen fragen im Chat nach, Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung sind **nie** möglich. Unter jeder Antwort steht einklappbar, was die KI in Home Assistant getan hat. Vor jeder Änderung an Automationen, Skripten, Szenen und Dashboards sichert das Add-on die alte Fassung (die letzten 60).
 
 Standardmäßig sieht und bedient die KI nur Entitäten, die du in Home Assistant für Assist freigegeben hast (`ha_limit_to_exposed`).
 
@@ -61,11 +61,11 @@ Mehr: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant
 
 ![Gedächtnis](screenshots/gedaechtnis.png)
 
-Die KI merkt sich dauerhafte Dinge in kurzen Einträgen, getrennt in **Haushalt** (für alle) und **Person** (nur du). Du siehst, ergänzt und löschst Einträge im Konto-Menü unter **Gedächtnis**. Wer in den Haushalt schreiben darf, regelt `memory_household_writers`. Mit `memory_enabled: false` ist die Funktion aus.
+Die KI merkt sich dauerhafte Dinge in kurzen Einträgen, getrennt in **Haushalt** (für alle) und **Person** (nur du). Du siehst, ergänzt und löschst Einträge im Konto-Menü unter **Gedächtnis**. Alle Personen dürfen den Haushalt ergänzen. Mit `memory_enabled: false` ist die Funktion aus.
 
 Im selben Fenster stehen **Meine Anweisungen** (ein Text, der in all deinen Chats mitgeht, etwa „Antworte kurz und duze mich“) und **Aus Claude übernehmen**: Du exportierst dein Gedächtnis bei Claude als ZIP mit Markdown, wählst die Datei hier aus, siehst jeden Fund mit Haken und übernimmst nur, was du willst. Die Vorlieben aus Claude werden zu deinen Anweisungen.
 
-Zusätzlich liest das Add-on selbst einen **Smarthome-Überblick** (Bereiche, Entitäten je Typ, Integrationen, Namen von Automationen) ein und legt ihn als schreibgeschützte Einträge ab. Das kostet keine KI-Nachricht. `ha_scan_days: 0` schaltet es ab.
+Zusätzlich liest das Add-on selbst einen **Smarthome-Überblick** (Bereiche, Entitäten je Typ, Integrationen, Namen von Automationen) ein und legt ihn als schreibgeschützte Einträge ab. Das kostet keine KI-Nachricht. Es läuft beim ersten Start und danach wöchentlich; mit `memory_enabled: false` ist es aus.
 
 Mehr: [Projektwissen und Gedächtnis](../copilot/DOCS.md#projektwissen-und-gedächtnis-ab-0160).
 
@@ -81,7 +81,7 @@ Mehr: [Skills](../copilot/DOCS.md#skills-ab-0360).
 
 Ein **Konnektor** verbindet die KI mit einem Dienst außerhalb von Home Assistant über das Model Context Protocol (MCP), zum Beispiel mit deinem Zabbix-Server. Du findest sie auf der Seite **Anpassungen** im Reiter „Konnektoren“. Der Reiter ist wie „Skills“ aufgebaut: **Meine** (deine eigenen Konnektoren stehen oben), **Entdecken** (ein Katalog mit 31 Diensten, zum Beispiel Gmail, Google Kalender, Notion oder Sentry, mit Logos und Suche) und **Community** (Suche im offenen MCP-Register, nicht geprüft). Dort verbindest du Konnektoren mit einem Klick (Token eintragen oder beim Dienst anmelden) und schaltest einzelne Werkzeuge ein oder aus. Google braucht eine eigene App in der Google Cloud Console, Microsoft 365 gibt es nur als Anleitung für einen selbst betriebenen Server. Eigene Konnektoren bekommen auf Wunsch ein **Logo** (Link oder Upload, PNG/JPEG/GIF/WebP bis 128 kB). Wer die Stufe `own` hat, legt eigene (private) Konnektoren an, wer `global` hat, auch Konnektoren für alle (`connector_access` je Benutzer, vorgegeben `use`).
 
-Werkzeuge, die nur lesen, sind gleich an. Werkzeuge, die etwas verändern oder senden, sind aus, bis du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach. Was ein Konnektor liefert, gilt als fremder Inhalt (wie Webseiten): danach fragt die KI vor Änderungen auch in Home Assistant oder bei GitHub nach. Zugangsdaten liegen verschlüsselt im Add-on; Adressen im Heimnetz darf normalerweise nur die Stufe `global` erlauben, mit der Option `connector_allow_private` dürfen es alle, die Konnektoren anlegen dürfen. Geplante Aufgaben nutzen nur lesende Werkzeuge.
+Werkzeuge, die nur lesen, sind gleich an. Werkzeuge, die etwas verändern oder senden, sind aus, bis du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach. Was ein Konnektor liefert, gilt als fremder Inhalt (wie Webseiten): danach fragt die KI vor Änderungen auch in Home Assistant oder bei GitHub nach. Zugangsdaten liegen verschlüsselt im Add-on; Adressen im Heimnetz (auch mit `http`) dürfen alle eintragen, die Konnektoren anlegen dürfen. Geplante Aufgaben nutzen nur lesende Werkzeuge.
 
 Mehr: [Konnektoren](../copilot/DOCS.md#konnektoren-ab-0410).
 
@@ -106,15 +106,15 @@ Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 
 ## Websuche und Modelle
 
-- Die KI sucht im Web und liest Seiten, wenn es nötig ist oder du darum bittest. Pro Benutzer steuerbar (`web_access`, `web_access_default`). Seiten aus dem Heimnetz und interne Adressen werden nie geladen.
-- `model` ist das Standardmodell, `models` legt fest, welche weiteren im Chat wählbar sind.
+- Die KI sucht im Web und liest Seiten, wenn es nötig ist oder du darum bittest. Pro Benutzer steuerbar (`web_access`). Seiten aus dem Heimnetz und interne Adressen werden nie geladen.
+- `model` ist das Standardmodell; Opus und Haiku sind im Chat zusätzlich wählbar.
 - Ist ein Limit deines Abos fast erreicht, erscheint oben im Chat ein Hinweis mit der Zeit der Rücksetzung.
 
 Mehr: [Web, Modell und Nutzungslimit](../copilot/DOCS.md#web-modell-und-nutzungslimit-ab-0200).
 
 ## Dateien erzeugen
 
-Auf Wunsch legt die KI **Word, Excel, PowerPoint, PDF** und Skripte (PowerShell, Shell, Python …) an. Unter der Antwort erscheint eine Karte mit Download. Die Dateien bleiben `files_keep_days` Tage (Standard 14) und gehören nur dir. Abschalten mit `files_enabled: false`.
+Auf Wunsch legt die KI **Word, Excel, PowerPoint, PDF** und Skripte (PowerShell, Shell, Python …) an. Unter der Antwort erscheint eine Karte mit Download. Die Dateien bleiben 14 Tage und gehören nur dir. Abschalten mit `files_enabled: false`.
 
 Die KI gestaltet neue Dateien nach Designregeln (Leitfäden, sieben Farbthemen, auf Wunsch deine Markenfarbe), mit großer Schrift, Kartenfolien, Bildfolien, farbigen Titel- und Zwischenfolien, Seitenzahlen und aufgeräumten Tabellen; auch für HTML-Präsentationen gibt es einen Leitfaden. Sie bettet Bilder, SVG-Zeichnungen und Diagramme ein, setzt ein Inhaltsverzeichnis, Links, Deckblätter, Zitat-, Kennzahlen- und Zwei-Spalten-Folien und prüft ihr Ergebnis per Vorschau-Bild. Für Mac, iPad und iPhone erzeugt sie Dateien für Keynote, Pages und Numbers.
 
@@ -142,7 +142,7 @@ Mehr: [API-Konto und Schlüssel anlegen](bilder-konten.md), [Bilder (Einrichtung
 
 Unter **Geplant** legst du Aufgaben an, die die KI zu festen Zeiten erledigt (täglich, Montag bis Freitag, wöchentlich, monatlich, einmalig), zum Beispiel einen Morgenüberblick über das Haus. Sie dürfen **nur lesen**: Home Assistant, GitHub und Gedächtnis werden nie verändert. Das Ergebnis steht als ungelesener Chat in der Liste und optional als Meldung in Home Assistant oder aufs Handy (`notify_service` beim Benutzer).
 
-Dauert eine normale Antwort länger als etwa 45 Sekunden und niemand sieht mehr zu, bekommt die Person ebenfalls eine Handy-Benachrichtigung (`notify_long_answers`). `schedules_enabled: false` schaltet die Seite ab.
+Dauert eine normale Antwort länger als etwa 45 Sekunden und niemand sieht mehr zu, bekommt die Person ebenfalls eine Handy-Benachrichtigung. `schedules_enabled: false` schaltet die Seite ab.
 
 Mehr: [Geplante Aufgaben](../copilot/DOCS.md#geplante-aufgaben-ab-0210).
 
@@ -180,7 +180,7 @@ Im Konto-Menü zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Sc
 
 ## Sicherheit und Datenschutz
 
-- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; nur wenn du Bilder von OpenAI oder Google erzeugen lässt (eigene Schlüssel nötig), gehen der Bildwunsch und ein Referenzbild an den gewählten Anbieter, sonst an niemanden. Kopien von Anhängen (für das Bearbeiten) liegen für `files_keep_days` Tage im Datenordner des Add-ons und verschwinden mit dem Chat.
+- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; nur wenn du Bilder von OpenAI oder Google erzeugen lässt (eigene Schlüssel nötig), gehen der Bildwunsch und ein Referenzbild an den gewählten Anbieter, sonst an niemanden. Kopien von Anhängen (für das Bearbeiten) liegen für 14 Tage im Datenordner des Add-ons und verschwinden mit dem Chat.
 - Jede Abfrage ist auf das Profil gefiltert; Benutzer sehen nie die Chats anderer.
 - Rechte setzt der Server durch, nicht die KI. Alles, was von außen kommt (Home Assistant, Web, GitHub, Konnektoren, Dateien), gilt für die KI als Information und nicht als Anweisung; nach dem Lesen fremder Inhalte fragt jede Änderung im Chat nach.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OpenID Connect mit PKCE), Sitzungen liegen serverseitig, Cookies sind `Secure` und `HttpOnly`.

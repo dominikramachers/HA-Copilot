@@ -13,7 +13,7 @@ from app.config import ConfigError, parse_settings
 from app.ha_tools import ToolError
 from app.images import ImageError, ImageService, ImageToolbox, check_svg, series_base, slug, sniff
 from app.main import build_ingress_app
-from conftest import ADM01, RAW
+from conftest import ADM01, RAW, parse_with_fixed
 from test_background_run import asgi, jget, new_chat, sse, until
 
 
@@ -366,10 +366,10 @@ def test_specs_follow_configuration(store, chat):
 def test_settings():
     s = parse_settings(RAW, frozenset())
     assert s.images_enabled and s.image_limit_month == 30 and s.image_provider == "auto" and s.openai_api_key == "" and s.google_api_key == ""
-    assert s.image_model_openai == "gpt-image-2.5-sunburst" and s.image_model_google == "gemini-3.1-flash-image-preview"
+    assert s.image_model_openai == "gpt-image-2.5-sunburst" and s.image_model_google == "gemini-3.1-flash-image-preview"  # fest im Code
     assert "sk-" not in repr(parse_settings({**RAW, "openai_api_key": "sk-geheim", "google_api_key": "geheim2"}, frozenset()))
     assert parse_settings({**RAW, "image_limit_month": 0}, frozenset()).image_limit_month == 0
-    for bad in ({"image_limit_month": -1}, {"image_limit_month": 10001}, {"image_limit_month": "viel"}, {"image_provider": "bing"}, {"image_model_openai": "mit leerzeichen"}, {"image_model_google": "x"}):
+    for bad in ({"image_limit_month": -1}, {"image_limit_month": 10001}, {"image_limit_month": "viel"}, {"image_provider": "bing"}):
         with pytest.raises(ConfigError):
             parse_settings({**RAW, **bad}, frozenset())
 
@@ -378,7 +378,7 @@ def test_settings():
 
 def image_app(store, **options):
     fake = FakeProviders()
-    settings = parse_settings({**RAW, **options}, frozenset({"testclient"}))
+    settings = parse_with_fixed({**RAW, **options}, frozenset({"testclient"}))
     seen = {}
 
     class Backend:

@@ -35,7 +35,6 @@ _ID_RE = re.compile(r"^[a-z0-9_-]{2,32}$")
 _HA_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 _UPN_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-_COLOR_RE = re.compile(r"^#?([0-9a-fA-F]{6})$")
 _ORIGIN_RE = re.compile(r"^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$")
 
 
@@ -71,16 +70,10 @@ class Profile:
     notify_service: str = ""  # Benachrichtigungsdienst dieser Person, z. B. notify.mobile_app_pixel; leer = keiner
 
 
-# Farboptionen der Konfiguration -> Schlüssel in Settings.colors
-COLOR_OPTIONS = {
-    "accent_color": "accent",
-    "background_color_light": "bg_light",
-    "background_color_dark": "bg_dark",
-    "card_color_light": "card_light",
-    "card_color_dark": "card_dark",
-    "text_color_light": "text_light",
-    "text_color_dark": "text_dark",
-}
+DEFAULT_MODELS = ("claude-opus-5-5", "claude-haiku-5-5")  # neben ``model`` wählbar
+TITLE_MODEL = "claude-haiku-5-5"
+IMAGE_MODEL_OPENAI = "gpt-image-2.5-sunburst"
+IMAGE_MODEL_GOOGLE = "gemini-3.1-flash-image-preview"
 APP_NAME_DEFAULT = "HA Copilot"
 LOGIN_PLACEHOLDER_DEFAULT = "name@beispiel.de"
 LOGIN_TEXT_DEFAULT = "Melde dich an, um mit der KI zu chatten."
@@ -95,45 +88,46 @@ class Settings:
     claude_oauth_token: str = field(default="", repr=False)
     anthropic_api_key: str = field(default="", repr=False)  # Alternative zum Abo-Token (Abrechnung über die Claude-Konsole)
     model: str = "claude-sonnet-5-5"
-    title_model: str = "claude-haiku-5-5"
-    models: tuple[str, ...] = ()  # zusätzlich wählbare Modelle (Standard ist ``model``); leer = keine Auswahl in der Oberfläche
-    web_access_default: str = "on"  # Websuche und Seiten lesen (on | off), pro Benutzer überschreibbar
+    # Seit 0.45.0 nicht mehr einstellbar (feste Werte, ``parse_settings`` liest die alten Optionen nicht mehr):
+    title_model: str = TITLE_MODEL
+    models: tuple[str, ...] = DEFAULT_MODELS  # zusätzlich wählbare Modelle (Standard ist ``model``)
+    web_access_default: str = "on"  # Websuche und Seiten lesen (on | off), pro Benutzer überschreibbar (web_access)
     schedules_enabled: bool = True  # geplante Aufgaben (Menüpunkt „Geplant“)
-    notify_long_answers: bool = True  # Benachrichtigung, wenn eine längere Antwort fertig ist, während niemand zusieht (braucht notify_service)
+    notify_long_answers: bool = True  # Benachrichtigung bei fertiger längerer Antwort; wirkt nur mit notify_service der Person
     restore_snapshot: str = ""
     export_database: bool = False  # Datenbank beim Start in den Config-Ordner kopieren (Umzug in ein anderes Add-on)
     claude_token_expires: date | None = None
     entra_secret_expires: date | None = None
-    default_effort: str = "medium"
+    default_effort: str = "medium"  # fest; im Chat wählbar
     language: str = "de"  # Sprache der Oberfläche und der Systemmeldungen: de oder en (die KI antwortet standardmäßig in dieser Sprache)
     # Zugriff der KI auf Home Assistant (pro Benutzer überschreibbar)
-    ha_access_default: str = "read"
-    ha_write_confirm: str = "ask"  # ask = jede Änderung bestätigen lassen, always_allow = ohne Rückfrage
+    ha_access_default: str = "execute"  # lesen und ausführen; Ändern (write) nur, wenn es im Profil steht
+    ha_write_confirm: str = "ask"  # fest: jede Änderung wird im Chat bestätigt (in diesem Chat immer zulassen geht)
     ha_limit_to_exposed: bool = True  # lesen/ausführen nur für Entitäten, die in HA für Assist freigegeben sind
-    ha_access_via_domain: bool = True  # Zugriff auch bei Anmeldung über die Domain
+    ha_access_via_domain: bool = True  # fest: Rechtestufen gelten auch bei Anmeldung über die Domain
     # Gedächtnis der KI (Haushalt und je Person)
     memory_enabled: bool = True
-    memory_household_writers: str = "all"  # all = jeder darf das Haushaltsgedächtnis ändern, ha_write = nur Benutzer mit Stufe write
-    ha_scan_days: int = 7  # Überblick über Home Assistant automatisch einlesen: beim ersten Start und dann alle N Tage (0 = nur auf Knopfdruck)
+    memory_household_writers: str = "all"  # fest: jeder darf das Haushaltsgedächtnis ändern (ha_write = nur Stufe write, nur noch in Tests)
+    ha_scan_days: int = 7  # fest: Überblick über Home Assistant beim ersten Start und dann alle 7 Tage einlesen (Knopf im Gedächtnis-Dialog)
     # GitHub (Token des Betreibers; wer was darf, steht je Profil bzw. in github_access_default)
     github_token: str = field(default="", repr=False)
     github_access_default: str = "none"
-    github_write_confirm: str = "ask"  # ask = jede Änderung bestätigen lassen, always_allow = ohne Rückfrage (Sensibles fragt immer)
+    github_write_confirm: str = "ask"  # fest: jede Änderung wird im Chat bestätigt
     github_repos: tuple[str, ...] = ()  # Freigabeliste „besitzer/name“ oder „besitzer/*“; leer = alles, was das Token erreicht
     # Konnektoren (MCP-Server): wer sie nutzen, selbst anlegen oder für alle verwalten darf, steht je Profil bzw. hier
     connector_access_default: str = "use"
-    connector_write_confirm: str = "ask"  # ask = jede Änderung über einen Konnektor bestätigen lassen, always_allow = ohne Rückfrage
-    connector_allow_private: bool = False  # an = Konnektor-Adressen im Heimnetz und mit http für alle erlaubt, die Konnektoren anlegen dürfen
+    connector_write_confirm: str = "ask"  # fest: jede Änderung über einen Konnektor wird im Chat bestätigt
+    connector_allow_private: bool = True  # fest: wer Konnektoren anlegen darf, darf auch Adressen im Heimnetz und mit http eintragen (Gesperrtes bleibt gesperrt)
     # Dateien, die die KI erzeugt (Word, Excel, PDF, PowerPoint, Skripte …)
     files_enabled: bool = True
-    files_edit: bool = True  # Anhänge im Chat aufbewahren; die KI kann Dateien lesen und bearbeiten
-    files_keep_days: int = 14  # so lange bleiben erzeugte Dateien zum Herunterladen verfügbar
+    files_edit: bool = True  # fest: Anhänge im Chat aufbewahren; die KI kann Dateien lesen und bearbeiten
+    files_keep_days: int = 14  # fest: so lange bleiben erzeugte Dateien zum Herunterladen verfügbar
     # Bilder (SVG von Claude; Fotos und Kunst über OpenAI oder Google)
-    images_enabled: bool = True
+    images_enabled: bool = True  # fest: folgt files_enabled; Fotos und Kunst brauchen zusätzlich einen Schlüssel
     openai_api_key: str = field(default="", repr=False)
     google_api_key: str = field(default="", repr=False)
-    image_model_openai: str = "gpt-image-2.5-sunburst"
-    image_model_google: str = "gemini-3.1-flash-image-preview"
+    image_model_openai: str = IMAGE_MODEL_OPENAI
+    image_model_google: str = IMAGE_MODEL_GOOGLE
     image_provider: str = "auto"  # auto = die KI wählt je Bild; openai oder google = immer dieser Anbieter
     image_limit_month: int = 30  # Bilder von OpenAI/Google je Person und Monat, danach fragt der Chat vor jedem weiteren nach (0 = kein Limit)
     # Domain-Zugang (nur relevant, wenn public_enabled)
@@ -154,7 +148,6 @@ class Settings:
     follow_ha_theme: bool = True
     logo_tile: bool = False  # Logo auf heller Fläche auf dunkler Kachel zeigen
     theme_name: str = ""
-    colors: tuple[tuple[str, str], ...] = ()  # (Schlüssel, #rrggbb), nur gesetzte
 
     @property
     def entra_enabled(self) -> bool:
@@ -168,7 +161,7 @@ class Settings:
         """Wählbare Modelle (Standard zuerst); nur eines = nichts zu wählen."""
         if not self.models:
             return []
-        return [{"id": m, "label": model_label(m)} for m in (self.model, *self.models)]
+        return [{"id": m, "label": model_label(m)} for m in dict.fromkeys((self.model, *self.models))]
 
     def connector_level(self, profile: Profile) -> str:
         """Was darf diese Person bei Konnektoren? (none | use | own | global)"""
@@ -183,11 +176,8 @@ HA_ACCESS_LEVELS = ("none", "read", "execute", "write")
 _GITHUB_PATTERN = re.compile(r"^[a-z0-9_.-]{1,100}/([a-z0-9_.-]{1,100}|\*)$")
 WEB_ACCESS_LEVELS = ("on", "off")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
-_MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$")
 GITHUB_ACCESS_LEVELS = ("none", "read", "write")
 CONNECTOR_ACCESS_LEVELS = ("none", "use", "own", "global")  # none = keine, use = globale nutzen, own = zusätzlich eigene, global = zusätzlich globale verwalten
-DEFAULT_MODELS = ("claude-opus-5-5", "claude-haiku-5-5")  # Auswahl, solange ``models`` leer ist
-MODELS_OFF = ("none", "off", "aus", "-")  # ``models`` auf eines davon: keine Modellauswahl
 
 
 _UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue"})
@@ -288,42 +278,21 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
             seen[key].add(value)
         profiles.append(profile)
 
-    backend = str(raw.get("backend", "echo")).strip().lower()
-    if backend not in ("echo", "claude"):
-        raise ConfigError("backend muss 'echo' oder 'claude' sein")
+    claude_token = str(raw.get("claude_oauth_token") or "").strip()
+    api_key = str(raw.get("anthropic_api_key") or "").strip()
+    backend = "claude" if (claude_token or api_key) else "echo"  # ohne Zugang: Testbetrieb ohne KI
     language = str(raw.get("language") or "de").strip().lower()
     if language not in ("de", "en"):
         raise ConfigError("language muss de oder en sein")
-    effort = str(raw.get("default_effort", "medium")).strip().lower()
-    if effort not in ("low", "medium", "high"):
-        raise ConfigError("default_effort muss low, medium oder high sein")
-    ha_access_default = str(raw.get("ha_access_default") or "read").strip().lower()
+    ha_access_default = str(raw.get("ha_access_default") or "execute").strip().lower()
     if ha_access_default not in HA_ACCESS_LEVELS:
         raise ConfigError("ha_access_default muss none, read, execute oder write sein")
-    ha_write_confirm = str(raw.get("ha_write_confirm") or "ask").strip().lower()
-    if ha_write_confirm not in ("ask", "always_allow"):
-        raise ConfigError("ha_write_confirm muss ask oder always_allow sein")
-    memory_household_writers = str(raw.get("memory_household_writers") or "all").strip().lower()
-    if memory_household_writers not in ("all", "ha_write"):
-        raise ConfigError("memory_household_writers muss all oder ha_write sein")
-    try:
-        ha_scan_days = int(raw.get("ha_scan_days", 7))
-    except (TypeError, ValueError):
-        raise ConfigError("ha_scan_days muss eine Zahl von 0 bis 90 sein") from None
-    if not 0 <= ha_scan_days <= 90:
-        raise ConfigError("ha_scan_days muss eine Zahl von 0 bis 90 sein")
     github_access_default = str(raw.get("github_access_default") or "none").strip().lower()
     if github_access_default not in GITHUB_ACCESS_LEVELS:
         raise ConfigError("github_access_default muss none, read oder write sein")
-    github_write_confirm = str(raw.get("github_write_confirm") or "ask").strip().lower()
-    if github_write_confirm not in ("ask", "always_allow"):
-        raise ConfigError("github_write_confirm muss ask oder always_allow sein")
     connector_access_default = str(raw.get("connector_access_default") or "use").strip().lower()
     if connector_access_default not in CONNECTOR_ACCESS_LEVELS:
         raise ConfigError("connector_access_default muss none, use, own oder global sein")
-    connector_write_confirm = str(raw.get("connector_write_confirm") or "ask").strip().lower()
-    if connector_write_confirm not in ("ask", "always_allow"):
-        raise ConfigError("connector_write_confirm muss ask oder always_allow sein")
     repos_raw = raw.get("github_repos") or ""
     if isinstance(repos_raw, str):
         repos_raw = re.split(r"[,;\s]+", repos_raw)
@@ -334,12 +303,6 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         if not _GITHUB_PATTERN.match(entry):
             raise ConfigError(f"Ungültiger Eintrag in github_repos: {entry[:60]!r} (erwartet besitzer/name oder besitzer/*)")
     try:
-        files_keep_days = int(raw.get("files_keep_days", 14))
-    except (TypeError, ValueError):
-        raise ConfigError("files_keep_days muss eine Zahl von 1 bis 365 sein") from None
-    if not 1 <= files_keep_days <= 365:
-        raise ConfigError("files_keep_days muss eine Zahl von 1 bis 365 sein")
-    try:
         image_limit_month = int(raw.get("image_limit_month", 30))
     except (TypeError, ValueError):
         raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
@@ -348,43 +311,15 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     image_provider = str(raw.get("image_provider") or "auto").strip().lower()
     if image_provider not in ("auto", "openai", "google"):
         raise ConfigError("image_provider muss auto, openai oder google sein")
-    image_models = {}
-    for option, default in (("image_model_openai", "gpt-image-2.5-sunburst"), ("image_model_google", "gemini-3.1-flash-image-preview")):
-        image_models[option] = str(raw.get(option) or default).strip()
-        if not re.match(r"^[A-Za-z0-9._-]{3,64}$", image_models[option]):
-            raise ConfigError(f"Ungültiger Modellname bei {option}")
     model = str(raw.get("model") or "claude-sonnet-5-5").strip()
     if not re.match(r"^[A-Za-z0-9._-]{3,64}$", model):
         raise ConfigError("Ungültiger Modellname")
-    models_raw = raw.get("models") or ""
-    if isinstance(models_raw, str) and models_raw.strip().lower() in MODELS_OFF:
-        models_raw = []  # ausdrücklich keine Auswahl
-    elif isinstance(models_raw, str) and not models_raw.strip():
-        models_raw = list(DEFAULT_MODELS)  # nichts eingetragen: gängige Modelle zur Auswahl anbieten
-    elif isinstance(models_raw, str):
-        models_raw = re.split(r"[,;\s]+", models_raw)
-    if not isinstance(models_raw, list):
-        raise ConfigError("models muss eine Liste von Modellnamen sein (durch Komma getrennt)")
-    models = tuple(dict.fromkeys(str(x).strip() for x in models_raw if str(x).strip() and str(x).strip() != model))
-    for entry in models:
-        if not _MODEL_RE.match(entry):
-            raise ConfigError(f"Ungültiger Modellname in models: {entry[:60]!r}")
-    if len(models) > 12:
-        raise ConfigError("models: höchstens 12 zusätzliche Modelle")
-    web_access_default = str(raw.get("web_access_default") or "on").strip().lower()
-    if web_access_default not in WEB_ACCESS_LEVELS:
-        raise ConfigError("web_access_default muss on oder off sein")
-    title_model = str(raw.get("title_model") or "claude-haiku-5-5").strip()
-    if not re.match(r"^[A-Za-z0-9._-]{3,64}$", title_model):
-        raise ConfigError("Ungültiger Modellname für Chat-Titel")
-
     restore = str(raw.get("restore_snapshot") or "").strip()
     if restore and not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.sqlite3$", restore):
         raise ConfigError("restore_snapshot muss ein Dateiname aus dem Ordner snapshots sein (endet auf .sqlite3)")
     token_expires = _parse_date(raw.get("claude_token_expires"), "claude_token_expires")
     secret_expires = _parse_date(raw.get("entra_secret_expires"), "entra_secret_expires")
 
-    public_enabled = bool(raw.get("public_enabled", False))
     base_url = str(raw.get("public_base_url") or "").strip().rstrip("/").lower()
     tenant = str(raw.get("entra_tenant_id") or "").strip().lower()
     client_id = str(raw.get("entra_client_id") or "").strip().lower()
@@ -409,10 +344,14 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("ha_users_excluded muss eine Liste von Namen sein (durch Komma getrennt)")
     excluded = frozenset(re.sub(r"\s+", " ", str(x)).strip().lower() for x in excluded_raw if str(x).strip())
 
+    # Der Domain-Zugang ist an, sobald eine öffentliche Adresse und eine Anmeldung (Entra und/oder ha_url) eingetragen sind.
+    entra_given = any((tenant, client_id, secret))
+    public_enabled = bool(base_url) and bool(entra_given or ha_url)
+    if base_url and not public_enabled:
+        log.warning("public_base_url ist gesetzt, aber weder Entra noch ha_url: der Domain-Zugang bleibt aus")
     if public_enabled:
         if not _ORIGIN_RE.match(base_url):
             raise ConfigError("public_base_url muss eine https-Adresse ohne Pfad sein, z. B. https://chat.example.org")
-        entra_given = any((tenant, client_id, secret))
         if entra_given or not ha_url:  # ohne ha_url ist die Entra-Anmeldung der einzige Weg und muss vollständig sein
             if not _GUID_RE.match(tenant):
                 raise ConfigError("entra_tenant_id fehlt oder ist keine GUID")
@@ -425,15 +364,6 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     login_text = _single_line(raw.get("login_text"), LOGIN_TEXT_DEFAULT, 120, "login_text")
     login_placeholder = _single_line(raw.get("login_placeholder"), LOGIN_PLACEHOLDER_DEFAULT, 60, "login_placeholder")
     theme_name = _single_line(raw.get("theme_name"), "", 80, "theme_name")
-    colors: list[tuple[str, str]] = []
-    for option, key in COLOR_OPTIONS.items():
-        text = str(raw.get(option) or "").strip()
-        if not text:
-            continue
-        match = _COLOR_RE.match(text)
-        if not match:
-            raise ConfigError(f"{option} muss ein Farbwert wie #175CD3 sein")
-        colors.append((key, "#" + match.group(1).upper()))
 
     return Settings(
         profiles=tuple(profiles),
@@ -443,7 +373,6 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         follow_ha_theme=bool(raw.get("follow_ha_theme", True)),
         logo_tile=bool(raw.get("logo_tile", False)),
         theme_name=theme_name,
-        colors=tuple(colors),
         public_enabled=public_enabled,
         public_base_url=base_url,
         entra_tenant_id=tenant,
@@ -456,42 +385,25 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         ha_users_excluded=excluded,
         ingress_peers=ingress_peers or DEFAULT_INGRESS_PEERS,
         backend=backend,
-        claude_oauth_token=str(raw.get("claude_oauth_token") or "").strip(),
-        anthropic_api_key=str(raw.get("anthropic_api_key") or "").strip(),
+        claude_oauth_token=claude_token,
+        anthropic_api_key=api_key,
         model=model,
-        title_model=title_model,
-        models=models,
-        web_access_default=web_access_default,
         schedules_enabled=bool(raw.get("schedules_enabled", True)),
-        notify_long_answers=bool(raw.get("notify_long_answers", True)),
         restore_snapshot=restore,
         export_database=bool(raw.get("export_database", False)),
         claude_token_expires=token_expires,
         entra_secret_expires=secret_expires,
-        default_effort=effort,
         language=language,
         ha_access_default=ha_access_default,
-        ha_write_confirm=ha_write_confirm,
         ha_limit_to_exposed=bool(raw.get("ha_limit_to_exposed", True)),
-        ha_access_via_domain=bool(raw.get("ha_access_via_domain", True)),
         memory_enabled=bool(raw.get("memory_enabled", True)),
-        memory_household_writers=memory_household_writers,
-        ha_scan_days=ha_scan_days,
         github_token=str(raw.get("github_token") or "").strip(),
         github_access_default=github_access_default,
-        github_write_confirm=github_write_confirm,
         github_repos=github_repos,
         connector_access_default=connector_access_default,
-        connector_write_confirm=connector_write_confirm,
-        connector_allow_private=bool(raw.get("connector_allow_private", False)),
         files_enabled=bool(raw.get("files_enabled", True)),
-        files_edit=bool(raw.get("files_edit", True)),
-        files_keep_days=files_keep_days,
-        images_enabled=bool(raw.get("images_enabled", True)),
         openai_api_key=str(raw.get("openai_api_key") or "").strip(),
         google_api_key=str(raw.get("google_api_key") or "").strip(),
-        image_model_openai=image_models["image_model_openai"],
-        image_model_google=image_models["image_model_google"],
         image_provider=image_provider,
         image_limit_month=image_limit_month,
     )

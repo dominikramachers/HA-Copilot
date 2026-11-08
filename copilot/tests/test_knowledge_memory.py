@@ -1,5 +1,6 @@
 """Projektwissen und Gedächtnis: Import, Suche, Trennung der Personen, Rechte, Rückfragen nach Dateianhängen."""
 import asyncio
+import dataclasses
 import base64
 import io
 import zipfile
@@ -359,7 +360,7 @@ def test_memory_api_isolation_and_permissions(client):
 
 def test_household_writers_setting_and_master_switch(store):
     profiles = [{**RAW["profiles"][0], "ha_access": "write"}, RAW["profiles"][1]]
-    settings = parse_settings({**RAW, "profiles": profiles, "memory_household_writers": "ha_write"}, frozenset({"testclient"}))
+    settings = dataclasses.replace(parse_settings({**RAW, "profiles": profiles}, frozenset({"testclient"})), memory_household_writers="ha_write")
     client = TestClient(build_ingress_app(settings, store, FakeBackend()))
     body = {"scope": "household", "topic": "Plan", "content": "Umbau im Mai."}
     assert client.post("/api/memory", json=body, headers=as_user(ADM01, True)).status_code == 200

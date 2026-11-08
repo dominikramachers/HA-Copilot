@@ -59,7 +59,7 @@ anthropic_api_key: sk-ant-...        # API-Schlüssel, Abrechnung nach Verbrauch
 claude_oauth_token: sk-ant-oat-...   # Token deines Abos, nur für dich allein
 ```
 
-Setze danach `backend` auf `claude`. Bis dahin läuft das Add-on im **Testmodus** (`backend: echo`): Es gibt deine Nachricht nur zurück, ruft keine KI auf und kostet nichts. So lässt sich die Einrichtung ohne Risiko ausprobieren.
+Starte danach das Add-on neu. Solange kein Zugang eingetragen ist, läuft es im **Testmodus**: Es gibt deine Nachricht nur zurück, ruft keine KI auf und kostet nichts. So lässt sich die Einrichtung ohne Risiko ausprobieren.
 
 ### Welchen Zugang nehme ich?
 
@@ -85,7 +85,7 @@ Mit einem Abo-Token die zusätzliche Nutzung („Extra usage“) in den Claude-E
 
 ![HA Copilot in Home Assistant](screenshots/ha-copilot-im-panel.png)
 
-Schreibe eine Nachricht. Im Testmodus kommt sie als Echo zurück; mit `backend: claude` antwortet Claude.
+Schreibe eine Nachricht. Im Testmodus kommt sie als Echo zurück; mit Zugang zu Claude antwortet Claude.
 
 ## 6. Einrichtungsprüfung
 
@@ -116,7 +116,7 @@ Meldet Home Assistant beim Suchen nach Updates „Unknown error, see supervisor 
 |---|---|
 | Der Store zeigt HA Copilot nicht | Repository-Adresse prüfen (genau wie oben, ohne Leerzeichen), Seite neu laden. Der Supervisor lädt das Repository beim Hinzufügen; dauert es, hilft **⋮ → Nach Updates suchen**. |
 | Die App zeigt „Kein Zugriff“ | Dein Benutzer ist nicht eingetragen. Die Seite nennt deinen Benutzernamen und deine ID: bei `ha_user` bzw. `ha_user_id` eintragen, speichern, Add-on neu starten. |
-| Oben steht „Testmodus“ | `backend` steht noch auf `echo`. Zugang zu Claude eintragen und `backend: claude` setzen. |
+| Oben steht „Testmodus“ | Es ist noch kein Zugang zu Claude eingetragen. `claude_oauth_token` oder `anthropic_api_key` eintragen und neu starten. |
 | Antworten enden mit einem Fehler | Zugangsdaten falsch oder abgelaufen, oder das Nutzungslimit des Abos ist erreicht. Die Meldung steht im Chat, Einzelheiten im Protokoll des Add-ons. |
 | „HA Copilot“ fehlt in der Seitenleiste | Auf dem Reiter Info **In der Seitenleiste anzeigen** einschalten und die Seite neu laden. |
 

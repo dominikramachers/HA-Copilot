@@ -1,5 +1,6 @@
 """Anhänge: geprüft und weitergereicht; ohne „Dateien bearbeiten“ nur im Arbeitsspeicher, sonst als Kopie im Chat."""
 import base64
+import dataclasses
 import json
 import os
 import time
@@ -37,7 +38,7 @@ def send(client, chat_id, text, files=None):
 @pytest.fixture()
 def memory_client(store, backend):
     """Dateien bearbeiten aus: Anhänge bleiben im Arbeitsspeicher."""
-    settings = parse_settings({**RAW, "files_edit": False}, frozenset({"testclient"}))
+    settings = dataclasses.replace(parse_settings(RAW, frozenset({"testclient"})), files_edit=False)
     return TestClient(build_ingress_app(settings, store, backend))
 
 

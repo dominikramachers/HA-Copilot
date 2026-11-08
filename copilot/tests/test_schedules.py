@@ -14,7 +14,7 @@ from app.identity import Registry
 from app.limits import LimitState
 from app.main import Run, build_ingress_app
 from app.scheduler import GRACE_SECONDS, Scheduler, plain_excerpt
-from conftest import ADM01, DORA, RAW, FakeBackend, as_user
+from conftest import ADM01, DORA, RAW, FakeBackend, as_user, parse_with_fixed
 from test_background_run import asgi, jget, new_chat as _unused  # noqa: F401  (Hilfen)
 from test_ha_tools import FakeHa
 
@@ -148,7 +148,7 @@ def test_notify_service_option():
             parse_settings({**RAW, "profiles": [{**RAW["profiles"][0], "notify_service": bad}]}, frozenset())
     assert SETTINGS.schedules_enabled and SETTINGS.notify_long_answers
     off = parse_settings({**RAW, "schedules_enabled": False, "notify_long_answers": False}, frozenset())
-    assert not off.schedules_enabled and not off.notify_long_answers
+    assert not off.schedules_enabled and off.notify_long_answers  # die Meldung gilt, sobald ein Dienst eingetragen ist
 
 
 # ------------------------------------------------------------------ Schnittstelle
@@ -488,7 +488,7 @@ def test_no_notification_when_run_failed(store):
 
 
 def phone_settings(**extra):
-    return parse_settings(
+    return parse_with_fixed(
         {**RAW, **extra, "profiles": [{**RAW["profiles"][0], "notify_service": "notify.mobile_app_pixel"}, RAW["profiles"][1]]},
         frozenset({"testclient"}),
     )

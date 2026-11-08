@@ -14,7 +14,7 @@ from app.config import ConfigError, parse_settings
 from app.db import Store
 from app.ha_tools import ToolError
 from app.main import build_ingress_app
-from conftest import ADM01, DORA, RAW
+from conftest import ADM01, DORA, RAW, parse_with_fixed
 from test_background_run import asgi, jget, new_chat, sse
 
 
@@ -262,7 +262,7 @@ def test_deleting_a_chat_deletes_its_files(tmp_path):
 # ---------------------------------------------------------------- Einbindung in die App
 
 def file_app(store, script, **options):
-    settings = parse_settings({**RAW, **options}, frozenset({"testclient"}))
+    settings = parse_with_fixed({**RAW, **options}, frozenset({"testclient"}))
     seen = {}
 
     class ToolBackend:
@@ -383,7 +383,6 @@ def test_only_file_answer_still_gets_a_text(store):
 
 def test_config_files_options():
     assert parse_settings(RAW, frozenset()).files_keep_days == 14 and parse_settings(RAW, frozenset()).files_enabled
-    assert parse_settings({**RAW, "files_keep_days": 30, "files_enabled": False}, frozenset()).files_keep_days == 30
-    for bad in (0, 366, "x"):
-        with pytest.raises(ConfigError):
-            parse_settings({**RAW, "files_keep_days": bad}, frozenset())
+    s = parse_settings({**RAW, "files_keep_days": 30, "files_enabled": False}, frozenset())
+    assert s.files_keep_days == 14 and not s.files_enabled  # die Aufbewahrung ist fest (seit 0.45.0 keine Option)
+    assert s.files_edit

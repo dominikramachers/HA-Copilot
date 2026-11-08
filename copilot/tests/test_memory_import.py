@@ -187,7 +187,9 @@ def test_commit_household_denied_without_write_right(store):
     from tests.conftest import RAW, FakeBackend
 
     profiles = [{**RAW["profiles"][0], "ha_access": "write"}, RAW["profiles"][1]]
-    settings = parse_settings({**RAW, "profiles": profiles, "memory_household_writers": "ha_write"}, frozenset({"testclient"}))
+    import dataclasses
+
+    settings = dataclasses.replace(parse_settings({**RAW, "profiles": profiles}, frozenset({"testclient"})), memory_household_writers="ha_write")
     client = TestClient(build_ingress_app(settings, store, FakeBackend()))
     body = {"scope": "household", "entries": [{"topic": "Plan", "content": "Umbau im Mai"}]}
     assert client.post("/api/memory/import", json=body, headers=as_user(DORA, True)).status_code == 403

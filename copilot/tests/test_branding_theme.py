@@ -11,7 +11,7 @@ from app.branding import MAX_ASSET_BYTES, Branding
 from app.config import ConfigError, parse_settings
 from app.ha_client import HaApi, HaApiError
 from app.main import build_ingress_app
-from app.theme import build_theme_css, mix, on_color, overrides, theme_variables
+from app.theme import build_theme_css, mix, on_color, theme_variables
 
 from conftest import DORA, RAW, as_user
 
@@ -61,7 +61,7 @@ def make(store, backend, tmp_path, ha=None, **extra):
 
 def test_defaults_are_neutral():
     s = parse_settings(copy.deepcopy(RAW))
-    assert s.app_name == "HA Copilot" and s.follow_ha_theme is True and s.logo_tile is False and s.colors == ()
+    assert s.app_name == "HA Copilot" and s.follow_ha_theme is True and s.logo_tile is False
 
 
 def test_texts_are_cleaned_and_limited():
@@ -70,14 +70,6 @@ def test_texts_are_cleaned_and_limited():
     for bad in ({"app_name": "A" * 41}, {"app_name": "<b>"}, {"login_text": "x" * 121}):
         with pytest.raises(ConfigError):
             settings_with(**bad)
-
-
-def test_colours_are_normalised_and_validated():
-    s = settings_with(accent_color="175cd3", background_color_dark="#0d192d")
-    assert dict(s.colors) == {"accent": "#175CD3", "bg_dark": "#0D192D"}
-    for bad in ("rot", "#12345", "#12345G", "url(x)", "#1234567"):
-        with pytest.raises(ConfigError):
-            settings_with(accent_color=bad)
 
 
 def test_profiles_need_only_a_name():
@@ -225,25 +217,17 @@ def test_theme_values_are_sanitised():
     assert result == {"good-one": "#123456"}
 
 
-def test_overrides_beat_the_theme_and_derive_related_colours():
-    s = settings_with(accent_color="#FF8800", text_color_dark="#EEEEEE", background_color_dark="#101010")
-    dark = overrides(s, "dark")
-    assert dark["ov-accent"] == "#FF8800" and dark["ov-on-accent"] == "#FFFFFF"
-    assert dark["ov-text"] == "#EEEEEE" and dark["ov-bg"] == "#101010" and dark["ov-text-2"].startswith("#")
-    assert "ov-text" not in overrides(s, "light") and overrides(s, "light")["ov-accent"] == "#FF8800"
-
-
 def test_theme_css_layers_and_modes():
-    css = build_theme_css(THEMES, settings_with(accent_color="#FF8800"))
+    css = build_theme_css(THEMES, settings_with())
     assert css.startswith("@layer tokens {")
     assert ':root[data-theme="light"]' in css and ':root[data-theme="dark"]' in css
-    assert "--primary-color: #175CD3;" in css and "--primary-color: #5B9BFF;" in css and "--ov-accent: #FF8800;" in css
+    assert "--primary-color: #175CD3;" in css and "--primary-color: #5B9BFF;" in css
 
 
 def test_theme_css_without_ha_or_following_off():
     assert "Keine Theme-Anpassung" in build_theme_css(None, settings_with())
-    off = build_theme_css(THEMES, settings_with(follow_ha_theme=False, accent_color="#FF8800"))
-    assert "--primary-color" not in off and "--ov-accent: #FF8800;" in off
+    off = build_theme_css(THEMES, settings_with(follow_ha_theme=False))
+    assert "--primary-color" not in off and "Keine Theme-Anpassung" in off
 
 
 def test_theme_route_uses_ha_and_caches(store, backend, tmp_path):
@@ -256,9 +240,9 @@ def test_theme_route_uses_ha_and_caches(store, backend, tmp_path):
 
 
 def test_theme_route_survives_unreachable_ha(store, backend, tmp_path):
-    api, _ = make(store, backend, tmp_path, ha=FakeThemes(None), accent_color="#FF8800")
+    api, _ = make(store, backend, tmp_path, ha=FakeThemes(None))
     r = api.get("/branding/theme.css")
-    assert r.status_code == 200 and "--ov-accent: #FF8800;" in r.text and "--primary-color" not in r.text
+    assert r.status_code == 200 and "--primary-color" not in r.text and "Keine Theme-Anpassung" in r.text
 
 
 # ----------------------------------------------------------------- HA-Anbindung (WebSocket)
