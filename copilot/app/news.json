@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.48.0",
+    "items": [
+      {
+        "de": {
+          "title": "Neue Einstellungen",
+          "text": "Gedächtnis, GitHub, Meine Daten, Hilfe und Design findest du jetzt gesammelt unter „Einstellungen“. Dort zeige ich dir auch, wie viel du genutzt hast."
+        },
+        "en": {
+          "title": "New settings",
+          "text": "Memory, GitHub, My data, help and theme are now together under “Settings”. There I also show you how much you have used."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.47.0",
     "items": [
       {

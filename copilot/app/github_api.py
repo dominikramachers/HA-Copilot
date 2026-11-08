@@ -125,8 +125,8 @@ class GithubApi:
         message = self._clean(message + (f" ({detail})" if detail else ""))[:300]
         if status == 401:
             if self.personal:
-                return GithubError("Dein GitHub-Zugang wurde abgelehnt (widerrufen oder abgelaufen). Die Person muss GitHub im Konto-Menü neu verbinden.", 401)
-            return GithubError("Das GitHub-Token wurde abgelehnt (ungültig oder abgelaufen). Die Person muss GitHub im Konto-Menü neu verbinden.", 401)
+                return GithubError("Dein GitHub-Zugang wurde abgelehnt (widerrufen oder abgelaufen). Die Person muss GitHub in den Einstellungen neu verbinden.", 401)
+            return GithubError("Das GitHub-Token wurde abgelehnt (ungültig oder abgelaufen). Die Person muss GitHub in den Einstellungen neu verbinden.", 401)
         if status in (403, 429) and ("rate limit" in message.lower() or response.headers.get("x-ratelimit-remaining") == "0"):
             return GithubError("Das Anfragelimit von GitHub ist erreicht. Bitte später erneut versuchen.", status)
         if status == 403:

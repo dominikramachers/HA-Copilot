@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.47.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.48.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -158,7 +158,7 @@ Verfügbare Variablen: `--bg`, `--panel`, `--sidebar`, `--sheet`, `--text`, `--t
 
 ## Oberfläche
 
-- **Darstellung:** Hell, Dunkel oder Auto (folgt dem Gerät). Die Auswahl steht unten in der Seitenleiste und wird pro Browser gemerkt; in Home Assistant eingebettet gibt HA Hell/Dunkel vor und der Schalter entfällt. Die Farben kommen aus dem Theme von Home Assistant, siehe „Personalisierung“.
+- **Darstellung:** Hell, Dunkel oder Auto (folgt dem Gerät). Die Auswahl steht unter **Einstellungen → Allgemein** und wird pro Browser gemerkt; in Home Assistant eingebettet gibt HA Hell/Dunkel vor und der Schalter entfällt. Die Farben kommen aus dem Theme von Home Assistant, siehe „Personalisierung“.
 - **Seitenleiste:** Von oben nach unten: „Neuer Chat“, **Suchen** (ab 0.22.0, siehe „Suche, Export und eigene Daten“), **Geplant** (ab 0.21.0, siehe „Geplante Aufgaben“), **Angepinnt** (angepinnte Chats), **Projekte** (auf- und zuklappbar, Plus-Symbol legt ein Projekt an; das Plus in der Projektzeile startet einen neuen Chat darin) und **Chats**. Bei den Chats stehen nur die der letzten zwei Tage (Heute, Gestern); „Alle anzeigen“ blendet die älteren ein. Über das Symbol mit den drei Punkten bei jeder Zeile (am Computer beim Darüberfahren) öffnet sich das Aktionsfenster: anpinnen, umbenennen, in ein Projekt verschieben, als Markdown exportieren, löschen. Am Laptop und Tablet öffnet das ein kleines Menü direkt am Symbol (mit Trennlinien und Tastenkürzeln: U, P, R, D; „Projekt wechseln“ klappt ein Untermenü mit Suche auf; Pfeiltasten und Esc funktionieren). Abfragen wie Projekt anlegen, Umbenennen oder Löschen bestätigen erscheinen dort als Dialog in der Bildschirmmitte mit Schließen-Kreuz; auf dem Handy hochkant bleibt alles ein Fenster von unten.
 - **Eigene Nachrichten (ab 0.27.5):** Unter jeder eigenen Nachricht steht beim Darüberfahren (am Touchscreen nach dem Antippen) dezent, wann sie gesendet wurde: bis zu einer Stunde „vor 33 Minuten“, danach auf Stunden gerundet („vor 1 Stunde“, „vor 2 Stunden“, bis sechs Stunden), dann „Heute Nacht/Morgen/Mittag/Nachmittag/Abend“, „Gestern“, „Vorgestern“, „vor 3 Tagen“ (bis sechs Tage) und ab einer Woche das Datum. Der genaue Zeitpunkt steht im Hinweis des Zeitstempels. Daneben ein Stift (**Bearbeiten**) und ein Symbol zum **Kopieren** des Textes. Zum Bearbeiten siehe „So arbeitet die KI“. **Unter den Antworten der KI** stehen „Kopieren“ und „Als Datei“ (speichert den ganzen Text als `antwort.md`) als dezente Symbole: bei der letzten Antwort dauerhaft, bei älteren erst beim Darüberfahren; ebenfalls nur dann steht dort, wann die Antwort fertig wurde (gleiche Zeitangabe wie oben).
 - **Warteanzeige (ab 0.17.0):** Solange die KI arbeitet, steht unter der Frage ein kleines bewegtes Zeichen mit einem Hinweis („Denkt nach“, „Tüftelt“, „Wägt ab“ …) oder der gerade laufenden Aktion („Entitäten suchen: Licht“); wartet sie auf deine Freigabe, steht das dort. Nach 20 Sekunden erscheint die Wartezeit, nach einer Minute ein Hinweis, dass die Antwort auch bei verlassenem Chat fertig wird. Sobald Text ankommt, bleibt nur das kleine Zeichen unter dem Text. Mit „Bewegung reduzieren“ im Betriebssystem steht es still.
@@ -255,7 +255,7 @@ Die KI führt ein eigenes Gedächtnis aus kurzen Einträgen (Thema, höchstens 8
 
 Die KI weiß, mit wem sie spricht, legt nützliche und dauerhafte Dinge von selbst ab (`memory_save`), aktualisiert Einträge zum selben Thema und löscht auf Wunsch (`memory_forget`). Beides steht im Aktionsprotokoll unter der Antwort („Gemerkt“, „Vergessen“). In der Seitenleiste öffnet **Gedächtnis** die Einträge: dort lassen sich eigene Einträge ansehen, ergänzen und löschen (zweimal tippen bestätigt). Eine Grenze von 100 Einträgen je Person und 150 für den Haushalt verhindert, dass es unendlich wächst.
 
-**Meine Anweisungen und Import aus Claude (ab 0.42.0).** Im Dialog **Gedächtnis** steht oben **Meine Anweisungen**: ein Text bis 4000 Zeichen, der in allen Chats dieser Person als Anweisung mitgeht (Tonfall, Sprache, feste Vorlieben), zusätzlich zu den Anweisungen eines Projekts; bei einem Widerspruch gelten die des Projekts. Das ist das Gegenstück zu den „Vorlieben“ bei Claude. Gespeichert wird er je Person in `profiles.instructions` (Datenbankschema 18), er gilt auch für geplante Aufgaben und steht in „Meine Daten“ (`anweisungen.md`). Zugangsdaten und Kontonummern lehnt der Server ab.
+**Meine Anweisungen und Import aus Claude (ab 0.42.0).** Unter **Einstellungen → Gedächtnis** steht oben **Meine Anweisungen**: ein Text bis 4000 Zeichen, der in allen Chats dieser Person als Anweisung mitgeht (Tonfall, Sprache, feste Vorlieben), zusätzlich zu den Anweisungen eines Projekts; bei einem Widerspruch gelten die des Projekts. Das ist das Gegenstück zu den „Vorlieben“ bei Claude. Gespeichert wird er je Person in `profiles.instructions` (Datenbankschema 18), er gilt auch für geplante Aufgaben und steht in „Meine Daten“ (`anweisungen.md`). Zugangsdaten und Kontonummern lehnt der Server ab.
 
 Darunter liest **Aus Claude übernehmen** einen Gedächtnis-Export von Claude (Einstellungen, Bereich Gedächtnis, Export als ZIP mit Markdown) oder eine einzelne Markdown-/Textdatei ein. Der Ablauf hat zwei Schritte:
 
@@ -339,10 +339,10 @@ Ein **Plugin** ist ein Paket aus Skills und Konnektoren zu einem Thema, zum Beis
 
 Die KI kann mit GitHub arbeiten (ab 0.46.0 mit dem eigenen Konto jeder Person): Repositories und Dateien lesen, Code durchsuchen, Issues, Pull Requests, Commits und Workflow-Läufe ansehen, und (mit Schreibrecht) Dateien einchecken, Zweige und Pull Requests anlegen, Issues schreiben, Pull Requests mergen und neue Repositories anlegen. Beispiele: „Schau in doralab/smarthome, warum der letzte Lauf fehlschlägt“, „Lege das Skript aus dem Chat als Pull Request in doralab/smarthome ab“, „Fass die offenen Issues zusammen“.
 
-**Einrichten: jede Person verbindet ihr eigenes GitHub (ab 0.46.0).** Im Konto-Menü (unten links) gibt es den Eintrag **GitHub**, sobald die Person Rechte dafür hat (`github_access` ist `read` oder `write`). Dort:
+**Einrichten: jede Person verbindet ihr eigenes GitHub (ab 0.46.0).** In den **Einstellungen** (Konto-Menü unten links → Einstellungen) gibt es die Seite **GitHub**, sobald die Person Rechte dafür hat (`github_access` ist `read` oder `write`). Dort:
 
 1. **Mit GitHub verbinden** wählen. Es erscheint ein Code und der Knopf „GitHub öffnen“.
-2. Bei GitHub den Code eingeben und den Zugriff bestätigen. Der Dialog wartet und meldet sich von selbst mit „Verbunden als …“; der Code gilt 15 Minuten.
+2. Bei GitHub den Code eingeben und den Zugriff bestätigen. Die Seite wartet und meldet sich von selbst mit „Verbunden als …“; der Code gilt 15 Minuten.
 3. Alternativ **Token einfügen**: ein selbst erzeugtes Token (Fine-grained oder klassisch). Das Add-on prüft es bei GitHub, bevor es gespeichert wird.
 4. **Trennen** löscht das Token im Add-on. Der Zugang bei GitHub bleibt bestehen, bis die Person ihn dort unter Einstellungen → Anwendungen widerruft.
 
@@ -350,7 +350,7 @@ Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connect
 
 **Welche Rechte jemand hat, bleibt Sache der Konfiguration:** `github_access` im Benutzer-Eintrag, sonst `github_access_default` (Standard `none`). Ein verbundenes Konto ändert daran nichts: Bei `read` kann die KI auch mit dem eigenen Konto nur lesen.
 
-**Kein gemeinsames Token mehr (ab 0.47.0).** Die Optionen `github_token` und `github_repos` gibt es nicht mehr. Wer kein eigenes Konto verbunden hat, hat kein GitHub, auch nicht in geplanten Aufgaben. Ein altes `github_token` in der Konfiguration wird ignoriert und kann gelöscht werden. Wer ein Token selbst erzeugen will, fügt es im Dialog „GitHub“ unter **Token einfügen** ein: bei GitHub unter Settings → Developer settings → Personal access tokens, Empfehlung *Fine-grained tokens* mit nur den nötigen Repositories und den Rechten *Contents*, *Pull requests*, *Issues* (je Read and write, zum Lesen Read-only) sowie *Actions* und *Metadata* (Read-only). Neue Repositories im eigenen Konto kann GitHub nur mit einem klassischen Token (Recht „repo“) anlegen.
+**Kein gemeinsames Token mehr (ab 0.47.0).** Die Optionen `github_token` und `github_repos` gibt es nicht mehr. Wer kein eigenes Konto verbunden hat, hat kein GitHub, auch nicht in geplanten Aufgaben. Ein altes `github_token` in der Konfiguration wird ignoriert und kann gelöscht werden. Wer ein Token selbst erzeugen will, fügt es im Seite „GitHub“ unter **Token einfügen** ein: bei GitHub unter Settings → Developer settings → Personal access tokens, Empfehlung *Fine-grained tokens* mit nur den nötigen Repositories und den Rechten *Contents*, *Pull requests*, *Issues* (je Read and write, zum Lesen Read-only) sowie *Actions* und *Metadata* (Read-only). Neue Repositories im eigenen Konto kann GitHub nur mit einem klassischen Token (Recht „repo“) anlegen.
 
 **Stufen** (`github_access` je Benutzer, sonst `github_access_default`):
 
@@ -440,16 +440,30 @@ Die Benachrichtigung zeigt den Anfang der Antwort, also auch auf dem Sperrbildsc
 
 **Chat exportieren.** Im Menü eines Chats (⋯) speichert „Als Markdown exportieren“ den Chat als `.md`-Datei mit Titel, Projekt, Datum, allen Nachrichten, den Namen der Anhänge und den Aktionen der KI (Home Assistant, GitHub, Web).
 
-**Meine Daten** (Konto-Menü unten in der Seitenleiste):
+**Meine Daten** (Einstellungen → Meine Daten):
 
 - **Alle Chats exportieren:** Eine ZIP-Datei mit allen Chats als Markdown (je Projekt ein Ordner, geplante Aufgaben in einem eigenen Ordner), `projekte.md` (Projekte mit Anweisungen), `gedaechtnis.md` (nur dein persönliches Gedächtnis, nicht das des Haushalts), `anweisungen.md` (deine persönlichen Anweisungen, falls vorhanden) und `geplante-aufgaben.md`. Nicht enthalten sind hochgeladene Projektdateien und von der KI erzeugte Dateien (sie laufen ohnehin ab). Der Export ist auf wenige Abrufe je 10 Minuten begrenzt.
 - **Alle Chats löschen:** Entfernt alle deine Chats mit Nachrichten und erzeugten Dateien unwiderruflich. Projekte, Gedächtnis und geplante Aufgaben bleiben. Zur Sicherheit gibt es zwei Schritte: erst eine Rückfrage, dann muss das Wort LÖSCHEN eingetippt werden. Läuft gerade noch eine Antwort, wird abgelehnt (erst beenden oder abwarten). Einen einzelnen Chat löschst du weiter im Chat-Menü.
 
 Alles gilt nur für das eigene Profil; andere Personen sind nie betroffen. Die Löschfunktion ist keine Einstellung für alle, sondern bewusst nur für die eigenen Daten gedacht.
 
+## Einstellungen und Konto-Menü (ab 0.48.0)
+
+Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noch das Wichtigste: **Einstellungen**, **Nutzung**, **Gedächtnis**, **Kurzanleitung**, **Das ist neu**, **Einrichtungsprüfung** (wenn der Chat über Home Assistant läuft) und, nur über die eigene Domain, **Abmelden**. Alles Weitere liegt in den **Einstellungen**, einer eigenen Seite mit Liste links und Inhalt rechts (auf dem Handy erst die Liste, dann der Inhalt mit „Zurück“):
+
+- **Präferenzen:** *Allgemein* (Design hell/dunkel/Auto, in Home Assistant eingebettet gibt HA das Design vor; Sprache und Name nur zur Ansicht, die Sprache stellt der Administrator mit `language` ein), *Nutzung*, *Gedächtnis*, *GitHub* (wenn dir `github_access` ≠ `none` gegeben wurde), *Meine Daten*.
+- **Hilfe:** *Kurzanleitung*, *Das ist neu* (die Neuerungen der letzten Versionen), *Einrichtungsprüfung*.
+- **Anpassungen:** Verweise auf Skills, Konnektoren und Plugins (die bisherige Seite „Anpassungen“).
+
+**Nutzung** zeigt zwei Dinge: den Stand des Claude-Abos und deine Bilder im laufenden Monat. Ein Abo-Limit meldet Claude nur, wenn es fast oder ganz erreicht ist; deshalb steht dort „Das Limit ist nicht erreicht“ oder ein Balken mit Rücksetzzeit, aber keine laufende Prozentzahl. Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Bei den Bildern zählt die Seite Fotos und Kunstbilder von OpenAI oder Google (`image_limit_month`); SVG-Grafiken zählen nicht.
+
+**Seite merken.** Wer neu lädt (zum Beispiel weil Home Assistant das Fenster neu aufbaut), bleibt auf der Seite: Einstellungen mit der gewählten Unterseite, Geplant oder Anpassungen mit Skills, Konnektoren oder Plugins. Das Add-on merkt sich das im Browser (`sessionStorage`), nicht in der Adresse, weil Home Assistant die Adresse im eingebetteten Fenster nicht behält. Ein geöffneter Chat wurde schon vorher gemerkt.
+
+**Technik:** Schnittstelle `GET /api/usage` (Abo-Limits, Bilder der Person im Monat). Keine neuen Optionen. Die Sprache bleibt eine Einstellung des Administrators; eine Sprachwahl je Person ist nicht enthalten.
+
 ## Einrichtungsprüfung (ab 0.25.0)
 
-Im Konto-Menü (unten links) gibt es **Einrichtungsprüfung**, wenn du den Chat über Home Assistant öffnest. Das Fenster listet auf, was eingerichtet ist und was fehlt: **Nötig** (ohne das läuft der Chat nicht richtig, z. B. der Zugang zu Claude), **Empfohlen** (z. B. Anmeldeversuche hinter dem Tunnel je Besucher zählen) und **Optional** (GitHub, Domain-Zugang, Benachrichtigungen, Erinnerung an Ablaufdaten). Jeder Punkt, der Aufmerksamkeit braucht, klappt die genauen Schritte auf. „Erneut prüfen“ liest die Konfiguration noch einmal und fragt Home Assistant und GitHub kurz ab.
+Unter **Einstellungen → Einrichtungsprüfung** (Konto-Menü unten links) findest du die Prüfung, wenn du den Chat über Home Assistant öffnest. Die Seite listet auf, was eingerichtet ist und was fehlt: **Nötig** (ohne das läuft der Chat nicht richtig, z. B. der Zugang zu Claude), **Empfohlen** (z. B. Anmeldeversuche hinter dem Tunnel je Besucher zählen) und **Optional** (GitHub, Domain-Zugang, Benachrichtigungen, Erinnerung an Ablaufdaten). Jeder Punkt, der Aufmerksamkeit braucht, klappt die genauen Schritte auf. „Erneut prüfen“ liest die Konfiguration noch einmal und fragt Home Assistant und GitHub kurz ab.
 
 - Beim ersten Start nach der Installation läuft der Chat im Testmodus (solange kein Claude-Zugang eingetragen ist). Oben erscheint dann ein Hinweis mit dem Knopf „Schritte anzeigen“, der direkt die Anleitung für den Claude-Zugang öffnet.
 - Die Prüfung zeigt nie ein Geheimnis, nur ob es gesetzt ist. Bei GitHub steht zusätzlich der Kontoname, zu dem das Token gehört.
@@ -549,7 +563,7 @@ Eine Schritt-für-Schritt-Anleitung zum Anlegen der Konten steht unter [API-Kont
 
 1. **OpenAI:** Auf platform.openai.com ein API-Konto anlegen, Guthaben aufladen, unter „API keys“ einen Schlüssel erzeugen. Je nach Modell kann OpenAI zuvor eine **Verifizierung der Organisation** verlangen (Einstellungen → Organization → Verification); sonst meldet die Schnittstelle einen Fehler, den die KI dir wörtlich nennt.
 2. **Google:** Auf aistudio.google.com („Get API key“) einen Schlüssel für die Gemini-API erzeugen und im zugehörigen Cloud-Projekt die **Abrechnung** aktivieren (die Bildmodelle der Gemini-API sind kostenpflichtig).
-3. Schlüssel bei `openai_api_key` bzw. `google_api_key` eintragen, speichern, Add-on neu starten. Die Einrichtungsprüfung (Konto-Menü) zeigt „Bilder erzeugen“ mit dem Stand.
+3. Schlüssel bei `openai_api_key` bzw. `google_api_key` eintragen, speichern, Add-on neu starten. Die Einrichtungsprüfung (Einstellungen) zeigt „Bilder erzeugen“ mit dem Stand.
 4. Ein **ChatGPT-Plus-** oder **Google-One-Abo** bezahlt die Schnittstelle nicht; beide Anbieter rechnen die API getrennt ab.
 
 **Modellnamen:** `gpt-image-2.5-sunburst` (OpenAI) und `gemini-3.1-flash-image-preview` (Google, auch „Nano Banana 2“) sind seit 0.45.0 fest im Add-on hinterlegt, die Optionen `image_model_openai` und `image_model_google` entfallen; bei Namensänderungen der Anbieter bringt ein Add-on-Update die neuen Namen. Fehler der Anbieter (unbekanntes Modell, ungültiger Schlüssel, leeres Guthaben, Sicherheitsfilter, zu viele Anfragen) erklärt die KI verständlich; der Schlüssel taucht dabei nie auf.

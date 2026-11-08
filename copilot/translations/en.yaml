@@ -101,7 +101,7 @@ configuration:
     description: 'On (default): the AI remembers facts on its own, for the whole household and separately for each person. Everyone can view, edit and delete entries in the chat under “Memory”. Off: no memory.'
   github_access_default:
     name: Default GitHub access
-    description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub in the account menu. Can be overridden per user with github_access.'
+    description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub in the settings. Can be overridden per user with github_access.'
   connector_access_default:
     name: Default connector access
     description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'

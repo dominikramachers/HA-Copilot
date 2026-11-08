@@ -127,7 +127,7 @@ def test_live_github_rejection_asks_to_reconnect():
     api = GithubApi(TOKEN, transport=httpx.MockTransport(lambda r: httpx.Response(401, json={"message": "Bad credentials"})), personal=True)
     asyncio.run(sc.run_live(items, None, api, make().profiles[0]))
     github = next(i for i in items if i["id"] == "github")
-    assert github["status"] == "todo" and "Konto-Menü" in " ".join(github["steps"]) and "github_token" not in " ".join(github["steps"])
+    assert github["status"] == "todo" and "Einstellungen" in " ".join(github["steps"]) and "github_token" not in " ".join(github["steps"])
 
 
 def github_api(status, body=None):

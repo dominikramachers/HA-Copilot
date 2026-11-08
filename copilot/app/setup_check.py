@@ -178,7 +178,7 @@ def static_items(
             "github", "optional", "off", "GitHub",
             tr("Nicht verbunden. Nur nötig, wenn die KI mit deinen GitHub-Repositories arbeiten soll."),
             [
-                tr("Öffne unten links das Konto-Menü und wähle „GitHub“."),
+                tr("Öffne unten links das Konto-Menü, wähle „Einstellungen“ und dort „GitHub“."),
                 tr("Wähle „Mit GitHub verbinden“, gib den angezeigten Code bei GitHub ein und bestätige. Alternativ kannst du ein eigenes Token einfügen."),
                 tr("Ob du lesen oder auch ändern darfst, legt der Administrator mit `github_access_default` oder `github_access` im Benutzer-Eintrag fest: `read` oder `write`."),
             ],
@@ -353,7 +353,7 @@ async def _check_github(items: list[dict], github: GithubApi) -> None:
             item.update(
                 status="todo",
                 detail=tr("GitHub lehnt deinen Zugang ab. Er wurde widerrufen oder ist abgelaufen."),
-                steps=[tr("Öffne das Konto-Menü, wähle „GitHub“ und verbinde dich neu.")],
+                steps=[tr("Öffne die Einstellungen, wähle „GitHub“ und verbinde dich neu.")],
             )
         else:
             item["detail"] += tr(" (Das Token konnte gerade nicht geprüft werden: {error})", error=str(exc)[:80])

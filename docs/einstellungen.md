@@ -54,7 +54,7 @@ Optional: die KI arbeitet mit deinen Repositories. Jede Person verbindet ihr eig
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `github_access_default` | `none` \| `read` \| `write` | `none` | **Standard-Zugriff auf GitHub.** Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub im Konto-Menü verbunden hat. Je Benutzer überschreibbar mit github_access. |
+| `github_access_default` | `none` \| `read` \| `write` | `none` | **Standard-Zugriff auf GitHub.** Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub in den Einstellungen verbunden hat. Je Benutzer überschreibbar mit github_access. |
 
 ## Konnektoren
 
