@@ -263,6 +263,7 @@ function initSheet() {
 // ------------------------------------------------- Popover-Menü (Computer, Tablet)
 
 // Am Computer und Tablet öffnen die Aktionen als kleines Menü direkt am Auslöser, auf dem Handy bleibt es ein Fenster von unten.
+const narrowScreen = () => window.matchMedia("(max-width: 760px)").matches;
 const wideScreen = () => window.matchMedia("(min-width: 640px) and (min-height: 520px)").matches;
 let pop = null;
 
@@ -6503,10 +6504,29 @@ function settingsGroups() {
   return [{ title: tr("Präferenzen"), items: prefs }, { title: tr("Hilfe"), items: help }, { title: tr("Anpassungen"), items: custom }];
 }
 
+// Ein Eintrag der Einstellungsliste. Am Handy wird daraus eine Zeile mit Pfeil, am Laptop ein Menüpunkt.
+function settingsItem(item, current) {
+  const b = node("button", "set-item" + (item.link ? " is-link" : "") + (item.out ? " is-out" : ""));
+  b.type = "button";
+  b.append(icon(item.icon, !!item.solid), node("span", "", item.label), icon("chevron"));
+  b.lastChild.classList.add("set-chev");
+  if (!item.link && item === current) b.setAttribute("aria-current", "page");
+  b.addEventListener("click", () => {
+    if (item.link) { item.go(); return; }
+    settingsUi.page = item.id;
+    settingsUi.content = true;
+    rememberDetail(item.id);
+    renderSettings();
+    $("settings").scrollTop = 0;
+  });
+  return b;
+}
+
 function renderSettings() {
   settingsStop();
   settingsStop = () => {};
   const wrap = $("set-wrap");
+  const me = state.me || {};
   const groups = settingsGroups();
   const pages = groups.flatMap((g) => g.items).filter((i) => !i.link);
   const current = pages.find((i) => i.id === settingsUi.page) || pages[0];
@@ -6515,25 +6535,21 @@ function renderSettings() {
 
   const nav = node("nav", "set-nav");
   nav.setAttribute("aria-label", tr("Einstellungen"));
-  for (const group of groups) {
-    nav.append(node("p", "set-group", group.title));
-    for (const item of group.items) {
-      const b = node("button", "set-item");
-      b.type = "button";
-      b.append(icon(item.icon, !!item.solid), node("span", "", item.label));
-      if (item.link) b.append(icon("chevron"));
-      else if (item === current) b.setAttribute("aria-current", "page");
-      b.addEventListener("click", () => {
-        if (item.link) { item.go(); return; }
-        settingsUi.page = item.id;
-        settingsUi.content = true;
-        rememberDetail(item.id);
-        renderSettings();
-        $("settings").scrollTop = 0;
-      });
-      nav.append(b);
-    }
-  }
+  // Nur am Handy sichtbar: wer eingeloggt ist, wie in der Claude-App.
+  const who = node("header", "set-user");
+  who.append(node("span", "avatar", (me.label || "?").charAt(0).toUpperCase()), node("span", "set-user-text", me.label || ""));
+  nav.append(who);
+  const section = (title, items) => {
+    const sec = node("div", "set-sec");
+    if (title) sec.append(node("p", "set-group", title));
+    const card = node("div", "set-card");
+    for (const item of items) card.append(settingsItem(item, current));
+    sec.append(card);
+    nav.append(sec);
+  };
+  for (const group of groups) section(group.title, group.items);
+  // Am Laptop steht „Abmelden“ im Konto-Menü, am Handy gibt es kein Menü mehr.
+  if (me.can_logout) section("", [{ id: "logout", icon: "logout", label: tr("Abmelden"), go: logout, link: true, out: true }]);
 
   const main = node("section", "set-main");
   const back = node("button", "set-back");
@@ -6566,7 +6582,7 @@ async function openSettings(page = "") {
   closeMenu();
   setTitle(tr("Einstellungen"));
   if (page) { settingsUi.page = page; settingsUi.content = true; }
-  else if (!wideScreen()) settingsUi.content = false;
+  else if (narrowScreen()) settingsUi.content = false;
   rememberDetail(page || settingsUi.page);
   renderSettings();
   $("settings").scrollTop = 0;
@@ -6593,6 +6609,8 @@ async function logout() {
 }
 
 async function accountMenu() {
+  // Am Handy kein Menü: wie in der Claude-App geht es direkt in die Einstellungen (Nutzung, Abmelden usw. stehen dort).
+  if (narrowScreen()) { await openSettings(); return; }
   const entries = accountEntries();
   const button = $("account");
   button.setAttribute("aria-expanded", "true");

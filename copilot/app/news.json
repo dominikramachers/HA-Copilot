@@ -5,11 +5,11 @@
       {
         "de": {
           "title": "Aufgeräumteres Menü",
-          "text": "Das Menü unten links ist kürzer. Gedächtnis, Kurzanleitung und Neuigkeiten findest du jetzt nur noch in den Einstellungen."
+          "text": "Das Menü unten links ist kürzer, auf dem Handy öffnet es gleich die Einstellungen. Gedächtnis, Kurzanleitung und Neuigkeiten findest du nur noch dort."
         },
         "en": {
           "title": "Tidier menu",
-          "text": "The menu at the bottom left is shorter. Memory, quick guide and what’s new are now only in the settings."
+          "text": "The menu at the bottom left is shorter, and on your phone it opens the settings right away. Memory, quick guide and what’s new are now only in the settings."
         }
       }
     ]

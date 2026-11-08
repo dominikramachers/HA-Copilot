@@ -1,6 +1,7 @@
 # Änderungen
 
 ## 0.48.3
+- **Handy: direkt in die Einstellungen.** Bei schmalem Bildschirm (bis 760 px) öffnet ein Tipp auf den Namen unten in der Seitenleiste kein Menü mehr, sondern gleich die Einstellungen (`accountMenu()` → `openSettings()`; das Fenster von unten bleibt nur für flache Querformat-Geräte über 760 px Breite). Die Liste ist wie in der Claude-App gebaut: oben eine Karte mit Name, darunter je Gruppe (Präferenzen, Hilfe, Anpassungen) eine abgesetzte Karte mit kompakten Zeilen (Symbol, Name, Pfeil, feine Trennlinien); am Ende steht *Abmelden* (nur Domain). Dafür neu `settingsItem()`, Wrapper `.set-sec`/`.set-card`, Kopf `.set-user`; die Pfeil-Symbole am Konto-Knopf entfallen am Handy. Am Laptop bleibt das Popup mit Einstellungen, Nutzung, Einrichtungsprüfung und Abmelden.
 - **Konto-Menü weiter verschlankt.** Es enthält nur noch *Einstellungen*, *Nutzung*, *Einrichtungsprüfung* (HA) und *Abmelden* (Domain). *Gedächtnis*, *Kurzanleitung* und *Das ist neu* sind nur noch über die Einstellungen erreichbar.
 - **Doppelte Überschrift entfernt.** Auf der Einstellungen-Seite stand „Einstellungen“ in der Kopfzeile und noch einmal über der Liste (Laptop wie Handy). Die Überschrift über der Liste entfällt; der Zurück-Knopf im Handy-Inhalt heißt „Zurück“.
 

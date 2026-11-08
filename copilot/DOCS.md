@@ -449,7 +449,7 @@ Alles gilt nur für das eigene Profil; andere Personen sind nie betroffen. Die L
 
 ## Einstellungen und Konto-Menü (ab 0.48.1)
 
-Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noch das Wichtigste: **Einstellungen**, **Nutzung**, **Einrichtungsprüfung** (wenn der Chat über Home Assistant läuft) und, nur über die eigene Domain, **Abmelden**. Gedächtnis, Kurzanleitung und „Das ist neu“ erreichst du nur über die Einstellungen. Alles Weitere liegt in den **Einstellungen**, einer eigenen Seite mit Liste links und Inhalt rechts (auf dem Handy erst die Liste, dann der Inhalt mit „Zurück“):
+Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noch das Wichtigste: **Einstellungen**, **Nutzung**, **Einrichtungsprüfung** (wenn der Chat über Home Assistant läuft) und, nur über die eigene Domain, **Abmelden**. Gedächtnis, Kurzanleitung und „Das ist neu“ erreichst du nur über die Einstellungen. **Auf dem Handy** gibt es dieses Menü nicht: Ein Tipp auf deinen Namen unten in der Seitenleiste öffnet gleich die Einstellungen, als kompakte Liste mit Karten je Gruppe (wie in der Claude-App); „Abmelden“ steht dort ganz unten. Alles Weitere liegt in den **Einstellungen**, einer eigenen Seite mit Liste links und Inhalt rechts (auf dem Handy erst die Liste, dann der Inhalt mit „Zurück“):
 
 - **Präferenzen:** *Allgemein* (Design hell/dunkel/Auto, in Home Assistant eingebettet gibt HA das Design vor; Sprache und Name nur zur Ansicht, die Sprache stellt der Administrator mit `language` ein), *Nutzung*, *Gedächtnis*, *GitHub* (wenn dir `github_access` ≠ `none` gegeben wurde), *Meine Daten*.
 - **Hilfe:** *Kurzanleitung*, *Das ist neu* (die Neuerungen der letzten Versionen), *Einrichtungsprüfung*.
