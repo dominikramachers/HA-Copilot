@@ -60,33 +60,9 @@ configuration:
   theme_name:
     name: Theme for the domain (optional)
     description: 'Name of a Home Assistant theme to use via the domain. Empty: Home Assistant''s default theme.'
-  accent_color:
-    name: Accent colour
-    description: 'Hex value like #175CD3. Overrides the theme''s accent colour. Empty: from the theme.'
-  background_color_light:
-    name: Background light
-    description: 'Hex value like #F3F4F6. Empty: from the theme.'
-  background_color_dark:
-    name: Background dark
-    description: 'Hex value like #0D192D. Empty: from the theme.'
-  card_color_light:
-    name: Surfaces light
-    description: 'Colour of cards and input fields in the light design. Empty: from the theme.'
-  card_color_dark:
-    name: Surfaces dark
-    description: 'Colour of cards and input fields in the dark design. Empty: from the theme.'
-  text_color_light:
-    name: Text light
-    description: 'Text colour in the light design. Empty: from the theme.'
-  text_color_dark:
-    name: Text dark
-    description: 'Text colour in the dark design. Empty: from the theme.'
-  public_enabled:
-    name: Enable domain access
-    description: Turns on access through the public domain (port 8100), with Microsoft Entra and/or (with a Home Assistant address) Home Assistant sign-in.
   public_base_url:
     name: Public address
-    description: e.g. https://chat.example.org. Must match the Entra app's redirect URI.
+    description: e.g. https://chat.example.org. Must match the Entra app's redirect URI. Domain access is on as soon as this address and a login (Entra or ha_url) are set.
   entra_tenant_id:
     name: 'Entra: directory (tenant) ID'
   entra_client_id:
@@ -99,93 +75,45 @@ configuration:
   public_trusted_proxies:
     name: Trusted proxies
     description: Addresses of reverse proxies (e.g. a Cloudflare tunnel container) whose forwarding headers may be trusted.
-  backend:
-    name: Answer source
-    description: 'echo: test mode without AI. claude: real answers through the Claude subscription.'
   claude_oauth_token:
     name: Claude access token (subscription)
-    description: Long-lived token from “claude setup-token” (Claude subscription). ONLY for your own personal use. Several users or the domain side need an API key (observe Anthropic’s terms).
+    description: Long-lived token from “claude setup-token” (Claude subscription). ONLY for your own personal use. Several users or the domain side need an API key (observe Anthropic’s terms). With neither a token nor an API key only the test mode runs.
   anthropic_api_key:
     name: Anthropic API key
     description: Alternative to the subscription token (pay-as-you-go via the Claude Console). Takes precedence if both are set.
   model:
     name: Default model
-    description: 'Model for new chats, e.g. claude-sonnet-5-5. Users can switch it per chat when more models are listed below.'
-  title_model:
-    name: Model for chat titles
-    description: Smaller model for automatic titles.
-  models:
-    name: More selectable models (optional)
-    description: 'Comma-separated, e.g. “claude-opus-5-5, claude-haiku-5-5”. The default model above is always included. Empty: Opus 5.5 and Haiku 5.5 are offered. “none”: no model picker in the chat. Which models your plan allows is up to Anthropic; an unavailable model reports an error.'
-  web_access_default:
-    name: 'Default: web search'
-    description: 'on (default) or off. The AI can search the web and read pages when needed or when asked. Can be overridden per user; in the chat it can be switched off per message. Search queries leave your network.'
+    description: 'Model for new chats, e.g. claude-sonnet-5-5. Users can switch it per chat (Opus and Haiku are offered as well).'
   schedules_enabled:
     name: Allow scheduled tasks
     description: 'On (default): the “Scheduled” menu item, where the AI performs tasks at fixed times (read-only, no questions). Off: no scheduled tasks, existing ones rest. Scheduled runs use your plan’s quota.'
-  notify_long_answers:
-    name: Notify when an answer is ready
-    description: 'On (default): if an answer takes longer than about 45 seconds and nobody is watching (chat switched, tab closed), the person gets a phone notification. Only applies to users with a notification service set.'
-  default_effort:
-    name: Default thinking effort
-    description: low, medium or high.
   language:
     name: Language
     description: 'de (default) for German or en for English. Applies to the interface, the add-on’s messages and the default language of the AI’s answers (anyone who writes in another language still gets the answer in that language). Chats that are already saved stay unchanged.'
   ha_access_default:
     name: Default Home Assistant access
-    description: 'Applies to all users without their own setting: none, read (default), execute or write. With read and execute the AI only sees and controls entities exposed to Assist in Home Assistant.'
-  ha_write_confirm:
-    name: Confirmation for changes
-    description: 'ask (default): every change to automations, scripts, dashboards, helpers and settings must be confirmed in the chat (once, or “always allow in this chat”). always_allow: no prompt. Sensitive actions (locks, alarm, garage doors) and messages with attachments always ask.'
+    description: 'Applies to all users without their own setting: none, read, execute (default) or write. With read and execute the AI only sees and controls entities exposed to Assist in Home Assistant.'
   ha_limit_to_exposed:
     name: Only entities exposed to Assist (read/execute)
     description: 'On (default): users with read or execute only see and control entities that are exposed to Assist in Home Assistant. Users with write are not affected.'
-  ha_access_via_domain:
-    name: HA access via the domain too
-    description: 'On (default): the access levels also apply when signing in through the public domain. Off: there the AI has no access to Home Assistant, only in the HA panel.'
   memory_enabled:
     name: AI memory
     description: 'On (default): the AI remembers facts on its own, for the whole household and separately for each person. Everyone can view, edit and delete entries in the chat under “Memory”. Off: no memory.'
-  memory_household_writers:
-    name: Who may change household memory
-    description: 'all (default): every user; ha_write: only users with access level write (others can read it, and the AI saves nothing there for them). Personal memory always belongs to that person.'
-  ha_scan_days:
-    name: Read smart home overview (every … days)
-    description: 'On first start and then every N days (default 7), HA Copilot reads an overview of Home Assistant (areas, devices, automations, integrations) and stores it in household memory so the AI knows your setup from the start. 0 = never automatically, only via the button in the memory dialog. Only names and assignments are read, no state values, coordinates or credentials. Applies only while memory is enabled.'
   github_token:
     name: GitHub token
     description: 'Personal access token from GitHub (Settings → Developer settings → Fine-grained tokens). Give it only the repositories and permissions the AI should have: Contents, Pull requests and Issues (read and write), Metadata (read); to create new repositories use a classic token with the ''repo'' scope. Empty: GitHub is off.'
   github_access_default:
     name: Default GitHub access
     description: 'Applies to all users without their own setting: none (default), read or write. Has no effect without a token in the configuration.'
-  github_write_confirm:
-    name: Confirmation for GitHub changes
-    description: 'ask (default): every change (commit, pull request, issue, comment …) must be confirmed in the chat (once, or ''always allow in this chat''). always_allow: without asking. Always asked for: commits to the default branch, merges, new repositories, deletions, workflow files, and after reading foreign content or with a file attachment.'
   github_repos:
     name: Allowed repositories (optional)
     description: 'Allow-list, comma separated: ''doralab/smarthome, doralab/*''. owner/* allows all repositories of an owner. Empty: everything the token can reach. The AI cannot access other repositories at all.'
   connector_access_default:
     name: Default connector access
     description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'
-  connector_write_confirm:
-    name: Confirmation for changes through connectors
-    description: 'ask (default): every change through a connector (draft a mail, create an event, change a ticket …) must be confirmed in the chat (once, or ''always allow in this chat''). always_allow: without asking. After reading foreign content it always asks. Write tools are only available once switched on for the connection anyway.'
-  connector_allow_private:
-    name: Allow all addresses for connectors
-    description: 'Off (default): connectors may only point to https addresses on the public internet; addresses on the home network or with http can only be allowed per connector by a person with the level "global". On: everyone who may create connectors (level own or global) can also enter home network and http addresses, for example a Zabbix MCP server on your own network. Link-local addresses (cloud metadata), reserved addresses and the names supervisor and hassio always stay blocked. Only turn on if everyone with this level is trusted: the add-on then talks to these devices on the person''s behalf.'
   files_enabled:
     name: Create files
     description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
-  files_edit:
-    name: Edit files
-    description: 'On (default): Attached files (PDF, Word, Excel, PowerPoint, text and code) are kept for this chat and the AI can read and edit them, e.g. fill or lock PDF fields, change Word text, set Excel cells, adjust code. The edited version is offered for download; the original stays unchanged. Off: attachments are only held in memory for the one message and nothing is stored. Requires "Create files".'
-  files_keep_days:
-    name: Keep files (days)
-    description: 'How long created, edited and attached files stay available in the chat (1 to 365, default 14). After that they are deleted; the chat stays. Files of a deleted chat are removed immediately.'
-  images_enabled:
-    name: Create images
-    description: 'On (default): The AI recognises when an image is wanted and creates it: simple graphics (diagrams, logos, icons, plans) it draws for free as SVG, photos and artwork it has OpenAI or Google generate (only with a key entered). Off: no images. Requires "Create files".'
   openai_api_key:
     name: OpenAI API key (images)
     description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI; a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
@@ -195,12 +123,6 @@ configuration:
   image_provider:
     name: Image provider
     description: 'auto (default): the AI chooses per image, Google for drafts and edits (cheaper), OpenAI for images with text or top quality. openai or google: always this provider. If only one key is entered, that one is used.'
-  image_model_openai:
-    name: OpenAI image model
-    description: 'Model name (default gpt-image-2.5-sunburst; gpt-image-2.5-flare is faster). Providers rename models quickly: on "model unknown" enter the current name from the OpenAI documentation.'
-  image_model_google:
-    name: Google image model
-    description: 'Model name in the Gemini API (default gemini-3.1-flash-image-preview, also known as "Nano Banana 2"). Names change quickly: on "model unknown" enter the current name from the Google documentation.'
   image_limit_month:
     name: Images per person and month
     description: 'How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.'

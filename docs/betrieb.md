@@ -6,11 +6,11 @@
 |---|---|
 | Chats, Projekte, Gedächtnis, geplante Aufgaben | SQLite-Datenbank `/data/copilot.sqlite3` im Add-on-Speicher |
 | Tägliche Schnappschüsse | `/data/snapshots/` (die letzten 7), vor einem Datenbank-Update zusätzlich `vor-update-…` (die letzten 3) |
-| Von der KI erzeugte Dateien | `/data/outfiles` (nach `files_keep_days` Tagen gelöscht) |
+| Von der KI erzeugte Dateien | `/data/outfiles` (nach 14 Tagen gelöscht) |
 | Sicherungen geänderter Automationen, Skripte, Szenen, Dashboards | `/data/ha-backups/` (die letzten 60) |
 | Eigenes Logo, Symbol, `custom.css`, Export-Datei | Ordner `addon_config`, in Home Assistant unter `/addon_configs/<Kennung>/` (Samba-Freigabe `addon_configs` oder Datei-Editor) |
 
-Anhänge: Mit der Option `files_edit` (Standard) liegt eine Kopie für `files_keep_days` Tage in `/data/outfiles` (und damit in der Sicherung); mit `files_edit: false` werden Anhänge **nie** gespeichert, siehe [Anhänge und Speicherplatz](../copilot/DOCS.md#anhänge-und-speicherplatz).
+Anhänge: Eine Kopie liegt 14 Tage in `/data/outfiles` (und damit in der Sicherung), siehe [Anhänge und Speicherplatz](../copilot/DOCS.md#anhänge-und-speicherplatz).
 
 ## Sicherung
 
@@ -92,7 +92,7 @@ Trage die Ablaufdaten ein, dann erinnert das Add-on im Chat (30 Tage vorher gelb
 | Beobachtung | Ursache und Abhilfe |
 |---|---|
 | „Kein Zugriff“ in der App | Benutzer nicht in `profiles` (oder `all_ha_users` aus). Seite nennt Benutzername und ID, eintragen, neu starten. |
-| „Testmodus“-Hinweis, Antworten nur als Echo | `backend: echo`. Zugang eintragen und `backend: claude` setzen. |
+| „Testmodus“-Hinweis, Antworten nur als Echo | Es ist noch kein Zugang zu Claude eingetragen. `claude_oauth_token` oder `anthropic_api_key` eintragen und das Add-on neu starten. |
 | Antworten enden mit Fehler | Zugangsdaten ungültig/abgelaufen, Nutzungslimit erreicht oder Modell vom Abo nicht zugelassen. Meldung im Chat, Einzelheiten im Protokoll. |
 | „Gerade zu viele Anfragen“ | Es laufen höchstens zwei Antworten gleichzeitig (alle Benutzer, geplante Aufgaben eingerechnet). Kurz warten. |
 | Die KI sieht keine Entitäten | `ha_access` des Benutzers ist `none`, oder die Entitäten sind nicht für Assist freigegeben (`ha_limit_to_exposed`). |

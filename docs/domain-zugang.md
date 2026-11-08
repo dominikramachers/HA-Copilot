@@ -41,7 +41,6 @@ Der Hostname im `service` ist der Name des Add-ons im internen Netz von Home Ass
 ## 3. Konfiguration
 
 ```yaml
-public_enabled: true
 public_base_url: https://chat.example.org      # https, ohne Pfad, ohne Schrägstrich am Ende
 entra_tenant_id: 00000000-0000-0000-0000-000000000000
 entra_client_id: 00000000-0000-0000-0000-000000000000
@@ -85,7 +84,7 @@ Im Handy-Browser über **Zum Home-Bildschirm** ablegen. Name (`app_name`) und Sy
 - Sitzungen liegen serverseitig (nur der Hash des Tokens in der Datenbank). Das Cookie ist `__Host-`-präfixiert, `Secure`, `HttpOnly`, `SameSite=Lax`.
 - Schreibende Anfragen verlangen einen eigenen Header und einen passenden `Origin`.
 - Anmeldeversuche sind begrenzt, die Seiten nicht in fremden Frames darstellbar und senden HSTS.
-- Der Zugriff der KI auf Home Assistant über die Domain lässt sich mit `ha_access_via_domain: false` ganz abschalten.
+- Die Rechtestufen der Person gelten auch bei Anmeldung über die Domain.
 - Das **Entra-Geheimnis läuft ab**. Trage das Ablaufdatum bei `entra_secret_expires` ein (`JJJJ-MM-TT`); 30 Tage vorher erscheint ein Hinweis im Chat.
 
 Alle Einzelheiten: [Sicherheit in Kürze](../copilot/DOCS.md#sicherheit-in-kürze) und [SECURITY.md](../SECURITY.md).

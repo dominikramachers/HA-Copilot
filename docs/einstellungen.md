@@ -2,7 +2,7 @@
 
 Diese Seite listet **jede** Option des Add-ons mit Standardwert und Bedeutung. Du findest sie in Home Assistant unter **Einstellungen → Apps → HA Copilot → Konfiguration**. Mit ⋮ → „In YAML bearbeiten“ kannst du alles als Text sehen, kopieren und einfügen. Nach jeder Änderung speichern und das Add-on **neu starten**.
 
-Pflichtfelder (immer vorhanden, mit Standardwert voreingestellt): `profiles`, `public_enabled`, `public_trusted_proxies`, `backend`, `model`, `default_effort`. Alle anderen Optionen sind optional; fehlt eine, gilt der Standardwert. Bestehende Einstellungen werden bei Updates nie überschrieben.
+Pflichtfelder (immer vorhanden, mit Standardwert voreingestellt): `profiles`, `public_trusted_proxies`. Alle anderen Optionen sind optional; fehlt eine, gilt der Standardwert. Bestehende Einstellungen werden bei Updates nie überschrieben.
 
 ## Benutzer
 
@@ -35,14 +35,9 @@ Zugang zu Claude und Modelle. Ausführlich in [Installation](installation.md#4-z
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `backend` | `echo` \| `claude` | `echo` | **Antwortquelle.** echo: Testbetrieb ohne KI. claude: echte Antworten über das Claude-Abo. |
-| `claude_oauth_token` | Text (geheim) | leer | **Claude-Zugangstoken (Abo).** Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten). |
+| `claude_oauth_token` | Text (geheim) | leer | **Claude-Zugangstoken (Abo).** Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten). Ohne Token und ohne API-Schlüssel läuft nur der Testmodus. |
 | `anthropic_api_key` | Text (geheim) | leer | **Anthropic-API-Schlüssel.** Alternative zum Abo-Token (Abrechnung nach Verbrauch über die Claude-Konsole). Hat Vorrang, wenn beides eingetragen ist. |
-| `model` | Text | `claude-sonnet-5-5` | **Standard-Modell.** Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln, wenn unten weitere Modelle eingetragen sind. |
-| `title_model` | Text | `claude-haiku-5-5` | **Modell für Chat-Titel.** Kleineres Modell für automatische Titel. |
-| `models` | Text | leer | **Weitere wählbare Modelle (optional).** Durch Komma getrennt, z. B. „claude-opus-5-5, claude-haiku-5-5“. Das Standard-Modell oben ist immer dabei. Leer: Opus 5.5 und Haiku 5.5 stehen zur Auswahl. „none“: keine Modellauswahl im Chat. Welche Modelle dein Abo zulässt, entscheidet Anthropic; ein nicht verfügbares Modell meldet einen Fehler. |
-| `default_effort` | `low` \| `medium` \| `high` | `medium` | **Standard-Denktiefe.** low, medium oder high. |
-| `web_access_default` | `on` \| `off` | `on` | **Standard: Websuche.** on (Standard) oder off. Die KI kann im Web suchen und Seiten lesen, wenn es nötig ist oder wenn man sie darum bittet. Je Benutzer überschreibbar; im Chat lässt sie sich je Nachricht abschalten. Die Suchanfragen verlassen dabei das Haus. |
+| `model` | Text | `claude-sonnet-5-5` | **Standard-Modell.** Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln (Opus und Haiku stehen zusätzlich zur Wahl). |
 
 ## Zugriff auf Home Assistant
 
@@ -50,11 +45,8 @@ Was die KI in Home Assistant sehen und tun darf.
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `ha_access_default` | `none` \| `read` \| `execute` \| `write` | `read` | **Standard-Zugriff auf Home Assistant.** Gilt für alle Benutzer ohne eigene Angabe: none, read (Standard), execute oder write. Bei read und execute sieht und steuert die KI nur Entitäten, die in Home Assistant für Assist freigegeben sind (siehe unten). |
-| `ha_write_confirm` | `ask` \| `always_allow` | `ask` | **Bestätigung bei Änderungen.** ask (Standard): Jede Änderung an Automationen, Skripten, Dashboards, Helfern und Einstellungen muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Sensible Aktionen (Schlösser, Alarmanlage, Garagentor) und Nachrichten mit Dateianhang fragen immer nach. |
+| `ha_access_default` | `none` \| `read` \| `execute` \| `write` | `execute` | **Standard-Zugriff auf Home Assistant.** Gilt für alle Benutzer ohne eigene Angabe: none, read, execute (Standard) oder write. Bei read und execute sieht und steuert die KI nur Entitäten, die in Home Assistant für Assist freigegeben sind (siehe unten). |
 | `ha_limit_to_exposed` | an/aus | an | **Nur für Assist freigegebene Entitäten (lesen/ausführen).** An (Standard): Benutzer mit read oder execute sehen und steuern nur Entitäten, die in Home Assistant unter Einstellungen → Sprachassistenten → Freigeben für Assist freigegeben sind. Benutzer mit write sind davon nicht betroffen. |
-| `ha_access_via_domain` | an/aus | an | **HA-Zugriff auch über die Domain.** An (Standard): Die Rechtestufen gelten auch bei Anmeldung über die öffentliche Domain. Aus: dort hat die KI keinen Zugriff auf Home Assistant, nur im HA-Panel. |
-| `ha_scan_days` | Zahl 0 bis 90 | `7` | **Smarthome-Überblick einlesen (alle … Tage).** Der HA Copilot liest beim ersten Start und danach alle N Tage (Standard 7) einen Überblick über Home Assistant ein (Bereiche, Geräte, Automationen, Integrationen) und legt ihn im Haushaltsgedächtnis ab, damit die KI deine Umgebung von Anfang an kennt. 0 = nie automatisch, nur auf Knopfdruck im Gedächtnis-Dialog. Es werden nur Namen und Zuordnungen gelesen, keine Zustandswerte, Koordinaten oder Zugangsdaten. Gilt nur, wenn das Gedächtnis aktiv ist. |
 
 ## GitHub
 
@@ -64,7 +56,6 @@ Optional: die KI arbeitet mit deinen Repositories.
 |---|---|---|---|
 | `github_token` | Text (geheim) | leer | **GitHub-Token.** Persönliches Zugriffstoken von GitHub (Einstellungen → Entwicklereinstellungen → Fine-grained tokens). Gib ihm nur die Repositories und Rechte, die die KI haben soll: Contents, Pull requests und Issues (je lesen und schreiben), Metadata (lesen); zum Anlegen neuer Repositories ein klassisches Token mit dem Recht „repo“. Leer: GitHub ist aus. |
 | `github_access_default` | `none` \| `read` \| `write` | `none` | **Standard-Zugriff auf GitHub.** Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Ohne Token in der Konfiguration hat das keine Wirkung. |
-| `github_write_confirm` | `ask` \| `always_allow` | `ask` | **Bestätigung bei GitHub-Änderungen.** ask (Standard): Jede Änderung (Commit, Pull Request, Issue, Kommentar …) muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Immer nachgefragt wird bei Commits auf den Hauptzweig, Merge, neuen Repositories, Löschen, Workflow-Dateien und nach dem Lesen fremder Inhalte oder mit Dateianhang. |
 | `github_repos` | Text | leer | **Erlaubte Repositories (optional).** Freigabeliste, durch Komma getrennt: „doralab/smarthome, doralab/*“. besitzer/* erlaubt alle Repositories eines Besitzers. Leer: alles, was das Token erreicht. Die KI kann auf andere Repositories dann gar nicht zugreifen. |
 
 ## Konnektoren
@@ -74,8 +65,6 @@ Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (M
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
 | `connector_access_default` | `none` \| `use` \| `own` \| `global` | `use` | **Standard-Recht für Konnektoren.** Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte. |
-| `connector_write_confirm` | `ask` \| `always_allow` | `ask` | **Bestätigung bei Änderungen über Konnektoren.** ask (Standard): Jede Änderung über einen Konnektor (Mail entwerfen, Termin anlegen, Ticket ändern …) muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Nach dem Lesen fremder Inhalte wird immer nachgefragt. Schreibende Werkzeuge sind ohnehin erst nach dem Einschalten bei der Verbindung verfügbar. |
-| `connector_allow_private` | an/aus | aus | **Alle Adressen für Konnektoren erlauben.** Aus (Standard): Konnektoren dürfen nur auf https-Adressen im öffentlichen Internet zeigen; Adressen im Heimnetz oder mit http darf nur eine Person mit der Stufe „global“ pro Konnektor erlauben. An: Alle, die Konnektoren anlegen dürfen (Stufe own oder global), können auch Adressen im Heimnetz und mit http eintragen, zum Beispiel einen Zabbix-MCP-Server im eigenen Netz. Link-Local-Adressen (Cloud-Metadaten), reservierte Adressen und die Namen supervisor und hassio bleiben immer gesperrt. Nur einschalten, wenn allen mit dieser Stufe vertraut wird: Das Add-on spricht diese Geräte dann im Auftrag der Person an. |
 
 ## Funktionen
 
@@ -85,12 +74,8 @@ Gedächtnis, geplante Aufgaben, Dateien und Sprache.
 |---|---|---|---|
 | `language` | `de` \| `en` | `de` | **Sprache.** de (Standard) für Deutsch oder en für Englisch. Gilt für die Oberfläche, die Meldungen des Add-ons und die Standardsprache der KI-Antworten (wer in einer anderen Sprache schreibt, bekommt die Antwort weiterhin in dieser Sprache). Bereits gespeicherte Chats bleiben unverändert. |
 | `memory_enabled` | an/aus | an | **Gedächtnis der KI.** An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis. |
-| `memory_household_writers` | `all` \| `ha_write` | `all` | **Wer das Haushaltsgedächtnis ändern darf.** all (Standard): jeder Benutzer; ha_write: nur Benutzer mit Zugriffsstufe write (die anderen können es lesen, die KI trägt für sie nichts ein). Das persönliche Gedächtnis gehört immer der jeweiligen Person. |
 | `schedules_enabled` | an/aus | an | **Geplante Aufgaben erlauben.** An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos. |
-| `notify_long_answers` | an/aus | an | **Benachrichtigung bei fertigen Antworten.** An (Standard): Dauert eine Antwort länger als etwa 45 Sekunden und niemand sieht zu (Chat gewechselt, Tab zu), bekommt die Person eine Benachrichtigung aufs Handy. Wirkt nur für Benutzer mit eingetragenem Benachrichtigungsdienst. |
 | `files_enabled` | an/aus | an | **Dateien erzeugen.** An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke. |
-| `files_edit` | an/aus | an | **Dateien bearbeiten.** An (Standard): Angehängte Dateien (PDF, Word, Excel, PowerPoint, Text und Code) werden für diesen Chat aufbewahrt, und die KI kann sie lesen und bearbeiten, z. B. PDF-Felder ausfüllen oder sperren, Word-Texte ändern, Excel-Zellen setzen, Code anpassen. Die bearbeitete Fassung erscheint zum Herunterladen, das Original bleibt unverändert. Aus: Anhänge liegen nur für die eine Nachricht im Arbeitsspeicher und nichts davon wird gespeichert. Braucht „Dateien erzeugen“. |
-| `files_keep_days` | Zahl 1 bis 365 | `14` | **Dateien aufbewahren (Tage).** Wie lange erzeugte, bearbeitete und angehängte Dateien im Chat verfügbar bleiben (1 bis 365, Standard 14). Danach werden sie gelöscht; der Chat bleibt. Dateien eines gelöschten Chats werden sofort entfernt. |
 
 ## Bilder
 
@@ -98,22 +83,18 @@ Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI od
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `images_enabled` | an/aus | an | **Bilder erzeugen.** An (Standard): Die KI erkennt selbst, wenn ein Bild gewünscht ist, und erzeugt es: einfache Grafiken (Diagramme, Logos, Symbole, Pläne) zeichnet sie kostenlos als SVG, Fotos und Kunstbilder lässt sie von OpenAI oder Google erzeugen (nur mit eingetragenem Schlüssel). Aus: keine Bilder. Braucht „Dateien erzeugen“. |
 | `openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Bilder).** Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI; ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI. |
 | `google_api_key` | Text (geheim) | leer | **Google-API-Schlüssel (Bilder).** Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google. |
 | `image_provider` | `auto` \| `openai` \| `google` | `auto` | **Bildanbieter.** auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen. |
-| `image_model_openai` | Text | `gpt-image-2.5-sunburst` | **Bildmodell von OpenAI.** Name des Modells (Standard gpt-image-2.5-sunburst; gpt-image-2.5-flare ist schneller). Die Namen ändern sich bei den Anbietern schnell: Bei der Meldung „Modell unbekannt“ hier den aktuellen Namen aus der Dokumentation von OpenAI eintragen. |
-| `image_model_google` | Text | `gemini-3.1-flash-image-preview` | **Bildmodell von Google.** Name des Modells in der Gemini-API (Standard gemini-3.1-flash-image-preview, auch „Nano Banana 2“). Die Namen ändern sich schnell: Bei der Meldung „Modell unbekannt“ den aktuellen Namen aus der Dokumentation von Google eintragen. |
 | `image_limit_month` | Zahl 0 bis 10000 | `30` | **Bilder je Person und Monat.** Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts. |
 
 ## Zugang über eine eigene Domain
 
-Optional, nur mit `public_enabled`. Ausführlich in [Domain-Zugang](domain-zugang.md).
+Optional; der Zugang ist an, sobald `public_base_url` und eine Anmeldung eingetragen sind. Ausführlich in [Domain-Zugang](domain-zugang.md).
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `public_enabled` | an/aus | aus | **Domain-Zugang aktivieren.** Schaltet den Zugang über die öffentliche Domain (Port 8100) ein, mit Microsoft Entra und/oder (mit Adresse von Home Assistant) der Anmeldung über Home Assistant. |
-| `public_base_url` | Text | leer | **Öffentliche Adresse.** z. B. https://chat.example.org. Muss zur Redirect-URI der Entra-App passen. |
+| `public_base_url` | Text | leer | **Öffentliche Adresse.** z. B. https://chat.example.org. Muss zur Redirect-URI der Entra-App passen. Der Domain-Zugang ist an, sobald diese Adresse und eine Anmeldung (Entra oder ha_url) eingetragen sind. |
 | `entra_tenant_id` | Text | leer | **Entra: Verzeichnis-ID (Tenant).** GUID aus der Entra-App-Registrierung (Übersicht, „Verzeichnis-ID (Mandant)“). |
 | `entra_client_id` | Text | leer | **Entra: Anwendungs-ID (Client).** GUID aus der Entra-App-Registrierung (Übersicht, „Anwendungs-ID (Client)“). |
 | `entra_client_secret` | Text (geheim) | leer | **Entra: geheimer Clientschlüssel.** Wert des Clientschlüssels (Zertifikate & Geheimnisse). Läuft ab: Datum bei `entra_secret_expires` eintragen. |
@@ -133,13 +114,6 @@ Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personali
 | `logo_tile` | an/aus | aus | **Logo auf dunkler Kachel.** Für Logos, die nur auf dunklem Grund gut aussehen (z. B. helle oder neonfarbene Logos): zeigt sie im hellen Design auf einer dunklen Kachel. |
 | `follow_ha_theme` | an/aus | an | **Home-Assistant-Theme übernehmen.** An: Farben und Hell/Dunkel folgen live dem aktiven Theme von Home Assistant (in der Seitenleiste von HA) bzw. dem Standard-Theme (über die Domain). Aus: eingebaute Farben mit eigenem Hell/Dunkel-Schalter. |
 | `theme_name` | Text | leer | **Theme für die Domain (optional).** Name eines Home-Assistant-Themes, das über die Domain gelten soll. Leer: Standard-Theme von Home Assistant. |
-| `accent_color` | Hex-Farbe, z. B. `#175CD3` | leer | **Akzentfarbe.** Hex-Wert wie #175CD3. Überschreibt die Akzentfarbe aus dem Theme. Leer: aus dem Theme. |
-| `background_color_light` | Hex-Farbe, z. B. `#175CD3` | leer | **Hintergrund hell.** Hex-Wert wie #F3F4F6. Leer: aus dem Theme. |
-| `background_color_dark` | Hex-Farbe, z. B. `#175CD3` | leer | **Hintergrund dunkel.** Hex-Wert wie #0D192D. Leer: aus dem Theme. |
-| `card_color_light` | Hex-Farbe, z. B. `#175CD3` | leer | **Flächen hell.** Farbe von Karten und Eingabefeldern im hellen Design. Leer: aus dem Theme. |
-| `card_color_dark` | Hex-Farbe, z. B. `#175CD3` | leer | **Flächen dunkel.** Farbe von Karten und Eingabefeldern im dunklen Design. Leer: aus dem Theme. |
-| `text_color_light` | Hex-Farbe, z. B. `#175CD3` | leer | **Schrift hell.** Textfarbe im hellen Design. Leer: aus dem Theme. |
-| `text_color_dark` | Hex-Farbe, z. B. `#175CD3` | leer | **Schrift dunkel.** Textfarbe im dunklen Design. Leer: aus dem Theme. |
 
 ## Daten, Sicherung und Erinnerungen
 

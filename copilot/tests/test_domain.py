@@ -143,7 +143,6 @@ def test_domain_config_is_valid():
 @pytest.mark.parametrize("override", [
     {"public_base_url": "http://ai.test"},
     {"public_base_url": "https://ai.test/pfad"},
-    {"public_base_url": ""},
     {"entra_tenant_id": "nicht-eine-guid"},
     {"entra_client_id": ""},
     {"entra_client_secret": ""},
@@ -158,6 +157,18 @@ def test_domain_config_rejects_bad_values(override):
 
 def test_domain_options_are_not_required_when_disabled():
     assert parse_settings(RAW).public_enabled is False
+
+
+def test_domain_is_on_when_address_and_login_are_set_and_off_otherwise():
+    assert parse_settings(_raw()).public_enabled is True  # kein eigener Schalter mehr
+    assert parse_settings(_raw(public_enabled=False)).public_enabled is True  # eine alte Option wird nicht mehr gelesen
+    assert parse_settings(_raw(public_base_url="")).public_enabled is False  # ohne Adresse aus
+    only_address = copy.deepcopy(RAW)
+    only_address["public_base_url"] = BASE  # Adresse, aber keine Anmeldung: aus, kein Startfehler
+    assert parse_settings(only_address).public_enabled is False
+    with_ha = copy.deepcopy(only_address)
+    with_ha["ha_url"] = "https://ha.example.org"
+    assert parse_settings(with_ha).public_enabled is True
 
 
 # ----------------------------------------------------------- Anmeldeablauf

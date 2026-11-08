@@ -60,33 +60,9 @@ configuration:
   theme_name:
     name: Theme für die Domain (optional)
     description: 'Name eines Home-Assistant-Themes, das über die Domain gelten soll. Leer: Standard-Theme von Home Assistant.'
-  accent_color:
-    name: Akzentfarbe
-    description: 'Hex-Wert wie #175CD3. Überschreibt die Akzentfarbe aus dem Theme. Leer: aus dem Theme.'
-  background_color_light:
-    name: Hintergrund hell
-    description: 'Hex-Wert wie #F3F4F6. Leer: aus dem Theme.'
-  background_color_dark:
-    name: Hintergrund dunkel
-    description: 'Hex-Wert wie #0D192D. Leer: aus dem Theme.'
-  card_color_light:
-    name: Flächen hell
-    description: 'Farbe von Karten und Eingabefeldern im hellen Design. Leer: aus dem Theme.'
-  card_color_dark:
-    name: Flächen dunkel
-    description: 'Farbe von Karten und Eingabefeldern im dunklen Design. Leer: aus dem Theme.'
-  text_color_light:
-    name: Schrift hell
-    description: 'Textfarbe im hellen Design. Leer: aus dem Theme.'
-  text_color_dark:
-    name: Schrift dunkel
-    description: 'Textfarbe im dunklen Design. Leer: aus dem Theme.'
-  public_enabled:
-    name: Domain-Zugang aktivieren
-    description: Schaltet den Zugang über die öffentliche Domain (Port 8100) ein, mit Microsoft Entra und/oder (mit Adresse von Home Assistant) der Anmeldung über Home Assistant.
   public_base_url:
     name: Öffentliche Adresse
-    description: z. B. https://chat.example.org. Muss zur Redirect-URI der Entra-App passen.
+    description: z. B. https://chat.example.org. Muss zur Redirect-URI der Entra-App passen. Der Domain-Zugang ist an, sobald diese Adresse und eine Anmeldung (Entra oder ha_url) eingetragen sind.
   entra_tenant_id:
     name: 'Entra: Verzeichnis-ID (Tenant)'
   entra_client_id:
@@ -99,93 +75,45 @@ configuration:
   public_trusted_proxies:
     name: Vertrauenswürdige Proxys
     description: Adressen von Reverse-Proxys (z. B. Cloudflare-Tunnel-Container), deren Weiterleitungs-Header gelten dürfen.
-  backend:
-    name: Antwortquelle
-    description: 'echo: Testbetrieb ohne KI. claude: echte Antworten über das Claude-Abo.'
   claude_oauth_token:
     name: Claude-Zugangstoken (Abo)
-    description: Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten).
+    description: Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten). Ohne Token und ohne API-Schlüssel läuft nur der Testmodus.
   anthropic_api_key:
     name: Anthropic-API-Schlüssel
     description: Alternative zum Abo-Token (Abrechnung nach Verbrauch über die Claude-Konsole). Hat Vorrang, wenn beides eingetragen ist.
   model:
     name: Standard-Modell
-    description: 'Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln, wenn unten weitere Modelle eingetragen sind.'
-  title_model:
-    name: Modell für Chat-Titel
-    description: Kleineres Modell für automatische Titel.
-  models:
-    name: Weitere wählbare Modelle (optional)
-    description: 'Durch Komma getrennt, z. B. „claude-opus-5-5, claude-haiku-5-5“. Das Standard-Modell oben ist immer dabei. Leer: Opus 5.5 und Haiku 5.5 stehen zur Auswahl. „none“: keine Modellauswahl im Chat. Welche Modelle dein Abo zulässt, entscheidet Anthropic; ein nicht verfügbares Modell meldet einen Fehler.'
-  web_access_default:
-    name: 'Standard: Websuche'
-    description: 'on (Standard) oder off. Die KI kann im Web suchen und Seiten lesen, wenn es nötig ist oder wenn man sie darum bittet. Je Benutzer überschreibbar; im Chat lässt sie sich je Nachricht abschalten. Die Suchanfragen verlassen dabei das Haus.'
+    description: 'Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln (Opus und Haiku stehen zusätzlich zur Wahl).'
   schedules_enabled:
     name: Geplante Aufgaben erlauben
     description: 'An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos.'
-  notify_long_answers:
-    name: Benachrichtigung bei fertigen Antworten
-    description: 'An (Standard): Dauert eine Antwort länger als etwa 45 Sekunden und niemand sieht zu (Chat gewechselt, Tab zu), bekommt die Person eine Benachrichtigung aufs Handy. Wirkt nur für Benutzer mit eingetragenem Benachrichtigungsdienst.'
-  default_effort:
-    name: Standard-Denktiefe
-    description: low, medium oder high.
   language:
     name: Sprache
     description: 'de (Standard) für Deutsch oder en für Englisch. Gilt für die Oberfläche, die Meldungen des Add-ons und die Standardsprache der KI-Antworten (wer in einer anderen Sprache schreibt, bekommt die Antwort weiterhin in dieser Sprache). Bereits gespeicherte Chats bleiben unverändert.'
   ha_access_default:
     name: Standard-Zugriff auf Home Assistant
-    description: 'Gilt für alle Benutzer ohne eigene Angabe: none, read (Standard), execute oder write. Bei read und execute sieht und steuert die KI nur Entitäten, die in Home Assistant für Assist freigegeben sind (siehe unten).'
-  ha_write_confirm:
-    name: Bestätigung bei Änderungen
-    description: 'ask (Standard): Jede Änderung an Automationen, Skripten, Dashboards, Helfern und Einstellungen muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Sensible Aktionen (Schlösser, Alarmanlage, Garagentor) und Nachrichten mit Dateianhang fragen immer nach.'
+    description: 'Gilt für alle Benutzer ohne eigene Angabe: none, read, execute (Standard) oder write. Bei read und execute sieht und steuert die KI nur Entitäten, die in Home Assistant für Assist freigegeben sind (siehe unten).'
   ha_limit_to_exposed:
     name: Nur für Assist freigegebene Entitäten (lesen/ausführen)
     description: 'An (Standard): Benutzer mit read oder execute sehen und steuern nur Entitäten, die in Home Assistant unter Einstellungen → Sprachassistenten → Freigeben für Assist freigegeben sind. Benutzer mit write sind davon nicht betroffen.'
-  ha_access_via_domain:
-    name: HA-Zugriff auch über die Domain
-    description: 'An (Standard): Die Rechtestufen gelten auch bei Anmeldung über die öffentliche Domain. Aus: dort hat die KI keinen Zugriff auf Home Assistant, nur im HA-Panel.'
   memory_enabled:
     name: Gedächtnis der KI
     description: 'An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis.'
-  memory_household_writers:
-    name: Wer das Haushaltsgedächtnis ändern darf
-    description: 'all (Standard): jeder Benutzer; ha_write: nur Benutzer mit Zugriffsstufe write (die anderen können es lesen, die KI trägt für sie nichts ein). Das persönliche Gedächtnis gehört immer der jeweiligen Person.'
-  ha_scan_days:
-    name: Smarthome-Überblick einlesen (alle … Tage)
-    description: 'Der HA Copilot liest beim ersten Start und danach alle N Tage (Standard 7) einen Überblick über Home Assistant ein (Bereiche, Geräte, Automationen, Integrationen) und legt ihn im Haushaltsgedächtnis ab, damit die KI deine Umgebung von Anfang an kennt. 0 = nie automatisch, nur auf Knopfdruck im Gedächtnis-Dialog. Es werden nur Namen und Zuordnungen gelesen, keine Zustandswerte, Koordinaten oder Zugangsdaten. Gilt nur, wenn das Gedächtnis aktiv ist.'
   github_token:
     name: GitHub-Token
     description: 'Persönliches Zugriffstoken von GitHub (Einstellungen → Entwicklereinstellungen → Fine-grained tokens). Gib ihm nur die Repositories und Rechte, die die KI haben soll: Contents, Pull requests und Issues (je lesen und schreiben), Metadata (lesen); zum Anlegen neuer Repositories ein klassisches Token mit dem Recht „repo“. Leer: GitHub ist aus.'
   github_access_default:
     name: Standard-Zugriff auf GitHub
     description: 'Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Ohne Token in der Konfiguration hat das keine Wirkung.'
-  github_write_confirm:
-    name: Bestätigung bei GitHub-Änderungen
-    description: 'ask (Standard): Jede Änderung (Commit, Pull Request, Issue, Kommentar …) muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Immer nachgefragt wird bei Commits auf den Hauptzweig, Merge, neuen Repositories, Löschen, Workflow-Dateien und nach dem Lesen fremder Inhalte oder mit Dateianhang.'
   github_repos:
     name: Erlaubte Repositories (optional)
     description: 'Freigabeliste, durch Komma getrennt: „doralab/smarthome, doralab/*“. besitzer/* erlaubt alle Repositories eines Besitzers. Leer: alles, was das Token erreicht. Die KI kann auf andere Repositories dann gar nicht zugreifen.'
   connector_access_default:
     name: Standard-Recht für Konnektoren
     description: 'Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte.'
-  connector_write_confirm:
-    name: Bestätigung bei Änderungen über Konnektoren
-    description: 'ask (Standard): Jede Änderung über einen Konnektor (Mail entwerfen, Termin anlegen, Ticket ändern …) muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Nach dem Lesen fremder Inhalte wird immer nachgefragt. Schreibende Werkzeuge sind ohnehin erst nach dem Einschalten bei der Verbindung verfügbar.'
-  connector_allow_private:
-    name: Alle Adressen für Konnektoren erlauben
-    description: 'Aus (Standard): Konnektoren dürfen nur auf https-Adressen im öffentlichen Internet zeigen; Adressen im Heimnetz oder mit http darf nur eine Person mit der Stufe „global“ pro Konnektor erlauben. An: Alle, die Konnektoren anlegen dürfen (Stufe own oder global), können auch Adressen im Heimnetz und mit http eintragen, zum Beispiel einen Zabbix-MCP-Server im eigenen Netz. Link-Local-Adressen (Cloud-Metadaten), reservierte Adressen und die Namen supervisor und hassio bleiben immer gesperrt. Nur einschalten, wenn allen mit dieser Stufe vertraut wird: Das Add-on spricht diese Geräte dann im Auftrag der Person an.'
   files_enabled:
     name: Dateien erzeugen
     description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'
-  files_edit:
-    name: Dateien bearbeiten
-    description: 'An (Standard): Angehängte Dateien (PDF, Word, Excel, PowerPoint, Text und Code) werden für diesen Chat aufbewahrt, und die KI kann sie lesen und bearbeiten, z. B. PDF-Felder ausfüllen oder sperren, Word-Texte ändern, Excel-Zellen setzen, Code anpassen. Die bearbeitete Fassung erscheint zum Herunterladen, das Original bleibt unverändert. Aus: Anhänge liegen nur für die eine Nachricht im Arbeitsspeicher und nichts davon wird gespeichert. Braucht „Dateien erzeugen“.'
-  files_keep_days:
-    name: Dateien aufbewahren (Tage)
-    description: 'Wie lange erzeugte, bearbeitete und angehängte Dateien im Chat verfügbar bleiben (1 bis 365, Standard 14). Danach werden sie gelöscht; der Chat bleibt. Dateien eines gelöschten Chats werden sofort entfernt.'
-  images_enabled:
-    name: Bilder erzeugen
-    description: 'An (Standard): Die KI erkennt selbst, wenn ein Bild gewünscht ist, und erzeugt es: einfache Grafiken (Diagramme, Logos, Symbole, Pläne) zeichnet sie kostenlos als SVG, Fotos und Kunstbilder lässt sie von OpenAI oder Google erzeugen (nur mit eingetragenem Schlüssel). Aus: keine Bilder. Braucht „Dateien erzeugen“.'
   openai_api_key:
     name: OpenAI-API-Schlüssel (Bilder)
     description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI; ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI.'
@@ -195,12 +123,6 @@ configuration:
   image_provider:
     name: Bildanbieter
     description: 'auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen.'
-  image_model_openai:
-    name: Bildmodell von OpenAI
-    description: 'Name des Modells (Standard gpt-image-2.5-sunburst; gpt-image-2.5-flare ist schneller). Die Namen ändern sich bei den Anbietern schnell: Bei der Meldung „Modell unbekannt“ hier den aktuellen Namen aus der Dokumentation von OpenAI eintragen.'
-  image_model_google:
-    name: Bildmodell von Google
-    description: 'Name des Modells in der Gemini-API (Standard gemini-3.1-flash-image-preview, auch „Nano Banana 2“). Die Namen ändern sich schnell: Bei der Meldung „Modell unbekannt“ den aktuellen Namen aus der Dokumentation von Google eintragen.'
   image_limit_month:
     name: Bilder je Person und Monat
     description: 'Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts.'

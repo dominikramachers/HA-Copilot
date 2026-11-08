@@ -3,6 +3,8 @@ from fastapi.testclient import TestClient
 
 from app import i18n
 from app.backend import BackendError
+import dataclasses
+
 from app.config import parse_settings
 from app.db import Store
 from app.main import build_ingress_app
@@ -44,6 +46,21 @@ class FakeBackend:
             yield piece
         if self.error and self.fail_after is None:
             raise BackendError(self.error)
+
+
+# Seit 0.45.0 keine Optionen mehr, sondern feste Werte. Einzelne Szenarien brauchen sie trotzdem anders.
+FIXED_VALUES = frozenset({
+    "files_edit", "files_keep_days", "images_enabled", "web_access_default", "notify_long_answers", "ha_write_confirm",
+    "github_write_confirm", "connector_write_confirm", "memory_household_writers", "ha_scan_days", "ha_access_via_domain", "connector_allow_private",
+})
+
+
+def parse_with_fixed(raw, peers=None):
+    """Wie ``parse_settings``; Schlüssel aus FIXED_VALUES setzen das Feld direkt (die Konfiguration kennt sie nicht mehr)."""
+    raw = dict(raw)
+    fixed = {k: raw.pop(k) for k in list(raw) if k in FIXED_VALUES}
+    settings = parse_settings(raw, peers)
+    return dataclasses.replace(settings, **fixed) if fixed else settings
 
 
 def as_user(user_id: str, write: bool = False) -> dict:

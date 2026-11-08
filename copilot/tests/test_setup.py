@@ -13,7 +13,7 @@ from app.ha_client import HaApi, HaApiError
 from app.main import build_ingress_app, build_public_app
 from app.ops import Health
 
-from conftest import ADM01, RAW, as_user
+from conftest import ADM01, RAW, as_user, parse_with_fixed
 from test_domain import BASE, CLIENT, TENANT, WRITE_PUBLIC
 
 TOKEN = "ghp_geheimes_token_123"
@@ -24,7 +24,7 @@ KEY = "sk-ant-api03-geheimer-schluessel"
 def make(**extra):
     raw = copy.deepcopy(RAW)
     raw.update(extra)
-    return parse_settings(raw, frozenset({"testclient"}))
+    return parse_with_fixed(raw, frozenset({"testclient"}))
 
 
 def rows(settings, profile=None, **kw):
@@ -41,7 +41,7 @@ def test_test_mode_is_required_and_names_the_exact_options():
     claude = rows(make(backend="echo"))["claude"]
     assert claude["level"] == "required" and claude["status"] == "todo"
     steps = " ".join(claude["steps"])
-    for needed in ("claude setup-token", "claude_oauth_token", "anthropic_api_key", "`backend`", "Neustart", "Konfiguration"):
+    for needed in ("claude setup-token", "claude_oauth_token", "anthropic_api_key", "Neustart", "Konfiguration"):
         assert needed in steps
     assert sc.banner(make(backend="echo")) and sc.banner(make(backend="claude", claude_oauth_token=ABO)) is None
 

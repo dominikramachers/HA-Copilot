@@ -23,14 +23,14 @@ def render(root: Path = ROOT) -> str:
 
     GROUPS = [
      ("Benutzer", "Wer die App nutzen darf. Ausführlich in [Benutzer und Rechte](benutzer.md).", ["profiles", "all_ha_users", "ha_users_excluded"]),
-     ("Claude (Antworten)", "Zugang zu Claude und Modelle. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).", ["backend", "claude_oauth_token", "anthropic_api_key", "model", "title_model", "models", "default_effort", "web_access_default"]),
-     ("Zugriff auf Home Assistant", "Was die KI in Home Assistant sehen und tun darf.", ["ha_access_default", "ha_write_confirm", "ha_limit_to_exposed", "ha_access_via_domain", "ha_scan_days"]),
-     ("GitHub", "Optional: die KI arbeitet mit deinen Repositories.", ["github_token", "github_access_default", "github_write_confirm", "github_repos"]),
-     ("Konnektoren", "Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (Microsoft 365, Google Workspace, Zabbix …). Ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410).", ["connector_access_default", "connector_write_confirm", "connector_allow_private"]),
-     ("Funktionen", "Gedächtnis, geplante Aufgaben, Dateien und Sprache.", ["language", "memory_enabled", "memory_household_writers", "schedules_enabled", "notify_long_answers", "files_enabled", "files_edit", "files_keep_days"]),
-     ("Bilder", "Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).", ["images_enabled", "openai_api_key", "google_api_key", "image_provider", "image_model_openai", "image_model_google", "image_limit_month"]),
-     ("Zugang über eine eigene Domain", "Optional, nur mit `public_enabled`. Ausführlich in [Domain-Zugang](domain-zugang.md).", ["public_enabled", "public_base_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "ha_url", "session_days", "public_trusted_proxies"]),
-     ("Aussehen und Name", "Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben).", ["app_name", "login_text", "login_placeholder", "logo_tile", "follow_ha_theme", "theme_name", "accent_color", "background_color_light", "background_color_dark", "card_color_light", "card_color_dark", "text_color_light", "text_color_dark"]),
+     ("Claude (Antworten)", "Zugang zu Claude und Modelle. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).", ["claude_oauth_token", "anthropic_api_key", "model"]),
+     ("Zugriff auf Home Assistant", "Was die KI in Home Assistant sehen und tun darf.", ["ha_access_default", "ha_limit_to_exposed"]),
+     ("GitHub", "Optional: die KI arbeitet mit deinen Repositories.", ["github_token", "github_access_default", "github_repos"]),
+     ("Konnektoren", "Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (Microsoft 365, Google Workspace, Zabbix …). Ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410).", ["connector_access_default"]),
+     ("Funktionen", "Gedächtnis, geplante Aufgaben, Dateien und Sprache.", ["language", "memory_enabled", "schedules_enabled", "files_enabled"]),
+     ("Bilder", "Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).", ["openai_api_key", "google_api_key", "image_provider", "image_limit_month"]),
+     ("Zugang über eine eigene Domain", "Optional; der Zugang ist an, sobald `public_base_url` und eine Anmeldung eingetragen sind. Ausführlich in [Domain-Zugang](domain-zugang.md).", ["public_base_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "ha_url", "session_days", "public_trusted_proxies"]),
+     ("Aussehen und Name", "Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben).", ["app_name", "login_text", "login_placeholder", "logo_tile", "follow_ha_theme", "theme_name"]),
      ("Daten, Sicherung und Erinnerungen", "Normalerweise leer oder aus. Siehe [Betrieb](betrieb.md).", ["restore_snapshot", "export_database", "claude_token_expires", "entra_secret_expires"]),
     ]
     listed = [k for _, _, ks in GROUPS for k in ks]

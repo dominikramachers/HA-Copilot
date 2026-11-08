@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.45.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich brauche weniger Einstellungen",
+          "text": "Vieles richte ich jetzt von selbst ein, auch Verbindungen zu Diensten in deinem Heimnetz. Geräte bedienen darf jeder gleich. Nur wer das Recht hat, darf mich etwas in Home Assistant ändern lassen."
+        },
+        "en": {
+          "title": "I need fewer settings",
+          "text": "I now set up a lot on my own, including links to services in your home network. Everyone can control devices right away. Only people with the right may have me change things in Home Assistant."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.44.0",
     "items": [
       {

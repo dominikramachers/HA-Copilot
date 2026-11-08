@@ -82,34 +82,13 @@ def theme_variables(themes: dict | None, settings: Settings, mode: str) -> dict[
     return result
 
 
-def overrides(settings: Settings, mode: str) -> dict[str, str]:
-    """Farben aus der Konfiguration als ``--ov-*`` (haben Vorrang vor dem Theme)."""
-    colors = dict(settings.colors)
-    out: dict[str, str] = {}
-    if "accent" in colors:
-        out["ov-accent"] = colors["accent"]
-        out["ov-on-accent"] = on_color(colors["accent"])
-    bg = colors.get(f"bg_{mode}")
-    card = colors.get(f"card_{mode}")
-    text = colors.get(f"text_{mode}")
-    if bg:
-        out["ov-bg"] = bg
-    if card:
-        out["ov-card"] = card
-    if text:
-        out["ov-text"] = text
-        out["ov-text-2"] = mix(text, bg or BUILTIN[mode]["bg"], 0.62)
-    return out
-
-
 def build_theme_css(themes: dict | None, settings: Settings) -> str:
-    """Stylesheet mit Theme-Variablen und Konfigurationsfarben, getrennt für hell und dunkel."""
+    """Stylesheet mit den Theme-Variablen von Home Assistant, getrennt für hell und dunkel."""
     blocks = []
     for mode in ("light", "dark"):
         declarations: dict[str, str] = {}
         if settings.follow_ha_theme:
             declarations.update(theme_variables(themes, settings, mode))
-        declarations.update(overrides(settings, mode))
         if declarations:
             body = " ".join(f"--{k}: {v};" for k, v in declarations.items())
             blocks.append(f':root[data-theme="{mode}"] {{ {body} }}')

@@ -552,11 +552,11 @@ def test_github_config_options_and_validation():
     assert s.github_access_default == "none" and s.github_write_confirm == "ask" and s.github_repos == () and s.github_token == ""
     s = parse_settings({**RAW, "github_token": f" {TOKEN} ", "github_access_default": "READ", "github_write_confirm": "always_allow",
                         "github_repos": "Dora/Smarthome, labor/*  dora/smarthome"}, frozenset())
-    assert s.github_token == TOKEN and s.github_access_default == "read" and s.github_write_confirm == "always_allow"
+    assert s.github_token == TOKEN and s.github_access_default == "read" and s.github_write_confirm == "ask"  # Rückfrage ist fest
     assert s.github_repos == ("dora/smarthome", "labor/*")
     assert TOKEN not in repr(s)
     assert parse_settings({**RAW, "github_repos": ["a/b", "c/*"]}, frozenset()).github_repos == ("a/b", "c/*")
-    for bad in ({"github_access_default": "admin"}, {"github_write_confirm": "nie"}, {"github_repos": "kein-slash"}, {"github_repos": "a/b/c"}, {"github_repos": "*/x"}):
+    for bad in ({"github_access_default": "admin"}, {"github_repos": "kein-slash"}, {"github_repos": "a/b/c"}, {"github_repos": "*/x"}):
         with pytest.raises(ConfigError):
             parse_settings({**RAW, **bad}, frozenset())
     profiles = [{**RAW["profiles"][0], "github_access": "write"}, RAW["profiles"][1]]

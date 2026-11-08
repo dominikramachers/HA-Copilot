@@ -1,5 +1,6 @@
 """Smarthome-Überblick: Sammeln, Einträge, Status, Sichtbarkeit, reservierte Themen, KI-Kontext."""
 import asyncio
+import dataclasses
 import time
 
 import pytest
@@ -185,18 +186,16 @@ def test_due_logic(store):
 
 
 def test_scan_loop_is_idle_when_automatic_scan_is_off(store):
-    settings = parse_settings({**RAW, "ha_scan_days": 0}, frozenset({"testclient"}))
+    settings = dataclasses.replace(parse_settings(RAW, frozenset({"testclient"})), ha_scan_days=0)
     scanner = OverviewScanner(store, ScanHa())
     run(asyncio.wait_for(_scan_loop(scanner, settings), 1))  # kehrt sofort zurück
     assert scanner.status()["state"] == "never"
 
 
-def test_ha_scan_days_is_validated():
-    for bad in (-1, 91, "oft"):
-        with pytest.raises(ConfigError, match="ha_scan_days"):
-            parse_settings({**RAW, "ha_scan_days": bad}, frozenset())
+def test_ha_scan_days_is_fixed():
+    # seit 0.45.0 keine Option mehr: alle 7 Tage, sonst auf Knopfdruck
     assert parse_settings(RAW, frozenset()).ha_scan_days == 7
-    assert parse_settings({**RAW, "ha_scan_days": 0}, frozenset()).ha_scan_days == 0
+    assert parse_settings({**RAW, "ha_scan_days": 0}, frozenset()).ha_scan_days == 7
 
 
 # ------------------------------------------------------------------ API und Sichtbarkeit

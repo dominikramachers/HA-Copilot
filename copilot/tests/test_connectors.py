@@ -350,9 +350,10 @@ def test_home_network_addresses_only_for_global_level(store, servers, tmp_path):
     run(scenario())
 
 
-def test_option_allows_home_network_and_http_for_everyone_who_may_create(store, servers, tmp_path):
-    settings = parse_settings({**RAW, "connector_allow_private": True}, frozenset({"testclient"}))
-    assert settings.connector_allow_private is True and parse_settings(RAW, frozenset({"testclient"})).connector_allow_private is False
+def test_home_network_and_http_are_open_for_everyone_who_may_create(store, servers, tmp_path):
+    # seit 0.45.0 ohne Option: die Einstellung ist fest an, eine alte Option wird nicht mehr gelesen
+    assert parse_settings(RAW, frozenset({"testclient"})).connector_allow_private is True
+    assert parse_settings({**RAW, "connector_allow_private": False}, frozenset({"testclient"})).connector_allow_private is True
 
     def build(open_network, address="10.0.0.7"):
         return ConnectorService(
@@ -826,14 +827,14 @@ def test_tools_per_answer_are_capped(store, servers, service):
 
 def test_config_defaults_and_validation():
     settings = parse_settings(RAW, frozenset())
-    assert settings.connector_access_default == "use" and settings.connector_write_confirm == "ask"
+    assert settings.connector_access_default == "use" and settings.connector_write_confirm == "ask"  # Rückfrage ist fest
     assert settings.connector_level(settings.profiles[0]) == "use"
     raw = {**RAW, "connector_access_default": "none", "profiles": [{**RAW["profiles"][0], "connector_access": "global"}, RAW["profiles"][1]]}
     parsed = parse_settings(raw, frozenset())
     assert [parsed.connector_level(p) for p in parsed.profiles] == ["global", "none"]
-    for bad in ({"connector_access_default": "alles"}, {"connector_write_confirm": "nie"}):
-        with pytest.raises(ConfigError):
-            parse_settings({**RAW, **bad}, frozenset())
+    with pytest.raises(ConfigError):
+        parse_settings({**RAW, "connector_access_default": "alles"}, frozenset())
+    assert parse_settings({**RAW, "connector_write_confirm": "always_allow"}, frozenset()).connector_write_confirm == "ask"
     with pytest.raises(ConfigError, match="connector_access"):
         parse_settings({**RAW, "profiles": [{**RAW["profiles"][0], "connector_access": "root"}]}, frozenset())
 

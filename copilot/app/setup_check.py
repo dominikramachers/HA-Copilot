@@ -98,7 +98,7 @@ def static_items(
                 "`claude setup-token` aus und kopiere das ausgegebene Token. Nutzen mehrere Personen den Chat, erzeuge stattdessen in der "
                 "Claude Console (console.anthropic.com) unter „API Keys“ einen API-Schlüssel; dann wird nach Verbrauch abgerechnet."),
                 tr(CONFIG_STEP),
-                tr("Trage das Abo-Token bei `claude_oauth_token` oder den API-Schlüssel bei `anthropic_api_key` ein und stelle `backend` auf `claude`."),
+                tr("Trage das Abo-Token bei `claude_oauth_token` oder den API-Schlüssel bei `anthropic_api_key` ein."),
                 tr(RESTART_STEP),
             ],
         ))
@@ -227,7 +227,7 @@ def static_items(
                 tr("Richte in Microsoft Entra eine App-Registrierung ein. Weiterleitungs-URI: `https://deine-adresse/auth/callback`."),
                 tr("Richte einen Cloudflare Tunnel ein (z. B. mit dem Add-on „Cloudflared“), der auf `http://{host}:8100` zeigt.", host=hostname or tr("Hostname-des-Add-ons")),
                 tr(CONFIG_STEP) + tr(" Aktiviere unter „Netzwerk“ den Port 8100."),
-                tr("Trage `public_enabled`, `public_base_url`, `entra_tenant_id`, `entra_client_id` und `entra_client_secret` ein (Beschreibung: Dokumentation, Abschnitt „Domain-Zugang“)."),
+                tr("Trage `public_base_url`, `entra_tenant_id`, `entra_client_id` und `entra_client_secret` ein (Beschreibung: Dokumentation, Abschnitt „Domain-Zugang“)."),
                 tr(RESTART_STEP),
             ],
         ))

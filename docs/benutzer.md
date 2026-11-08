@@ -54,7 +54,7 @@ Nach dem Speichern das Add-on neu starten. Jeder Benutzer meldet sich dabei wie 
 | `entra_upn` | nein | Konto für die Anmeldung über die [eigene Domain](domain-zugang.md) mit Microsoft. |
 | `ha_access` | nein | Rechte der KI in Home Assistant: `none`, `read`, `execute`, `write` (siehe unten). Leer: `ha_access_default`. |
 | `github_access` | nein | Rechte der KI bei GitHub: `none`, `read`, `write`. Leer: `github_access_default`. |
-| `web_access` | nein | `on` oder `off`: Websuche. Leer: `web_access_default`. |
+| `web_access` | nein | `on` oder `off`: Websuche. Leer: an. |
 | `notify_service` | nein | Benachrichtigungsdienst fürs Handy, z. B. `notify.mobile_app_pixel`. |
 | `id` | nein | Interner, stabiler Schlüssel. **Die Chats gehören diesem Schlüssel**, nach dem Anlegen nicht mehr ändern. |
 
@@ -71,7 +71,7 @@ Die Stufen gelten **je Benutzer** und werden vom Server durchgesetzt, nicht von 
 | `execute` | zusätzlich Geräte bedienen (Licht, Klima, Rollos, Szenen …) | (nicht vorhanden) |
 | `write` | zusätzlich Automationen, Skripte, Szenen, Dashboards, Helfer anlegen und ändern | zusätzlich Dateien einchecken, Zweige, Pull Requests, Issues |
 
-Voreinstellung ohne eigenen Eintrag: Home Assistant `read` (`ha_access_default`), GitHub `none` (`github_access_default`). Änderungen an der Konfiguration von Home Assistant und GitHub fragen standardmäßig im Chat nach (`ha_write_confirm`, `github_write_confirm`), Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung von Home Assistant sind nie möglich. Alle Einzelheiten: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant-ab-0150) und [GitHub](../copilot/DOCS.md#github-ab-0190).
+Voreinstellung ohne eigenen Eintrag: Home Assistant `execute` (`ha_access_default`), GitHub `none` (`github_access_default`). Änderungen an der Konfiguration von Home Assistant und GitHub fragen im Chat nach, Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung von Home Assistant sind nie möglich. Alle Einzelheiten: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant-ab-0150) und [GitHub](../copilot/DOCS.md#github-ab-0190).
 
 ## Alle Home-Assistant-Benutzer zulassen
 
@@ -101,6 +101,6 @@ Wer nicht in Home Assistant, sondern über eine eigene Adresse arbeitet, meldet 
 ## Datenschutz zwischen Benutzern
 
 - Jede Abfrage nach Chats filtert auf das Profil; zusätzlich verhindert die Datenbank selbst, dass eine Nachricht einem anderen Profil gehört als ihr Chat.
-- Das **Haushalts-Gedächtnis** ist die einzige gemeinsame Ablage. Wer hineinschreiben darf, regelt `memory_household_writers`. Das **persönliche Gedächtnis**, Projekte, Projektwissen, geplante Aufgaben und erzeugte Dateien sind privat.
+- Das **Haushalts-Gedächtnis** ist die einzige gemeinsame Ablage. Alle Personen dürfen ihn ergänzen. Das **persönliche Gedächtnis**, Projekte, Projektwissen, geplante Aufgaben und erzeugte Dateien sind privat.
 - Jeder Benutzer kann in der App unter **Meine Daten** alle eigenen Chats als ZIP exportieren oder löschen.
 - Wer Zugriff auf die Add-on-Konfiguration oder den Konfigurationsordner hat, ist Administrator und kann technisch alles lesen. Die Trennung gilt für die Oberfläche und die Programmierschnittstelle.

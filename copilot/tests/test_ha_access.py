@@ -79,8 +79,7 @@ ENTRA = dict(
 
 
 def test_domain_needs_entra_unless_home_assistant_login_is_set_up():
-    with pytest.raises(ConfigError):
-        _domain()
+    assert _domain().public_enabled is False  # Adresse ohne Anmeldung: Domain bleibt aus (Warnung im Protokoll)
     only_ha = _domain(ha_url=HA)
     assert only_ha.ha_login_enabled and not only_ha.entra_enabled
     both = _domain(ha_url=HA, **ENTRA)

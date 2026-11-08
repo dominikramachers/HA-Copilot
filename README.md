@@ -53,8 +53,8 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 1. In Home Assistant **Einstellungen → Add-ons** (ab 2026.2 „Apps“) → **Add-on-Store → ⋮ → Repositories** öffnen und diese Adresse hinzufügen:
    `https://github.com/dominikramachers/HA-Copilot`
 2. **HA Copilot** installieren, auf dem Reiter Info **In der Seitenleiste anzeigen** einschalten.
-3. In der Konfiguration deinen Benutzer eintragen (`ha_user` = dein HA-Benutzername) und die Zugangsdaten zu Claude hinterlegen (siehe unten). Bis dahin läuft das Add-on im Testmodus (`backend: echo`) ohne KI.
-4. `backend` auf `claude` stellen, Add-on starten, „HA Copilot“ erscheint in der Seitenleiste.
+3. In der Konfiguration deinen Benutzer eintragen (`ha_user` = dein HA-Benutzername) und die Zugangsdaten zu Claude hinterlegen (siehe unten). Bis dahin läuft das Add-on im Testmodus ohne KI.
+4. Add-on starten, „HA Copilot“ erscheint in der Seitenleiste.
 
 Die ausführliche Anleitung mit Bildern: [docs/installation.md](docs/installation.md). Benutzer und Rechte: [docs/benutzer.md](docs/benutzer.md). Alle Optionen: [docs/einstellungen.md](docs/einstellungen.md).
 
@@ -70,7 +70,7 @@ Du brauchst eigene Zugangsdaten. Sie werden nur in deiner Add-on-Konfiguration g
 ## Datenschutz und Sicherheit
 
 - Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil der HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; nur bei Bildern von OpenAI oder Google (eigene Schlüssel nötig) gehen Bildwunsch und Referenzbild an den gewählten Anbieter; sonst an niemanden.
-- Dateianhänge: In der Datenbank stehen Name, Art und Größe. Mit der Option „Dateien bearbeiten“ (Standard) legt das Add-on außer bei Bildern eine Kopie für diesen Chat im Datenordner ab (`files_keep_days` Tage, mit dem Chat gelöscht); mit `files_edit: false` bleiben Anhänge nur im Arbeitsspeicher.
+- Dateianhänge: In der Datenbank stehen Name, Art und Größe. Das Add-on legt außer bei Bildern eine Kopie für diesen Chat im Datenordner ab (14 Tage, mit dem Chat gelöscht).
 - Die Domain-Anmeldung prüft die Identität serverseitig (OIDC mit PKCE, serverseitige Sitzungen, Schutz gegen Cross-Site-Anfragen). Das Add-on gibt den Port der Domain-Seite nicht nach außen frei; ein Tunnel (z. B. Cloudflare) ist deine Entscheidung.
 - Das Add-on legt von sich aus keinen Zugang über das Internet an. Wer die Domain-Seite aktiviert, sollte vorher [docs/domain-zugang.md](docs/domain-zugang.md) und [copilot/DOCS.md](copilot/DOCS.md) lesen.
 
@@ -82,7 +82,7 @@ pip install -r requirements.txt pytest pyyaml
 python -m pytest -q
 ```
 
-Die Tests laufen ohne Claude-Zugang (Test-Backend). Der Testmodus des Add-ons (`backend: echo`) verursacht ebenfalls keine Kosten. Die Seite [Alle Einstellungen](docs/einstellungen.md) wird mit `python tools/gen_options_doc.py` aus `config.yaml` erzeugt; ein Test prüft, dass sie aktuell ist und alle Links und Bilder der Dokumentation existieren.
+Die Tests laufen ohne Claude-Zugang (Test-Backend). Der Testmodus des Add-ons (ohne Claude-Zugang) verursacht ebenfalls keine Kosten. Die Seite [Alle Einstellungen](docs/einstellungen.md) wird mit `python tools/gen_options_doc.py` aus `config.yaml` erzeugt; ein Test prüft, dass sie aktuell ist und alle Links und Bilder der Dokumentation existieren.
 
 ## Lizenz
 

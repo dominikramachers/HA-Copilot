@@ -1,5 +1,6 @@
 """Modellwahl, Websuche (Anbindung und Anzeige), Nutzungslimit-Hinweis und das Verhalten des Claude-Backends dabei."""
 import asyncio
+import dataclasses
 import json
 
 import pytest
@@ -11,7 +12,7 @@ from app.db import Store
 from app.ha_tools import HaToolbox, ToolError
 from app.limits import LimitState, shared
 from app.main import build_ingress_app
-from conftest import ADM01, DORA, RAW
+from conftest import ADM01, DORA, RAW, parse_with_fixed
 from test_background_run import asgi, jget, new_chat, sse
 from test_ha_tools import Asker, FakeHa
 
@@ -32,17 +33,14 @@ def test_model_labels():
 
 def test_model_and_web_options():
     s = parse_settings(RAW, frozenset())
-    assert s.models == ("claude-opus-5-5", "claude-haiku-5-5") and s.web_access_default == "on"  # leer: gängige Modelle zur Auswahl
-    for off in ("none", "off", "AUS", "-"):
-        s = parse_settings({**RAW, "models": off}, frozenset())
-        assert s.models == () and s.model_choices() == []
-    s = parse_settings({**RAW, "models": " claude-opus-5-5, claude-haiku-5-5  claude-sonnet-5-5 claude-opus-5-5"}, frozenset())
-    assert s.models == ("claude-opus-5-5", "claude-haiku-5-5")  # Standard-Modell und Doppelte fallen weg
+    assert s.models == ("claude-opus-5-5", "claude-haiku-5-5") and s.web_access_default == "on" and s.title_model == "claude-haiku-5-5"  # feste Werte
     assert [c["id"] for c in s.model_choices()] == ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"]
-    assert parse_settings({**RAW, "models": ["claude-opus-5-5"]}, frozenset()).models == ("claude-opus-5-5",)
-    for bad in ({"models": "a b/c"}, {"models": "--x"}, {"models": ",".join(f"claude-m-{i}" for i in range(13))}, {"web_access_default": "maybe"}):
-        with pytest.raises(ConfigError):
-            parse_settings({**RAW, **bad}, frozenset())
+    # alte Optionen werden nicht mehr gelesen
+    old = parse_settings({**RAW, "models": "none", "web_access_default": "off", "title_model": "x-y-z"}, frozenset())
+    assert old.models == s.models and old.web_access_default == "on" and old.title_model == "claude-haiku-5-5"
+    # ist das Standard-Modell auch in der Liste, steht es nur einmal da
+    opus = parse_settings({**RAW, "model": "claude-opus-5-5"}, frozenset())
+    assert [c["id"] for c in opus.model_choices()] == ["claude-opus-5-5", "claude-haiku-5-5"]
     profiles = [{**RAW["profiles"][0], "web_access": "off"}, RAW["profiles"][1]]
     s = parse_settings({**RAW, "profiles": profiles}, frozenset())
     assert s.web_level(s.profiles[0]) == "off" and s.web_level(s.profiles[1]) == "on"
@@ -92,8 +90,10 @@ def test_limit_state_survives_garbage(tmp_path):
 
 # --------------------------------------------------------------- App: Modell, Web, Limit
 
-def model_app(store, script=None, **options):
-    settings = parse_settings({**RAW, "models": "claude-opus-5-5, claude-haiku-5-5", **options}, frozenset({"testclient"}))
+def model_app(store, script=None, models=None, **options):
+    settings = parse_with_fixed({**RAW, **options}, frozenset({"testclient"}))
+    if models == "none":
+        settings = dataclasses.replace(settings, models=())
     seen = {"calls": []}
 
     class Backend:

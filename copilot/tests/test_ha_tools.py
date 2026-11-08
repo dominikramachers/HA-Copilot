@@ -8,7 +8,7 @@ from app.ha_client import HaApiError
 from app.ha_tools import DATA_NOTE, HaToolbox, ToolError
 from app.config import parse_settings
 from app.main import build_ingress_app
-from conftest import ADM01, DORA, RAW
+from conftest import ADM01, DORA, RAW, parse_with_fixed
 from test_background_run import asgi, jget, new_chat, sse, until
 
 
@@ -281,7 +281,7 @@ def test_invalid_input_is_reported_not_crashing():
 
 def ha_app(store, ha, **options):
     raw = {**RAW, **options}
-    settings = parse_settings(raw, frozenset({"testclient"}))
+    settings = parse_with_fixed(raw, frozenset({"testclient"}))
     seen = {}
 
     class ToolBackend:
@@ -314,11 +314,16 @@ def test_level_resolution_default_and_per_profile(store):
         app, backend, seen = ha_app(store, FakeHa(), profiles=profiles)
         me = jget(await asgi(app, "GET", "/api/me", user=ADM01))
         assert me["ha_access"] == "write"
-        assert jget(await asgi(app, "GET", "/api/me", user=DORA))["ha_access"] == "read"  # Standard: nur lesen
+        assert jget(await asgi(app, "GET", "/api/me", user=DORA))["ha_access"] == "execute"  # Standard seit 0.45.0: lesen und ausführen
         chat = jget(await asgi(app, "POST", "/api/chats", {}, user=DORA))["id"]
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"}, user=DORA)
-        assert "ha_call_service" not in seen["tools"] and "ha_get_state" in seen["tools"]
-        assert "nur lesen" in seen["note"] and "Dora" in seen["note"]
+        assert "ha_call_service" in seen["tools"] and "ha_get_state" in seen["tools"] and "ha_save_config" not in seen["tools"]
+        assert "Geräte bedienen" in seen["note"] and "Dora" in seen["note"]
+        # wer nur lesen soll, bekommt es mit ha_access_default: read
+        app, backend, seen = ha_app(store, FakeHa(), profiles=profiles, ha_access_default="read")
+        chat = jget(await asgi(app, "POST", "/api/chats", {}, user=DORA))["id"]
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"}, user=DORA)
+        assert "ha_call_service" not in seen["tools"] and "nur lesen" in seen["note"]
 
     asyncio.run(scenario())
 
@@ -471,9 +476,9 @@ def test_domain_access_can_be_switched_off(store):
     from app.main import SESSION_COOKIE, build_public_app
 
     base = "https://ki.example.org"
-    for via_domain, expected in ((True, "read"), (False, "none")):
+    for via_domain, expected in ((True, "execute"), (False, "none")):
         raw = {**RAW, "public_enabled": True, "public_base_url": base, "ha_url": "https://ha.example.org", "ha_access_via_domain": via_domain}
-        settings = parse_settings(raw, frozenset({"testclient"}))
+        settings = parse_with_fixed(raw, frozenset({"testclient"}))
         app = build_public_app(settings, store, None, None, ha=FakeHa())
         client = TestClient(app, base_url=base)
         token = store.create_session("adm01", settings.session_days)
@@ -484,13 +489,12 @@ def test_domain_access_can_be_switched_off(store):
 def test_configuration_values_are_validated():
     from app.config import ConfigError
 
-    ok = parse_settings({**RAW, "ha_access_default": "execute", "ha_write_confirm": "always_allow", "ha_limit_to_exposed": False}, frozenset())
-    assert (ok.ha_access_default, ok.ha_write_confirm, ok.ha_limit_to_exposed) == ("execute", "always_allow", False)
+    ok = parse_settings({**RAW, "ha_access_default": "write", "ha_write_confirm": "always_allow", "ha_limit_to_exposed": False}, frozenset())
+    assert (ok.ha_access_default, ok.ha_write_confirm, ok.ha_limit_to_exposed) == ("write", "ask", False)  # Rückfrage ist fest
     default = parse_settings(RAW, frozenset())
-    assert (default.ha_access_default, default.ha_write_confirm, default.ha_limit_to_exposed, default.ha_access_via_domain) == ("read", "ask", True, True)
-    for key, value in (("ha_access_default", "admin"), ("ha_write_confirm", "nie")):
-        with pytest.raises(ConfigError):
-            parse_settings({**RAW, key: value}, frozenset())
+    assert (default.ha_access_default, default.ha_write_confirm, default.ha_limit_to_exposed, default.ha_access_via_domain) == ("execute", "ask", True, True)
+    with pytest.raises(ConfigError):
+        parse_settings({**RAW, "ha_access_default": "admin"}, frozenset())
     profiles = [{**RAW["profiles"][0], "ha_access": "write"}, RAW["profiles"][1]]
     parsed = parse_settings({**RAW, "profiles": profiles}, frozenset())
     assert [p.ha_access for p in parsed.profiles] == ["write", ""]
