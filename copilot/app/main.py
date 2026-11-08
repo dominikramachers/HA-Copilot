@@ -841,6 +841,7 @@ def register_chat_routes(
             "redirect_uri": redirect,
             "manual_redirect": manual,
             "write_confirm": settings.connector_write_confirm,
+            "allow_private": settings.connector_allow_private,
         }
 
     @app.get("/api/connectors")
@@ -2115,6 +2116,7 @@ def make_connectors(settings: Settings, store: Store, registry: Registry, *, vau
         level_for=level_for,
         base_url=lambda: settings.public_base_url if settings.public_enabled else "",
         version=_asset_version(),
+        allow_private=lambda: settings.connector_allow_private,
     )
 
 

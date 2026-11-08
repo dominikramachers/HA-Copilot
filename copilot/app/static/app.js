@@ -3404,6 +3404,7 @@ function renderConnectorForm(wrap) {
     shared: field(tr("Gemeinsamer Zugang"), shared, tr("Wird verschlüsselt gespeichert und nie wieder angezeigt.")),
     local: field(tr("Heimnetz"), (() => { const l = node("label", "conn-check"); l.append(local, node("span", "", tr("Adresse im Heimnetz oder ohne https erlauben"))); return l; })(), tr("Nur für Adressen, die du kennst und kontrollierst. Das Add-on spricht dann auch Geräte in deinem Netz an.")),
   };
+  rows.local.hidden = !!connUi.data.allow_private;
   const oauthBox = node("details", "skill-more conn-oauth");
   oauthBox.open = !!(c.client_id || c.authorization_endpoint);
   oauthBox.append(
@@ -3424,7 +3425,7 @@ function renderConnectorForm(wrap) {
   };
   for (const el of [scope, auth, mode]) el.addEventListener("change", sync);
   form.append(
-    field(tr("Name"), name), field(tr("Beschreibung"), description), field(tr("Logo"), logo.el, "", "div"), field(tr("Adresse des MCP-Servers"), url, tr("Aus Sicherheitsgründen nur https und öffentliche Adressen, außer du erlaubst unten das Heimnetz.")),
+    field(tr("Name"), name), field(tr("Beschreibung"), description), field(tr("Logo"), logo.el, "", "div"), field(tr("Adresse des MCP-Servers"), url, connUi.data.allow_private ? tr("Auch Adressen im Heimnetz und mit http sind erlaubt.") : tr("Aus Sicherheitsgründen nur https und öffentliche Adressen, außer du erlaubst unten das Heimnetz.")),
     rows.scope, field(tr("Anmeldung"), auth), rows.header, rows.mode, rows.shared, oauthBox, rows.local,
   );
   const foot = node("div", "skills-buttons");
@@ -3444,7 +3445,7 @@ function renderConnectorForm(wrap) {
     if (!editing) body.scope = scope.value;
     if (auth.value === "header") body.header_name = header.value;
     if (!rows.shared.hidden && shared.value) body.shared_secret = shared.value;
-    if (can.global) body.local_ok = local.checked;
+    if (can.global && !connUi.data.allow_private) body.local_ok = local.checked;
     if (auth.value === "oauth") {
       body.client_id = clientId.value;
       body.scopes = scopes.value;

@@ -171,6 +171,9 @@ configuration:
   connector_write_confirm:
     name: Confirmation for changes through connectors
     description: 'ask (default): every change through a connector (draft a mail, create an event, change a ticket …) must be confirmed in the chat (once, or ''always allow in this chat''). always_allow: without asking. After reading foreign content it always asks. Write tools are only available once switched on for the connection anyway.'
+  connector_allow_private:
+    name: Allow all addresses for connectors
+    description: 'Off (default): connectors may only point to https addresses on the public internet; addresses on the home network or with http can only be allowed per connector by a person with the level "global". On: everyone who may create connectors (level own or global) can also enter home network and http addresses, for example a Zabbix MCP server on your own network. Link-local addresses (cloud metadata), reserved addresses and the names supervisor and hassio always stay blocked. Only turn on if everyone with this level is trusted: the add-on then talks to these devices on the person''s behalf.'
   files_enabled:
     name: Create files
     description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'

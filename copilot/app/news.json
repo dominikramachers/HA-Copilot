@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.43.1",
+    "items": [
+      {
+        "de": {
+          "title": "Verbindungen im eigenen Netz",
+          "text": "Wenn der Betreiber es erlaubt, kann ich jetzt auch Dienste im eigenen Heimnetz nutzen, zum Beispiel einen Überwachungsserver. Du trägst die Adresse ganz normal unter Verbindungen ein."
+        },
+        "en": {
+          "title": "Connections in your own network",
+          "text": "If the operator allows it, I can now also use services in your own home network, for example a monitoring server. You enter the address as usual under Connections."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.43.0",
     "items": [
       {

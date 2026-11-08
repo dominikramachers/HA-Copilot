@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.43.0"
+version: "0.43.1"
 slug: copilot
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -77,6 +77,7 @@ options:
   github_repos: ""
   connector_access_default: use
   connector_write_confirm: ask
+  connector_allow_private: false
   files_enabled: true
   files_edit: true
   files_keep_days: 14
@@ -152,6 +153,7 @@ schema:
   github_repos: str?
   connector_access_default: list(none|use|own|global)?
   connector_write_confirm: list(ask|always_allow)?
+  connector_allow_private: bool?
   files_enabled: bool?
   files_edit: bool?
   files_keep_days: int(1,365)?
