@@ -9,6 +9,7 @@ const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const ICONS = {
+  link: ["M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1", "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"],
   download: ["M12 4v11M7 11l5 5 5-5M5 20h14"],
   attach: ["M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"],
   note: ["M6 4h12v16H6z", "M9 9h6M9 13h6M9 17h3"],
@@ -6173,6 +6174,152 @@ async function showWelcome() {
   else if (welcome.news?.length) await openNews(welcome.news, true);
 }
 
+// ------------------------------------------------- GitHub-Konto der Person
+
+const GITHUB_URL = /^https:\/\/github\.com\/[A-Za-z0-9\/_?=&.-]*$/;
+
+function githubLevelText(level) {
+  return level === "write" ? tr("Die KI darf mit deinem Konto lesen und (nach deiner Bestätigung) ändern.") : tr("Die KI darf mit deinem Konto lesen.");
+}
+
+// Der Dialog fragt bei GitHub nach, solange er offen ist; ``alive()`` wird falsch, sobald er geschlossen wurde.
+function githubPanel(body, alive) {
+  let timer = 0;
+  const stop = () => { clearTimeout(timer); timer = 0; };
+  const hint = (text) => node("p", "mem-hint", text);
+  const button = (label, kind, handler) => {
+    const b = node("button", `pill ${kind}`, label);
+    b.type = "button";
+    b.addEventListener("click", () => { handler(b); });
+    return b;
+  };
+  const actions = (...buttons) => { const row = node("div", "gh-actions"); row.append(...buttons); return row; };
+  const fail = (error, fallback) => toast(error?.detail || fallback);
+  const refreshMe = async () => { try { state.me = await api("api/me"); } catch { /* beim nächsten Laden */ } };
+
+  const show = (...parts) => { if (alive()) body.replaceChildren(...parts); };
+
+  const load = async () => {
+    stop();
+    show(hint(tr("Lade …")));
+    let info;
+    try { info = await api("api/github/account"); } catch { show(hint(tr("GitHub ist gerade nicht abrufbar. Versuche es gleich noch einmal."))); return; }
+    if (info.source === "personal") renderConnected(info);
+    else if (info.level === "none") show(hint(tr("Für dich ist GitHub nicht freigegeben. Der Administrator stellt das in der Add-on-Konfiguration ein (github_access).")));
+    else renderStart(info);
+  };
+
+  const renderConnected = (info) => {
+    const who = node("p", "gh-who");
+    who.append(icon("check"), node("span", "", tr("Verbunden als {0}", info.login || "GitHub")));
+    show(
+      who,
+      hint(githubLevelText(info.level)),
+      hint(tr("Das Token liegt verschlüsselt im Add-on und verlässt es nicht. Beim Trennen löscht das Add-on es; der Zugang bei GitHub bleibt bestehen, bis du ihn dort unter Einstellungen → Anwendungen widerrufst.")),
+      actions(button(tr("Trennen"), "danger", () => renderDisconnect(info))),
+    );
+  };
+
+  // Rückfrage im selben Fenster: ein zweites Fenster würde dieses schließen.
+  const renderDisconnect = (info) => {
+    show(
+      hint(tr("GitHub trennen? Die KI kann dann nicht mehr auf dein GitHub zugreifen.")),
+      actions(
+        button(tr("Trennen"), "danger", async (b) => {
+          b.disabled = true;
+          try { await api("api/github/account", { method: "DELETE" }); toast(tr("GitHub getrennt.")); await refreshMe(); load(); }
+          catch (e) { b.disabled = false; fail(e, tr("Das Trennen hat nicht geklappt.")); }
+        }),
+        button(tr("Abbrechen"), "ghost", () => renderConnected(info)),
+      ),
+    );
+  };
+
+  const renderStart = (info) => {
+    const parts = [];
+    parts.push(hint(info.shared
+      ? tr("Du bist nicht selbst verbunden. Solange das so ist, nutzt die KI das gemeinsame GitHub-Token des Administrators{0}.", info.repos?.length ? tr(" (nur {0})", info.repos.join(", ")) : "")
+      : tr("Verbinde dein GitHub-Konto, dann kann die KI deine Repositories lesen und, wenn du es erlaubst, Änderungen vorschlagen. Jede Änderung bestätigst du im Chat.")));
+    parts.push(hint(githubLevelText(info.level)));
+    parts.push(actions(
+      button(tr("Mit GitHub verbinden"), "primary", (b) => startDevice(b)),
+      button(tr("Token einfügen"), "ghost", () => renderToken()),
+    ));
+    show(...parts);
+  };
+
+  const startDevice = async (b) => {
+    b.disabled = true;
+    let data;
+    try { data = await api("api/github/device", { method: "POST" }); } catch (e) { b.disabled = false; fail(e, tr("Die Anmeldung bei GitHub ließ sich nicht starten.")); return; }
+    const status = node("p", "mem-hint gh-wait", tr("Warte auf deine Bestätigung bei GitHub …"));
+    const link = node("a", "pill primary", tr("GitHub öffnen"));
+    if (GITHUB_URL.test(data.verification_uri)) { link.href = data.verification_uri; link.target = "_blank"; link.rel = "noopener noreferrer"; }
+    const code = node("div", "gh-code", data.user_code);
+    show(
+      hint(tr("1. Öffne GitHub und gib diesen Code ein. 2. Bestätige den Zugriff. Danach geht es hier von selbst weiter.")),
+      code,
+      copyField(data.user_code),
+      actions(link, button(tr("Abbrechen"), "ghost", async () => { stop(); try { await api("api/github/device", { method: "DELETE" }); } catch { /* egal */ } load(); })),
+      status,
+      hint(tr("Der Code gilt {0} Minuten.", String(Math.round(data.expires_in / 60)))),
+    );
+    const wait = (data.interval || 5) * 1000;
+    const poll = async () => {
+      if (!alive()) return;
+      let result;
+      try { result = await api("api/github/device"); } catch (e) { status.textContent = e?.detail || tr("GitHub antwortet gerade nicht. Ich versuche es weiter …"); timer = setTimeout(poll, wait * 2); return; }
+      if (!alive()) return;
+      if (result.status === "ok") { toast(tr("GitHub verbunden.")); await refreshMe(); load(); }
+      else if (result.status === "pending") timer = setTimeout(poll, (result.interval || data.interval || 5) * 1000);
+      else {
+        const text = result.status === "denied" ? tr("Du hast den Zugriff bei GitHub abgelehnt.") : tr("Der Code ist abgelaufen.");
+        show(hint(text), actions(button(tr("Neu starten"), "primary", () => load())));
+      }
+    };
+    timer = setTimeout(poll, wait);
+  };
+
+  const renderToken = () => {
+    const input = node("input", "field");
+    input.type = "password";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.maxLength = 400;
+    input.setAttribute("aria-label", tr("GitHub-Token"));
+    input.placeholder = "github_pat_…";
+    const save = button(tr("Speichern"), "primary", async (b) => {
+      if (!input.value.trim()) { input.focus(); return; }
+      b.disabled = true;
+      try { await api("api/github/token", { method: "POST", body: JSON.stringify({ token: input.value }) }); input.value = ""; toast(tr("GitHub verbunden.")); await refreshMe(); load(); }
+      catch (e) { b.disabled = false; fail(e, tr("Das Token ließ sich nicht speichern.")); }
+    });
+    input.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); save.click(); } });
+    show(
+      hint(tr("Erzeuge bei GitHub unter Einstellungen → Entwicklereinstellungen → Personal access tokens ein Token, nur mit den Repositories und Rechten, die die KI haben soll (Contents, Pull requests, Issues). Das Token wird geprüft und verschlüsselt gespeichert.")),
+      input,
+      actions(save, button(tr("Zurück"), "ghost", () => load())),
+    );
+    if (window.matchMedia("(pointer: fine)").matches) input.focus();
+  };
+
+  load();
+  return stop;
+}
+
+async function openGithub() {
+  let open = true;
+  let stop = () => {};
+  await openSheet({
+    title: tr("GitHub"),
+    sub: tr("Verbinde dein eigenes GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann."),
+    ok: tr("Fertig"),
+    panel: (body) => { stop = githubPanel(body, () => open); },
+  });
+  open = false;
+  stop();
+}
+
 // ------------------------------------------------- Konto-Menü (unten in der Seitenleiste)
 
 const THEMES = [["auto", tr("Auto")], ["light", tr("Hell")], ["dark", tr("Dunkel")]];
@@ -6181,6 +6328,7 @@ const THEMES = [["auto", tr("Auto")], ["light", tr("Hell")], ["dark", tr("Dunkel
 function accountEntries() {
   const entries = [];
   if (state.me?.memory) entries.push({ value: "memory", icon: "memory", label: tr("Gedächtnis") });
+  if (state.me?.github_connect) entries.push({ value: "github", icon: "link", label: tr("GitHub") });
   entries.push({ value: "data", icon: "data", label: tr("Meine Daten") });
   entries.push({ value: "guide", icon: "info", label: tr("Kurzanleitung") });
   entries.push({ value: "news", icon: "bolt", label: tr("Das ist neu") });
@@ -6227,6 +6375,7 @@ async function accountMenu() {
     button.setAttribute("aria-expanded", "false");
   }
   if (choice === "memory") { closeMenu(); openMemory(); }
+  else if (choice === "github") { closeMenu(); openGithub().catch(() => {}); }
   else if (choice === "data") { closeMenu(); openMyData().catch(() => {}); }
   else if (choice === "setup") { closeMenu(); openSetup().catch(() => {}); }
   else if (choice === "guide") { closeMenu(); openIntro().catch(() => {}); }

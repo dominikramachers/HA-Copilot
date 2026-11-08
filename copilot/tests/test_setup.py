@@ -115,11 +115,24 @@ def test_image_rows():
 
 def test_github_rows():
     off = rows(make())["github"]
-    assert off["status"] == "off" and "github_token" in " ".join(off["steps"]) and "Contents" in " ".join(off["steps"])
+    assert off["status"] == "off" and "Mit GitHub verbinden" in " ".join(off["steps"]) and "github_access" in " ".join(off["steps"])
     muted = rows(make(github_token=TOKEN), github_enabled=True, github_level="none")["github"]
     assert muted["status"] == "warn" and "github_access_default" in " ".join(muted["steps"])
     ok = rows(make(github_token=TOKEN, github_repos="doralab/*"), github_enabled=True, github_level="write")["github"]
     assert ok["status"] == "ok" and "schreiben" in ok["detail"] and "doralab/*" in ok["detail"] and TOKEN not in str(ok)
+
+
+def test_github_row_for_a_personal_account_says_so_and_ignores_the_shared_repo_list():
+    ok = rows(make(github_repos="doralab/*"), github_enabled=True, github_level="write", github_source="personal")["github"]
+    assert ok["status"] == "ok" and "eigenes GitHub-Konto" in ok["detail"] and "doralab/*" not in ok["detail"]
+
+
+def test_live_personal_github_rejection_asks_to_reconnect():
+    items = list(rows(make(), github_enabled=True, github_level="read", github_source="personal").values())
+    api = GithubApi(TOKEN, transport=httpx.MockTransport(lambda r: httpx.Response(401, json={"message": "Bad credentials"})), personal=True)
+    asyncio.run(sc.run_live(items, None, api, make().profiles[0]))
+    github = next(i for i in items if i["id"] == "github")
+    assert github["status"] == "todo" and "Konto-Menü" in " ".join(github["steps"]) and "github_token" not in " ".join(github["steps"])
 
 
 def github_api(status, body=None):

@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.46.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich arbeite mit deinem GitHub",
+          "text": "Verbinde dein eigenes GitHub im Menü unten links. Dann kann ich in deinen Repositories lesen und, wenn du es erlaubst, Änderungen vorschlagen. Jede Änderung bestätigst du vorher."
+        },
+        "en": {
+          "title": "I can work with your GitHub",
+          "text": "Connect your own GitHub in the menu at the bottom left. Then I can read in your repositories and, if you allow it, suggest changes. You confirm every change first."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.45.0",
     "items": [
       {

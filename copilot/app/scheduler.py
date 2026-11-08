@@ -92,6 +92,7 @@ class Scheduler:
         clock: Callable[[], float] = time.time,
         backup_dir: Any = None,
         connectors: Any = None,
+        github_accounts: Any = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -105,6 +106,7 @@ class Scheduler:
         self.clock = clock
         self.policy = RepoPolicy(settings.github_repos)
         self.connectors = connectors
+        self.github_accounts = github_accounts  # persönliche GitHub-Konten; ohne: nur das Token der Konfiguration
         self._tasks: set[asyncio.Task] = set()
         self.live: dict[str, tuple[str, str]] = {}  # Aufgabe → Schlüssel des laufenden Laufs
 
@@ -130,8 +132,14 @@ class Scheduler:
             return "none"
         return "none" if (profile.ha_access or self.settings.ha_access_default) == "none" else "read"
 
+    def github_api(self, profile: Profile) -> GithubApi:
+        return self.github_accounts.api_for(profile.id) if self.github_accounts is not None else self.github
+
+    def github_policy(self, profile: Profile) -> RepoPolicy:
+        return self.github_accounts.policy_for(profile.id) if self.github_accounts is not None else self.policy
+
     def github_level(self, profile: Profile) -> str:
-        if not self.github.enabled:
+        if not self.github_api(profile).enabled:
             return "none"
         return "none" if (profile.github_access or self.settings.github_access_default) == "none" else "read"
 
@@ -268,7 +276,7 @@ class Scheduler:
         gh = self.github_level(profile)
         if gh != "none":
             specs += GithubToolbox(
-                self.github, "read", policy=self.policy, confirm_writes=True, force_confirm=lambda: True,
+                self.github_api(profile), "read", policy=self.github_policy(profile), confirm_writes=True, force_confirm=lambda: True,
                 ask=_no_ask, record=run.push, chat_allowed=lambda: False, allow_chat=lambda: None,
                 next_id=run.next_tool_id,
             ).specs()
@@ -293,7 +301,7 @@ class Scheduler:
         if connector_note:
             note += "\n" + connector_note
         if gh != "none":
-            note += "\n" + GITHUB_NOTE + " " + github_level_text("read", self.policy)
+            note += "\n" + GITHUB_NOTE + " " + github_level_text("read", self.github_policy(profile))
         extra["note"] = note
         return specs
 

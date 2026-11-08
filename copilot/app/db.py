@@ -228,6 +228,16 @@ CREATE TABLE IF NOT EXISTS plugins (
 );
 """
 
+GITHUB_SCHEMA = """
+CREATE TABLE IF NOT EXISTS github_accounts (
+    profile_id    TEXT PRIMARY KEY,
+    token         TEXT NOT NULL,
+    login         TEXT NOT NULL DEFAULT '',
+    via           TEXT NOT NULL DEFAULT '',
+    connected_at  TEXT NOT NULL DEFAULT ''
+);
+"""
+
 SCHEDULES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS schedules (
     id           TEXT PRIMARY KEY,
@@ -290,7 +300,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 19  # 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 20  # 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id"
 
@@ -464,6 +474,7 @@ class Store:
         self._conn.executescript(SKILLS_SCHEMA)
         self._conn.executescript(CONNECTORS_SCHEMA)
         self._conn.executescript(PLUGINS_SCHEMA)
+        self._conn.executescript(GITHUB_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -1134,6 +1145,29 @@ class Store:
     def accounts_active(self, profile_id: str) -> list[dict[str, Any]]:
         """Eingeschaltete, verbundene Konten dieser Person samt Konnektor (für den Chat)."""
         return [r for r in self.connector_list(profile_id) if r["acc_exists"] and r["acc_enabled"] and r["acc_status"] == "ok"]
+
+    # ------------------------------------------------------------------ GitHub-Konto je Person
+
+    def github_account_get(self, profile_id: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM github_accounts WHERE profile_id = ?", (profile_id,)).fetchone()
+        return dict(row) if row else None
+
+    def github_account_save(self, profile_id: str, token: str, login: str, via: str) -> None:
+        """Persönliches GitHub-Konto anlegen oder ersetzen (``token`` ist bereits verschlüsselt)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO github_accounts (profile_id, token, login, via, connected_at) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(profile_id) DO UPDATE SET token = excluded.token, login = excluded.login, via = excluded.via, connected_at = excluded.connected_at",
+                (profile_id, token, login, via, _now()),
+            )
+
+    def github_account_delete(self, profile_id: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            return self._conn.execute("DELETE FROM github_accounts WHERE profile_id = ?", (profile_id,)).rowcount > 0
 
     # ------------------------------------------------------------------ Skills
 

@@ -73,6 +73,7 @@ from . import limits as limitlib
 from . import schedule as sched
 from .scheduler import NOTIFY_MODES, PROMPT_MAX, NAME_MAX, Scheduler, plain_excerpt
 from .web_tools import WEB_NOTE, WebToolbox
+from .github_accounts import AccountError, GithubAccounts
 from .github_api import GithubApi, RepoPolicy
 from . import connector_catalog, connector_icons
 from .connectors import CONNECTOR_NOTE, ConnectorError, ConnectorService, ConnectorToolbox
@@ -692,6 +693,10 @@ class MemoryImportCommit(BaseModel):
     instructions_mode: Literal["replace", "append"] = "replace"
 
 
+class GithubTokenBody(BaseModel):
+    token: str = Field(max_length=400)
+
+
 class ApproveBody(BaseModel):
     id: int
     decision: Literal["allow", "deny", "allow_chat"]
@@ -716,6 +721,7 @@ def register_chat_routes(
     public_peers: PeerLog | None = None,
     images: ImageService | None = None,
     connectors: ConnectorService | None = None,
+    github_accounts: GithubAccounts | None = None,
 ) -> None:
     """Chat-API; für Ingress und Domain identisch, nur die Zuordnung der Person unterscheidet sich."""
     chat_allow: set[tuple[str, str]] = set()  # Chats, in denen Änderungen in Home Assistant dauerhaft erlaubt wurden (nur Arbeitsspeicher)
@@ -725,7 +731,7 @@ def register_chat_routes(
     limits = limitlib.shared(store)
     welcome = newslib.Welcome(store)
     model_ids = {m["id"] for m in settings.model_choices()}
-    github_policy = RepoPolicy(settings.github_repos)
+    accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH), github or GithubApi(settings.github_token), settings.github_repos)
     images = images or ImageService(settings)
     title_lock = asyncio.Lock()  # Titel einzeln nacheinander, damit sie keine Antworten ausbremsen
     previews = PreviewStore()  # HTML-Vorschauen, nur im Arbeitsspeicher
@@ -743,7 +749,7 @@ def register_chat_routes(
 
     def github_level(profile: Profile) -> str:
         """Stufe des Zugriffs auf GitHub für diese Person (none, read, write)."""
-        if github is None or not github.enabled:
+        if not accounts.enabled_for(profile.id):
             return "none"
         return profile.github_access or settings.github_access_default
 
@@ -771,6 +777,7 @@ def register_chat_routes(
             "notices": health.notices() if health else [],
             "ha_access": ha_level(profile),
             "github": github_level(profile),
+            "github_connect": (profile.github_access or settings.github_access_default) != "none",
             "web": settings.web_level(profile) == "on",
             "connectors": connectors.level(profile.id) >= 1,
             "models": settings.model_choices(),
@@ -806,7 +813,8 @@ def register_chat_routes(
         items = setup_check.static_items(
             settings, profile,
             ha_enabled=ha is not None and ha.enabled,
-            github_enabled=github is not None and github.enabled,
+            github_enabled=accounts.enabled_for(profile.id),
+            github_source=accounts.source(profile.id),
             ha_level=ha_level(profile),
             github_level=github_level(profile),
             db_problem=health.db_problem if health else None,
@@ -814,8 +822,77 @@ def register_chat_routes(
             hostname=socket.gethostname(),
             public_peers=public_peers.recent() if public_peers else (),
         )
-        await setup_check.run_live(items, ha if ha is not None and ha.enabled else None, github if github is not None and github.enabled else None, profile)
+        gh_api = accounts.api_for(profile.id)
+        await setup_check.run_live(items, ha if ha is not None and ha.enabled else None, gh_api if gh_api.enabled else None, profile)
         return {"items": items, "open": setup_check.open_count(items)}
+
+    # ------------------------------------------------------------ GitHub-Konto der Person
+
+    github_start_limit = RateLimiter(8, 600)  # neuer Anmeldecode bei GitHub
+    github_token_limit = RateLimiter(10, 600)  # eingefügte Token werden bei GitHub geprüft
+    github_poll_limit = RateLimiter(400, 600)  # Browser fragt etwa alle 5 Sekunden nach; GitHub selbst wird davon getrennt gedrosselt
+
+    def github_configured_level(profile: Profile) -> str:
+        return profile.github_access or settings.github_access_default
+
+    def github_allowed(profile: Profile) -> None:
+        if github_configured_level(profile) == "none":
+            raise HTTPException(status_code=403, detail=tr("Für dich ist GitHub nicht freigegeben. Der Administrator stellt das in der Konfiguration ein."))
+
+    def github_limit(limiter: RateLimiter, profile: Profile) -> None:
+        if not limiter.allow(profile.id):
+            raise HTTPException(status_code=429, detail=tr("Zu viele Versuche. Bitte in ein paar Minuten noch einmal."))
+
+    @app.get("/api/github/account")
+    def github_account(profile: Profile = Depends(current_profile)) -> dict:
+        """Stand des GitHub-Zugangs dieser Person (das Token selbst verlässt das Add-on nie)."""
+        return {
+            **accounts.info(profile.id),
+            "level": github_configured_level(profile),
+            "shared": accounts.shared.enabled,
+            "repos": list(accounts.shared_policy.patterns),
+        }
+
+    @app.post("/api/github/device", dependencies=[Depends(write_guard)])
+    async def github_device_start(profile: Profile = Depends(current_profile)) -> dict:
+        """Anmeldung bei GitHub beginnen: liefert den Code, den die Person bei GitHub eingibt."""
+        github_allowed(profile)
+        github_limit(github_start_limit, profile)
+        try:
+            return await accounts.device_start(profile.id)
+        except AccountError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+
+    @app.get("/api/github/device", dependencies=[Depends(write_guard)])
+    async def github_device_poll(profile: Profile = Depends(current_profile)) -> dict:
+        github_allowed(profile)
+        github_limit(github_poll_limit, profile)
+        try:
+            return await accounts.device_poll(profile.id)
+        except AccountError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+
+    @app.delete("/api/github/device", status_code=204, dependencies=[Depends(write_guard)])
+    def github_device_cancel(profile: Profile = Depends(current_profile)) -> Response:
+        accounts.device_cancel(profile.id)
+        return Response(status_code=204)
+
+    @app.post("/api/github/token", dependencies=[Depends(write_guard)])
+    async def github_token(body: GithubTokenBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Ein selbst erzeugtes Token einfügen (wird vor dem Speichern bei GitHub geprüft)."""
+        github_allowed(profile)
+        github_limit(github_token_limit, profile)
+        try:
+            login = await accounts.connect_token(profile.id, body.token)
+        except AccountError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+        return {"login": login}
+
+    @app.delete("/api/github/account", status_code=204, dependencies=[Depends(write_guard)])
+    def github_disconnect(profile: Profile = Depends(current_profile)) -> Response:
+        accounts.disconnect(profile.id)
+        github_allow.difference_update({k for k in github_allow if k[0] == profile.id})  # „in diesem Chat immer zulassen“ gilt nicht für ein anderes Konto
+        return Response(status_code=204)
 
     # ------------------------------------------------------------ Konnektoren
 
@@ -1894,7 +1971,9 @@ def register_chat_routes(
             )
             specs += image_box.specs()
         gh_level = github_level(profile)
-        if gh_level != "none" and github is not None:
+        if gh_level != "none":
+            gh_api = accounts.api_for(profile.id)
+            gh_policy = accounts.policy_for(profile.id)
             def attachment_bytes(name: str) -> bytes | None:
                 """Datei dieses Chats für einen Commit: erzeugte Datei oder Anhang dieser Nachricht (Word/Excel-Anhänge liegen nur als Text vor)."""
                 made = store.outfile_bytes(profile.id, chat_id, name)
@@ -1903,8 +1982,8 @@ def register_chat_routes(
                 return next((f.data for f in files if f.name == name and f.original_size is None), None)
 
             specs += GithubToolbox(
-                github, gh_level,
-                policy=github_policy,
+                gh_api, gh_level,
+                policy=gh_policy,
                 confirm_writes=settings.github_write_confirm == "ask",
                 force_confirm=lambda: bool(files) or any(a["kind"] in TAINTING_KINDS - {"gh-write"} for a in run.actions.values()),
                 ask=ask_github, record=run.push, chat_allowed=lambda: key in github_allow, allow_chat=lambda: github_allow.add(key),
@@ -1947,9 +2026,9 @@ def register_chat_routes(
         if connectors.level(profile.id) >= 1:
             extra["note"] += "\n" + connector_box.note()
         if any(s.name.startswith("github_") for s in specs):
-            extra["note"] += "\n" + GITHUB_NOTE + " " + github_level_text(gh_level, github_policy)
+            extra["note"] += "\n" + GITHUB_NOTE + " " + github_level_text(gh_level, accounts.policy_for(profile.id))
         else:
-            why = GITHUB_OFF_NO_RIGHT if github is not None and github.enabled else GITHUB_OFF_NO_TOKEN
+            why = GITHUB_OFF_NO_RIGHT if accounts.enabled_for(profile.id) else GITHUB_OFF_NO_TOKEN
             extra["note"] += "\n" + GITHUB_OFF_NOTE.format(why=why)
 
         async def generate() -> None:
@@ -2120,12 +2199,13 @@ def make_connectors(settings: Settings, store: Store, registry: Registry, *, vau
     )
 
 
-def make_scheduler(settings: Settings, store: Store, backend: ChatBackend, registry: Registry, ha: HaApi, github: GithubApi, runs: dict, connectors: ConnectorService | None = None) -> Scheduler:
+def make_scheduler(settings: Settings, store: Store, backend: ChatBackend, registry: Registry, ha: HaApi, github: GithubApi, runs: dict, connectors: ConnectorService | None = None, github_accounts: GithubAccounts | None = None) -> Scheduler:
     """Geplante Aufgaben: ein gemeinsamer Ausführer für beide Zugänge (laufende Antworten zählen zusammen)."""
     return Scheduler(
         settings, store, backend, registry, ha, github, limitlib.shared(store), runs,
         lambda key, text: Run(key, text, False),
         connectors=connectors,
+        github_accounts=github_accounts,
     )
 
 
@@ -2144,16 +2224,18 @@ def build_ingress_app(
     public_peers: PeerLog | None = None,
     images: ImageService | None = None,
     connectors: ConnectorService | None = None,
+    github_accounts: GithubAccounts | None = None,
 ) -> FastAPI:
     i18n.set_language(settings.language)
     registry = registry or Registry.from_settings(settings, store)
     ha = ha or HaApi("", HA_WEBSOCKET_URL)
     scanner = scanner or (OverviewScanner(store, ha) if ha.enabled else None)
     github = github or GithubApi(settings.github_token)
+    github_accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH), github, settings.github_repos)
     branding = branding or Branding(BRANDING_DIR, settings, ha)
     busy = busy if busy is not None else {}
     connectors = connectors or make_connectors(settings, store, registry)
-    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy, connectors)
+    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy, connectors, github_accounts)
     asset_version = _asset_version()
     app = FastAPI(title="HA Copilot", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.scheduler = scheduler
@@ -2205,7 +2287,7 @@ def build_ingress_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "ingress", "can_logout": False},
-        health, ha, "ingress", scanner, github, scheduler, registry, public_peers, images, connectors,
+        health, ha, "ingress", scanner, github, scheduler, registry, public_peers, images, connectors, github_accounts,
     )
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -2233,6 +2315,7 @@ def build_public_app(
     public_peers: PeerLog | None = None,
     images: ImageService | None = None,
     connectors: ConnectorService | None = None,
+    github_accounts: GithubAccounts | None = None,
 ) -> FastAPI:
     """Domain-Zugang (Cloudflare Tunnel): eigene Anmeldeseite, Entra-Login (und optional Home Assistant), Sitzungs-Cookie.
 
@@ -2244,10 +2327,11 @@ def build_public_app(
     ha = ha or HaApi("", HA_WEBSOCKET_URL)
     scanner = scanner or (OverviewScanner(store, ha) if ha.enabled else None)
     github = github or GithubApi(settings.github_token)
+    github_accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH), github, settings.github_repos)
     branding = branding or Branding(BRANDING_DIR, settings, ha)
     busy = busy if busy is not None else {}
     connectors = connectors or make_connectors(settings, store, registry)
-    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy, connectors)
+    scheduler = scheduler or make_scheduler(settings, store, backend, registry, ha, github, busy, connectors, github_accounts)
     origin = settings.public_base_url
     version = _asset_version()
     pending = PendingLogins()
@@ -2441,7 +2525,7 @@ def build_public_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "domain", "can_logout": True},
-        health, ha, "public", scanner, github, scheduler, registry, public_peers, images, connectors,
+        health, ha, "public", scanner, github, scheduler, registry, public_peers, images, connectors, github_accounts,
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
@@ -2559,10 +2643,11 @@ async def _serve(
     ha = ha or HaApi("", HA_WEBSOCKET_URL)
     scanner = OverviewScanner(store, ha) if ha.enabled else None  # ein gemeinsamer Stand für beide Zugänge
     github = GithubApi(settings.github_token)
+    github_accounts = GithubAccounts(store, Vault(VAULT_PATH), github, settings.github_repos)
     connectors = make_connectors(settings, store, registry)
-    scheduler = make_scheduler(settings, store, backend, registry, ha, github, busy, connectors)
+    scheduler = make_scheduler(settings, store, backend, registry, ha, github, busy, connectors, github_accounts)
     public_peers = PeerLog()  # Gegenstellen der Domain-Seite (für die Einrichtungsprüfung)
-    servers = [server(build_ingress_app(settings, store, backend, busy, health, branding, ha, registry, scanner, github, scheduler, public_peers, connectors=connectors), INGRESS_PORT)]
+    servers = [server(build_ingress_app(settings, store, backend, busy, health, branding, ha, registry, scanner, github, scheduler, public_peers, connectors=connectors, github_accounts=github_accounts), INGRESS_PORT)]
     if settings.public_enabled:
         entra = (
             EntraClient(
@@ -2580,7 +2665,7 @@ async def _serve(
             else None
         )
         servers.append(
-            server(build_public_app(settings, store, backend, entra, busy, health, branding, ha, registry, ha_login, scanner, github, scheduler, public_peers, connectors=connectors), PUBLIC_PORT)
+            server(build_public_app(settings, store, backend, entra, busy, health, branding, ha, registry, ha_login, scanner, github, scheduler, public_peers, connectors=connectors, github_accounts=github_accounts), PUBLIC_PORT)
         )
         log.info("Domain-Zugang aktiv: %s (Port %d)", settings.public_base_url, PUBLIC_PORT)
     snapshots = asyncio.create_task(_snapshot_loop(store))

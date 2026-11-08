@@ -93,14 +93,15 @@ Mehr: [Plugins](../copilot/DOCS.md#plugins-ab-0430).
 
 ## GitHub
 
-Mit einem GitHub-Token (`github_token`) arbeitet die KI mit deinen Repositories: lesen, Code durchsuchen, Issues und Pull Requests ansehen, und mit Schreibrecht Dateien einchecken, Zweige und Pull Requests anlegen. Jede Änderung wird im Chat bestätigt; Commits auf den Hauptzweig, Workflow-Dateien und das Mergen immer. Mit `github_repos` beschränkst du die KI auf bestimmte Repositories.
+Sobald du dein GitHub-Konto verbunden hast, arbeitet die KI mit deinen Repositories: lesen, Code durchsuchen, Issues und Pull Requests ansehen, und mit Schreibrecht Dateien einchecken, Zweige und Pull Requests anlegen. Jede Änderung wird im Chat bestätigt; Commits auf den Hauptzweig, Workflow-Dateien und das Mergen immer. Wer nichts verbindet, hat kein GitHub; der Administrator kann stattdessen ein gemeinsames Token (`github_token`, optional mit `github_repos`) eintragen.
 
-Einrichtung in vier Schritten:
+Einrichtung für dich:
 
-1. Bei GitHub unter *Settings → Developer settings → Personal access tokens → Fine-grained tokens* ein Token erzeugen, nur für die gewünschten Repositories. Rechte: *Contents*, *Pull requests*, *Issues* je Read and write (zum bloßen Lesen Read-only), *Actions* Read-only, *Metadata* Read-only.
-2. Das Token bei `github_token` eintragen.
-3. Bei den Benutzern `github_access` (oder `github_access_default`) auf `read` oder `write` setzen. Standard ist `none`.
-4. Speichern, Add-on neu starten.
+1. Im Konto-Menü unten links **GitHub** öffnen (der Eintrag erscheint, wenn der Administrator dir `read` oder `write` gegeben hat).
+2. **Mit GitHub verbinden** wählen, den angezeigten Code bei GitHub eingeben und bestätigen. Alternativ **Token einfügen**.
+3. Fertig: Der Dialog zeigt „Verbunden als …“. **Trennen** löscht das Token wieder.
+
+Für den Administrator: Die Rechte (`github_access` je Benutzer, `github_access_default`, Standard `none`) stehen weiter in der Konfiguration. Die Tokens der Personen liegen verschlüsselt im Add-on. Ein Token in `github_token` ist nur noch ein Ersatz für alle, die nichts verbunden haben.
 
 Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 

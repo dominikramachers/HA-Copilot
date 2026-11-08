@@ -9,7 +9,7 @@ Diese Anleitung führt von einer leeren Home-Assistant-Installation bis zum erst
 - **Home Assistant mit Supervisor** (Home Assistant OS oder Supervised). Add-ons (ab Home Assistant 2026.2 heißen sie „Apps“) gibt es nur dort, nicht bei „Container“ oder „Core“.
 - Prozessor `amd64` oder `aarch64` (Mini-PC, Raspberry Pi 4/5, virtuelle Maschine).
 - **Zugang zu Claude:** ein API-Schlüssel aus der [Claude-Konsole](https://platform.claude.com/) oder, nur für deinen eigenen Gebrauch, ein Token deines Claude-Abos. Was wann der richtige Weg ist, steht unter [Zugang zu Claude](#4-zugang-zu-claude).
-- Optional: ein GitHub-Token, eine eigene Domain mit Microsoft Entra ID, ein Benachrichtigungsdienst fürs Handy. Alles davon lässt sich später nachrüsten.
+- Optional: ein GitHub-Konto (jede Person verbindet es selbst im Konto-Menü), eine eigene Domain mit Microsoft Entra ID, ein Benachrichtigungsdienst fürs Handy. Alles davon lässt sich später nachrüsten.
 
 Die Begriffe in Home Assistant wechseln je nach Version („Add-ons“ oder „Apps“, „Add-on-Store“ oder „App-Store“). Diese Anleitung nennt beide, wo es darauf ankommt.
 

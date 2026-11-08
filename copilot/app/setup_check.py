@@ -80,6 +80,7 @@ def static_items(
     github_enabled: bool,
     ha_level: str,
     github_level: str,
+    github_source: str = "shared",
     db_problem: str | None = None,
     pending_users: Iterable[Profile] = (),
     hostname: str = "",
@@ -176,19 +177,17 @@ def static_items(
     if not github_enabled:
         items.append(_item(
             "github", "optional", "off", "GitHub",
-            tr("Nicht eingerichtet. Nur nötig, wenn die KI mit deinen GitHub-Repositories arbeiten soll."),
+            tr("Nicht verbunden. Nur nötig, wenn die KI mit deinen GitHub-Repositories arbeiten soll."),
             [
-                tr("Erzeuge bei GitHub unter Settings → Developer settings → Personal access tokens → Fine-grained tokens ein Token. Wähle nur die Repositories, "
-                "mit denen die KI arbeiten soll. Rechte: Contents, Pull requests und Issues jeweils „Read and write“ (zum Lesen reicht „Read-only“), Metadata „Read-only“."),
-                tr(CONFIG_STEP),
-                tr("Trage das Token bei `github_token` ein und lege mit `github_access_default` (oder `github_access` je Benutzer) fest, wer es nutzen darf: `read` oder `write`."),
-                tr(RESTART_STEP),
+                tr("Öffne unten links das Konto-Menü und wähle „GitHub“."),
+                tr("Wähle „Mit GitHub verbinden“, gib den angezeigten Code bei GitHub ein und bestätige. Alternativ kannst du ein eigenes Token einfügen."),
+                tr("Ob du lesen oder auch ändern darfst, legt der Administrator mit `github_access_default` oder `github_access` im Benutzer-Eintrag fest: `read` oder `write`."),
             ],
         ))
     elif github_level == "none":
         items.append(_item(
             "github", "optional", "warn", "GitHub",
-            tr("Ein Token ist eingetragen, aber für dich ist GitHub aus (Stufe `none`)."),
+            tr("GitHub ist verbunden, aber für dich ausgeschaltet (Stufe `none`)."),
             [
                 tr(CONFIG_STEP),
                 tr("Setze `github_access_default` auf `read` oder `write`, oder trage im Benutzer-Eintrag `github_access` ein."),
@@ -196,7 +195,10 @@ def static_items(
             ],
         ))
     else:
-        scope = tr(" Zugriff nur auf: ") + ", ".join(settings.github_repos) + "." if settings.github_repos else tr(" Zugriff auf alle Repositories, die das Token erreicht.")
+        if github_source == "personal":
+            scope = tr(" Es ist dein eigenes GitHub-Konto.")
+        else:
+            scope = tr(" Zugriff nur auf: ") + ", ".join(settings.github_repos) + "." if settings.github_repos else tr(" Zugriff auf alle Repositories, die das Token erreicht.")
         mode = tr("lesen und schreiben") if github_level == "write" else tr("nur lesen")
         items.append(_item("github", "optional", "ok", "GitHub", tr("Eingerichtet, du darfst {mode}.", mode=mode) + scope))
 
@@ -351,7 +353,13 @@ async def _check_github(items: list[dict], github: GithubApi) -> None:
         async with asyncio.timeout(12):
             user = await github.request("GET", "/user")
     except GithubError as exc:
-        if exc.status == 401:
+        if exc.status == 401 and getattr(github, "personal", False):
+            item.update(
+                status="todo",
+                detail=tr("GitHub lehnt deinen Zugang ab. Er wurde widerrufen oder ist abgelaufen."),
+                steps=[tr("Öffne das Konto-Menü, wähle „GitHub“ und verbinde dich neu.")],
+            )
+        elif exc.status == 401:
             item.update(
                 status="todo",
                 detail=tr("GitHub lehnt das Token ab. Es ist ungültig oder abgelaufen."),
@@ -370,7 +378,7 @@ async def _check_github(items: list[dict], github: GithubApi) -> None:
         return
     login = re.sub(r"[^\w-]", "", str(user.get("login") or ""))[:40] if isinstance(user, dict) else ""
     if login:
-        item["detail"] += tr(" Das Token gehört zum Konto {login} und ist gültig.", login=login)
+        item["detail"] += tr(" Verbunden als {login}; der Zugang ist gültig.", login=login) if getattr(github, "personal", False) else tr(" Das Token gehört zum Konto {login} und ist gültig.", login=login)
 
 
 async def run_live(items: list[dict], ha: HaApi | None, github: GithubApi | None, profile: Profile) -> list[dict]:
