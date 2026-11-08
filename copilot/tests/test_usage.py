@@ -32,3 +32,13 @@ def test_usage_counts_images_per_person(store):
 
 def test_usage_needs_a_person(store):
     assert client(store).get("/api/usage").status_code in (401, 403)
+
+
+def test_usage_lists_the_known_windows(store):
+    from app import limits as limitlib  # noqa: PLC0415
+    app = client(store)
+    limitlib.shared(store).update({"status": "allowed", "type": "five_hour", "resets_at": 4_000_000_000, "utilization": 0.29})
+    limitlib.shared(store).update({"status": "allowed", "type": "seven_day", "resets_at": 4_000_500_000, "utilization": 0.11})
+    data = app.get("/api/usage", headers=as_user(ADM01)).json()
+    assert [w["type"] for w in data["windows"]] == ["five_hour", "seven_day"]
+    assert data["windows"][1]["utilization"] == 0.11 and data["limits"] == []

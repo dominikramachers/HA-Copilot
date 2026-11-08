@@ -6424,20 +6424,40 @@ async function settingsUsage(body, alive) {
 
   const plan = node("section", "set-block");
   plan.append(node("h4", "", tr("Claude-Abo")));
-  if (!data.limits.length) {
-    plan.append(node("p", "set-lead", data.subscription ? tr("Das Limit ist nicht erreicht.") : tr("Es gibt keine Warnung zu einem Limit.")));
+  const WINDOW_NAMES = {
+    five_hour: [tr("Aktuelle Sitzung"), tr("Fenster von 5 Stunden")],
+    seven_day: [tr("Diese Woche"), tr("Wochenlimit")],
+    seven_day_opus: [tr("Diese Woche: Opus"), tr("Wochenlimit für Opus")],
+    seven_day_sonnet: [tr("Diese Woche: Sonnet"), tr("Wochenlimit für Sonnet")],
+    overage: [tr("Zusatznutzung"), ""],
+  };
+  const windows = data.windows || [];
+  if (!windows.length) {
+    plan.append(node("p", "set-lead", data.limits.length ? tr("Ein Limit ist fast oder ganz erreicht.") : tr("Noch keine Angabe zum Limit.")));
+    plan.append(node("p", "mem-hint", tr("Sobald die KI zum ersten Mal antwortet, meldet Claude den Stand, und er erscheint hier.")));
   }
-  for (const l of data.limits) {
+  for (const w of windows) {
+    const [name, hint] = WINDOW_NAMES[w.type] || [tr("Nutzungslimit"), ""];
+    const pct = typeof w.utilization === "number" ? Math.max(0, Math.min(100, Math.round(w.utilization * 100))) : null;
+    const rejected = w.status === "rejected";
     const row = node("div", "usage-row");
     const head = node("div", "usage-head");
-    head.append(node("b", "", (LIMIT_NAMES[l.type] || tr("Das Nutzungslimit")).replace(/^Das |^Die /, "")));
-    const pct = typeof l.utilization === "number" ? Math.round(l.utilization * 100) : null;
-    head.append(node("span", "", l.status === "rejected" ? tr("erreicht") : pct !== null ? tr("{0} % verbraucht", pct) : tr("fast erreicht")));
-    row.append(head, usageBar(l.status === "rejected" ? 1 : (l.utilization ?? 0.9), l.status === "rejected" ? "bad" : "warn"));
-    if (l.resets_at) row.append(node("span", "usage-sub", tr("Wird {0} zurückgesetzt.", whenText(l.resets_at))));
+    const title = node("b", "", name);
+    if (hint) title.title = hint;
+    head.append(title, node("span", "", w.expired ? tr("zurückgesetzt") : rejected ? tr("erreicht") : pct !== null ? tr("{0} % verwendet", pct) : tr("kein Wert gemeldet")));
+    row.append(head);
+    if (!w.expired && (pct !== null || rejected)) row.append(usageBar(rejected ? 1 : pct / 100, rejected ? "bad" : w.status === "allowed_warning" ? "warn" : ""));
+    const info = [];
+    if (w.expired) info.push(tr("Das Fenster wurde zurückgesetzt. Der neue Stand erscheint mit der nächsten Antwort der KI."));
+    else {
+      if (pct !== null && !rejected) info.push(tr("Noch {0} % übrig", 100 - pct));
+      if (w.resets_at) info.push(tr("Zurücksetzung {0}", whenText(w.resets_at)));
+    }
+    if (w.seen_at) info.push(tr("Stand: {0}", stampText(w.seen_at)));
+    row.append(node("span", "usage-sub", info.join(" · ")));
     plan.append(row);
   }
-  plan.append(node("p", "mem-hint", tr("Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Einen laufenden Zähler liefert Claude nicht; hier erscheint ein Stand, sobald das Limit fast oder ganz erreicht ist.")));
+  plan.append(node("p", "mem-hint", tr("Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Die Werte meldet Claude mit jeder Antwort der KI; die Seite zeigt den letzten gemeldeten Stand.")));
   parts.push(plan);
 
   const img = data.images;

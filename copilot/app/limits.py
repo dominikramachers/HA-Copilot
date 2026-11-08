@@ -68,6 +68,31 @@ class LimitState:
         return active
 
 
+    ORDER = ("five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet", "overage")
+
+    def overview(self) -> list[dict]:
+        """Alle bekannten Zeitfenster mit letztem Stand (auch ohne Warnung), für die Seite „Nutzung“.
+
+        ``expired``: die gemeldete Rücksetzzeit ist vorbei, der Wert gilt nicht mehr; ein neuer kommt mit der nächsten Antwort.
+        """
+        now = self._clock()
+        out = []
+        for kind, item in self._items.items():
+            if kind == "unknown" or item.get("utilization") is None and item.get("status") == "allowed" and not item.get("resets_at"):
+                continue
+            resets = item.get("resets_at")
+            out.append({
+                "type": kind,
+                "status": item.get("status"),
+                "utilization": item.get("utilization"),
+                "resets_at": resets,
+                "seen_at": item.get("seen_at"),
+                "expired": bool(resets and resets <= now),
+            })
+        out.sort(key=lambda i: (self.ORDER.index(i["type"]) if i["type"] in self.ORDER else len(self.ORDER), i["type"]))
+        return out
+
+
 _SHARED: "weakref.WeakKeyDictionary[Store, LimitState]" = weakref.WeakKeyDictionary()
 
 

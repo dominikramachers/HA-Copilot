@@ -1071,6 +1071,7 @@ def register_chat_routes(
         month = datetime.now().strftime("%Y-%m")
         return {
             "limits": limits.current(),
+            "windows": limits.overview(),
             "subscription": settings.backend == "claude" and bool(settings.claude_oauth_token),
             "images": {"enabled": generate, "month": month, "used": store.image_usage(profile.id, month) if generate else 0, "limit": settings.image_limit_month},
         }

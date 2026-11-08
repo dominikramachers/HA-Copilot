@@ -492,6 +492,7 @@ class ClaudeSdkBackend:
                             searches.seen(msg.content)
                     elif isinstance(msg, RateLimitEvent):
                         info = limit_info(msg.rate_limit_info)
+                        log.debug("Nutzungslimit gemeldet: %s", {k: getattr(msg.rate_limit_info, k, None) for k in ("status", "rate_limit_type", "utilization", "resets_at")})
                         if info["status"] == "rejected" and info.get("resets_at"):
                             rejected_until = info["resets_at"]
                         if on_limit:
