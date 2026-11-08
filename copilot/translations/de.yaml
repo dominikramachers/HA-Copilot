@@ -171,6 +171,9 @@ configuration:
   connector_write_confirm:
     name: Bestätigung bei Änderungen über Konnektoren
     description: 'ask (Standard): Jede Änderung über einen Konnektor (Mail entwerfen, Termin anlegen, Ticket ändern …) muss im Chat bestätigt werden (einmal, oder „in diesem Chat immer zulassen“). always_allow: ohne Rückfrage. Nach dem Lesen fremder Inhalte wird immer nachgefragt. Schreibende Werkzeuge sind ohnehin erst nach dem Einschalten bei der Verbindung verfügbar.'
+  connector_allow_private:
+    name: Alle Adressen für Konnektoren erlauben
+    description: 'Aus (Standard): Konnektoren dürfen nur auf https-Adressen im öffentlichen Internet zeigen; Adressen im Heimnetz oder mit http darf nur eine Person mit der Stufe „global“ pro Konnektor erlauben. An: Alle, die Konnektoren anlegen dürfen (Stufe own oder global), können auch Adressen im Heimnetz und mit http eintragen, zum Beispiel einen Zabbix-MCP-Server im eigenen Netz. Link-Local-Adressen (Cloud-Metadaten), reservierte Adressen und die Namen supervisor und hassio bleiben immer gesperrt. Nur einschalten, wenn allen mit dieser Stufe vertraut wird: Das Add-on spricht diese Geräte dann im Auftrag der Person an.'
   files_enabled:
     name: Dateien erzeugen
     description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'

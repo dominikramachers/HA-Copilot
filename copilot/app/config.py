@@ -123,6 +123,7 @@ class Settings:
     # Konnektoren (MCP-Server): wer sie nutzen, selbst anlegen oder für alle verwalten darf, steht je Profil bzw. hier
     connector_access_default: str = "use"
     connector_write_confirm: str = "ask"  # ask = jede Änderung über einen Konnektor bestätigen lassen, always_allow = ohne Rückfrage
+    connector_allow_private: bool = False  # an = Konnektor-Adressen im Heimnetz und mit http für alle erlaubt, die Konnektoren anlegen dürfen
     # Dateien, die die KI erzeugt (Word, Excel, PDF, PowerPoint, Skripte …)
     files_enabled: bool = True
     files_edit: bool = True  # Anhänge im Chat aufbewahren; die KI kann Dateien lesen und bearbeiten
@@ -482,6 +483,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         github_repos=github_repos,
         connector_access_default=connector_access_default,
         connector_write_confirm=connector_write_confirm,
+        connector_allow_private=bool(raw.get("connector_allow_private", False)),
         files_enabled=bool(raw.get("files_enabled", True)),
         files_edit=bool(raw.get("files_edit", True)),
         files_keep_days=files_keep_days,

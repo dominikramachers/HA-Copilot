@@ -71,7 +71,8 @@ def check_url(url: str, *, allow_private: bool = False, resolver: Resolver = soc
         raise UrlRejected(tr("Der Servername „{host}“ lässt sich nicht auflösen.", host=host[:80]))
     kinds = {_kind(a) for a in addresses}
     if "never" in kinds:
-        raise UrlRejected(tr("Diese Adresse ist nicht erlaubt."))
+        bad = sorted(a for a in addresses if _kind(a) == "never")[0].split("%")[0]
+        raise UrlRejected(tr("Der Servername „{host}“ zeigt auf {ip}. Diese Adresse ist nicht erlaubt (Link-Local, Multicast oder reserviert), auch nicht mit der Option „Alle Adressen für Konnektoren erlauben“.", host=host[:80], ip=bad))
     if "private" in kinds:
         if not allow_private:
             raise UrlRejected(tr("Adressen im Heimnetz darf nur eine Person mit der Stufe „global“ eintragen."))

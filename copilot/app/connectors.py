@@ -193,7 +193,9 @@ class ConnectorService:
         transport: httpx.AsyncBaseTransport | None = None,
         resolver: Resolver = socket.getaddrinfo,
         version: str = "0",
+        allow_private: Callable[[], bool] = lambda: False,
     ) -> None:
+        self._allow_all = allow_private
         self._store = store
         self._vault = vault
         self._level_for = level_for
@@ -400,7 +402,7 @@ class ConnectorService:
             raise ConnectorError(tr("Mehr Konnektoren sind nicht möglich (höchstens {n}).", n=limit))
         if self._store.connector_name_taken(scope, owner, fields["name"]):
             raise ConnectorError(tr("Diesen Namen gibt es schon."), 409)
-        fields["url"] = await self._check_url(url, bool(fields["local_ok"]))
+        fields["url"] = await self._check_url(url, bool(fields["local_ok"]) or self._allow_all())
         icon = await self._icon_input(data)
         row = self._store.connector_save(fields)
         rev = self._store.connector_icon_set(row["id"], *icon) if icon else None
@@ -411,7 +413,7 @@ class ConnectorService:
         fields, url = self._fields(profile_id, data, row)
         if self._store.connector_name_taken(row["scope"], row["owner"], fields["name"], except_id=connector_id):
             raise ConnectorError(tr("Diesen Namen gibt es schon."), 409)
-        fields["url"] = await self._check_url(url, bool(fields["local_ok"]))
+        fields["url"] = await self._check_url(url, bool(fields["local_ok"]) or self._allow_all())
         icon = await self._icon_input(data)
         changed_target = fields["url"] != row["url"] or fields["auth"] != row["auth"] or fields.get("client_id", row["client_id"]) != row["client_id"]
         self._store.connector_save(fields, connector_id)
@@ -487,8 +489,9 @@ class ConnectorService:
         return {"Authorization": f"Bearer {token['access_token']}"}
 
     def _allow_private(self, row: dict[str, Any]) -> bool:
-        """Heimnetz-Adressen gelten nur, wenn sie eine Person mit Stufe „global“ erlaubt hat und (bei privaten Konnektoren) noch hat."""
-        return bool(row["local_ok"]) and (row["scope"] == "global" or self.level(row["owner"]) >= RANK["global"])
+        """Heimnetz-Adressen gelten, wenn der Betreiber sie allgemein erlaubt hat (Option ``connector_allow_private``) oder eine Person mit
+        Stufe „global“ sie für diesen Konnektor erlaubt hat und (bei privaten Konnektoren) noch hat."""
+        return self._allow_all() or (bool(row["local_ok"]) and (row["scope"] == "global" or self.level(row["owner"]) >= RANK["global"]))
 
     def _helper(self, row: dict[str, Any]) -> OAuthHelper:
         allow = self._allow_private(row)

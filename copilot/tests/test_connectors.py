@@ -335,6 +335,37 @@ def test_home_network_addresses_only_for_global_level(store, servers, tmp_path):
     run(scenario())
 
 
+def test_option_allows_home_network_and_http_for_everyone_who_may_create(store, servers, tmp_path):
+    settings = parse_settings({**RAW, "connector_allow_private": True}, frozenset({"testclient"}))
+    assert settings.connector_allow_private is True and parse_settings(RAW, frozenset({"testclient"})).connector_allow_private is False
+
+    def build(open_network, address="10.0.0.7"):
+        return ConnectorService(
+            store, Vault(tmp_path / "k"), level_for=lambda pid: LEVELS.get(pid, "none"), transport=servers.transport(),
+            resolver=resolver_for(address), allow_private=lambda: open_network,
+        )
+
+    async def scenario():
+        service = build(True)
+        made = await service.create("dora", bearer(url="http://mon.lan:8080/mcp", name="Zabbix"))  # Stufe own, ohne Haken, http, Heimnetz
+        assert made["url"] == "http://mon.lan:8080/mcp" and not made["local_ok"]
+        row = service._row_for("dora", made["id"])
+        assert service._allow_private(row)  # gilt auch beim Verbinden und Aufrufen
+        await service.update("dora", made["id"], {"url": "https://mon.lan:8080/mcp2"})
+        # ohne Berechtigung zum Anlegen bleibt es dabei: Stufe use legt gar nichts an
+        with pytest.raises(ConnectorError):
+            await service.create("use01", bearer(url="http://mon.lan/mcp", name="X"))
+        # Link-Local, Metadaten und reservierte Adressen bleiben auch mit der Option gesperrt, die Meldung nennt die Adresse
+        with pytest.raises(ConnectorError, match="169.254.169.254"):
+            await build(True, "169.254.169.254").create("dora", bearer(url="https://meta.example/mcp", name="Meta"))
+        with pytest.raises(ConnectorError, match="nicht erlaubt"):
+            await build(True).create("dora", bearer(url="https://supervisor/core", name="Sv"))
+        # ohne die Option bleibt alles wie bisher
+        with pytest.raises(ConnectorError, match="Heimnetz"):
+            await build(False).create("dora", bearer(url="https://mon2.lan/mcp", name="Mon2"))
+    run(scenario())
+
+
 def test_name_limits_and_validation(store, servers, tmp_path):
     service = make_service(store, servers, tmp_path)
 
