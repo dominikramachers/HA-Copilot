@@ -102,5 +102,5 @@ Wer nicht in Home Assistant, sondern über eine eigene Adresse arbeitet, meldet 
 
 - Jede Abfrage nach Chats filtert auf das Profil; zusätzlich verhindert die Datenbank selbst, dass eine Nachricht einem anderen Profil gehört als ihr Chat.
 - Das **Haushalts-Gedächtnis** ist die einzige gemeinsame Ablage. Alle Personen dürfen ihn ergänzen. Das **persönliche Gedächtnis**, Projekte, Projektwissen, geplante Aufgaben und erzeugte Dateien sind privat.
-- Jeder Benutzer kann in der App unter **Meine Daten** alle eigenen Chats als ZIP exportieren oder löschen.
+- Jeder Benutzer kann in der App unter **Einstellungen → Meine Daten** alle eigenen Chats als ZIP exportieren oder löschen.
 - Wer Zugriff auf die Add-on-Konfiguration oder den Konfigurationsordner hat, ist Administrator und kann technisch alles lesen. Die Trennung gilt für die Oberfläche und die Programmierschnittstelle.

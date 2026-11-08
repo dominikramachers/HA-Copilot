@@ -1,4 +1,4 @@
-"""Persönliche GitHub-Konten: Anmeldung per Device Flow, Token einfügen, verschlüsselte Ablage, Vorrang vor dem gemeinsamen Token."""
+"""Persönliche GitHub-Konten: Anmeldung per Device Flow, Token einfügen, verschlüsselte Ablage, kein gemeinsames Token."""
 import asyncio
 
 import httpx

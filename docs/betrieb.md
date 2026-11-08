@@ -66,7 +66,7 @@ Nimm dir etwa eine halbe Stunde. Die Oberfläche ist dazwischen kurz nicht errei
     - Bei Domain-Zugang den Tunnel auf den neuen Hostnamen richten (`http://<Repository-Kennung>-copilot:8100`; die Einrichtungsprüfung nennt ihn). Die Rückkehradresse in Entra (`https://<deine Domain>/auth/callback`) bleibt unverändert, weil sie an der Domain hängt.
     - `public_trusted_proxies` prüfen (die Adresse kann sich ändern; die Einrichtungsprüfung zeigt sie).
     - Der Eintrag in der Seitenleiste von Home Assistant ist jetzt der des neuen Add-ons. Lesezeichen, Dashboard-Links und Verknüpfungen in der Companion-App, die auf den alten Pfad (`/<Repository-Kennung>_ki_chat`) zeigen, anpassen.
-11. **Prüfen:** Einrichtungsprüfung öffnen (Konto-Menü), einen Chat öffnen, eine Frage senden, bei Bedarf die Anmeldung über die Domain testen.
+11. **Prüfen:** Einrichtungsprüfung öffnen (Einstellungen), einen Chat öffnen, eine Frage senden, bei Bedarf die Anmeldung über die Domain testen.
 12. **Altes Add-on deinstallieren,** wenn alles stimmt. Seine Daten und der alte Config-Ordner verschwinden damit; die Export-Datei darin hast du vorher gelöscht.
 
 ## Protokoll lesen
@@ -105,7 +105,7 @@ Hilft das nicht: Protokoll des Add-ons und, falls es um Home Assistant geht, **E
 
 ## Deinstallation
 
-Das Deinstallieren des Add-ons löscht seine Daten (Chats, Schnappschüsse). Vorher exportieren: in der App **Meine Daten → Alle Chats exportieren** oder die Datenbank per `export_database` sichern. Ob der Ordner `addon_config` (Logo, Export) mit entfernt wird, hängt von der Home-Assistant-Version ab; prüfe unter `/addon_configs/` nach und lösche ihn bei Bedarf von Hand.
+Das Deinstallieren des Add-ons löscht seine Daten (Chats, Schnappschüsse). Vorher exportieren: in der App **Einstellungen → Meine Daten → Alle Chats exportieren** oder die Datenbank per `export_database` sichern. Ob der Ordner `addon_config` (Logo, Export) mit entfernt wird, hängt von der Home-Assistant-Version ab; prüfe unter `/addon_configs/` nach und lösche ihn bei Bedarf von Hand.
 
 ## Entwicklung und Tests
 

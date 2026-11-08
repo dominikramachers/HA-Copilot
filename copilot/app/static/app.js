@@ -9,6 +9,8 @@ const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const ICONS = {
+  sliders: ["M4 7h9M17 7h3M4 17h3M11 17h9", "M15 5v4M9 15v4"],
+  gauge: ["M4.5 17.5a8.5 8.5 0 1 1 15 0", "M12 13.5l3.2-4.2", "M12 13.5h.01"],
   github: ["M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"],
   link: ["M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1", "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"],
   download: ["M12 4v11M7 11l5 5 5-5M5 20h14"],
@@ -1574,9 +1576,10 @@ const SKILL_ACCEPT = ".skill,.zip,.md,text/markdown,text/plain";
 const SKILL_MAX = 4 * 1024 * 1024;
 const skillsUi = { mode: "list", section: "skills", tab: "mine", mineQuery: "", query: "", category: "all", sort: "popular", detail: null, preview: null, data: null, status: "", busy: false };
 
-async function openSkills() {
+async function openSkills(section = "skills") {
   if (!state.me) return;
   setView("skills");
+  rememberDetail(section);
   detachRun();
   releaseRecent();
   state.activeId = null;
@@ -1586,11 +1589,13 @@ async function openSkills() {
   renderSide();
   closeMenu();
   setTitle(tr("Anpassungen"));
-  Object.assign(skillsUi, { mode: "list", section: "skills", tab: "mine", mineQuery: "", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
+  Object.assign(skillsUi, { mode: "list", section, tab: "mine", mineQuery: "", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
   Object.assign(connUi, { id: null, form: null, flow: null, setup: null, tab: "mine", mineQuery: "", query: "", category: "all" });
   Object.assign(connUi.registry, { q: "", items: [], next: "", loaded: false, error: "" });
   Object.assign(plUi, { data: null, tab: "mine", query: "", detail: null, preview: null, result: null, busy: false });
   await loadSkills();
+  if (section === "connectors") loadConnectors();
+  if (section === "plugins") loadPlugins();
   $("skills").scrollTop = 0;
 }
 
@@ -1699,6 +1704,7 @@ function renderSkillList(wrap) {
     tab.addEventListener("click", () => {
       skillsUi.section = id;
       skillsUi.status = "";
+      rememberDetail(id);
       renderSkills();
       if (id === "connectors") loadConnectors();
       if (id === "plugins") loadPlugins();
@@ -5271,6 +5277,9 @@ function setView(view) {
   $("composer").hidden = view !== "chat";
   $("schedules").hidden = view !== "schedules";
   $("skills").hidden = view !== "skills";
+  $("settings").hidden = view !== "settings";
+  rememberView(view);
+  if (view !== "settings") { settingsStop(); settingsStop = () => {}; }
   $("nav-schedules").classList.toggle("active", view === "schedules");
   $("nav-skills").classList.toggle("active", view === "skills");
 }
@@ -6334,30 +6343,229 @@ async function openGithub() {
   stop();
 }
 
+// ------------------------------------------------- Einstellungen (eigene Seite)
+// Links die Gruppen, rechts der Inhalt der gewählten Seite. Die Inhalte sind dieselben Fenster-Panels wie früher (Gedächtnis,
+// GitHub, Meine Daten …), nur nicht mehr in einem Dialog. Auf schmalen Bildschirmen erscheint erst die Liste, dann der Inhalt.
+
+const settingsUi = { page: "general", content: false };
+let settingsStop = () => {};
+
+function rememberView(view) {
+  try {
+    if (view === "chat") sessionStorage.removeItem("ki-view");
+    else sessionStorage.setItem("ki-view", view);
+  } catch { /* optional */ }
+}
+
+function rememberDetail(detail) {
+  try { sessionStorage.setItem("ki-view-detail", detail || ""); } catch { /* optional */ }
+}
+
+function rememberedView() {
+  try { return [sessionStorage.getItem("ki-view") || "", sessionStorage.getItem("ki-view-detail") || ""]; } catch { return ["", ""]; }
+}
+
+function themeRow() {
+  const row = node("div", "set-row");
+  const text = node("div", "set-row-text");
+  text.append(node("b", "", tr("Design")), node("span", "", tr("Hell, dunkel oder wie dein Gerät.")));
+  const seg = node("div", "seg");
+  seg.setAttribute("role", "group");
+  seg.setAttribute("aria-label", tr("Design"));
+  const current = () => window.kiTheme.get();
+  const draw = () => seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.value === current())));
+  for (const [value, label] of THEMES) {
+    const b = node("button", "", label);
+    b.type = "button";
+    b.dataset.value = value;
+    b.addEventListener("click", () => { window.kiTheme.set(value); draw(); });
+    seg.append(b);
+  }
+  draw();
+  row.append(text, seg);
+  return row;
+}
+
+function settingsGeneral(body) {
+  const list = node("div", "set-rows");
+  if (document.documentElement.dataset.themeSource !== "ha") list.append(themeRow());
+  else list.append(node("p", "mem-hint", tr("Das Design übernimmt der HA Copilot von Home Assistant (Profil → Design).")));
+  const lang = node("div", "set-row");
+  const text = node("div", "set-row-text");
+  text.append(node("b", "", tr("Sprache")), node("span", "", tr("Der Administrator legt sie in der Add-on-Konfiguration fest (language).")));
+  lang.append(text, node("span", "set-value", kiLang === "en" ? "English" : "Deutsch"));
+  list.append(lang);
+  const who = node("div", "set-row");
+  const whoText = node("div", "set-row-text");
+  whoText.append(node("b", "", tr("Angemeldet als")), node("span", "", state.me?.label || ""));
+  who.append(whoText);
+  list.append(who);
+  body.append(list);
+}
+
+function usageBar(fraction, tone = "") {
+  const bar = node("div", "usage-bar" + (tone ? ` ${tone}` : ""));
+  bar.setAttribute("role", "progressbar");
+  bar.setAttribute("aria-valuemin", "0");
+  bar.setAttribute("aria-valuemax", "100");
+  bar.setAttribute("aria-valuenow", String(Math.round(fraction * 100)));
+  const fill = node("span");
+  fill.style.width = `${Math.max(2, Math.min(100, Math.round(fraction * 100)))}%`;
+  bar.append(fill);
+  return bar;
+}
+
+async function settingsUsage(body, alive) {
+  body.append(node("p", "mem-hint", tr("Wird geladen …")));
+  let data;
+  try { data = await api("api/usage"); } catch { if (alive()) body.replaceChildren(node("p", "mem-empty", tr("Die Nutzung ist gerade nicht erreichbar."))); return; }
+  if (!alive()) return;
+  const parts = [];
+
+  const plan = node("section", "set-block");
+  plan.append(node("h4", "", tr("Claude-Abo")));
+  if (!data.limits.length) {
+    plan.append(node("p", "set-lead", data.subscription ? tr("Das Limit ist nicht erreicht.") : tr("Es gibt keine Warnung zu einem Limit.")));
+  }
+  for (const l of data.limits) {
+    const row = node("div", "usage-row");
+    const head = node("div", "usage-head");
+    head.append(node("b", "", (LIMIT_NAMES[l.type] || tr("Das Nutzungslimit")).replace(/^Das |^Die /, "")));
+    const pct = typeof l.utilization === "number" ? Math.round(l.utilization * 100) : null;
+    head.append(node("span", "", l.status === "rejected" ? tr("erreicht") : pct !== null ? tr("{0} % verbraucht", pct) : tr("fast erreicht")));
+    row.append(head, usageBar(l.status === "rejected" ? 1 : (l.utilization ?? 0.9), l.status === "rejected" ? "bad" : "warn"));
+    if (l.resets_at) row.append(node("span", "usage-sub", tr("Wird {0} zurückgesetzt.", whenText(l.resets_at))));
+    plan.append(row);
+  }
+  plan.append(node("p", "mem-hint", tr("Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Einen laufenden Zähler liefert Claude nicht; hier erscheint ein Stand, sobald das Limit fast oder ganz erreicht ist.")));
+  parts.push(plan);
+
+  const img = data.images;
+  const pics = node("section", "set-block");
+  pics.append(node("h4", "", tr("Bilder in diesem Monat")));
+  if (img.enabled) {
+    const used = img.used;
+    pics.append(node("p", "set-lead", img.limit ? tr("{0} von {1} Bildern erzeugt.", used, img.limit) : trn(used, "{0} Bild erzeugt (kein Limit).", "{0} Bilder erzeugt (kein Limit).", used)));
+    if (img.limit) pics.append(usageBar(Math.min(1, used / img.limit), used >= img.limit ? "bad" : ""));
+    pics.append(node("p", "mem-hint", tr("Zählt Fotos und Kunstbilder von OpenAI oder Google. Einfache Grafiken (SVG) kosten nichts und zählen nicht.")));
+  } else {
+    pics.append(node("p", "mem-hint", tr("Fotos und Kunstbilder sind nicht eingerichtet. Einfache Grafiken zeichnet die KI kostenlos als SVG.")));
+  }
+  parts.push(pics);
+  body.replaceChildren(...parts);
+}
+
+function settingsGroups() {
+  const me = state.me || {};
+  const page = (id, iconName, label, sub, render, extra = {}) => ({ id, icon: iconName, label, sub, render, ...extra });
+  const link = (id, iconName, label, go) => ({ id, icon: iconName, label, go, link: true });
+  const prefs = [
+    page("general", "sliders", tr("Allgemein"), "", settingsGeneral),
+    page("usage", "gauge", tr("Nutzung"), tr("Wie viel vom Abo und von den Bildern verbraucht ist."), settingsUsage),
+  ];
+  if (me.memory) prefs.push(page("memory", "memory", tr("Gedächtnis"), tr("Die KI merkt sich, was du ihr sagst, und nutzt es in allen Chats. Du kannst jeden Eintrag löschen."), memoryPanel));
+  if (me.github_connect) prefs.push(page("github", "github", "GitHub", tr("Verbinde dein GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann."), githubPanel, { solid: true }));
+  prefs.push(page("data", "data", tr("Meine Daten"), tr("Nimm deine Daten mit oder räume auf. Es betrifft nur dein Profil."), dataPanel));
+  const help = [
+    page("guide", "info", tr("Kurzanleitung"), tr("Kurz erklärt, wie du mit mir arbeitest."), introPanel),
+    page("news", "bolt", tr("Das ist neu"), tr("Die Neuerungen der letzten Versionen."), async (body, alive) => {
+      let history = [];
+      try { history = await api("api/news"); } catch { /* leer */ }
+      if (alive()) newsPanel(history)(body);
+    }),
+  ];
+  if (me.setup) help.push(page("setup", "setup", tr("Einrichtungsprüfung"), tr("Was eingerichtet ist und was noch fehlt, mit den genauen Schritten. Geändert wird in der Add-on-Konfiguration."), setupPanel));
+  const custom = [
+    link("skills", "skill", tr("Skills"), () => openSkills()),
+    ...(me.connectors === false ? [] : [link("connectors", "link", tr("Konnektoren"), () => openSkills("connectors"))]),
+    link("plugins", "cube", tr("Plugins"), () => openSkills("plugins")),
+  ];
+  return [{ title: tr("Präferenzen"), items: prefs }, { title: tr("Hilfe"), items: help }, { title: tr("Anpassungen"), items: custom }];
+}
+
+function renderSettings() {
+  settingsStop();
+  settingsStop = () => {};
+  const wrap = $("set-wrap");
+  const groups = settingsGroups();
+  const pages = groups.flatMap((g) => g.items).filter((i) => !i.link);
+  const current = pages.find((i) => i.id === settingsUi.page) || pages[0];
+  settingsUi.page = current.id;
+  wrap.classList.toggle("on-content", settingsUi.content);
+
+  const nav = node("nav", "set-nav");
+  nav.setAttribute("aria-label", tr("Einstellungen"));
+  nav.append(node("h2", "", tr("Einstellungen")));
+  for (const group of groups) {
+    nav.append(node("p", "set-group", group.title));
+    for (const item of group.items) {
+      const b = node("button", "set-item");
+      b.type = "button";
+      b.append(icon(item.icon, !!item.solid), node("span", "", item.label));
+      if (item.link) b.append(icon("chevron"));
+      else if (item === current) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", () => {
+        if (item.link) { item.go(); return; }
+        settingsUi.page = item.id;
+        settingsUi.content = true;
+        rememberDetail(item.id);
+        renderSettings();
+        $("settings").scrollTop = 0;
+      });
+      nav.append(b);
+    }
+  }
+
+  const main = node("section", "set-main");
+  const back = node("button", "set-back");
+  back.type = "button";
+  back.append(icon("chevron"), node("span", "", tr("Einstellungen")));
+  back.addEventListener("click", () => { settingsUi.content = false; renderSettings(); });
+  const title = node("h3", "", current.label);
+  main.append(back, title);
+  if (current.sub) main.append(node("p", "set-sub", current.sub));
+  const body = node("div", "set-body");
+  main.append(body);
+  wrap.replaceChildren(nav, main);
+
+  let alive = true;
+  const stop = current.render(body, () => alive);
+  settingsStop = () => { alive = false; if (typeof stop === "function") stop(); };
+  if (stop && typeof stop.catch === "function") stop.catch(() => {});
+}
+
+async function openSettings(page = "") {
+  if (!state.me) return;
+  setView("settings");
+  detachRun();
+  releaseRecent();
+  state.activeId = null;
+  rememberActive();
+  state.newProject = null;
+  state.heldUnread = null;
+  renderSide();
+  closeMenu();
+  setTitle(tr("Einstellungen"));
+  if (page) { settingsUi.page = page; settingsUi.content = true; }
+  else if (!wideScreen()) settingsUi.content = false;
+  rememberDetail(page || settingsUi.page);
+  renderSettings();
+  $("settings").scrollTop = 0;
+}
+
 // ------------------------------------------------- Konto-Menü (unten in der Seitenleiste)
 
 const THEMES = [["auto", tr("Auto")], ["light", tr("Hell")], ["dark", tr("Dunkel")]];
 
-// Einträge hängen von Rechten und Einbettung ab: Gedächtnis (wenn aktiv), Darstellung (nicht in HA, dort gibt HA das Theme vor), Abmelden (nur über die Domain).
+// Wie bei Claude: nur das Wichtigste im Popup, alles andere in den Einstellungen.
 function accountEntries() {
-  const entries = [];
+  const entries = [{ value: "settings", icon: "sliders", label: tr("Einstellungen") }, { value: "usage", icon: "gauge", label: tr("Nutzung") }];
   if (state.me?.memory) entries.push({ value: "memory", icon: "memory", label: tr("Gedächtnis") });
-  if (state.me?.github_connect) entries.push({ value: "github", icon: "link", label: tr("GitHub") });
-  entries.push({ value: "data", icon: "data", label: tr("Meine Daten") });
   entries.push({ value: "guide", icon: "info", label: tr("Kurzanleitung") });
   entries.push({ value: "news", icon: "bolt", label: tr("Das ist neu") });
   if (state.me?.setup) entries.push({ value: "setup", icon: "setup", label: tr("Einrichtungsprüfung") });
-  if (document.documentElement.dataset.themeSource !== "ha") {
-    const current = window.kiTheme.get();
-    entries.push({
-      value: "theme",
-      icon: "sun",
-      label: tr("Darstellung"),
-      submenu: THEMES.map(([value, label]) => ({ value: `theme:${value}`, label, active: value === current })),
-    });
-  }
   if (state.me?.can_logout) {
-    if (entries.length) entries.push({ divider: true });
+    entries.push({ divider: true });
     entries.push({ value: "logout", icon: "logout", label: tr("Abmelden") });
   }
   return entries;
@@ -6370,32 +6578,20 @@ async function logout() {
 
 async function accountMenu() {
   const entries = accountEntries();
-  if (!entries.length) return;
   const button = $("account");
   button.setAttribute("aria-expanded", "true");
   let choice;
   try {
     choice = wideScreen()
-      ? await openPopover(button, entries)
+      ? await openPopover(button, state.me?.label ? [{ heading: state.me.label }, ...entries] : entries)
       : await openSheet({ title: state.me?.label || tr("Konto"), items: entries.filter((e) => !e.divider) });
-    if (choice === "theme") {
-      const current = window.kiTheme.get();
-      choice = await openSheet({
-        title: tr("Darstellung"),
-        items: THEMES.map(([value, label]) => ({ value: `theme:${value}`, label, active: value === current })),
-      });
-    }
   } finally {
     button.setAttribute("aria-expanded", "false");
   }
-  if (choice === "memory") { closeMenu(); openMemory(); }
-  else if (choice === "github") { closeMenu(); openGithub().catch(() => {}); }
-  else if (choice === "data") { closeMenu(); openMyData().catch(() => {}); }
-  else if (choice === "setup") { closeMenu(); openSetup().catch(() => {}); }
-  else if (choice === "guide") { closeMenu(); openIntro().catch(() => {}); }
-  else if (choice === "news") { closeMenu(); openNewsHistory().catch(() => {}); }
+  closeMenu();
+  const pages = { settings: "", usage: "usage", memory: "memory", guide: "guide", news: "news", setup: "setup" };
+  if (typeof choice === "string" && choice in pages) openSettings(pages[choice]).catch(() => {});
   else if (choice === "logout") await logout();
-  else if (typeof choice === "string" && choice.startsWith("theme:")) window.kiTheme.set(choice.slice(6));
 }
 
 async function init() {
@@ -6459,8 +6655,12 @@ async function init() {
     window.addEventListener("focus", refreshWhenSeen);
     setInterval(refreshWhenSeen, 45000);
     setInterval(pollRunning, 3000);
+    const [view, detail] = rememberedView();
     const again = rememberedActive();
-    if (again && state.chats.some((c) => c.id === again)) await selectChat(again);
+    if (view === "settings") await openSettings(detail);
+    else if (view === "skills") await openSkills(["connectors", "plugins"].includes(detail) ? detail : "skills");
+    else if (view === "schedules" && state.me.schedules) await openSchedules();
+    else if (again && state.chats.some((c) => c.id === again)) await selectChat(again);
     showWelcome().catch(() => {});
   } catch {
     $("who").textContent = tr("Nicht angemeldet");
