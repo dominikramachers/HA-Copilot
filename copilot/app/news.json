@@ -11,6 +11,16 @@
           "title": "Only your own devices",
           "text": "In the notification settings you now only see your own devices. If one is missing, assign it to your person in Home Assistant."
         }
+      },
+      {
+        "de": {
+          "title": "Meldungen wie Chat-Nachrichten",
+          "text": "Auf dem Handy steht oben der Name des Chats und darunter meine Antwort, so wie du es von Nachrichten kennst."
+        },
+        "en": {
+          "title": "Alerts like chat messages",
+          "text": "On your phone the chat name now appears at the top and my answer below it, just like the messages you know."
+        }
       }
     ]
   },

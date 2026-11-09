@@ -28,7 +28,7 @@ log = logging.getLogger("ki.notifier")
 
 NOTIFY_DELAY_SECONDS = 10  # Schonfrist, bevor eine ungelesene Antwort gemeldet wird
 PRESENCE_TTL = 45  # so lange gilt „Chat ist offen“ nach der letzten Meldung der Oberfläche
-EXCERPT = 140  # Länge des Antworttextes in der Meldung
+EXCERPT = 300  # Länge des Antworttextes in der Meldung (das Telefon kürzt selbst, wenn es nicht passt)
 SERVICE_PREFIX = "notify.mobile_app_"
 _SERVICE_RE = re.compile(r"^notify\.mobile_app_[a-z0-9_]{1,80}$")
 
@@ -196,7 +196,8 @@ class Notifier:
         base = self.settings.public_base_url
         if base:
             data.update(url=base, clickAction=base)
-        payload = {"title": tr("Eine ungelesene Nachricht"), "message": f"{self.settings.app_name}: {text or tr('Antwort fertig')}", "data": data}
+        # Wie eine Chat-Nachricht: oben der Chat-Titel, darunter die Antwort.
+        payload = {"title": (title or chat.get("title") or self.settings.app_name)[:120], "message": text or tr("Antwort fertig"), "data": data}
         sent: list[str] = []
         for device in devices:
             _, _, name = device.partition(".")

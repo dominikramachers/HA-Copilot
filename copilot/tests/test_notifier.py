@@ -68,8 +68,8 @@ def test_unread_answer_nobody_watches_is_announced_to_the_own_device(store):
     (call,) = ha.sent()
     assert call["service"] == "mobile_app_pixel"  # nur das Gerät seiner Person
     data = call["service_data"]
-    assert data["title"] == "Eine ungelesene Nachricht"
-    assert data["message"] == "HA Copilot: Die Heizung läuft jetzt."
+    assert data["title"] == "Heizplan"  # Chat-Titel oben, darunter die Antwort
+    assert data["message"] == "Die Heizung läuft jetzt."
     assert data["data"]["tag"] == f"copilot-{chat}"
 
 
@@ -204,7 +204,7 @@ def test_finished_answer_notifies_when_nobody_watches(store, monkeypatch):
 
     asyncio.run(go())
     (call,) = ha.sent()
-    assert call["service_data"]["message"] == "HA Copilot: Die Antwort."
+    assert call["service_data"]["message"] == "Die Antwort." and call["service_data"]["title"] == "Frage"  # Titel aus der ersten Frage
 
 
 def test_finished_answer_stays_quiet_when_someone_follows_it(store, monkeypatch):
