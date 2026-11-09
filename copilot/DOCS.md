@@ -453,7 +453,6 @@ Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noc
 
 - **Präferenzen:** *Allgemein* (Design hell/dunkel/Auto, in Home Assistant eingebettet gibt HA das Design vor; Sprache und Name nur zur Ansicht, die Sprache stellt der Administrator mit `language` ein), *Nutzung*, *Gedächtnis*, *GitHub* (wenn dir `github_access` ≠ `none` gegeben wurde), *Meine Daten*.
 - **Hilfe:** *Kurzanleitung*, *Das ist neu* (die Neuerungen der letzten Versionen), *Einrichtungsprüfung*.
-- **Anpassungen:** Verweise auf Skills, Konnektoren und Plugins (die bisherige Seite „Anpassungen“).
 
 **Nutzung** zeigt zwei Dinge. **Claude-Abo:** je Zeitfenster ein Balken mit Prozent verwendet, Rest und Zeitpunkt der Rücksetzung: *Aktuelle Sitzung* (Fenster von 5 Stunden) und *Diese Woche* (Wochenlimit; je nach Abo auch Opus oder Sonnet getrennt). Die Werte meldet Claude mit den Antworten der KI; die Seite zeigt den letzten gemeldeten Stand („Stand: heute, 14:03 Uhr“). Ist die Rücksetzzeit vorbei, steht dort „zurückgesetzt“, der neue Wert erscheint mit der nächsten Antwort. Solange noch nichts gemeldet wurde (zum Beispiel nach der Installation), steht „Noch keine Angabe zum Limit“. Orange Balken heißen „fast erreicht“, rote „erreicht“. Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. **Bilder:** Fotos und Kunstbilder von OpenAI oder Google im laufenden Monat (`image_limit_month`); SVG-Grafiken zählen nicht.
 

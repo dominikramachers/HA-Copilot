@@ -6480,7 +6480,6 @@ async function settingsUsage(body, alive) {
 function settingsGroups() {
   const me = state.me || {};
   const page = (id, iconName, label, sub, render, extra = {}) => ({ id, icon: iconName, label, sub, render, ...extra });
-  const link = (id, iconName, label, go) => ({ id, icon: iconName, label, go, link: true });
   const prefs = [
     page("general", "sliders", tr("Allgemein"), "", settingsGeneral),
     page("usage", "gauge", tr("Nutzung"), tr("Wie viel vom Abo und von den Bildern verbraucht ist."), settingsUsage),
@@ -6497,12 +6496,7 @@ function settingsGroups() {
     }),
   ];
   if (me.setup) help.push(page("setup", "setup", tr("Einrichtungsprüfung"), tr("Was eingerichtet ist und was noch fehlt, mit den genauen Schritten. Geändert wird in der Add-on-Konfiguration."), setupPanel));
-  const custom = [
-    link("skills", "skill", tr("Skills"), () => openSkills()),
-    ...(me.connectors === false ? [] : [link("connectors", "link", tr("Konnektoren"), () => openSkills("connectors"))]),
-    link("plugins", "cube", tr("Plugins"), () => openSkills("plugins")),
-  ];
-  return [{ title: tr("Präferenzen"), items: prefs }, { title: tr("Hilfe"), items: help }, { title: tr("Anpassungen"), items: custom }];
+  return [{ title: tr("Präferenzen"), items: prefs }, { title: tr("Hilfe"), items: help }];
 }
 
 // Ein Eintrag der Einstellungsliste. Am Handy wird daraus eine Zeile mit Pfeil, am Laptop ein Menüpunkt.
