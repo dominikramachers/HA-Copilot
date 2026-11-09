@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.48.4.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.49.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -449,15 +449,14 @@ Alles gilt nur für das eigene Profil; andere Personen sind nie betroffen. Die L
 
 ## Einstellungen und Konto-Menü (ab 0.48.1)
 
-Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noch das Wichtigste: **Einstellungen**, **Nutzung**, **Einrichtungsprüfung** (wenn der Chat über Home Assistant läuft) und, nur über die eigene Domain, **Abmelden**. Gedächtnis, Kurzanleitung und „Das ist neu“ erreichst du nur über die Einstellungen. **Auf dem Handy** gibt es dieses Menü nicht: Ein Tipp auf deinen Namen unten in der Seitenleiste öffnet gleich die Einstellungen, als kompakte Liste mit Karten je Gruppe (wie in der Claude-App); „Abmelden“ steht dort ganz unten. Alles Weitere liegt in den **Einstellungen**, einer eigenen Seite mit Liste links und Inhalt rechts (auf dem Handy erst die Liste, dann der Inhalt mit „Zurück“):
+Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noch das Wichtigste: **Einstellungen**, **Nutzung**, **Einrichtungsprüfung** (wenn der Chat über Home Assistant läuft) und, nur über die eigene Domain, **Abmelden**. Gedächtnis, Kurzanleitung und „Das ist neu“ erreichst du nur über die Einstellungen. **Auf dem Handy** gibt es dieses Menü nicht: Ein Tipp auf deinen Namen unten in der Seitenleiste öffnet gleich die Einstellungen, als kompakte Liste mit Karten je Gruppe (wie in der Claude-App); „Abmelden“ steht dort ganz unten. Alles Weitere liegt in den **Einstellungen**, einem **großen Fenster** über dem Chat (Laptop und Tablet, wie bei Claude) mit Liste links und Inhalt rechts; es schließt mit dem Kreuz, mit Esc oder mit einem Klick daneben. Auf dem Handy ist es eine eigene Seite: erst die Liste, dann der Inhalt mit „Zurück“:
 
 - **Präferenzen:** *Allgemein* (Design hell/dunkel/Auto, in Home Assistant eingebettet gibt HA das Design vor; Sprache und Name nur zur Ansicht, die Sprache stellt der Administrator mit `language` ein), *Nutzung*, *Gedächtnis*, *GitHub* (wenn dir `github_access` ≠ `none` gegeben wurde), *Meine Daten*.
 - **Hilfe:** *Kurzanleitung*, *Das ist neu* (die Neuerungen der letzten Versionen), *Einrichtungsprüfung*.
-- **Anpassungen:** Verweise auf Skills, Konnektoren und Plugins (die bisherige Seite „Anpassungen“).
 
 **Nutzung** zeigt zwei Dinge. **Claude-Abo:** je Zeitfenster ein Balken mit Prozent verwendet, Rest und Zeitpunkt der Rücksetzung: *Aktuelle Sitzung* (Fenster von 5 Stunden) und *Diese Woche* (Wochenlimit; je nach Abo auch Opus oder Sonnet getrennt). Die Werte meldet Claude mit den Antworten der KI; die Seite zeigt den letzten gemeldeten Stand („Stand: heute, 14:03 Uhr“). Ist die Rücksetzzeit vorbei, steht dort „zurückgesetzt“, der neue Wert erscheint mit der nächsten Antwort. Solange noch nichts gemeldet wurde (zum Beispiel nach der Installation), steht „Noch keine Angabe zum Limit“. Orange Balken heißen „fast erreicht“, rote „erreicht“. Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. **Bilder:** Fotos und Kunstbilder von OpenAI oder Google im laufenden Monat (`image_limit_month`); SVG-Grafiken zählen nicht.
 
-**Seite merken.** Wer neu lädt (zum Beispiel weil Home Assistant das Fenster neu aufbaut), bleibt auf der Seite: Einstellungen mit der gewählten Unterseite, Geplant oder Anpassungen mit Skills, Konnektoren oder Plugins. Das Add-on merkt sich das im Browser (`sessionStorage`), nicht in der Adresse, weil Home Assistant die Adresse im eingebetteten Fenster nicht behält. Ein geöffneter Chat wurde schon vorher gemerkt.
+**Seite merken.** Wer neu lädt (zum Beispiel weil Home Assistant das Fenster neu aufbaut), bleibt auf der Seite: Geplant, Anpassungen mit Skills, Konnektoren oder Plugins (auf dem Handy auch die Einstellungen mit der gewählten Unterseite; das Einstellungsfenster am Laptop schließt beim Neuladen) mit Skills, Konnektoren oder Plugins. Das Add-on merkt sich das im Browser (`sessionStorage`), nicht in der Adresse, weil Home Assistant die Adresse im eingebetteten Fenster nicht behält. Ein geöffneter Chat wurde schon vorher gemerkt.
 
 **Technik:** Schnittstelle `GET /api/usage` (`windows`: alle bekannten Zeitfenster des Abos, `limits`: nur Warnungen, `images`: Bilder der Person im Monat). Keine neuen Optionen. Die Sprache bleibt eine Einstellung des Administrators; eine Sprachwahl je Person ist nicht enthalten.
 
