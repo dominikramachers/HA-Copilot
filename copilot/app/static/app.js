@@ -6540,7 +6540,7 @@ function renderSettings() {
   who.append(node("span", "avatar", (me.label || "?").charAt(0).toUpperCase()), node("span", "set-user-text", me.label || ""));
   nav.append(who);
   const section = (title, items) => {
-    const sec = node("div", "set-sec");
+    const sec = node("div", title ? "set-sec" : "set-sec set-sec-plain");
     if (title) sec.append(node("p", "set-group", title));
     const card = node("div", "set-card");
     for (const item of items) card.append(settingsItem(item, current));
