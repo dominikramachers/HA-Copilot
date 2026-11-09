@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.49.0",
+    "items": [
+      {
+        "de": {
+          "title": "Einstellungen als großes Fenster",
+          "text": "Am Laptop und Tablet öffnen sich die Einstellungen jetzt in einem großen Fenster über dem Chat. Mit Esc oder einem Klick daneben bist du gleich wieder im Gespräch."
+        },
+        "en": {
+          "title": "Settings in a large window",
+          "text": "On laptop and tablet the settings now open in a large window over the chat. Press Esc or click outside it and you are right back in the conversation."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.48.4",
     "items": [
       {

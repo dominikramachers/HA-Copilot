@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.49.0
+- **Einstellungen als großes Fenster (Laptop und Tablet).** Ab 761 px Breite öffnet *Einstellungen* (und *Nutzung* aus dem Konto-Menü) keine eigene Ansicht mehr, sondern ein Fenster über dem Chat: bis 1000 × 720 px, Kopf mit Titel und Schließen-Kreuz, links die Liste (eigene Bildlaufleiste), rechts der Inhalt. Es schließt mit Kreuz, Esc und Klick auf den Hintergrund, fängt Tab ein (Fokus kehrt zum Auslöser zurück) und liegt unter den Rückfragen (`#sheet`), die ein Panel öffnet (z. B. Eintrag löschen). *Skills*, *Konnektoren* und *Plugins* schließen das Fenster und öffnen die Anpassungen-Ansicht. Der Chat darunter bleibt unverändert (kein `setView`, kein Wechsel des aktiven Chats, keine Ansichtsmerkung); beim Neuladen ist das Fenster zu.
+- **Handy unverändert:** bis 760 px bleibt es die Seite `#settings` mit Liste und Inhalt; wird das Fenster beim Drehen oder Verkleinern schmal, schließt es sich. Technik: `renderSettings()` rendert je nach `settingsUi.modal` nach `#set-modal-wrap` oder `#set-wrap`; neu `openSettingsModal()`, `closeSettingsModal()`, `initSettingsModal()`, `narrowScreen()`. Eine gemerkte Ansicht „settings“ aus einer älteren Sitzung wird nur noch auf schmalen Bildschirmen wiederhergestellt.
+
 ## 0.48.4
 - **Handy: Abstand über „Abmelden“.** In der Einstellungsliste auf schmalen Bildschirmen klebte die Karte mit *Abmelden* (nur Domain) direkt unter *Plugins*. Sie hat jetzt Abstand wie die Gruppen (`.set-sec-plain`). Dieser Stand war für 0.48.3 gedacht, kam aber nach dem Zusammenführen von #52 nicht mehr mit.
 

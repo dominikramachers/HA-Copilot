@@ -254,6 +254,7 @@ function initSheet() {
     const fullscreen = document.querySelector(".preview.full");
     if (pop) closePopover(null);
     else if (sheetDone) closeSheet(null);
+    else if (settingsUi.modal) closeSettingsModal();
     else if (fullscreen) fullscreen.classList.remove("full");
     else closeMenu();
   });
@@ -6348,7 +6349,7 @@ async function openGithub() {
 // Links die Gruppen, rechts der Inhalt der gewählten Seite. Die Inhalte sind dieselben Fenster-Panels wie früher (Gedächtnis,
 // GitHub, Meine Daten …), nur nicht mehr in einem Dialog. Auf schmalen Bildschirmen erscheint erst die Liste, dann der Inhalt.
 
-const settingsUi = { page: "general", content: false };
+const settingsUi = { page: "general", content: false, modal: false };
 let settingsStop = () => {};
 
 function rememberView(view) {
@@ -6512,12 +6513,12 @@ function settingsItem(item, current) {
   b.lastChild.classList.add("set-chev");
   if (!item.link && item === current) b.setAttribute("aria-current", "page");
   b.addEventListener("click", () => {
-    if (item.link) { item.go(); return; }
+    if (item.link) { closeSettingsModal(true); item.go(); return; }
     settingsUi.page = item.id;
     settingsUi.content = true;
-    rememberDetail(item.id);
+    if (!settingsUi.modal) rememberDetail(item.id);
     renderSettings();
-    $("settings").scrollTop = 0;
+    settingsScrollTop();
   });
   return b;
 }
@@ -6525,7 +6526,7 @@ function settingsItem(item, current) {
 function renderSettings() {
   settingsStop();
   settingsStop = () => {};
-  const wrap = $("set-wrap");
+  const wrap = $(settingsUi.modal ? "set-modal-wrap" : "set-wrap");
   const me = state.me || {};
   const groups = settingsGroups();
   const pages = groups.flatMap((g) => g.items).filter((i) => !i.link);
@@ -6569,8 +6570,64 @@ function renderSettings() {
   if (stop && typeof stop.catch === "function") stop.catch(() => {});
 }
 
+// Laptop und Tablet: großes Fenster über dem Chat (wie bei Claude). Handy: eigene Seite mit Liste und Inhalt.
+function settingsScrollTop() {
+  if (settingsUi.modal) document.querySelectorAll("#set-modal .set-main").forEach((el) => { el.scrollTop = 0; });
+  else $("settings").scrollTop = 0;
+}
+
+let settingsReturn = null;
+
+function closeSettingsModal(keepFocus = false) {
+  if (!settingsUi.modal) return;
+  settingsUi.modal = false;
+  settingsStop();
+  settingsStop = () => {};
+  $("set-modal").classList.remove("show");
+  $("set-scrim").classList.remove("show");
+  setTimeout(() => { if (!settingsUi.modal) $("set-modal").hidden = true; }, 220);
+  const back = settingsReturn;
+  settingsReturn = null;
+  if (!keepFocus && back && document.contains(back)) back.focus();
+}
+
+function openSettingsModal(page) {
+  const modal = $("set-modal");
+  settingsReturn = document.activeElement instanceof HTMLElement ? document.activeElement : $("account");
+  settingsUi.modal = true;
+  if (page) settingsUi.page = page;
+  settingsUi.content = true;
+  $("set-modal-title").textContent = tr("Einstellungen");
+  $("set-modal-close").setAttribute("aria-label", tr("Schließen"));
+  modal.hidden = false;
+  renderSettings();
+  requestAnimationFrame(() => {
+    modal.classList.add("show");
+    $("set-scrim").classList.add("show");
+    modal.focus({ preventScroll: true });
+  });
+}
+
+function initSettingsModal() {
+  $("set-modal-close").append(icon("close"));
+  $("set-modal-close").addEventListener("click", () => closeSettingsModal());
+  $("set-scrim").addEventListener("click", () => closeSettingsModal());
+  $("set-modal").addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const items = [...$("set-modal").querySelectorAll("button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])")].filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === $("set-modal"))) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+  window.matchMedia("(max-width: 760px)").addEventListener("change", (event) => { if (event.matches) closeSettingsModal(true); });
+}
+
 async function openSettings(page = "") {
   if (!state.me) return;
+  if (!narrowScreen()) { openSettingsModal(page); return; }
+  settingsUi.modal = false;
   setView("settings");
   detachRun();
   releaseRecent();
@@ -6582,10 +6639,10 @@ async function openSettings(page = "") {
   closeMenu();
   setTitle(tr("Einstellungen"));
   if (page) { settingsUi.page = page; settingsUi.content = true; }
-  else if (narrowScreen()) settingsUi.content = false;
+  else settingsUi.content = false;
   rememberDetail(page || settingsUi.page);
   renderSettings();
-  $("settings").scrollTop = 0;
+  settingsScrollTop();
 }
 
 // ------------------------------------------------- Konto-Menü (unten in der Seitenleiste)
@@ -6630,6 +6687,7 @@ async function accountMenu() {
 
 async function init() {
   initSheet();
+  initSettingsModal();
   setStreaming(false);
 
   loadUi();
@@ -6691,7 +6749,7 @@ async function init() {
     setInterval(pollRunning, 3000);
     const [view, detail] = rememberedView();
     const again = rememberedActive();
-    if (view === "settings") await openSettings(detail);
+    if (view === "settings" && narrowScreen()) await openSettings(detail);
     else if (view === "skills") await openSkills(["connectors", "plugins"].includes(detail) ? detail : "skills");
     else if (view === "schedules" && state.me.schedules) await openSchedules();
     else if (again && state.chats.some((c) => c.id === again)) await selectChat(again);
