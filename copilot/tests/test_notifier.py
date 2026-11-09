@@ -12,12 +12,21 @@ from test_schedules import RecordingHa, SETTINGS
 
 
 class PhoneHa(RecordingHa):
-    """Home Assistant mit zwei Handys; der Admin hat über seine Person nur das Pixel."""
+    """Home Assistant mit vier Geräten: Pixel (Admin), Sinas Handy (Dora), ein Tablet und ein Gerät ohne Person.
+
+    Der Admin hat über seine Person nur das Pixel; das Tablet ordnet ``adm01.own("tablet")`` ihm zu.
+    """
 
     def __init__(self):
         super().__init__()
-        self.services = {"notify": {"mobile_app_pixel": {}, "mobile_app_tablet": {}, "send_message": {}, "notify": {}}}
-        self.persons = [{"user_id": ADM01, "device_trackers": ["device_tracker.pixel"]}]
+        self.services = {"notify": {"mobile_app_pixel": {}, "mobile_app_tablet": {}, "mobile_app_sinas_handy": {}, "mobile_app_ohne_person": {}, "send_message": {}, "notify": {}}}
+        self.persons = [
+            {"user_id": ADM01, "device_trackers": ["device_tracker.pixel"]},
+            {"user_id": DORA, "device_trackers": ["device_tracker.sinas_handy"]},
+        ]
+
+    def give_tablet_to_admin(self):
+        self.persons[0]["device_trackers"].append("device_tracker.tablet")
 
     async def call(self, command):
         if command["type"] == "get_services":
@@ -57,10 +66,10 @@ def test_unread_answer_nobody_watches_is_announced_to_the_own_device(store):
     chat = unread_chat(store)
     assert run(notifier.announce(profile(), chat, "Die Heizung läuft jetzt.")) is True
     (call,) = ha.sent()
-    assert call["service"] == "mobile_app_pixel"  # das Gerät seiner Person, nicht das Tablet
+    assert call["service"] == "mobile_app_pixel"  # nur das Gerät seiner Person
     data = call["service_data"]
-    assert data["title"] == "Eine ungelesene Nachricht"
-    assert data["message"] == "HA Copilot: Die Heizung läuft jetzt."
+    assert data["title"] == "Heizplan"  # Chat-Titel oben, darunter die Antwort
+    assert data["message"] == "Die Heizung läuft jetzt."
     assert data["data"]["tag"] == f"copilot-{chat}"
 
 
@@ -109,16 +118,30 @@ def test_nothing_is_sent_when_switched_off_or_without_devices(store):
 def test_chosen_devices_win_and_all_of_them_are_notified(store):
     _, _, notifier, ha = build(store)
     chat = unread_chat(store)
-    notifier.save(profile(), True, ["notify.mobile_app_pixel", "notify.mobile_app_tablet", "notify.send_message", "x"])
+    ha.give_tablet_to_admin()
     assert run(notifier.announce(profile(), chat, "Text")) is True
-    assert sorted(c["service"] for c in ha.sent()) == ["mobile_app_pixel", "mobile_app_tablet"]  # fremde Dienste werden nicht gespeichert
+    assert sorted(c["service"] for c in ha.sent()) == ["mobile_app_pixel", "mobile_app_tablet"]  # ohne Auswahl: alle eigenen Geräte
+    ha.calls.clear()
+    notifier.save(profile(), True, ["notify.mobile_app_tablet", "notify.send_message", "x"])  # Fremdes wird nicht gespeichert
+    assert run(notifier.announce(profile(), chat, "Text")) is True
+    assert [c["service"] for c in ha.sent()] == ["mobile_app_tablet"]
+
+
+def test_foreign_devices_never_get_a_notification_even_if_stored(store):
+    _, _, notifier, ha = build(store)
+    chat = unread_chat(store)
+    notifier.save(profile(), True, ["notify.mobile_app_sinas_handy", "notify.mobile_app_ohne_person"])
+    assert run(notifier.selected(profile())) == []
+    assert run(notifier.announce(profile(), chat, "Text")) is False and ha.sent() == []
 
 
 def test_notify_service_of_the_profile_is_the_default(store):
     _, _, notifier, ha = build(store)
     import dataclasses
-    with_service = dataclasses.replace(profile(), notify_service="notify.mobile_app_tablet")
-    assert run(notifier.selected(with_service)) == ["notify.mobile_app_tablet"]
+    with_service = dataclasses.replace(profile(), notify_service="notify.mobile_app_ohne_person")
+    assert run(notifier.selected(with_service)) == ["notify.mobile_app_ohne_person"]  # vom Administrator eingetragen: gehört dazu
+    ha.give_tablet_to_admin()
+    assert run(notifier.selected(profile())) == ["notify.mobile_app_pixel", "notify.mobile_app_tablet"]
 
 
 def test_notification_is_cleared_when_the_chat_is_read(store):
@@ -136,21 +159,24 @@ def test_notification_is_cleared_when_the_chat_is_read(store):
     assert len(ha.sent()) == 1  # nur einmal entfernt
 
 
-def test_api_lists_devices_and_saves_the_choice(store):
+def test_api_lists_only_the_own_devices_and_saves_the_choice(store):
     _, client, notifier, ha = build(store)
+    ha.give_tablet_to_admin()
     h = as_user(ADM01, True)
     first = client.get("/api/notify", headers=h).json()
     assert first["enabled"] is True
     rows = {d["service"]: d for d in first["devices"]}
-    assert rows["notify.mobile_app_pixel"]["mine"] and rows["notify.mobile_app_pixel"]["selected"]
-    assert not rows["notify.mobile_app_tablet"]["selected"] and "notify.send_message" not in rows
-    assert first["devices"][0]["service"] == "notify.mobile_app_pixel"  # eigene Geräte zuerst
+    assert set(rows) == {"notify.mobile_app_pixel", "notify.mobile_app_tablet"}  # nicht Sinas Handy, nicht das Gerät ohne Person
+    assert all(d["selected"] for d in rows.values())
     saved = client.put("/api/notify", json={"enabled": True, "devices": ["notify.mobile_app_tablet"]}, headers=h).json()
     assert [d["service"] for d in saved["devices"] if d["selected"]] == ["notify.mobile_app_tablet"]
-    assert client.put("/api/notify", json={"enabled": True, "devices": ["notify.mobile_app_nope"]}, headers=h).status_code == 422
+    for foreign in ("notify.mobile_app_sinas_handy", "notify.mobile_app_ohne_person", "notify.mobile_app_nope"):
+        assert client.put("/api/notify", json={"enabled": True, "devices": [foreign]}, headers=h).status_code == 422
     assert client.put("/api/notify", json={"enabled": True, "devices": []}).status_code in (401, 403)  # ohne Schutzkopf
-    # jede Person hat ihre eigene Auswahl
-    assert not any(d["selected"] and d["service"] == "notify.mobile_app_tablet" for d in client.get("/api/notify", headers=as_user(DORA)).json()["devices"])
+    # Dora sieht nur ihr eigenes Gerät und kann das des Admins nicht wählen
+    dora = client.get("/api/notify", headers=as_user(DORA)).json()
+    assert [d["service"] for d in dora["devices"]] == ["notify.mobile_app_sinas_handy"]
+    assert client.put("/api/notify", json={"enabled": True, "devices": ["notify.mobile_app_pixel"]}, headers=as_user(DORA, True)).status_code == 422
 
 
 def test_presence_endpoint_marks_the_chat_as_open(store):
@@ -178,7 +204,7 @@ def test_finished_answer_notifies_when_nobody_watches(store, monkeypatch):
 
     asyncio.run(go())
     (call,) = ha.sent()
-    assert call["service_data"]["message"] == "HA Copilot: Die Antwort."
+    assert call["service_data"]["message"] == "Die Antwort." and call["service_data"]["title"] == "Frage"  # Titel aus der ersten Frage
 
 
 def test_finished_answer_stays_quiet_when_someone_follows_it(store, monkeypatch):
@@ -197,6 +223,7 @@ def test_finished_answer_stays_quiet_when_someone_follows_it(store, monkeypatch)
 
 def test_scheduled_task_uses_the_chosen_devices(store):
     app, _, notifier, ha = build(store)
+    ha.give_tablet_to_admin()
     notifier.save(profile(), True, ["notify.mobile_app_tablet"])
     scheduler = app.state.scheduler
     assert run(scheduler.notify(profile(), "phone", "Bericht", "Text")) is None

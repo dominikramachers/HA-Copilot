@@ -28,7 +28,7 @@ log = logging.getLogger("ki.notifier")
 
 NOTIFY_DELAY_SECONDS = 10  # Schonfrist, bevor eine ungelesene Antwort gemeldet wird
 PRESENCE_TTL = 45  # so lange gilt „Chat ist offen“ nach der letzten Meldung der Oberfläche
-EXCERPT = 140  # Länge des Antworttextes in der Meldung
+EXCERPT = 300  # Länge des Antworttextes in der Meldung (das Telefon kürzt selbst, wenn es nicht passt)
 SERVICE_PREFIX = "notify.mobile_app_"
 _SERVICE_RE = re.compile(r"^notify\.mobile_app_[a-z0-9_]{1,80}$")
 
@@ -138,24 +138,32 @@ class Notifier:
                     found.append(service)
         return found
 
+    async def allowed(self, profile: Profile, services: list[str] | None = None) -> list[str]:
+        """Geräte, die diese Person nutzen darf: nur die, die in Home Assistant zu ihr gehören, dazu ein vom Administrator
+        eingetragener ``notify_service``. Fremde Geräte tauchen weder in der Auswahl auf noch bekommen sie Meldungen."""
+        services = services if services is not None else await self._services()
+        found = await self._own(profile, services)
+        if profile.notify_service and profile.notify_service in services and profile.notify_service not in found:
+            found.append(profile.notify_service)
+        return found
+
     async def devices(self, profile: Profile) -> dict[str, Any]:
-        """Für die Einstellungen: alle Geräte, welche davon gewählt sind, ob die Meldung an ist."""
-        services = await self._services()
-        own = await self._own(profile, services)
-        chosen = await self.selected(profile, services=services, own=own)
-        rows = [{"service": s, "label": label_of(s), "mine": s in own, "selected": s in chosen} for s in services]
-        rows.sort(key=lambda r: (not r["mine"], r["label"].lower()))
+        """Für die Einstellungen: die eigenen Geräte, welche davon gewählt sind, ob die Meldung an ist."""
+        allowed = await self.allowed(profile)
+        chosen = await self.selected(profile, allowed=allowed)
+        rows = [{"service": s, "label": label_of(s), "selected": s in chosen} for s in allowed]
+        rows.sort(key=lambda r: r["label"].lower())
         return {"enabled": self.enabled(profile), "devices": rows, "delay": int(self.delay)}
 
-    async def selected(self, profile: Profile, *, services: list[str] | None = None, own: list[str] | None = None) -> list[str]:
-        """Geräte, die Meldungen bekommen: die gewählten; sonst ``notify_service`` der Person; sonst ihre eigenen Geräte."""
+    async def selected(self, profile: Profile, *, allowed: list[str] | None = None) -> list[str]:
+        """Geräte, die Meldungen bekommen: die gewählten (soweit sie noch zur Person gehören); sonst ``notify_service``; sonst alle eigenen."""
+        allowed = allowed if allowed is not None else await self.allowed(profile)
         stored = self._stored(profile)
         if stored and stored.get("devices"):
-            return [s for s in stored["devices"] if isinstance(s, str) and _SERVICE_RE.match(s)]
-        if profile.notify_service:
+            return [s for s in stored["devices"] if s in allowed]
+        if profile.notify_service and profile.notify_service in allowed:
             return [profile.notify_service]
-        services = services if services is not None else await self._services()
-        return own if own is not None else await self._own(profile, services)
+        return list(allowed)
 
     # ------------------------------------------------------------ Senden
 
@@ -188,7 +196,8 @@ class Notifier:
         base = self.settings.public_base_url
         if base:
             data.update(url=base, clickAction=base)
-        payload = {"title": tr("Eine ungelesene Nachricht"), "message": f"{self.settings.app_name}: {text or tr('Antwort fertig')}", "data": data}
+        # Wie eine Chat-Nachricht: oben der Chat-Titel, darunter die Antwort.
+        payload = {"title": (title or chat.get("title") or self.settings.app_name)[:120], "message": text or tr("Antwort fertig"), "data": data}
         sent: list[str] = []
         for device in devices:
             _, _, name = device.partition(".")

@@ -6539,7 +6539,7 @@ function notifyPanel(body, alive) {
     const list = node("div", "notify-devices");
     list.append(node("h4", "", tr("Geräte")));
     if (!data.devices.length) {
-      list.append(node("p", "mem-hint", tr("Auf keinem Gerät ist die Home-Assistant-App angemeldet. Melde dich in der App an, dann erscheint das Gerät hier.")));
+      list.append(node("p", "mem-hint", tr("Zu dir gehört in Home Assistant noch kein Gerät mit der App. Melde dich in der App an und ordne das Gerät in Home Assistant deiner Person zu (Einstellungen → Personen), dann erscheint es hier.")));
     }
     for (const device of data.devices) {
       const label = node("label", "notify-dev");
@@ -6550,10 +6550,9 @@ function notifyPanel(body, alive) {
       box2.addEventListener("change", () => save(data.enabled, data.devices.filter((d) => (d === device ? box2.checked : d.selected)).map((d) => d.service)));
       const name = node("span", "notify-dev-name", device.label);
       label.append(box2, name);
-      if (device.mine) label.append(node("small", "", tr("dein Gerät")));
       list.append(label);
     }
-    if (data.devices.length) list.append(node("p", "mem-hint", tr("Vorausgewählt sind die Geräte, die in Home Assistant zu dir gehören. Die Auswahl gilt auch für geplante Aufgaben mit „Zusätzlich aufs Handy“.")));
+    if (data.devices.length) list.append(node("p", "mem-hint", tr("Hier stehen nur Geräte, die in Home Assistant zu dir gehören. Fehlt eins, ordne es dort deiner Person zu (Einstellungen → Personen). Die Auswahl gilt auch für geplante Aufgaben mit „Zusätzlich aufs Handy“.")));
     parts.push(list);
     box.replaceChildren(...parts);
   };
