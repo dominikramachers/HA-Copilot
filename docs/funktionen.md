@@ -144,7 +144,7 @@ Mehr: [API-Konto und Schlüssel anlegen](bilder-konten.md), [Bilder (Einrichtung
 
 Unter **Geplant** legst du Aufgaben an, die die KI zu festen Zeiten erledigt (täglich, Montag bis Freitag, wöchentlich, monatlich, einmalig), zum Beispiel einen Morgenüberblick über das Haus. Sie dürfen **nur lesen**: Home Assistant, GitHub und Gedächtnis werden nie verändert. Das Ergebnis steht als ungelesener Chat in der Liste und optional als Meldung in Home Assistant oder aufs Handy (`notify_service` beim Benutzer).
 
-Dauert eine normale Antwort länger als etwa 45 Sekunden und niemand sieht mehr zu, bekommt die Person ebenfalls eine Handy-Benachrichtigung. `schedules_enabled: false` schaltet die Seite ab.
+Bleibt eine Antwort ungelesen, weil der Chat auf keinem Gerät offen ist, bekommt die Person eine Handy-Benachrichtigung (siehe „Benachrichtigung aufs Handy“ in der DOCS). `schedules_enabled: false` schaltet die Seite ab.
 
 Mehr: [Geplante Aufgaben](../copilot/DOCS.md#geplante-aufgaben-ab-0210).
 

@@ -1196,3 +1196,13 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .set-modal .set-nav { position: static; align-content: start; overflow-y: auto; padding: 16px 12px 24px; border-right: 1px solid var(--line-2); }
 .set-modal .set-main { min-height: 0; overflow-y: auto; padding: 22px 32px 36px; }
 @media (prefers-reduced-motion: reduce) { .set-modal { transition: none; } }
+
+/* Einstellungen: Benachrichtigungen */
+.notify-box { display: grid; gap: 4px; }
+.notify-devices { display: grid; gap: 2px; margin-top: 18px; }
+.notify-devices h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.notify-dev { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 2px; font-size: 14.5px; cursor: pointer; }
+.notify-dev input { flex: none; width: 18px; height: 18px; accent-color: var(--accent); }
+.notify-dev input:disabled { opacity: .5; }
+.notify-dev-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notify-dev small { flex: none; font-size: 12.5px; color: var(--muted); }

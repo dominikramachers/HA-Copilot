@@ -93,7 +93,6 @@ class Settings:
     models: tuple[str, ...] = DEFAULT_MODELS  # zusätzlich wählbare Modelle (Standard ist ``model``)
     web_access_default: str = "on"  # Websuche und Seiten lesen (on | off), pro Benutzer überschreibbar (web_access)
     schedules_enabled: bool = True  # geplante Aufgaben (Menüpunkt „Geplant“)
-    notify_long_answers: bool = True  # Benachrichtigung bei fertiger längerer Antwort; wirkt nur mit notify_service der Person
     restore_snapshot: str = ""
     export_database: bool = False  # Datenbank beim Start in den Config-Ordner kopieren (Umzug in ein anderes Add-on)
     claude_token_expires: date | None = None

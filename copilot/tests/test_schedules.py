@@ -145,9 +145,9 @@ def test_notify_service_option():
     for bad in ("mobile_app_pixel", "light.kueche", "notify.", "notify.a b", "notify.x/y"):
         with pytest.raises(ConfigError):
             parse_settings({**RAW, "profiles": [{**RAW["profiles"][0], "notify_service": bad}]}, frozenset())
-    assert SETTINGS.schedules_enabled and SETTINGS.notify_long_answers
-    off = parse_settings({**RAW, "schedules_enabled": False, "notify_long_answers": False}, frozenset())
-    assert not off.schedules_enabled and off.notify_long_answers  # die Meldung gilt, sobald ein Dienst eingetragen ist
+    assert SETTINGS.schedules_enabled
+    off = parse_settings({**RAW, "schedules_enabled": False}, frozenset())
+    assert not off.schedules_enabled
 
 
 # ------------------------------------------------------------------ Schnittstelle
@@ -508,57 +508,6 @@ def test_no_notification_when_run_failed(store):
     make_task(store, next_run=1_000, notify="ha")
     run_tick(scheduler)
     assert notify_calls(ha) == []
-
-
-def phone_settings(**extra):
-    return parse_with_fixed(
-        {**RAW, **extra, "profiles": [{**RAW["profiles"][0], "notify_service": "notify.mobile_app_pixel"}, RAW["profiles"][1]]},
-        frozenset({"testclient"}),
-    )
-
-
-def test_long_answer_notifies_when_nobody_watches(store, monkeypatch):
-    import app.main as main
-    monkeypatch.setattr(main, "LONG_ANSWER_SECONDS", 0)
-    ha = RecordingHa()
-    app, _ = make_app(store, phone_settings(), FakeBackend(("Die ", "lange Antwort.")), ha)
-    chat = store.create_chat("adm01", "Neuer Chat")
-
-    async def go():
-        # Verbindung ist sofort weg: niemand sieht zu
-        await asgi(app, "POST", f"/api/chats/{chat['id']}/send", {"content": "Frage"}, hang_up_after=-1)
-        for _ in range(100):
-            if notify_calls(ha):
-                break
-            await asyncio.sleep(0.05)
-
-    asyncio.run(go())
-    (call,) = notify_calls(ha)
-    assert (call["domain"], call["service"]) == ("notify", "mobile_app_pixel")
-    assert call["service_data"]["message"] == "Die lange Antwort."
-
-
-def test_long_answer_stays_quiet_when_watched_short_or_disabled(store, monkeypatch):
-    import app.main as main
-    chat_text = {"content": "Frage"}
-
-    def scenario(settings, threshold, hang_up):
-        monkeypatch.setattr(main, "LONG_ANSWER_SECONDS", threshold)
-        ha = RecordingHa()
-        app, _ = make_app(store, settings, FakeBackend(("Antwort.",)), ha)
-        chat = store.create_chat("adm01", "Neuer Chat")
-
-        async def go():
-            await asgi(app, "POST", f"/api/chats/{chat['id']}/send", chat_text, hang_up_after=hang_up)
-            await asyncio.sleep(0.3)
-
-        asyncio.run(go())
-        return notify_calls(ha)
-
-    assert scenario(phone_settings(), 0, None) == []  # jemand sieht zu
-    assert scenario(phone_settings(), 3600, -1) == []  # zu kurz
-    assert scenario(phone_settings(notify_long_answers=False), 0, -1) == []  # ausgeschaltet
-    assert scenario(SETTINGS, 0, -1) == []  # Person hat keinen Dienst eingetragen
 
 
 # --------------------------------------------------------------------- Zeitzone

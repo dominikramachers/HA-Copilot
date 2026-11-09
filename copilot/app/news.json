@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.50.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich melde mich aufs Handy",
+          "text": "Hast du meine Antwort nicht gelesen, schicke ich dir eine Meldung aufs Handy. Liest du den Chat auf einem Gerät, verschwindet sie wieder. Die Geräte wählst du in den Einstellungen."
+        },
+        "en": {
+          "title": "I will ping your phone",
+          "text": "If you haven’t read my answer, I send a notification to your phone. Once you read the chat on any device, it disappears again. You choose the devices in the settings."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.49.0",
     "items": [
       {

@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.49.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.50.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -421,14 +421,15 @@ Auf der Seite lässt sich jede Aufgabe pausieren und fortsetzen (Schalter), sofo
 
 Es wird nur nach einem erfolgreichen Lauf benachrichtigt. Schlägt die Benachrichtigung selbst fehl, steht das bei der Aufgabe.
 
-### `notify_service` und fertige Antworten (Benachrichtigung aufs Handy)
+### Benachrichtigung aufs Handy (ab 0.50.0)
 
-Im Benutzer-Eintrag der Konfiguration kannst du den Benachrichtigungsdienst der Person eintragen, z. B. `notify.mobile_app_pixel` (Entwicklerwerkzeuge, Aktionen, Suche nach „notify“). Er wird für zwei Dinge benutzt:
+Ist eine Antwort fertig und der Chat bleibt ungelesen, meldet sich die KI aufs Handy, über die Home-Assistant-App. Es gibt nur diesen Weg; Browser-Benachrichtigungen (Web Push) gibt es nicht.
 
-1. geplante Aufgaben mit „Zusätzlich aufs Handy“,
-2. **fertige Antworten:** Dauert eine Antwort länger als etwa 45 Sekunden und niemand sieht mehr zu (Chat gewechselt, Tab geschlossen, Seite neu geladen), bekommt die Person eine Benachrichtigung mit dem Chat-Titel und dem Anfang der Antwort. Das gilt für alle, die einen `notify_service` eingetragen haben. Sieht die Person zu, kommt nichts.
-
-Die Benachrichtigung zeigt den Anfang der Antwort, also auch auf dem Sperrbildschirm. Wer das nicht möchte, trägt keinen Dienst ein. Browser-Benachrichtigungen (Web Push) gibt es nicht; dafür bräuchte die App einen Dienst im Browser, der auch bei geschlossenem Tab läuft.
+- **Wann:** Sobald eine Antwort fertig ist und die Person den Chat auf **keinem** Gerät offen hat (sichtbarer Tab, Handy-App im Vordergrund), wartet das Add-on etwa 10 Sekunden und prüft noch einmal. Ist der Chat dann immer noch ungelesen und niemand sieht ihn an, geht die Meldung raus. Wer in der Zwischenzeit liest, bekommt nichts. Wer den Chat später auf einem Gerät liest, dem verschwindet die Meldung auf allen Geräten wieder. Mehrere Antworten im selben Chat ersetzen sich.
+- **Text:** Erste Zeile „Eine ungelesene Nachricht“, zweite Zeile „<Name der KI>: <Anfang der Antwort>“. Der Name ist `app_name` aus der Add-on-Konfiguration (z. B. „Aria“). Der Text steht auch auf dem Sperrbildschirm; wer das nicht will, schaltet die Meldungen aus.
+- **Geräte:** Unter **Einstellungen → Benachrichtigungen** schaltet jede Person die Meldungen ein oder aus und hakt ihre Geräte an. Zur Auswahl stehen alle Geräte, auf denen die Home-Assistant-App angemeldet ist (`notify.mobile_app_*`). Vorausgewählt sind die Geräte, die in Home Assistant zu der Person gehören (Geräteverfolger ihrer Personen-Entität, zugeordnet über den Benutzer); fehlt eines (z. B. ein iPad), hakst du es dort an. Hat die Person nie gewählt und trägt der Benutzer-Eintrag `notify_service` ein (z. B. `notify.mobile_app_pixel`), gilt dieser Dienst.
+- **Geplante Aufgaben** mit „Zusätzlich aufs Handy“ melden an dieselben Geräte.
+- **Technik:** Die Oberfläche meldet alle 20 Sekunden und bei jedem Wechsel, welchen Chat sie sichtbar zeigt (`POST /api/presence`, nur im Arbeitsspeicher, 45 Sekunden gültig). Das Entfernen läuft über `clear_notification` mit dem `tag` des Chats.
 
 `schedules_enabled: false` schaltet den Menüpunkt ab; bestehende Aufgaben ruhen dann.
 

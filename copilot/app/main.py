@@ -70,6 +70,7 @@ from .images import IMAGES_NOTE, ImageService, ImageToolbox
 from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox
 from . import exporter
 from . import limits as limitlib
+from . import notifier as notifierlib
 from . import schedule as sched
 from .scheduler import NOTIFY_MODES, PROMPT_MAX, NAME_MAX, Scheduler, plain_excerpt
 from .web_tools import WEB_NOTE, WebToolbox
@@ -104,7 +105,6 @@ TITLE_TIMEOUT = 40  # Sekunden für den automatischen Chat-Titel
 SUMMARY_TIMEOUT = 240  # Sekunden für das Zusammenfassen eines langen Verlaufs
 SWEEP_SECONDS = 1800  # Aufräumen der Zwischendateien des Claude-Programms
 DELETE_WORDS = ("LÖSCHEN", "DELETE")  # eines davon muss zur Sicherheit eingetippt werden, bevor alle Chats gelöscht werden (die Oberfläche zeigt das Wort ihrer Sprache)
-LONG_ANSWER_SECONDS = 45  # ab dieser Dauer meldet sich die Antwort per Benachrichtigung, wenn niemand zusieht
 KEEPALIVE_SECONDS = 15  # Cloudflare trennt Verbindungen, über die ~100 s nichts fließt
 SESSION_COOKIE = "__Host-ki_session"
 LOGIN_COOKIE = "__Host-ki_login"
@@ -230,6 +230,18 @@ class SendBody(BaseModel):
 class CreateChatBody(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
     project_id: str | None = Field(default=None, max_length=64)
+
+
+class PresenceBody(BaseModel):
+    """Meldung der Oberfläche: dieses Gerät (``client``) sieht gerade diesen Chat an (``chat_id``) oder keinen (``null``)."""
+
+    client: str = Field(min_length=4, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")
+    chat_id: str | None = Field(default=None, max_length=64)
+
+
+class NotifyBody(BaseModel):
+    enabled: bool
+    devices: list[str] = Field(default_factory=list, max_length=20)
 
 
 class PatchChatBody(BaseModel):
@@ -728,6 +740,10 @@ def register_chat_routes(
     connectors = connectors or make_connectors(settings, store, registry or Registry.from_settings(settings, store))
     limits = limitlib.shared(store)
     welcome = newslib.Welcome(store)
+    presence = notifierlib.presence_for(store)
+    notifier = notifierlib.notifier_for(store, settings, ha)
+    if scheduler is not None:
+        scheduler.phone_services = notifier.selected  # geplante Aufgaben melden an dieselben Geräte
     model_ids = {m["id"] for m in settings.model_choices()}
     accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH))
     images = images or ImageService(settings)
@@ -782,7 +798,8 @@ def register_chat_routes(
             "default_model": settings.model,
             "limits": limits.current(),
             "schedules": settings.schedules_enabled and scheduler is not None,
-            "notify_phone": bool(profile.notify_service),
+            "notify_phone": bool(profile.notify_service) or notifier.has_choice(profile),
+            "notify": notifier.available,
             "notify_ha": ha is not None and ha.enabled,
             "memory": settings.memory_enabled,
             "overview": overview_allowed(profile),
@@ -791,6 +808,30 @@ def register_chat_routes(
             "welcome": welcome.state(profile.id),
             **me_extra,
         }
+
+    @app.post("/api/presence", status_code=204, dependencies=[Depends(write_guard)])
+    def report_presence(body: PresenceBody, profile: Profile = Depends(current_profile)) -> Response:
+        """Die Oberfläche meldet, welchen Chat sie gerade zeigt (alle 20 Sekunden und bei jedem Wechsel)."""
+        presence.seen(profile.id, body.client, body.chat_id)
+        return Response(status_code=204)
+
+    @app.get("/api/notify")
+    async def notify_settings(profile: Profile = Depends(current_profile)) -> dict:
+        """Meldungen aufs Handy: an/aus und die Geräte, auf denen die Home-Assistant-App der Person angemeldet ist."""
+        if not notifier.available:
+            raise HTTPException(status_code=404, detail=tr("Home Assistant ist nicht verbunden."))
+        return await notifier.devices(profile)
+
+    @app.put("/api/notify", dependencies=[Depends(write_guard)])
+    async def save_notify(body: NotifyBody, profile: Profile = Depends(current_profile)) -> dict:
+        if not notifier.available:
+            raise HTTPException(status_code=404, detail=tr("Home Assistant ist nicht verbunden."))
+        known = {d["service"] for d in (await notifier.devices(profile))["devices"]}
+        unknown = [d for d in body.devices if d not in known]
+        if unknown:
+            raise HTTPException(status_code=422, detail=tr("Unbekanntes Gerät: {device}", device=unknown[0]))
+        notifier.save(profile, body.enabled, body.devices)
+        return await notifier.devices(profile)
 
     @app.post("/api/welcome/seen", status_code=204, dependencies=[Depends(write_guard)])
     def welcome_seen(body: SeenBody, profile: Profile = Depends(current_profile)) -> Response:
@@ -1164,7 +1205,7 @@ def register_chat_routes(
         return result
 
     @app.patch("/api/chats/{chat_id}", dependencies=[Depends(write_guard)])
-    def update_chat(
+    async def update_chat(
         chat_id: str, body: PatchChatBody, profile: Profile = Depends(current_profile)
     ) -> dict:
         if store.get_chat(profile.id, chat_id) is None:
@@ -1182,6 +1223,8 @@ def register_chat_routes(
             store.set_chat_pinned(profile.id, chat_id, body.pinned)
         if body.unread is not None:
             store.set_chat_unread(profile.id, chat_id, body.unread)
+            if not body.unread:
+                notifier.spawn_clear(profile.id, chat_id)  # gelesen: Meldung von den Geräten nehmen
         return store.get_chat(profile.id, chat_id) or {}
 
     @app.delete("/api/chats/{chat_id}", status_code=204, dependencies=[Depends(write_guard)])
@@ -2124,15 +2167,9 @@ def register_chat_routes(
                     # Niemand sieht zu (Chat gewechselt, Seite neu geladen): Kurztitel gleich hier erzeugen.
                     with contextlib.suppress(Exception):
                         await make_title(profile.id, chat_id)
-                if (
-                    scheduler is not None and settings.notify_long_answers and profile.notify_service
-                    and run.parts and not run.error and run.followers == 0
-                    and run.finished_at - run.started >= LONG_ANSWER_SECONDS
-                ):
-                    # Eine längere Antwort ist fertig und niemand sieht zu: auf dem Handy Bescheid geben.
-                    with contextlib.suppress(Exception):
-                        shown_chat = store.get_chat(profile.id, chat_id) or {}
-                        await scheduler.notify(profile, "phone", shown_chat.get("title") or tr("Antwort fertig"), plain_excerpt("".join(run.parts)))
+                if run.parts and not run.error and run.followers == 0:
+                    # Antwort fertig und niemand sieht zu: bei ungelesenem Chat nach kurzer Schonfrist aufs Handy melden.
+                    notifier.spawn(profile, chat_id, plain_excerpt("".join(run.parts), notifierlib.EXCERPT))
 
         run.task = asyncio.create_task(generate())
         return StreamingResponse(

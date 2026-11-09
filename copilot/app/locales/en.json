@@ -525,5 +525,8 @@
  "Ob du lesen oder auch ändern darfst, legt der Administrator mit `github_access_default` oder `github_access` im Benutzer-Eintrag fest: `read` oder `write`.": "Whether you may read or also change things is set by the administrator with `github_access_default` or `github_access` in the user entry: `read` or `write`.",
  "Wähle „Mit GitHub verbinden“, gib den angezeigten Code bei GitHub ein und bestätige. Alternativ kannst du ein eigenes Token einfügen.": "Choose “Connect with GitHub”, enter the code shown at GitHub and confirm. Alternatively you can paste your own token.",
  "Öffne die Einstellungen, wähle „GitHub“ und verbinde dich neu.": "Open the settings, choose “GitHub” and connect again.",
- "Öffne unten links das Konto-Menü, wähle „Einstellungen“ und dort „GitHub“.": "Open the account menu at the bottom left, choose “Settings” and then “GitHub”."
+ "Öffne unten links das Konto-Menü, wähle „Einstellungen“ und dort „GitHub“.": "Open the account menu at the bottom left, choose “Settings” and then “GitHub”.",
+ "Die Benachrichtigung konnte nicht an alle Geräte gesendet werden.": "The notification could not be sent to all devices.",
+ "Eine ungelesene Nachricht": "One unread message",
+ "Unbekanntes Gerät: {device}": "Unknown device: {device}"
 }
