@@ -50,7 +50,7 @@ class FakeBackend:
 
 # Seit 0.45.0 keine Optionen mehr, sondern feste Werte. Einzelne Szenarien brauchen sie trotzdem anders.
 FIXED_VALUES = frozenset({
-    "files_edit", "files_keep_days", "images_enabled", "web_access_default", "notify_long_answers", "ha_write_confirm",
+    "files_edit", "files_keep_days", "images_enabled", "web_access_default", "ha_write_confirm",
     "github_write_confirm", "connector_write_confirm", "memory_household_writers", "ha_scan_days", "ha_access_via_domain", "connector_allow_private",
 })
 

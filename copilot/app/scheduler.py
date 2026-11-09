@@ -97,6 +97,7 @@ class Scheduler:
         self.settings = settings
         self.store = store
         self.backend = backend
+        self.phone_services: Callable[[Profile], Any] | None = None  # liefert die Geräte der Person (wird von main gesetzt); sonst notify_service
         self.registry = registry
         self.ha = ha
         self.limits = limits
@@ -376,34 +377,37 @@ class Scheduler:
     async def notify(self, profile: Profile, mode: str, title: str, message: str, *, key: str = "") -> str | None:
         """Benachrichtigung senden (mode: ``ha`` = Meldung in Home Assistant, ``phone`` = Dienst der Person). Liefert eine Fehlermeldung für die Anzeige oder ``None``."""
         if mode == "ha":
-            command = {
+            commands = [{
                 "type": "call_service", "domain": "persistent_notification", "service": "create",
                 "service_data": {
                     "title": title[:120], "message": (message or tr("Fertig.")) + tr("\n\nDas Ergebnis steht im {app_name}.", app_name=self.settings.app_name),
                     "notification_id": f"copilot_{re.sub('[^a-z0-9_]', '', key.lower())[:40] or 'task'}",
                 },
-            }
+            }]
         elif mode == "phone":
-            service = profile.notify_service
-            if not service:
+            services = await self.phone_services(profile) if self.phone_services else ([profile.notify_service] if profile.notify_service else [])
+            if not services:
                 return tr("Benachrichtigung nicht gesendet: Für dich ist kein Benachrichtigungsdienst eingetragen.")
-            domain, _, name = service.partition(".")
             data: dict[str, Any] = {}
             base = self.settings.public_base_url
             if base:
                 data = {"url": base, "clickAction": base}
-            command = {
-                "type": "call_service", "domain": domain, "service": name,
+            commands = [{
+                "type": "call_service", "domain": service.partition(".")[0], "service": service.partition(".")[2],
                 "service_data": {"title": title[:120], "message": message or tr("Fertig."), **({"data": data} if data else {})},
-            }
+            } for service in services]
         else:
             return None
-        try:
-            await self.ha.call(command)
-        except HaApiError as exc:
-            log.warning("Benachrichtigung fehlgeschlagen: %s", exc)
+        failed = False
+        for command in commands:
+            try:
+                await self.ha.call(command)
+            except HaApiError as exc:
+                log.warning("Benachrichtigung fehlgeschlagen: %s", exc)
+                failed = True
+        if failed and len(commands) == 1:
             return tr("Die Benachrichtigung konnte nicht gesendet werden (Home Assistant hat sie abgelehnt oder war nicht erreichbar).")
-        return None
+        return tr("Die Benachrichtigung konnte nicht an alle Geräte gesendet werden.") if failed else None
 
     async def idle(self) -> None:
         """Auf alle laufenden Aufgaben warten (für Tests und geordnetes Beenden)."""

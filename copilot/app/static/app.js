@@ -36,6 +36,7 @@ const ICONS = {
   quote: ["M5 5v6a3 3 0 0 0 3 3h11", "M15 10l4 4-4 4"],
   info: ["M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z", "M12 11v5.5", "M12 7.8h.01"],
   bolt: ["M13 3L5 13.5h6L10 21l8-10.5h-6z"],
+  bell: ["M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z", "M10 20.5h4"],
   bug: ["M9 7a3 3 0 0 1 6 0M8 9h8v5a4 4 0 0 1-8 0zM4 10l4 1.5M20 10l-4 1.5M4 18l4-2M20 18l-4-2M12 9v10"],
   code: ["M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"],
   pen: ["M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"],
@@ -800,6 +801,33 @@ function rememberActive() {
     if (state.activeId) sessionStorage.setItem("ki-active", state.activeId);
     else sessionStorage.removeItem("ki-active");
   } catch { /* optional */ }
+  syncPresence();
+}
+
+// Anwesenheit: Der Server erfährt, welchen Chat dieses Gerät gerade zeigt (sichtbarer Tab). Nur so kann er Meldungen
+// aufs Handy auf ungelesene Antworten beschränken: Ist der Chat auf irgendeinem Gerät offen, bleibt es still.
+const presence = { client: "", sent: undefined, at: 0 };
+
+function presenceClient() {
+  if (presence.client) return presence.client;
+  let id = "";
+  try { id = sessionStorage.getItem("ki-client") || ""; } catch { /* optional */ }
+  if (!id) {
+    id = ((window.crypto?.randomUUID?.() || `${Math.random()}${Date.now()}`)).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 36);
+    try { sessionStorage.setItem("ki-client", id); } catch { /* optional */ }
+  }
+  presence.client = id;
+  return id;
+}
+
+function syncPresence() {
+  if (!state.me) return;
+  const target = state.view === "chat" && !document.hidden && state.activeId ? state.activeId : null;
+  const stale = Date.now() - presence.at > 20000;
+  if (target === presence.sent && !(target && stale)) return;
+  presence.sent = target;
+  presence.at = Date.now();
+  api("api/presence", { method: "POST", body: JSON.stringify({ client: presenceClient(), chat_id: target }), keepalive: true }).catch(() => {});
 }
 
 function rememberedActive() {
@@ -5281,6 +5309,7 @@ function setView(view) {
   $("skills").hidden = view !== "skills";
   $("settings").hidden = view !== "settings";
   rememberView(view);
+  syncPresence();
   if (view !== "settings") { settingsStop(); settingsStop = () => {}; }
   $("nav-schedules").classList.toggle("active", view === "schedules");
   $("nav-skills").classList.toggle("active", view === "skills");
@@ -6477,6 +6506,62 @@ async function settingsUsage(body, alive) {
   body.replaceChildren(...parts);
 }
 
+// Meldungen aufs Handy: an/aus und auf welchen Geräten (Home-Assistant-App). Die Meldung kommt nur, wenn eine Antwort ungelesen bleibt.
+function notifyPanel(body, alive) {
+  const box = node("div", "notify-box");
+  body.append(box);
+  let data = null;
+  let busy = false;
+  const save = async (enabled, devices) => {
+    if (busy) return;
+    busy = true;
+    try {
+      data = await api("api/notify", { method: "PUT", body: JSON.stringify({ enabled, devices }) });
+    } catch { toast(tr("Das hat nicht geklappt.")); }
+    busy = false;
+    if (alive()) draw();
+  };
+  const chosen = () => data.devices.filter((d) => d.selected).map((d) => d.service);
+  const draw = () => {
+    const parts = [];
+    const row = node("div", "set-row");
+    const text = node("div", "set-row-text");
+    text.append(node("b", "", tr("Meldungen aufs Handy")), node("span", "", tr("Wenn du eine Antwort nicht liest, melde ich mich nach etwa {0} Sekunden. Ist der Chat auf einem deiner Geräte offen, bleibt es still. Sobald du ihn liest, verschwindet die Meldung wieder.", data.delay)));
+    const toggle = node("button", "sched-switch");
+    toggle.type = "button";
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("aria-checked", String(data.enabled));
+    toggle.setAttribute("aria-label", tr("Meldungen aufs Handy"));
+    toggle.append(node("span", "knob"));
+    toggle.addEventListener("click", () => save(!data.enabled, chosen()));
+    row.append(text, toggle);
+    parts.push(row);
+    const list = node("div", "notify-devices");
+    list.append(node("h4", "", tr("Geräte")));
+    if (!data.devices.length) {
+      list.append(node("p", "mem-hint", tr("Auf keinem Gerät ist die Home-Assistant-App angemeldet. Melde dich in der App an, dann erscheint das Gerät hier.")));
+    }
+    for (const device of data.devices) {
+      const label = node("label", "notify-dev");
+      const box2 = node("input");
+      box2.type = "checkbox";
+      box2.checked = device.selected;
+      box2.disabled = !data.enabled;
+      box2.addEventListener("change", () => save(data.enabled, data.devices.filter((d) => (d === device ? box2.checked : d.selected)).map((d) => d.service)));
+      const name = node("span", "notify-dev-name", device.label);
+      label.append(box2, name);
+      if (device.mine) label.append(node("small", "", tr("dein Gerät")));
+      list.append(label);
+    }
+    if (data.devices.length) list.append(node("p", "mem-hint", tr("Vorausgewählt sind die Geräte, die in Home Assistant zu dir gehören. Die Auswahl gilt auch für geplante Aufgaben mit „Zusätzlich aufs Handy“.")));
+    parts.push(list);
+    box.replaceChildren(...parts);
+  };
+  api("api/notify").then((value) => { if (alive()) { data = value; draw(); } }).catch(() => {
+    if (alive()) box.replaceChildren(node("p", "mem-empty", tr("Die Geräte sind gerade nicht abrufbar.")));
+  });
+}
+
 function settingsGroups() {
   const me = state.me || {};
   const page = (id, iconName, label, sub, render, extra = {}) => ({ id, icon: iconName, label, sub, render, ...extra });
@@ -6486,6 +6571,7 @@ function settingsGroups() {
   ];
   if (me.memory) prefs.push(page("memory", "memory", tr("Gedächtnis"), tr("Die KI merkt sich, was du ihr sagst, und nutzt es in allen Chats. Du kannst jeden Eintrag löschen."), memoryPanel));
   if (me.github_connect) prefs.push(page("github", "github", "GitHub", tr("Verbinde dein GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann."), githubPanel, { solid: true }));
+  if (me.notify) prefs.push(page("notify", "bell", tr("Benachrichtigungen"), tr("Wann und wohin ich dir aufs Handy Bescheid gebe."), notifyPanel));
   prefs.push(page("data", "data", tr("Meine Daten"), tr("Nimm deine Daten mit oder räume auf. Es betrifft nur dein Profil."), dataPanel));
   const help = [
     page("guide", "info", tr("Kurzanleitung"), tr("Kurz erklärt, wie du mit mir arbeitest."), introPanel),
@@ -6741,6 +6827,10 @@ async function init() {
     window.addEventListener("focus", refreshWhenSeen);
     setInterval(refreshWhenSeen, 45000);
     setInterval(pollRunning, 3000);
+    setInterval(syncPresence, 5000);
+    document.addEventListener("visibilitychange", syncPresence);
+    window.addEventListener("pagehide", syncPresence);
+    syncPresence();
     const [view, detail] = rememberedView();
     const again = rememberedActive();
     if (view === "settings" && narrowScreen()) await openSettings(detail);

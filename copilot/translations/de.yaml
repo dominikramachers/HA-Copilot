@@ -29,7 +29,7 @@ configuration:
         description: 'on = die KI darf für diesen Benutzer im Web suchen und Seiten lesen, off = nicht. Leer: es gilt der Standard unten.'
       notify_service:
         name: Benachrichtigungsdienst (optional)
-        description: 'Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Damit meldet sich die KI, wenn eine längere Antwort fertig ist, während niemand zusieht, und geplante Aufgaben können aufs Handy melden. Leer: keine Benachrichtigung aufs Handy.'
+        description: 'Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Vorgabe für die Geräte dieser Person (jede Person wählt ihre Geräte selbst unter Einstellungen → Benachrichtigungen; ohne Auswahl gelten die Geräte ihrer Person in Home Assistant). Leer: keine Vorgabe.'
       id:
         name: Kurzname (optional)
         description: 'Interne Kennung, a–z, 0–9, Bindestrich. Leer lassen: wird aus dem Anzeigenamen gebildet. Nachträglich nicht mehr ändern, die Chats hängen daran.'

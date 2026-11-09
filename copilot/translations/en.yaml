@@ -29,7 +29,7 @@ configuration:
         description: 'on = the AI may search the web and read pages for this user, off = not. Empty: the default below applies.'
       notify_service:
         name: Notification service (optional)
-        description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). The AI uses it when a longer answer finishes while nobody is watching, and scheduled tasks can report to the phone. Empty: no phone notifications.'
+        description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). Default device of this person (everyone picks their own devices under Settings → Notifications; without a choice the devices of their person in Home Assistant apply). Empty: no default.'
       id:
         name: Short name (optional)
         description: 'Internal id, a–z, 0–9, hyphen. Leave empty to derive it from the display name. Do not change later: chats are tied to it.'
