@@ -388,3 +388,19 @@ def test_chat_gets_memory_and_knowledge_context(store):
     plain = client.post("/api/chats", json={}, headers=as_user(DORA, True)).json()["id"]
     client.post(f"/api/chats/{plain}/send", json={"content": "Hallo"}, headers=as_user(DORA, True))
     assert "knowledge_search" not in {t.name for t in backend.calls[-1]["tools"]} and "doku.md" not in backend.calls[-1]["note"]
+
+
+def test_memory_rules_limit_household_to_smarthome_and_let_the_ai_decide(store):
+    note = toolbox(store, "dora").note(["Dora"], "read", False)
+    assert "scope=person ist der Normalfall" in note and "nur für Smarthome-Wissen" in note and "ALLE im Haushalt" in note
+    assert "Im Zweifel persönlich" in note and "Im Zweifel nicht speichern" in note
+    assert "einmalige Aufträge" in note and "laufende Vorhaben" in note
+    assert "Die Oberfläche zeigt unter deiner Antwort selbst an" in note
+    spec = {t.name: t for t in toolbox(store, "dora").specs()}["memory_save"]
+    assert "scope=household nur für Smarthome-Wissen" in spec.description and "person = Normalfall" in spec.schema["properties"]["scope"]["description"]
+
+
+def test_household_save_reminds_that_everyone_sees_it(store):
+    save = handler(toolbox(store, "dora"), "memory_save")
+    assert "alle Personen" in run(save({"scope": "household", "topic": "Heizplan", "content": "Wohnzimmer 21 Grad ab 17 Uhr."}))
+    assert "alle Personen" not in run(save({"scope": "person", "topic": "Ausbildung", "content": "Zweite Ausbildung."}))

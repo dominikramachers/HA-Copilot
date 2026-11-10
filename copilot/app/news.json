@@ -1,5 +1,40 @@
 [
   {
+    "version": "0.51.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich merke mir Dinge selbst",
+          "text": "Ich entscheide jetzt selbst, was ich mir für später merke, und sage es dir unter meiner Antwort. Für alle im Haus speichere ich nur Wissen rund ums Smarthome."
+        },
+        "en": {
+          "title": "I remember things on my own",
+          "text": "I now decide myself what is worth remembering and tell you below my answer. For the whole household I only save things about the smart home."
+        }
+      },
+      {
+        "de": {
+          "title": "Lange Texte als Anhang",
+          "text": "Fügst du einen langen Text ein, hängt er wie bei Claude als Anhang an deiner Nachricht. Du kannst ihn öffnen, und ich kenne ihn auch bei späteren Fragen."
+        },
+        "en": {
+          "title": "Long texts as attachments",
+          "text": "If you paste a long text, it now becomes an attachment to your message, just like in Claude. You can open it and I still know it in later questions."
+        }
+      },
+      {
+        "de": {
+          "title": "Lange Antworten von oben lesen",
+          "text": "Schreibe ich eine lange Antwort, bleibt ihr Anfang oben stehen. Du liest von vorn und wirst nicht mehr nach unten gezogen."
+        },
+        "en": {
+          "title": "Read long answers from the top",
+          "text": "When I write a long answer, its beginning stays at the top. You read from the start and are no longer pulled down."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.50.1",
     "items": [
       {

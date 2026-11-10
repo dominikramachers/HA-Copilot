@@ -941,5 +941,11 @@
  "Wann und wohin ich dir aufs Handy Bescheid gebe.": "When and where I let you know on your phone.",
  "Wenn du eine Antwort nicht liest, melde ich mich nach etwa {0} Sekunden. Ist der Chat auf einem deiner Geräte offen, bleibt es still. Sobald du ihn liest, verschwindet die Meldung wieder.": "If you don’t read an answer, I’ll let you know after about {0} seconds. If the chat is open on one of your devices, I stay quiet. As soon as you read it, the notification disappears again.",
  "Zu dir gehört in Home Assistant noch kein Gerät mit der App. Melde dich in der App an und ordne das Gerät in Home Assistant deiner Person zu (Einstellungen → Personen), dann erscheint es hier.": "No device with the app belongs to you in Home Assistant yet. Sign in to the app and assign the device to your person in Home Assistant (Settings → People), then it will show up here.",
- "Hier stehen nur Geräte, die in Home Assistant zu dir gehören. Fehlt eins, ordne es dort deiner Person zu (Einstellungen → Personen). Die Auswahl gilt auch für geplante Aufgaben mit „Zusätzlich aufs Handy“.": "Only devices that belong to you in Home Assistant are listed. If one is missing, assign it to your person there (Settings → People). The choice also applies to scheduled tasks set to “Also to your phone”."
+ "Hier stehen nur Geräte, die in Home Assistant zu dir gehören. Fehlt eins, ordne es dort deiner Person zu (Einstellungen → Personen). Die Auswahl gilt auch für geplante Aufgaben mit „Zusätzlich aufs Handy“.": "Only devices that belong to you in Home Assistant are listed. If one is missing, assign it to your person there (Settings → People). The choice also applies to scheduled tasks set to “Also to your phone”.",
+ "Der eingefügte Text ist zu lang (höchstens {0} Zeichen).": "The pasted text is too long (at most {0} characters).",
+ "Eingefügter Text ({0}).txt": "Pasted text ({0}).txt",
+ "Eingefügter Text.txt": "Pasted text.txt",
+ "Gedächtnis öffnen": "Open memory",
+ "{0} Zeichen": "{0} characters",
+ "{0} ansehen": "View {0}"
 }

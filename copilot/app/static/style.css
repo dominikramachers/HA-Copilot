@@ -394,6 +394,16 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .attach-tray { display: flex; gap: 8px; margin: 0 0 10px -8px; padding: 0 8px 2px; overflow-x: auto; scrollbar-width: none; }
 .attach-tray::-webkit-scrollbar { display: none; }
 .file-chip { flex: none; display: inline-flex; align-items: center; gap: 9px; max-width: 230px; height: 46px; padding: 5px 6px 5px 5px; border-radius: var(--r-2); background: var(--panel-2); border: 1px solid var(--line); }
+.file-chip.viewable { cursor: pointer; }
+.file-chip.viewable:hover { border-color: var(--text-3, var(--line)); }
+.file-chip.viewable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pasted-view { margin: 0 0 12px; max-height: min(56dvh, 520px); overflow: auto; overscroll-behavior: contain; padding: 12px 14px; border-radius: var(--r-2); background: var(--panel-2); border: 1px solid var(--line); font: 13px/1.5 var(--mono, ui-monospace, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mem-note { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 4px 8px; margin: 12px 0 4px; font-size: 13.5px; color: var(--text-2); }
+.mem-note[hidden] { display: none; }
+.mem-note .icon { flex: none; width: 16px; height: 16px; }
+.mem-note .mem-text { min-width: 0; overflow-wrap: anywhere; }
+.mem-open { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.mem-open:hover { color: var(--text); }
 .file-thumb { flex: none; width: 36px; height: 36px; border-radius: var(--r-1); display: grid; place-items: center; background: var(--chip) center / cover no-repeat; color: var(--text-2); }
 .file-thumb .icon { width: 18px; height: 18px; }
 .file-meta { min-width: 0; display: grid; line-height: 1.2; }
