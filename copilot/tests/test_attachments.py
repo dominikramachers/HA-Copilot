@@ -28,10 +28,10 @@ def new_chat(client):
     return client.post("/api/chats", json={}, headers=as_user(ADM01, True)).json()["id"]
 
 
-def send(client, chat_id, text, files=None):
+def send(client, chat_id, text, files=None, pasted=()):
     body = {"content": text}
     if files is not None:
-        body["files"] = [{"name": n, "data": b64(d)} for n, d in files]
+        body["files"] = [{"name": n, "data": b64(d), **({"pasted": True} if n in pasted else {})} for n, d in files]
     return client.post(f"/api/chats/{chat_id}/send", json=body, headers=as_user(ADM01, True))
 
 
@@ -350,3 +350,45 @@ def test_broken_large_pdf_is_a_clear_error():
     junk = b"%PDF-1.4\n" + _os.urandom(21 * 1024 * 1024)
     with _pytest.raises(_att.AttachmentError, match="PDF"):
         _att.parse([("kaputt.pdf", _b64s(junk))])
+
+
+# ------------------------------------------------------- Eingefügter Text (Anhang, der im Chat bleibt)
+
+PASTE = "Zeile mit Inhalt " + MARKER + "\n" + "weitere Zeile\n" * 30
+
+
+def test_pasted_text_stays_in_the_chat_and_goes_into_history(memory_client, backend):
+    client = memory_client
+    chat_id = new_chat(client)
+    name = "Eingefügter Text.txt"
+    assert send(client, chat_id, "Fasse das zusammen", [(name, PASTE.encode())], pasted={name}).status_code == 200
+    messages = client.get(f"/api/chats/{chat_id}/messages", headers=as_user(ADM01)).json()
+    meta = messages[0]["attachments"][0]
+    assert meta["pasted"] is True and meta["text"] == PASTE and meta["name"] == name
+    send(client, chat_id, "Kürze Absatz 2")
+    first = backend.calls[1]["history"][0]["content"]
+    assert MARKER in first and f'name="{name}"' in first and first.endswith("Fasse das zusammen")
+    assert "nicht mehr vorliegen" not in first
+
+
+def test_pasted_flag_only_counts_for_plain_text(memory_client, backend):
+    client = memory_client
+    chat_id = new_chat(client)
+    send(client, chat_id, "Prüfe", [("a.pdf", PDF), ("b.png", PNG)], pasted={"a.pdf", "b.png"})
+    messages = client.get(f"/api/chats/{chat_id}/messages", headers=as_user(ADM01)).json()
+    assert all("text" not in a and "pasted" not in a for a in messages[0]["attachments"])
+
+
+def test_normal_text_file_is_still_not_stored(memory_client):
+    client = memory_client
+    chat_id = new_chat(client)
+    send(client, chat_id, "Prüfe", [("log.txt", PASTE.encode())])
+    messages = client.get(f"/api/chats/{chat_id}/messages", headers=as_user(ADM01)).json()
+    assert messages[0]["attachments"] == [{"name": "log.txt", "kind": "text", "size": len(PASTE.encode())}]
+
+
+def test_history_content_pieces():
+    metas = [{"name": "p.txt", "kind": "text", "size": 5, "pasted": True, "text": "hallo"}, {"name": "a.pdf", "kind": "pdf", "size": 9}]
+    text = att.history_content({"content": "Frage", "attachments": metas})
+    assert 'name="p.txt"' in text and "hallo" in text and "a.pdf (PDF, 9 B)" in text and "p.txt (" not in text.split("---")[-1]
+    assert att.history_content({"content": "x", "attachments": []}) == "x"

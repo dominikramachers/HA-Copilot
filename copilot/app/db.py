@@ -333,11 +333,15 @@ def _attachments(raw: str | None) -> list[dict[str, Any]]:
         items = json.loads(raw)
     except ValueError:
         return []
-    return [
-        {"name": str(i.get("name", "Datei")), "kind": str(i.get("kind", "text")), "size": int(i.get("size", 0))}
-        for i in items
-        if isinstance(i, dict)
-    ]
+    out = []
+    for i in items:
+        if not isinstance(i, dict):
+            continue
+        entry = {"name": str(i.get("name", "Datei")), "kind": str(i.get("kind", "text")), "size": int(i.get("size", 0))}
+        if i.get("pasted") and isinstance(i.get("text"), str):  # eingefügter Text bleibt im Chat (siehe attachments.Attachment.meta)
+            entry.update(pasted=True, text=i["text"])
+        out.append(entry)
+    return out
 
 
 def _tools(raw: str | None) -> list[dict[str, Any]]:

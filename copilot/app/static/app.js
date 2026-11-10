@@ -3622,6 +3622,24 @@ async function togglePreview(anchor, button, html) {
 window.kiFile = { save: saveFile, preview: togglePreview };
 window.kiIcon = icon;
 
+// Inhalt eines eingefügten Textes in einem Fenster zeigen (mit Kopieren).
+function openPasted(file) {
+  openSheet({
+    title: file.name,
+    sub: tr("{0} Zeichen", file.text.length.toLocaleString(kiLocale)),
+    ok: tr("Schließen"),
+    wide: true,
+    panel: (body) => {
+      const copy = node("button", "pill ghost small pasted-copy", tr("Kopieren"));
+      copy.type = "button";
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(file.text); toast(tr("Kopiert.")); } catch { toast(tr("Kopieren nicht möglich.")); }
+      });
+      body.append(node("pre", "pasted-view", file.text), copy);
+    },
+  });
+}
+
 function fileChip(file, removable) {
   const chip = node("div", "file-chip");
   const thumb = node("span", "file-thumb");
@@ -3630,6 +3648,16 @@ function fileChip(file, removable) {
   const meta = node("span", "file-meta");
   meta.append(node("b", "", file.name), node("small", "", `${KIND_LABEL[file.kind] || tr("Datei")} · ${formatSize(file.size)}`));
   chip.append(thumb, meta);
+  if (file.pasted && file.text) {
+    // Eingefügter Text: Antippen zeigt den Inhalt (er bleibt im Chat gespeichert, anders als hochgeladene Dateien).
+    chip.classList.add("viewable");
+    chip.tabIndex = 0;
+    chip.setAttribute("role", "button");
+    chip.setAttribute("aria-label", tr("{0} ansehen", file.name));
+    const open = () => openPasted(file);
+    chip.addEventListener("click", (event) => { if (!event.target.closest(".file-x")) open(); });
+    chip.addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target === chip) { event.preventDefault(); open(); } });
+  }
   if (removable) {
     const x = node("button", "file-x");
     x.type = "button";
@@ -3652,7 +3680,9 @@ function actionsEl(list = [], open = false) {
   box.open = open;
   const head = document.createElement("summary");
   box.append(head, node("ul", "act-list"));
-  box.update = (items) => {
+  box.update = (all) => {
+    // Gelungene Gedächtnis-Änderungen zeigt der Hinweis unter der Antwort (memoryNoteEl); hier stehen sie nicht doppelt.
+    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok"));
     const ha = items.filter((a) => ["read", "execute", "write"].includes(a.kind));
     const changes = ha.filter((a) => a.kind !== "read").length;
     const wissen = items.filter((a) => a.kind === "knowledge").length;
@@ -3944,6 +3974,22 @@ function fileCardsEl(actions) {
   return box;
 }
 
+// Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude).
+function memoryNoteEl(actions) {
+  const box = node("div", "mem-note");
+  box.update = (items) => {
+    const done = items.filter((a) => a.kind === "memory" && a.status === "ok");
+    box.hidden = done.length === 0;
+    if (!done.length) { box.replaceChildren(); return; }
+    const open = node("button", "mem-open", tr("Gedächtnis öffnen"));
+    open.type = "button";
+    open.addEventListener("click", () => openMemory());
+    box.replaceChildren(icon("memory"), node("span", "mem-text", done.map((a) => a.label).join(" · ")), open);
+  };
+  box.update(actions);
+  return box;
+}
+
 // Wann wurde die Nachricht gesendet? „vor 33 Minuten“, „vor 2 Stunden“ (gerundet), danach „Heute Morgen“, „Gestern“,
 // „Vorgestern“, „vor 3 Tagen“ und ab einer Woche das Datum.
 function sentAgo(iso, now = new Date()) {
@@ -3996,7 +4042,8 @@ function userMessage(text, files = [], meta = {}) {
   const bar = node("div", "msg-meta");
   const time = node("span", "msg-time");
   const refresh = () => { time.textContent = sentAgo(group.dataset.at); time.title = exactTime(group.dataset.at); };
-  const edit = actionButton(tr("Nachricht bearbeiten"), "edit", "msg-act msg-edit-btn", () => startEdit(group, body, files.length > 0, quote));
+  const keptText = files.filter((f) => f.pasted && f.text); // eingefügte Texte gehen beim Bearbeiten mit
+  const edit = actionButton(tr("Nachricht bearbeiten"), "edit", "msg-act msg-edit-btn", () => startEdit(group, body, files.length > keptText.length, quote, keptText));
   const copy = actionButton(tr("Nachricht kopieren"), "copy", "msg-act", async () => {
     try {
       await navigator.clipboard.writeText(body);
@@ -4019,7 +4066,7 @@ function userMessage(text, files = [], meta = {}) {
 }
 
 // Nachricht bearbeiten: Die Blase wird zum Eingabefeld; „Senden“ ersetzt diese Frage und alles danach durch eine neue Antwort.
-function startEdit(group, text, hadFiles, quote = "") {
+function startEdit(group, text, hadFiles, quote = "", pasted = []) {
   if (state.streaming) { toast(tr("Warte, bis die Antwort fertig ist.")); return; }
   if (!group.dataset.id) { toast(tr("Diese Nachricht lässt sich gerade nicht bearbeiten.")); return; }
   const bubble = group.querySelector(".msg.user");
@@ -4044,7 +4091,7 @@ function startEdit(group, text, hadFiles, quote = "") {
     const value = area.value.trim();
     if (!value) return;
     close();
-    sendMessage({ id: Number(group.dataset.id), text: value, el: group, quote }).catch(() => {});
+    sendMessage({ id: Number(group.dataset.id), text: value, el: group, quote, pasted }).catch(() => {});
   });
   area.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); close(); }
@@ -4109,6 +4156,7 @@ function messageEl(role, text, files = [], actions = [], meta = {}) {
     if (actions.length) el.append(actionsEl(actions));
     el.append(window.renderMarkdown(text));
     if (actions.some((a) => a.file)) el.append(fileCardsEl(actions));
+    if (actions.some((a) => a.kind === "memory" && a.status === "ok")) el.append(memoryNoteEl(actions));
     const at = meta.at || new Date().toISOString();
     el.dataset.at = at;
     el.append(answerMeta(text, el));
@@ -4127,6 +4175,39 @@ function scrollDown(force) {
   const box = $("messages");
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 140;
   if (force || nearBottom) box.scrollTop = box.scrollHeight;
+}
+
+// Mitlaufen während eine Antwort entsteht (wie in Claude): Der Chat folgt dem Text nur, solange die Antwort noch ins Bild passt.
+// Wird sie länger, bleibt ihr Anfang oben stehen, damit man von vorn lesen kann. Wer selbst scrollt, wird nicht zurückgeholt.
+const follow = { on: true, anchored: false };
+
+function followReset() {
+  follow.on = true;
+  follow.anchored = false;
+}
+
+function followAnswer(el) {
+  if (!follow.on || !el?.isConnected) return;
+  const box = $("messages");
+  const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 12;
+  const bottom = box.scrollHeight - box.clientHeight;
+  follow.anchored = top < bottom;
+  box.scrollTop = Math.min(bottom, Math.max(top, 0));
+}
+
+function initFollow() {
+  const box = $("messages");
+  const leave = () => { follow.on = false; };
+  box.addEventListener("wheel", (event) => { if (event.deltaY < 0) leave(); }, { passive: true });
+  box.addEventListener("touchmove", leave, { passive: true });
+  box.addEventListener("pointerdown", (event) => { if (event.target === box) leave(); }); // Rollbalken ziehen
+  document.addEventListener("keydown", (event) => {
+    if (["PageUp", "ArrowUp", "Home"].includes(event.key) && !event.target.closest?.("input, textarea")) leave();
+  });
+  // Wieder ganz unten (und die Antwort passt noch ins Bild): ab hier läuft der Chat wieder mit.
+  box.addEventListener("scroll", () => {
+    if (!follow.anchored && box.scrollHeight - box.scrollTop - box.clientHeight < 40) follow.on = true;
+  }, { passive: true });
 }
 
 // Trennlinie zwischen dem zusammengefassten älteren Verlauf und den wörtlich mitgeschickten Nachrichten.
@@ -4332,6 +4413,32 @@ async function addFiles(list) {
   if (rejected) toast(rejected);
 }
 
+// Langer eingefügter Text wird ein Textanhang. Er bleibt im Chat gespeichert (die KI sieht ihn auch in Folgefragen) und lässt sich öffnen.
+const PASTE_MIN_CHARS = 1500;
+const PASTE_MIN_LINES = 20;
+const PASTE_MAX_CHARS = 200000; // wie MAX_TEXT_CHARS im Server
+
+function isLongPaste(text) {
+  return text.length >= PASTE_MIN_CHARS || text.split("\n").length >= PASTE_MIN_LINES;
+}
+
+function pastedFile({ name, text }) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  return { id: ++fileId, kind: "text", name, blob, thumb: "", size: blob.size, pasted: true, text };
+}
+
+function addPasted(text) {
+  if (text.length > PASTE_MAX_CHARS) {
+    toast(tr("Der eingefügte Text ist zu lang (höchstens {0} Zeichen).", PASTE_MAX_CHARS.toLocaleString(kiLocale)));
+    return;
+  }
+  const taken = state.files.filter((f) => f.pasted).length;
+  const name = taken ? tr("Eingefügter Text ({0}).txt", taken + 1) : tr("Eingefügter Text.txt");
+  state.files.push(pastedFile({ name, text }));
+  renderTray();
+  $("input").focus({ preventScroll: true });
+}
+
 function releaseRecent() {
   for (const f of state.recent) f.blob = null;
   state.recent = [];
@@ -4390,12 +4497,18 @@ function initAttachments() {
     picker.value = "";
     addFiles(chosen);
   });
-  // Dateien aus der Zwischenablage (z. B. Screenshot) einfügen
+  // Dateien aus der Zwischenablage (z. B. Screenshot) einfügen; langer Text wird (wie in Claude) zum Anhang statt zum Rohtext im Eingabefeld
   $("input").addEventListener("paste", (event) => {
     const files = [...(event.clipboardData?.files || [])];
-    if (!files.length) return;
+    if (files.length) {
+      event.preventDefault();
+      addFiles(files);
+      return;
+    }
+    const text = (event.clipboardData?.getData("text/plain") || "").replace(/\r\n?/g, "\n");
+    if (!isLongPaste(text) || state.streaming || state.files.length >= LIMITS.files || $("input").readOnly) return; // sonst normal einfügen
     event.preventDefault();
-    addFiles(files);
+    addPasted(text);
   });
   // Dateien auf die Seite ziehen
   let depth = 0;
@@ -4493,7 +4606,8 @@ async function consume(response, run, bubble) {
     parts.log.hidden = true;
     parts.text = node("div", "act-text");
     parts.files = fileCardsEl([]);
-    bubble.replaceChildren(parts.log, parts.text, parts.files, ...(run.busy ? [run.busy.el] : []));
+    parts.mem = memoryNoteEl([]);
+    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.mem, ...(run.busy ? [run.busy.el] : []));
   };
   // Was die Warteanzeige gerade zeigt: laufende Aktion, Rückfrage, Hinweistext oder (sobald Text kommt) nur das kleine Zeichen
   let statusText = "";
@@ -4510,7 +4624,7 @@ async function consume(response, run, bubble) {
     if (run.detached) return;
     build();
     parts.text.replaceChildren(window.renderMarkdown(out.answer));
-    scrollDown(false);
+    followAnswer(bubble);
   };
   try {
     await readEvents(response, (ev) => {
@@ -4523,7 +4637,7 @@ async function consume(response, run, bubble) {
       } else if (ev.type === "tool") {
         byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "" });
         out.actions = [...byId.values()];
-        if (!run.detached) { build(); parts.log.update(out.actions); parts.files.update(out.actions); scrollDown(false); }
+        if (!run.detached) { build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble); }
       } else if (ev.type === "approval") {
         if (!run.detached) { build(); const card = approvalCard(run.chatId, ev); cards.set(ev.id, card); $("dock-asks").append(card); syncDock(); }
       } else if (ev.type === "approval_done") {
@@ -4799,7 +4913,8 @@ async function settleRun(run, bubble, out, view = {}) {
     if (attempts <= 6) setTimeout(() => { if (state.activeId === chatId) attachRun(chatId, attempts).catch(() => {}); }, 1500);
     return;
   }
-  if (out.answer) bubble.replaceWith(messageEl("assistant", out.answer, [], out.actions));
+  const finished = out.answer ? messageEl("assistant", out.answer, [], out.actions) : null;
+  if (finished) bubble.replaceWith(finished);
   else bubble.remove();
   markLastAnswer();
   if (out.failure) {
@@ -4822,14 +4937,17 @@ async function settleRun(run, bubble, out, view = {}) {
   // Nur die zuletzt gesendeten Dateien bleiben im Browser-Speicher (zum erneuten Anhängen), nie auf dem Server.
   if (view.sentFiles) {
     releaseRecent();
-    if (state.files !== view.sentFiles && out.answer && view.sentFiles.length) {
-      state.recent = view.sentFiles;
-      view.userEl?.querySelector(".msg-files")?.append(reattachButton(view.sentFiles));
+    const reusable = view.sentFiles.filter((f) => !f.pasted); // eingefügter Text bleibt im Chat, er muss nicht neu angehängt werden
+    if (state.files !== view.sentFiles && out.answer && reusable.length) {
+      state.recent = reusable;
+      view.userEl?.querySelector(".msg-files")?.append(reattachButton(reusable));
     } else if (state.files !== view.sentFiles) {
       for (const f of view.sentFiles) f.blob = null;
     }
   }
-  scrollDown(true);
+  // Am Ende nicht nach unten zwingen: eine lange Antwort bleibt mit ihrem Anfang im Bild, wenn man sie von vorn liest.
+  if (finished && !(out.failure && !follow.anchored)) followAnswer(finished);
+  else if (!finished || follow.on) scrollDown(true);
   // Wird die Antwort gerade angesehen, gilt sie als gelesen; liegt das Fenster im Hintergrund, bleibt der Chat ungelesen.
   if (out.answer && !document.hidden) await patchChat({ id: chatId }, { unread: false }).catch(() => {});
   await loadAll().catch(() => {});
@@ -4871,6 +4989,7 @@ async function attachRun(chatId, attempts = 0) {
   const bubble = node("div", "msg assistant pending");
   addBusy(run, bubble);
   thread.append(bubble);
+  followReset();
   scrollDown(true);
   const out = await consume(response, run, bubble);
   await settleRun(run, bubble, out, { attempts, first });
@@ -5021,12 +5140,13 @@ async function sendMessage(edit = null) {
     // Die alte Frage und alles danach verschwindet aus der Ansicht; der Server ersetzt es beim Annehmen.
     for (let n = edit.el; n;) { const next = n.nextElementSibling; n.remove(); n = next; }
   }
-  const sentFiles = edit ? [] : state.files;
+  const sentFiles = edit ? (edit.pasted || []).map(pastedFile) : state.files;
   const quote = edit ? (edit.quote || "") : state.quote;
   if (!edit) { state.files = []; renderTray(); setQuote(""); }
   const userEl = messageEl("user", withQuote(quote, text), sentFiles);
   const bubble = node("div", "msg assistant pending");
   thread.append(userEl, bubble);
+  followReset();
   scrollDown(true);
 
   if (!edit) { input.value = ""; autosize(); }
@@ -5037,7 +5157,7 @@ async function sendMessage(edit = null) {
 
   let out;
   try {
-    const files = await Promise.all(sentFiles.map(async (f) => ({ name: f.name, data: await toBase64(f.blob) })));
+    const files = await Promise.all(sentFiles.map(async (f) => ({ name: f.name, data: await toBase64(f.blob), ...(f.pasted ? { pasted: true } : {}) })));
     const response = await fetch(`api/chats/${encodeURIComponent(chatId)}/send`, {
       method: "POST",
       credentials: "same-origin",
@@ -6782,6 +6902,7 @@ async function init() {
   $("new-chat-top").addEventListener("click", () => startNew());
   initSideToggle();
   initAttachments();
+  initFollow();
   initQuotePicker();
   $("composer").addEventListener("submit", (event) => {
     event.preventDefault();

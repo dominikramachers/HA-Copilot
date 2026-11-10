@@ -168,6 +168,7 @@ class TitleBody(BaseModel):
 class FileBody(BaseModel):
     name: str = Field(max_length=255)
     data: str = Field(max_length=filelib.MAX_BASE64_CHARS)  # Base64; wird nur im Arbeitsspeicher verarbeitet
+    pasted: bool = False  # eingefügter langer Text (Textanhang der Person selbst, bleibt im Chat stehen)
 
 
 class PreviewBody(BaseModel):
@@ -1876,10 +1877,15 @@ def register_chat_routes(
             files = await asyncio.to_thread(filelib.parse, [(f.name, f.data) for f in body.files])
         except filelib.AttachmentError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
+        for att, sent in zip(files, body.files):
+            att.pasted = bool(sent.pasted) and att.kind == "text" and att.shown_kind is None
         body.files.clear()  # Base64-Kopien der Anfrage nicht länger festhalten
-        # Frühere Dateien liegen nicht mehr vor: Claude bekommt nur den Hinweis, dass es sie gab.
+        # Hochgeladene Dateien früherer Nachrichten liegen nicht mehr vor: Claude bekommt nur den Hinweis, dass es sie gab.
+        # Eingefügte Texte stehen dagegen im Chat und gehen wieder mit.
         files_kept = settings.files_enabled and settings.files_edit
-        history = [{**m, "content": m["content"] + filelib.note_for_history(m["attachments"], files_kept)} for m in history]
+        history = [{**m, "content": filelib.history_content(m, files_kept)} for m in history]
+        # Eingefügter Text stammt von der Person selbst (wie getippter Text) und gilt nicht als fremder Inhalt.
+        foreign_files = [f for f in files if not f.pasted]
         key = (profile.id, chat_id)
         previous = live_run(key)
         if previous and not previous.finished:
@@ -2000,7 +2006,7 @@ def register_chat_routes(
             project_id=store.chat_project_id(profile.id, chat_id),
             memory_enabled=settings.memory_enabled,
             household_write=household_writable(profile),
-            force_confirm=bool(files),
+            force_confirm=bool(foreign_files),
             ask=ask_memory, record=run.push, next_id=run.next_tool_id,
             tainted=lambda: any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             overview=overview_allowed(profile),
@@ -2018,7 +2024,7 @@ def register_chat_routes(
                 store, profile.id, chat_id, images, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, limit_month=settings.image_limit_month, ask=ask_image,
                 # Gelesene Web- oder Dateiinhalte (und angehängte Dokumente) können Anweisungen enthalten: dann vor jedem Bild nachfragen
-                tainted=lambda: any(f.kind != "image" for f in files) or any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
+                tainted=lambda: any(f.kind != "image" for f in foreign_files) or any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             )
             specs += image_box.specs()
         gh_level = github_level(profile)
@@ -2036,14 +2042,14 @@ def register_chat_routes(
                 gh_api, gh_level,
                 policy=gh_policy,
                 confirm_writes=settings.github_write_confirm == "ask",
-                force_confirm=lambda: bool(files) or any(a["kind"] in TAINTING_KINDS - {"gh-write"} for a in run.actions.values()),
+                force_confirm=lambda: bool(foreign_files) or any(a["kind"] in TAINTING_KINDS - {"gh-write"} for a in run.actions.values()),
                 ask=ask_github, record=run.push, chat_allowed=lambda: key in github_allow, allow_chat=lambda: github_allow.add(key),
                 next_id=run.next_tool_id, file_bytes=attachment_bytes,
             ).specs()
         connector_box = ConnectorToolbox(
             connectors, profile.id,
             confirm_writes=settings.connector_write_confirm == "ask",
-            force_confirm=lambda: bool(files) or any(a["kind"] in TAINTING_KINDS - {"mcp-write"} for a in run.actions.values()),
+            force_confirm=lambda: bool(foreign_files) or any(a["kind"] in TAINTING_KINDS - {"mcp-write"} for a in run.actions.values()),
             ask=ask_connector, record=run.push,
             chat_allowed=lambda cid: (profile.id, chat_id, cid) in connector_allow,
             allow_chat=lambda cid: connector_allow.add((profile.id, chat_id, cid)),
