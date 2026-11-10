@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.51.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.52.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -480,6 +480,21 @@ Die Option `language` stellt die Sprache des ganzen Add-ons ein: `de` (Standard,
 - **Was bewusst deutsch bleibt:** Alles, was nur die KI, das Protokoll oder die Konfiguration betrifft: Werkzeugbeschreibungen und -antworten, die Anweisungen an die KI, Protokollzeilen, Fehlermeldungen der Konfiguration (`ConfigError`), die gespeicherten Themen des Smarthome-Überblicks („HA · …“), die Dokumentation (`DOCS.md`, `README.md`, `CHANGELOG.md`) sowie bereits gespeicherte Chat-Inhalte, Chat-Titel, Projektnamen und Gedächtnis-Einträge. Eigene Texte aus der Personalisierung (`app_name`, `login_text`, `login_placeholder`) erscheinen so, wie du sie einträgst; nur die mitgelieferten Standardtexte werden übersetzt. Die Beschriftungen der Konfigurationsseite in Home Assistant folgen der Sprache von Home Assistant, nicht dieser Option.
 - **Gilt für alle:** Die Sprache ist eine Einstellung des Add-ons, nicht je Person.
 - **Aufbau (für Entwickler):** Die deutschen Texte im Quellcode sind die Schlüssel. Englisch steht in `app/locales/en.json` (Server und Seiten) und `app/locales/en-ui.json` (Browser, wird über `/branding/lang.js` geladen). Platzhalter heißen im Server `{name}`, im Browser `{0}`, `{1}`; `Einzahl||Mehrzahl` im Wörterbuch wählt nach der Zahl. Fehlt ein Eintrag, erscheint der deutsche Text (kein Absturz). `test_i18n.py` stellt sicher, dass jeder Text übersetzt ist, kein Eintrag ungenutzt bleibt und Platzhalter erhalten sind. Eine weitere Sprache bräuchte zwei neue Wörterbücher und einen Eintrag in `i18n.LANGUAGES` und im Schema.
+
+## Sprechen mit der KI (ab 0.52.0)
+
+Neben dem Senden-Knopf im Chat sitzt ein Mikrofon-Knopf. Er öffnet ein Fenster mit einem runden Partikel-Ring, der beim Zuhören auf die Stimme reagiert, beim Antworten schwingt und beim Nachdenken kreist. Unten stehen **Stumm**, **Sprechen** und **Beenden** (auch `Esc`). Es geht nur „per Knopf“: jede Runde beginnt mit einem Tipp auf **Sprechen** (beim Öffnen läuft die erste Runde sofort), eine Sprechpause beendet die Aufnahme.
+
+- **Aus ist der Standard.** `voice_access_default` (`off`/`on`) gilt für alle, `voice_access` im Benutzer-Eintrag überschreibt es je Person. Ohne Freigabe gibt es keinen Knopf und die Schnittstellen antworten mit 403.
+- **Der Name.** Die KI hört auf `app_name` (zum Beispiel `Aria`): „Aria, mach das Licht aus“ oder „Hey Aria …“. Der Name am Satzanfang wird entfernt; ein Satz ohne Namen wird genauso behandelt, denn das Gespräch läuft ja bewusst per Knopf.
+- **Zwei Wege.** *Schneller Pfad:* Versteht Home Assistant den Satz selbst („Licht im Wohnzimmer aus“, „Wie warm ist es im Bad?“), führt es ihn ohne KI aus – wenige Hundert Millisekunden, kein Verbrauch. Vorher macht das Add-on einen Probelauf und prüft die Zielgeräte. Nur wenn Home Assistant nichts versteht, antwortet die KI: das schnelle Modell (`claude-haiku-5-5`), niedriger Aufwand, kurze Antworten ohne Formatierung, ohne Dateien, Bilder, GitHub und Konnektoren.
+- **Was per Sprache gesperrt ist.** Schlösser (`lock`), Alarmanlagen (`alarm_control_panel`), Sirenen (`siren`) sowie Tor, Garage und Tür-Abdeckungen (`cover` mit Geräteklasse `door`, `gate`, `garage`) bedient die KI nur getippt. Dazu zählt die Haustür. Rückfragen („Zulassen?“) gibt es im Sprachmodus nicht, sie gelten als abgelehnt; nur Lesen und Bedienen, nichts Umbauen (Stufe `write` wird für Sprache auf `execute` gesenkt). Das Rechtemodell (`ha_access`, `ha_limit_to_exposed`) gilt unverändert.
+- **Spracherkennung.** Mit `openai_api_key` über OpenAI (`gpt-4o-mini-transcribe`, wenige Cent pro Stunde Sprache). Ohne Schlüssel nutzt das Add-on die Spracherkennung der bevorzugten Pipeline im Sprachassistenten von Home Assistant (Einstellungen → Sprachassistenten); fehlt auch die, meldet das Fenster, dass nichts eingerichtet ist. Auf einem Server ohne AVX-Befehle (ältere Celeron-Systeme) läuft Whisper in Home Assistant nicht; dort ist der OpenAI-Schlüssel der einfache Weg.
+- **Stimme.** `voice_output: device` (Standard) liest die Antwort mit der Stimme des Geräts vor, kostenlos. `service` nimmt dieselbe Quelle wie die Spracherkennung (OpenAI `gpt-4o-mini-tts` oder die Sprachausgabe der Pipeline in Home Assistant) und klingt besser.
+- **Wohin das Gespräch kommt.** Startest du mitten in einem Chat, stehen Gehörtes und Gesagtes wie Tipp-Nachrichten in diesem Chat und er steht ganz normal in der Liste. Startest du auf der leeren Startseite, entsteht ein **Sprachgespräch**: es steht nicht in der Chatliste und nicht in der Suche, bleibt aber im Export (Ordner „Sprachgespräche“). Im Fenster übernimmt **Als Chat behalten** es in die normale Liste. Nicht behaltene werden nach `voice_chat_days` Tagen gelöscht (Standard 30, 0 = behalten; angeheftete bleiben).
+- **Datenschutz.** Der Ton wird nur im Browser aufgenommen, als WAV an das Add-on gesendet und nach der Erkennung verworfen; er wird nicht gespeichert. Bei OpenAI geht er an dessen Spracherkennung.
+- **Mikrofon im Browser.** Der Browser erlaubt das Mikrofon nur über eine sichere Verbindung (`https`, also über deine Domain oder eine HTTPS-Adresse von Home Assistant; `http://` im Heimnetz geht nicht) und fragt einmal um Erlaubnis. In der Home-Assistant-App und im Ingress-Fenster hängt es davon ab, ob die Einbettung das Mikrofon erlaubt – dort bitte ausprobieren; der Zugang über die Domain funktioniert immer.
+- **Noch nicht dabei.** Dauerndes Zuhören auf das Weckwort, Mikrofone in Räumen, Wandtablets und Anbindung an Assist.
 
 ## Dateien erzeugen (ab 0.18.0)
 

@@ -107,6 +107,10 @@ Für den Administrator: Die Rechte (`github_access` je Benutzer, `github_access_
 
 Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 
+## Sprechen mit der KI
+
+Mit dem Mikrofon-Knopf neben **Senden** sprichst du mit der KI („Aria, mach das Licht im Wohnzimmer aus“; der Name ist `app_name`). Ein Fenster mit rundem Partikel-Ring zeigt, ob sie zuhört, nachdenkt oder antwortet; Stumm, Sprechen und Beenden liegen darunter. Befehle, die Home Assistant selbst versteht, laufen ohne KI und deshalb sofort. Schlösser, Alarmanlagen, Sirenen, Tore, Garagen und die Haustür bedient die KI per Sprache nie, das geht nur getippt. Aus ist der Standard: `voice_access_default` oder je Person `voice_access`. Ein Gespräch aus der Startseite steht nicht in der Chatliste (löscht sich nach `voice_chat_days` Tagen), ein Gespräch mitten in einem Chat gehört zu diesem Chat. Das Mikrofon braucht `https`. Mehr in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).
+
 ## Websuche und Modelle
 
 - Die KI sucht im Web und liest Seiten, wenn es nötig ist oder du darum bittest. Pro Benutzer steuerbar (`web_access`). Seiten aus dem Heimnetz und interne Adressen werden nie geladen.

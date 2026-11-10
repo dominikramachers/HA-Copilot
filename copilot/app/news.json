@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.52.0",
+    "items": [
+      {
+        "de": {
+          "title": "Du kannst mit mir sprechen",
+          "text": "Tippe auf das Mikrofon und sag zum Beispiel: „Mach das Licht im Wohnzimmer aus.“ Ich höre zu und antworte laut. Türen und Schlösser öffne ich nur, wenn du es tippst."
+        },
+        "en": {
+          "title": "You can talk to me",
+          "text": "Tap the microphone and say, for example: “Turn off the living room light.” I listen and answer out loud. I only open doors and locks when you type the request."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.51.0",
     "items": [
       {

@@ -27,6 +27,9 @@ configuration:
       web_access:
         name: Websuche (optional)
         description: 'on = die KI darf für diesen Benutzer im Web suchen und Seiten lesen, off = nicht. Leer: es gilt der Standard unten.'
+      voice_access:
+        name: Sprechen mit der KI (optional)
+        description: 'on = diese Person darf per Sprache mit der KI sprechen (Mikrofon-Knopf im Chat), off = nicht. Leer: es gilt der Standard unten.'
       notify_service:
         name: Benachrichtigungsdienst (optional)
         description: 'Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Vorgabe für die Geräte dieser Person (jede Person wählt ihre Geräte selbst unter Einstellungen → Benachrichtigungen; ohne Auswahl gelten die Geräte ihrer Person in Home Assistant). Leer: keine Vorgabe.'
@@ -120,6 +123,15 @@ configuration:
   image_limit_month:
     name: Bilder je Person und Monat
     description: 'Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts.'
+  voice_access_default:
+    name: 'Sprechen mit der KI: Standard'
+    description: 'Wer per Sprache mit der KI sprechen darf, wenn beim Benutzer nichts eingetragen ist: off (Standard) = niemand, on = alle. Zum Erkennen der Sprache braucht es `openai_api_key` oder eine Spracherkennung in der Home-Assistant-Sprachassistenten-Einstellung.'
+  voice_output:
+    name: 'Sprechen mit der KI: Stimme'
+    description: 'device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent.'
+  voice_chat_days:
+    name: Sprachgespräche aufbewahren (Tage)
+    description: 'Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben.'
   restore_snapshot:
     name: Datenbank wiederherstellen
     description: 'Nur im Notfall: Name eines Snapshots, der beim nächsten Start eingespielt wird. Danach leeren.'

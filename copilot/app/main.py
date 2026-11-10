@@ -74,6 +74,8 @@ from . import notifier as notifierlib
 from . import schedule as sched
 from .scheduler import NOTIFY_MODES, PROMPT_MAX, NAME_MAX, Scheduler, plain_excerpt
 from .web_tools import WEB_NOTE, WebToolbox
+from . import voice as voicelib
+from .voice import VoiceError, VoiceService
 from .github_accounts import AccountError, GithubAccounts
 from . import connector_catalog, connector_icons
 from .connectors import CONNECTOR_NOTE, ConnectorError, ConnectorService, ConnectorToolbox
@@ -150,9 +152,9 @@ def denied_html() -> str:
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
-    "Permissions-Policy": "geolocation=(), payment=(), usb=(), serial=(), bluetooth=()",
+    "Permissions-Policy": "geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), microphone=(self)",
     "Content-Security-Policy": (
-        "default-src 'self'; img-src 'self' data: blob:; frame-ancestors 'self'"
+        "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; frame-ancestors 'self'"
     ),
 }
 
@@ -226,11 +228,18 @@ class SendBody(BaseModel):
     edit_message_id: int | None = Field(default=None, ge=1)
     # Markierter Ausschnitt einer früheren Antwort, auf den sich die Nachricht bezieht (wird als Zitatblock vorangestellt, siehe quotes.py)
     quote: str | None = Field(default=None, max_length=quotes.QUOTE_MAX * 2)
+    # Gesprochene Nachricht: schnelles Modell, kurze Antwort zum Vorlesen, weniger Werkzeuge, Rückfragen werden abgelehnt
+    voice: bool = False
 
 
 class CreateChatBody(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
     project_id: str | None = Field(default=None, max_length=64)
+    voice: bool = False  # Sprachgespräch außerhalb eines Chats: steht nicht in der Chatliste
+
+
+class VoiceTextBody(BaseModel):
+    text: str = Field(min_length=1, max_length=voicelib.MAX_SPEAK_CHARS)
 
 
 class PresenceBody(BaseModel):
@@ -252,6 +261,7 @@ class PatchChatBody(BaseModel):
     pinned: bool | None = None
     unread: bool | None = None
     project_id: str | None = Field(default=None, max_length=64)
+    keep: bool | None = None  # True = Sprachgespräch als normalen Chat behalten (erscheint in der Chatliste)
 
 
 class ProjectBody(BaseModel):
@@ -306,6 +316,7 @@ CONNECTORS_PATH = re.compile(r"^/api/connectors(/\d+)?$")
 MEMORY_IMPORT_PATH = re.compile(r"^/api/memory/import(/preview)?$")
 CONNECTORS_BODY_BYTES = connector_icons.MAX_ICON_BYTES * 4 // 3 + 64 * 1024  # Logo als Base64 im Anfragetext
 PREVIEW_BODY_BYTES = 700_000
+VOICE_PATH = re.compile(r"^/api/voice/transcribe$")
 
 
 class BodyLimit:
@@ -334,6 +345,7 @@ class BodyLimit:
             else PLUGINS_BODY_BYTES if PLUGINS_PATH.match(scope["path"])
             else CONNECTORS_BODY_BYTES if CONNECTORS_PATH.match(scope["path"])
             else memlib.MAX_BASE64_CHARS + 64 * 1024 if MEMORY_IMPORT_PATH.match(scope["path"])
+            else voicelib.MAX_AUDIO_BYTES if VOICE_PATH.match(scope["path"])
             else 0
         )
         if big and self.signed_in(scope):  # nur dann prüfen (Datenbankzugriff), wenn die Grenze davon abhängt
@@ -415,7 +427,7 @@ PUBLIC_SECURITY_HEADERS = {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Resource-Policy": "same-origin",
     "Content-Security-Policy": (
-        "default-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'; "
+        "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; frame-ancestors 'none'; "
         "base-uri 'self'; form-action 'self'"
     ),
     "Strict-Transport-Security": "max-age=31536000",
@@ -733,6 +745,7 @@ def register_chat_routes(
     images: ImageService | None = None,
     connectors: ConnectorService | None = None,
     github_accounts: GithubAccounts | None = None,
+    voice: VoiceService | None = None,
 ) -> None:
     """Chat-API; für Ingress und Domain identisch, nur die Zuordnung der Person unterscheidet sich."""
     chat_allow: set[tuple[str, str]] = set()  # Chats, in denen Änderungen in Home Assistant dauerhaft erlaubt wurden (nur Arbeitsspeicher)
@@ -748,6 +761,17 @@ def register_chat_routes(
     model_ids = {m["id"] for m in settings.model_choices()}
     accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH))
     images = images or ImageService(settings)
+    voice = voice or VoiceService(settings, ha)
+    voice_limit = RateLimiter(90, 60)  # Aufnahmen und Vorlese-Stücke je Person und Minute
+
+    def voice_allowed(profile: Profile) -> bool:
+        return settings.voice_level(profile) == "on"
+
+    def need_voice(profile: Profile) -> None:
+        if not voice_allowed(profile):
+            raise HTTPException(status_code=403, detail=tr("Sprache ist für dich nicht freigeschaltet."))
+        if not voice_limit.allow(profile.id):
+            raise HTTPException(status_code=429, detail=tr("Gerade zu viele Anfragen, bitte kurz warten"))
     title_lock = asyncio.Lock()  # Titel einzeln nacheinander, damit sie keine Antworten ausbremsen
     previews = PreviewStore()  # HTML-Vorschauen, nur im Arbeitsspeicher
     export_limit = RateLimiter(4, 600)  # ZIP-Export nicht im Sekundentakt
@@ -794,6 +818,8 @@ def register_chat_routes(
             "github": github_level(profile),
             "github_connect": (profile.github_access or settings.github_access_default) != "none",
             "web": settings.web_level(profile) == "on",
+            "voice": voice_allowed(profile),
+            "voice_wake": settings.app_name if voice_allowed(profile) else "",
             "connectors": connectors.level(profile.id) >= 1,
             "models": settings.model_choices(),
             "default_model": settings.model,
@@ -1101,6 +1127,78 @@ def register_chat_routes(
             return _connector_page(False, tr("Die Anmeldung ist abgelaufen oder gehört nicht zu dieser Sitzung. Bitte noch einmal anmelden."))
         return _connector_page(True, tr("Der Konnektor ist verbunden. Du kannst dieses Fenster schließen und zum HA Copilot zurückkehren."))
 
+    # ------------------------------------------------------------------ Sprache
+
+    @app.get("/api/voice")
+    async def voice_status(profile: Profile = Depends(current_profile)) -> dict:
+        """Stand der Sprachfunktion für diese Person: freigeschaltet, womit erkannt und womit gesprochen wird."""
+        allowed = voice_allowed(profile)
+        return {
+            "allowed": allowed,
+            "stt": await voice.provider() if allowed else "",
+            "speech": await voice.speech() if allowed else "device",
+            "name": settings.app_name,
+            "language": settings.language,
+            "chat_days": settings.voice_chat_days,
+        }
+
+    @app.post("/api/voice/transcribe", dependencies=[Depends(write_guard)])
+    async def voice_transcribe(request: Request, profile: Profile = Depends(current_profile)) -> dict:
+        """Aufnahme (WAV, 16 Bit, mono) in Text wandeln. Der Ton wird nur im Arbeitsspeicher verarbeitet und nicht gespeichert."""
+        need_voice(profile)
+        audio = await request.body()
+        if not audio or len(audio) > voicelib.MAX_AUDIO_BYTES:
+            raise HTTPException(status_code=422, detail=tr("Die Aufnahme konnte nicht gelesen werden."))
+        try:
+            text = await voice.transcribe(audio)
+        except VoiceError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return {"text": text, "command": voicelib.strip_wake(text, settings.app_name)}
+
+    @app.post("/api/voice/speak", dependencies=[Depends(write_guard)])
+    async def voice_speak(body: VoiceTextBody, profile: Profile = Depends(current_profile)) -> Response:
+        """Ein Stück Antwort vorlesen lassen (nur wenn die Stimme nicht vom Gerät kommt)."""
+        need_voice(profile)
+        try:
+            audio, mime = await voice.speak(body.text)
+        except VoiceError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return Response(audio, media_type=mime, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+    @app.get("/api/voice/chats")
+    def voice_chats(profile: Profile = Depends(current_profile)) -> list[dict]:
+        """Sprachgespräche außerhalb eines Chats (stehen nicht in der Chatliste)."""
+        return store.list_chats(profile.id, "voice")
+
+    @app.post("/api/chats/{chat_id}/voice", dependencies=[Depends(write_guard)])
+    async def voice_command(chat_id: str, body: VoiceTextBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Schneller Pfad: den Satz von Home Assistant selbst ausführen lassen, ohne KI.
+
+        ``handled: false`` heißt: nicht verstanden oder nicht erlaubt, die Oberfläche schickt den Satz dann als
+        gesprochene Nachricht an die KI. Ausgeführte Befehle stehen als Frage und kurze Antwort im Chat.
+        """
+        need_voice(profile)
+        chat = store.get_chat(profile.id, chat_id)
+        if chat is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        text = " ".join(body.text.split())
+        previous = live_run((profile.id, chat_id))
+        if previous and not previous.finished:
+            raise HTTPException(status_code=409, detail=tr("In diesem Chat läuft bereits eine Antwort"))
+        result = await voice.quick_command(text, ha_level(profile))
+        if result is None:
+            return {"handled": False}
+        first = chat.get("title") in DEFAULT_TITLES | {tr("Sprachgespräch")} and not store.list_messages(profile.id, chat_id)
+        if store.add_message(profile.id, chat_id, "user", text) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        label = tr("Sprachbefehl über Home Assistant")
+        status = "error" if result.blocked else "ok"
+        store.add_message(profile.id, chat_id, "assistant", result.speech, tools=[{"label": label, "kind": "execute", "status": status, "note": ""}])
+        store.set_chat_unread(profile.id, chat_id, False)  # wurde gerade gehört
+        if first:
+            store.rename_chat(profile.id, chat_id, _title_from(text))
+        return {"handled": True, "speech": result.speech, "blocked": result.blocked}
+
     @app.get("/api/limits")
     def usage_limits(profile: Profile = Depends(current_profile)) -> list[dict]:
         """Warnungen zum Nutzungslimit des Abos (leer, solange alles in Ordnung ist)."""
@@ -1136,7 +1234,12 @@ def register_chat_routes(
     ) -> dict:
         title = (body.title if body else None) or default_title()
         project_id = body.project_id if body else None
-        chat = store.create_chat(profile.id, title, project_id)
+        kind = ""
+        if body and body.voice:
+            if not voice_allowed(profile):
+                raise HTTPException(status_code=403, detail=tr("Sprache ist für dich nicht freigeschaltet."))
+            kind, project_id, title = "voice", None, tr("Sprachgespräch")
+        chat = store.create_chat(profile.id, title, project_id, kind=kind)
         if chat is None:
             raise HTTPException(status_code=404, detail=tr("Projekt nicht gefunden"))
         return chat
@@ -1222,6 +1325,8 @@ def register_chat_routes(
             store.rename_chat(profile.id, chat_id, title)
         if body.pinned is not None:
             store.set_chat_pinned(profile.id, chat_id, body.pinned)
+        if body.keep:
+            store.set_chat_kind(profile.id, chat_id, "")
         if body.unread is not None:
             store.set_chat_unread(profile.id, chat_id, body.unread)
             if not body.unread:
@@ -1869,6 +1974,12 @@ def register_chat_routes(
         text = body.content.strip()
         if not text:
             raise HTTPException(status_code=422, detail=tr("Leere Nachricht"))
+        spoken = body.voice
+        if spoken:
+            if not voice_allowed(profile):
+                raise HTTPException(status_code=403, detail=tr("Sprache ist für dich nicht freigeschaltet."))
+            if body.files or body.quote or body.edit_message_id is not None:
+                raise HTTPException(status_code=422, detail=tr("Gesprochene Nachrichten haben keine Anhänge."))
         text = quotes.with_quote(body.quote, text)
         history = store.list_messages(profile.id, chat_id)
         if history is None:
@@ -1892,13 +2003,16 @@ def register_chat_routes(
             raise HTTPException(status_code=409, detail=tr("In diesem Chat läuft bereits eine Antwort"))
         if active_runs() >= MAX_PARALLEL:
             raise HTTPException(status_code=429, detail=tr("Gerade zu viele Anfragen, bitte kurz warten"))
-        effort = body.effort or settings.default_effort
+        effort = "low" if spoken else (body.effort or settings.default_effort)
         chat = store.get_chat(profile.id, chat_id) or {}
         requested_model = (body.model or "").strip()
         if requested_model and requested_model not in model_ids:
             raise HTTPException(status_code=422, detail=tr("Unbekanntes Modell"))
         chosen_model = requested_model or (chat.get("model") if chat.get("model") in model_ids else "")
         model = chosen_model if chosen_model and chosen_model != settings.model else None  # None = Standard-Modell
+        if spoken:  # gesprochen: immer das schnelle Modell, die Wahl des Chats bleibt unberührt
+            requested_model = ""
+            model = settings.voice_model if settings.voice_model != settings.model else None
         web_on = settings.web_level(profile) == "on" and body.web is not False
         first_exchange = not history and chat.get("title") in DEFAULT_TITLES
         metas = [f.meta() for f in files]
@@ -1915,6 +2029,8 @@ def register_chat_routes(
             extra["personal_instructions"] = personal
         summarize = getattr(backend, "summarize", None)
         level = ha_level(profile)
+        if spoken and level == "write":
+            level = "execute"  # per Sprache nur bedienen, nichts umbauen
 
         # Frage bearbeiten: die alte Frage und alles danach wird entfernt (bei einem Fehler ohne Antwort kommt es zurück).
         cut = None
@@ -1948,6 +2064,8 @@ def register_chat_routes(
 
         async def ask_about(topic: str, label: str, details: str, offer_chat: bool) -> str:
             """Rückfrage an die Person: wartet, bis im Chat Zulassen oder Ablehnen gedrückt wurde (topic: ha, memory, github)."""
+            if spoken:
+                return "deny"  # per Sprache gibt es keine Rückfragen: heikle Aktionen gehen nur getippt
             run.approval_seq += 1
             aid = run.approval_seq
             future: asyncio.Future = asyncio.get_running_loop().create_future()
@@ -1976,7 +2094,7 @@ def register_chat_routes(
         async def ask_connector(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("connector", label, details, offer_chat)
 
-        images_enabled = settings.files_enabled and settings.images_enabled
+        images_enabled = settings.files_enabled and settings.images_enabled and not spoken
         stored_files: list[str] = []
         skipped_files: list[str] = []
         if files and (files_kept or images_enabled):
@@ -2012,7 +2130,7 @@ def register_chat_routes(
             overview=overview_allowed(profile),
         )
         specs += context.specs()
-        if settings.files_enabled:
+        if settings.files_enabled and not spoken:
             specs += OutboxToolbox(
                 store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, author=settings.app_name, edit=settings.files_edit, auto_guides=True,
@@ -2027,7 +2145,7 @@ def register_chat_routes(
                 tainted=lambda: any(f.kind != "image" for f in foreign_files) or any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             )
             specs += image_box.specs()
-        gh_level = github_level(profile)
+        gh_level = "none" if spoken else github_level(profile)
         if gh_level != "none":
             gh_api = accounts.api_for(profile.id)
             gh_policy = accounts.policy_for(profile.id)
@@ -2055,7 +2173,7 @@ def register_chat_routes(
             allow_chat=lambda cid: connector_allow.add((profile.id, chat_id, cid)),
             next_id=run.next_tool_id,
         )
-        connector_specs = connector_box.specs()
+        connector_specs = [] if spoken else connector_box.specs()
         specs += connector_specs
         if web_on:
             specs += WebToolbox(run.push, run.next_tool_id).specs()
@@ -2080,9 +2198,11 @@ def register_chat_routes(
                 extra["note"] += " Für Fotos und Kunstbilder ist kein Bildanbieter eingerichtet (OpenAI- oder Google-Schlüssel fehlt in der Konfiguration); es geht nur SVG, und das sagst du der Person, wenn sie ein Foto möchte."
         if web_on:
             extra["note"] += "\n" + WEB_NOTE
-        if connectors.level(profile.id) >= 1:
+        if connectors.level(profile.id) >= 1 and not spoken:
             extra["note"] += "\n" + connector_box.note()
-        if any(s.name.startswith("github_") for s in specs):
+        if spoken:
+            extra["note"] += "\n" + voicelib.VOICE_NOTE
+        elif any(s.name.startswith("github_") for s in specs):
             extra["note"] += "\n" + GITHUB_NOTE + " " + github_level_text(gh_level, accounts.policy_for(profile.id))
         else:
             why = GITHUB_OFF_NO_RIGHT if accounts.enabled_for(profile.id) else GITHUB_OFF_NO_TOKEN
@@ -2275,6 +2395,7 @@ def build_ingress_app(
     images: ImageService | None = None,
     connectors: ConnectorService | None = None,
     github_accounts: GithubAccounts | None = None,
+    voice: VoiceService | None = None,
 ) -> FastAPI:
     i18n.set_language(settings.language)
     registry = registry or Registry.from_settings(settings, store)
@@ -2336,7 +2457,7 @@ def build_ingress_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "ingress", "can_logout": False},
-        health, ha, "ingress", scanner, scheduler, registry, public_peers, images, connectors, github_accounts,
+        health, ha, "ingress", scanner, scheduler, registry, public_peers, images, connectors, github_accounts, voice,
     )
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -2364,6 +2485,7 @@ def build_public_app(
     images: ImageService | None = None,
     connectors: ConnectorService | None = None,
     github_accounts: GithubAccounts | None = None,
+    voice: VoiceService | None = None,
 ) -> FastAPI:
     """Domain-Zugang (Cloudflare Tunnel): eigene Anmeldeseite, Entra-Login (und optional Home Assistant), Sitzungs-Cookie.
 
@@ -2572,7 +2694,7 @@ def build_public_app(
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "domain", "can_logout": True},
-        health, ha, "public", scanner, scheduler, registry, public_peers, images, connectors, github_accounts,
+        health, ha, "public", scanner, scheduler, registry, public_peers, images, connectors, github_accounts, voice,
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
@@ -2594,8 +2716,8 @@ async def _snapshot_loop(store: Store) -> None:
         await asyncio.sleep(SNAPSHOT_CHECK_SECONDS)
 
 
-async def _sweep_loop(backend: ChatBackend, store: Store | None = None) -> None:
-    """Zwischendateien des Claude-Programms und abgelaufene erzeugte Dateien regelmäßig entfernen."""
+async def _sweep_loop(backend: ChatBackend, store: Store | None = None, voice_days: int = 0) -> None:
+    """Zwischendateien des Claude-Programms, abgelaufene erzeugte Dateien und alte Sprachgespräche regelmäßig entfernen."""
     sweep = getattr(backend, "sweep", None)
     while sweep or store:
         if sweep:
@@ -2610,6 +2732,12 @@ async def _sweep_loop(backend: ChatBackend, store: Store | None = None) -> None:
                     log.info("%d abgelaufene erzeugte Dateien entfernt", removed)
             except Exception:
                 log.warning("Aufräumen der erzeugten Dateien fehlgeschlagen", exc_info=True)
+            try:
+                gone = await asyncio.to_thread(store.voice_sweep, voice_days)
+                if gone:
+                    log.info("%d alte Sprachgespräche gelöscht", gone)
+            except Exception:
+                log.warning("Aufräumen der Sprachgespräche fehlgeschlagen", exc_info=True)
         await asyncio.sleep(SWEEP_SECONDS)
     return
 
@@ -2715,7 +2843,7 @@ async def _serve(
         )
         log.info("Domain-Zugang aktiv: %s (Port %d)", settings.public_base_url, PUBLIC_PORT)
     snapshots = asyncio.create_task(_snapshot_loop(store))
-    sweeper = asyncio.create_task(_sweep_loop(backend, store))
+    sweeper = asyncio.create_task(_sweep_loop(backend, store, settings.voice_chat_days))
     tasks = [snapshots, sweeper]
     if settings.schedules_enabled:
         tasks.append(asyncio.create_task(scheduler.loop()))

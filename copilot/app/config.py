@@ -68,10 +68,12 @@ class Profile:
     connector_access: str = ""  # Konnektoren: none | use | own | global; leer = connector_access_default
     web_access: str = ""  # Websuche und Seiten lesen: on | off; leer = web_access_default
     notify_service: str = ""  # Benachrichtigungsdienst dieser Person, z. B. notify.mobile_app_pixel; leer = keiner
+    voice_access: str = ""  # Sprechen mit der KI: on | off; leer = voice_access_default
 
 
 DEFAULT_MODELS = ("claude-opus-5-5", "claude-haiku-5-5")  # neben ``model`` wählbar
 TITLE_MODEL = "claude-haiku-5-5"
+VOICE_MODEL = "claude-haiku-5-5"  # gesprochene Antworten: das schnelle Modell
 IMAGE_MODEL_OPENAI = "gpt-image-2.5-sunburst"
 IMAGE_MODEL_GOOGLE = "gemini-3.1-flash-image-preview"
 APP_NAME_DEFAULT = "HA Copilot"
@@ -127,6 +129,11 @@ class Settings:
     image_model_google: str = IMAGE_MODEL_GOOGLE
     image_provider: str = "auto"  # auto = die KI wählt je Bild; openai oder google = immer dieser Anbieter
     image_limit_month: int = 30  # Bilder von OpenAI/Google je Person und Monat, danach fragt der Chat vor jedem weiteren nach (0 = kein Limit)
+    # Sprache (Sprechen per Knopf): Spracherkennung über OpenAI (openai_api_key) oder die Assist-Pipeline von Home Assistant
+    voice_access_default: str = "off"  # wer mit der KI sprechen darf (on | off), pro Benutzer überschreibbar (voice_access)
+    voice_output: str = "device"  # Stimme: device = Stimme des Geräts (kostenlos), service = derselbe Dienst wie die Spracherkennung
+    voice_chat_days: int = 30  # Sprachgespräche außerhalb eines Chats nach so vielen Tagen löschen (0 = behalten)
+    voice_model: str = VOICE_MODEL  # fest
     # Domain-Zugang (nur relevant, wenn public_enabled)
     public_base_url: str = ""
     entra_tenant_id: str = ""
@@ -168,9 +175,14 @@ class Settings:
         """Darf diese Person die Websuche nutzen? (on | off)"""
         return profile.web_access or self.web_access_default
 
+    def voice_level(self, profile: Profile) -> str:
+        """Darf diese Person mit der KI sprechen? (on | off)"""
+        return profile.voice_access or self.voice_access_default
+
 
 HA_ACCESS_LEVELS = ("none", "read", "execute", "write")
 WEB_ACCESS_LEVELS = ("on", "off")
+VOICE_ACCESS_LEVELS = ("on", "off")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
 GITHUB_ACCESS_LEVELS = ("none", "read", "write")
 CONNECTOR_ACCESS_LEVELS = ("none", "use", "own", "global")  # none = keine, use = globale nutzen, own = zusätzlich eigene, global = zusätzlich globale verwalten
@@ -256,12 +268,16 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         web_access = _optional(entry, "web_access").lower()
         if web_access and web_access not in WEB_ACCESS_LEVELS:
             raise ConfigError(f"web_access bei Profil {profile_id!r} muss on oder off sein")
+        voice_access = _optional(entry, "voice_access").lower()
+        if voice_access and voice_access not in VOICE_ACCESS_LEVELS:
+            raise ConfigError(f"voice_access bei Profil {profile_id!r} muss on oder off sein")
         notify_service = _optional(entry, "notify_service").lower()
         if notify_service and not _NOTIFY_RE.match(notify_service):
             raise ConfigError(f"notify_service bei Profil {profile_id!r} muss ein Benachrichtigungsdienst wie notify.mobile_app_pixel sein")
         profile = Profile(
             id=profile_id, label=label, ha_user_id=ha_user_id, entra_upn=entra_upn, ha_user=ha_user,
             ha_access=ha_access, github_access=github_access, connector_access=connector_access, web_access=web_access, notify_service=notify_service,
+            voice_access=voice_access,
         )
         for key in seen:
             value = getattr(profile, key)
@@ -295,6 +311,18 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
     if not 0 <= image_limit_month <= 10000:
         raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)")
+    voice_access_default = str(raw.get("voice_access_default") or "off").strip().lower()
+    if voice_access_default not in VOICE_ACCESS_LEVELS:
+        raise ConfigError("voice_access_default muss on oder off sein")
+    voice_output = str(raw.get("voice_output") or "device").strip().lower()
+    if voice_output not in ("device", "service"):
+        raise ConfigError("voice_output muss device oder service sein")
+    try:
+        voice_chat_days = int(raw.get("voice_chat_days", 30))
+    except (TypeError, ValueError):
+        raise ConfigError("voice_chat_days muss eine Zahl von 0 bis 365 sein (0 = behalten)") from None
+    if not 0 <= voice_chat_days <= 365:
+        raise ConfigError("voice_chat_days muss eine Zahl von 0 bis 365 sein (0 = behalten)")
     image_provider = str(raw.get("image_provider") or "auto").strip().lower()
     if image_provider not in ("auto", "openai", "google"):
         raise ConfigError("image_provider muss auto, openai oder google sein")
@@ -391,6 +419,9 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         google_api_key=str(raw.get("google_api_key") or "").strip(),
         image_provider=image_provider,
         image_limit_month=image_limit_month,
+        voice_access_default=voice_access_default,
+        voice_output=voice_output,
+        voice_chat_days=voice_chat_days,
     )
 
 

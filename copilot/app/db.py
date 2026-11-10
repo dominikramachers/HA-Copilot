@@ -300,9 +300,9 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 20  # 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 21  # 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
-CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id"
+CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind"
 
 
 def _chat(row: sqlite3.Row) -> dict[str, Any]:
@@ -453,6 +453,8 @@ class Store:
             self._conn.execute("ALTER TABLE chats ADD COLUMN schedule_id TEXT NOT NULL DEFAULT ''")  # Chat entstand durch eine geplante Aufgabe
         if "summary_upto" not in columns:
             self._conn.execute("ALTER TABLE chats ADD COLUMN summary_upto INTEGER")
+        if "kind" not in columns:
+            self._conn.execute("ALTER TABLE chats ADD COLUMN kind TEXT NOT NULL DEFAULT ''")  # 'voice' = Sprachgespräch außerhalb eines Chats (nicht in der Liste)
         profile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(profiles)")}
         if "label" not in profile_columns:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN label TEXT")  # nur bei automatisch angelegten HA-Profilen
@@ -604,7 +606,7 @@ class Store:
         ).fetchone() is not None
 
     def create_chat(
-        self, profile_id: str, title: str = "Neuer Chat", project_id: str | None = None, schedule_id: str = ""
+        self, profile_id: str, title: str = "Neuer Chat", project_id: str | None = None, schedule_id: str = "", kind: str = ""
     ) -> dict[str, Any] | None:
         """Neuen Chat anlegen. None, wenn das Projekt nicht zu diesem Profil gehört."""
         _require(profile_id)
@@ -614,24 +616,43 @@ class Store:
             if project_id is not None and not self._owns_project(profile_id, project_id):
                 return None
             self._conn.execute(
-                "INSERT INTO chats (id, profile_id, title, created_at, updated_at, project_id, schedule_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (chat_id, profile_id, title, now, now, project_id, schedule_id),
+                "INSERT INTO chats (id, profile_id, title, created_at, updated_at, project_id, schedule_id, kind) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (chat_id, profile_id, title, now, now, project_id, schedule_id, kind),
             )
         return {
             "id": chat_id, "title": title, "created_at": now, "updated_at": now,
-            "pinned": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id,
+            "pinned": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind,
         }
 
-    def list_chats(self, profile_id: str) -> list[dict[str, Any]]:
+    def list_chats(self, profile_id: str, kind: str = "") -> list[dict[str, Any]]:
+        """Chats der Person, neueste zuerst. Sprachgespräche (``kind='voice'``) stehen nicht in der normalen Liste."""
         _require(profile_id)
         with self._lock:
             rows = self._conn.execute(
                 f"SELECT {CHAT_FIELDS} FROM chats "
-                "WHERE profile_id = ? ORDER BY updated_at DESC, created_at DESC",
-                (profile_id,),
+                "WHERE profile_id = ? AND kind = ? ORDER BY updated_at DESC, created_at DESC",
+                (profile_id, kind),
             ).fetchall()
         return [_chat(r) for r in rows]
+
+    def set_chat_kind(self, profile_id: str, chat_id: str, kind: str) -> bool:
+        """Art eines Chats ändern ('' = normaler Chat in der Liste, 'voice' = Sprachgespräch)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("UPDATE chats SET kind = ? WHERE id = ? AND profile_id = ?", (kind, chat_id, profile_id))
+        return cur.rowcount == 1
+
+    def voice_sweep(self, days: int) -> int:
+        """Sprachgespräche außerhalb eines Chats löschen, die seit ``days`` Tagen unverändert sind (angepinnte bleiben)."""
+        if days <= 0:
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, profile_id FROM chats WHERE kind = 'voice' AND pinned_at IS NULL AND updated_at < ?", (cutoff,)
+            ).fetchall()
+        return sum(1 for row in rows if self.delete_chat(row["profile_id"], row["id"]))
 
     def search_chats(self, profile_id: str, query: str, limit: int = 30) -> list[dict[str, Any]]:
         """Chats der Person, in denen alle Suchwörter vorkommen (im Titel oder in den Nachrichten), neueste zuerst.
@@ -656,7 +677,7 @@ class Store:
             params += [term, term]
         with self._lock:
             chats = self._conn.execute(
-                f"SELECT c.id, c.title, c.updated_at, c.project_id, c.schedule_id FROM chats c WHERE c.profile_id = ? AND {clauses} "
+                f"SELECT c.id, c.title, c.updated_at, c.project_id, c.schedule_id FROM chats c WHERE c.profile_id = ? AND c.kind = '' AND {clauses} "
                 "ORDER BY c.updated_at DESC, c.created_at DESC LIMIT ?",
                 (*params, max(1, min(limit, 100))),
             ).fetchall()
