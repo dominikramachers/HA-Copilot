@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.53.6",
+    "items": [
+      {
+        "de": {
+          "title": "Anhänge sehen gleich aus",
+          "text": "Bilder, Dateien und eingefügter Text erscheinen jetzt als gleich große Karten. Tippst du ein Bild an, öffne ich es groß in einem Fenster."
+        },
+        "en": {
+          "title": "Attachments look the same",
+          "text": "Images, files and pasted text now appear as cards of the same size. If you tap an image, I open it large in a window."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.5",
     "items": [
       {

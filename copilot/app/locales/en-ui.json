@@ -979,5 +979,6 @@
  "Eingefügt": "Pasted",
  "Eingefügten Text bearbeiten": "Edit pasted text",
  "Eingefügter Text": "Pasted text",
- "Der Text darf nicht leer sein.": "The text must not be empty."
+ "Der Text darf nicht leer sein.": "The text must not be empty.",
+ "Das Bild liegt nicht mehr vor. Es wurde nur für die Antwort der KI verwendet.": "The image is no longer available. It was only used for the AI's answer."
 }

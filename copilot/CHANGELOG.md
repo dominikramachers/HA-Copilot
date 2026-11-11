@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.53.6
+- **Alle Anhänge als gleiche Karte.** Bilder und andere Dateien sehen jetzt aus wie der eingefügte Text (`attachCard`, gleiche Größe): Bild als Vorschau, Datei mit Symbol und Namen, unten links die Art („Bild“, „PDF“, „Eingefügt“ …). Ein Bild lässt sich antippen und öffnet sich groß im Fenster (`openImage`, aus dem Speicher des Browsers; nach einem Neuladen der Seite liegt es nicht mehr vor, dann steht ein Hinweis). Die Vorschau ist von 72 auf 240 Pixel gewachsen.
+- Nicht geprüft: Verhalten auf echten Handys und Tablets (nur Browser-Test gegen die nachgebildete Oberfläche).
+
 ## 0.53.5
 - **Antwort beim Schreiben bedienbar.** Bisher baute `consume()` die ganze Antwort bei jedem Textstück neu auf (`replaceChildren(renderMarkdown(...))`). Dabei wurden auch die Knöpfe der Codeblöcke ausgetauscht: Maus-runter und Maus-hoch trafen nicht mehr dasselbe Element, Kopieren schlug fehl, und eine Auswahl ging verloren. Außerdem wuchs der Aufwand mit der Länge der Antwort (das „Hängen“ beim Mitscrollen). Neu: `renderMarkdownInto()` in `markdown.js` gleicht den neuen Stand mit dem vorhandenen ab (`morph`), Codeblöcke (`.codebox`, erkannt über `data-info`) bleiben bestehen und bekommen nur den neuen Text. Kopieren und Herunterladen gehen schon während des Schreibens.
 - **Codeblöcke mit „````“.** `markdown.js` kennt jetzt Zäune wie in CommonMark: drei oder mehr Backticks oder `~~~`, eingerückt erlaubt, geschlossen wird mit derselben Zeichenart und mindestens gleicher Länge. Ein Zaun aus vier Backticks darf also drei enthalten; bei noch offenem Zaun (Antwort läuft) werden angefangene Schluss-Backticks nicht mehr angezeigt. Doppelte Backticks (``` `` ```) gelten als Inline-Code.

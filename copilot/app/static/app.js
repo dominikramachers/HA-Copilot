@@ -3642,32 +3642,74 @@ function openPasted(file) {
   });
 }
 
-// Eingefügter Text als kompakte Karte (wie „PASTED“ bei Claude): Anfang des Textes, darunter die Marke und, solange die Nachricht
-// noch nicht gesendet ist, ein Stift zum Bearbeiten. Antippen zeigt den ganzen Text.
-function pasteCard(file, { onEdit = null, onRemove = null } = {}) {
-  const card = node("div", "paste-card");
-  card.tabIndex = 0;
-  card.setAttribute("role", "button");
-  card.setAttribute("aria-label", tr("{0} ansehen", file.name));
-  card.title = `${file.name} · ${formatSize(file.size ?? file.text.length)}`;
-  card.append(node("div", "paste-snippet", file.text.slice(0, 280)));
+// Jeder Anhang ist eine gleich große Karte (wie bei Claude): eingefügter Text zeigt seinen Anfang, ein Bild sich selbst, andere
+// Dateien Symbol und Namen. Unten links steht die Art („Eingefügt“, „Bild“, „PDF“ …), rechts bei eingefügtem Text der Stift.
+// Antippen öffnet Text oder Bild in einem Fenster; der Stift (nur vor dem Senden) bearbeitet den Text.
+function openImage(file) {
+  let url = "";
+  if (file.blob) url = URL.createObjectURL(file.blob);
+  openSheet({
+    title: file.name,
+    sub: file.size ? formatSize(file.size) : "",
+    ok: tr("Schließen"),
+    wide: true,
+    panel: (body) => {
+      if (url || file.thumb) {
+        const img = node("img", "image-view");
+        img.alt = file.name;
+        img.src = url || file.thumb;
+        body.append(img);
+      } else {
+        body.append(node("p", "image-gone", tr("Das Bild liegt nicht mehr vor. Es wurde nur für die Antwort der KI verwendet.")));
+      }
+    },
+  });
+  if (url) {
+    const release = new MutationObserver(() => { if ($("sheet").hidden) { URL.revokeObjectURL(url); release.disconnect(); } });
+    release.observe($("sheet"), { attributes: true, attributeFilter: ["hidden"] });
+  }
+}
+
+function attachCard(file, { onEdit = null, onRemove = null } = {}) {
+  const pasted = !!(file.pasted && file.text);
+  const isImage = file.kind === "image";
+  const card = node("div", `paste-card${isImage ? " is-image" : ""}${pasted ? "" : isImage ? "" : " is-file"}`);
+  const label = pasted ? tr("Eingefügt") : (KIND_LABEL[file.kind] || tr("Datei"));
+  card.title = `${file.name} · ${formatSize(file.size ?? file.text?.length ?? 0)}`;
+  if (pasted) card.append(node("div", "paste-snippet", file.text.slice(0, 280)));
+  else if (isImage) {
+    const pic = node("div", "paste-pic");
+    if (file.thumb) pic.style.backgroundImage = `url("${file.thumb}")`;
+    else pic.append(icon("picture"));
+    card.append(pic);
+  } else {
+    const info = node("div", "paste-file");
+    info.append(icon("file"), node("span", "paste-file-name", file.name));
+    card.append(info);
+  }
   const foot = node("div", "paste-foot");
-  foot.append(node("span", "paste-tag", tr("Eingefügt")));
-  const button = (cls, name, label, handler) => {
+  foot.append(node("span", "paste-tag", label));
+  const button = (cls, name, text, handler) => {
     const b = node("button", cls);
     b.type = "button";
-    b.setAttribute("aria-label", label);
-    b.title = label;
+    b.setAttribute("aria-label", text);
+    b.title = text;
     b.append(icon(name));
     b.addEventListener("click", (event) => { event.stopPropagation(); handler(); });
     return b;
   };
-  if (onEdit) foot.append(button("paste-btn", "edit", tr("Eingefügten Text bearbeiten"), onEdit));
+  if (onEdit && pasted) foot.append(button("paste-btn", "edit", tr("Eingefügten Text bearbeiten"), onEdit));
   card.append(foot);
   if (onRemove) card.append(button("paste-x", "close", tr("{0} entfernen", file.name), onRemove));
-  const open = () => openPasted(file);
-  card.addEventListener("click", open);
-  card.addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target === card) { event.preventDefault(); open(); } });
+  const open = pasted ? () => openPasted(file) : isImage ? () => openImage(file) : null;
+  if (open) {
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", tr("{0} ansehen", file.name));
+    card.classList.add("viewable");
+    card.addEventListener("click", open);
+    card.addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target === card) { event.preventDefault(); open(); } });
+  }
   return card;
 }
 
@@ -3697,25 +3739,7 @@ function editPasted(file, after) {
 }
 
 function fileChip(file, removable) {
-  if (file.pasted && file.text) {
-    return pasteCard(file, removable ? { onEdit: () => editPasted(file, renderTray), onRemove: () => removeFile(file) } : {});
-  }
-  const chip = node("div", "file-chip");
-  const thumb = node("span", "file-thumb");
-  if (file.thumb) thumb.style.backgroundImage = `url("${file.thumb}")`;
-  else thumb.append(icon(file.kind === "image" ? "picture" : "file"));
-  const meta = node("span", "file-meta");
-  meta.append(node("b", "", file.name), node("small", "", `${KIND_LABEL[file.kind] || tr("Datei")} · ${formatSize(file.size)}`));
-  chip.append(thumb, meta);
-  if (removable) {
-    const x = node("button", "file-x");
-    x.type = "button";
-    x.setAttribute("aria-label", tr("{0} entfernen", file.name));
-    x.append(icon("close"));
-    x.addEventListener("click", () => removeFile(file));
-    chip.append(x);
-  }
-  return chip;
+  return attachCard(file, removable ? { onEdit: () => editPasted(file, renderTray), onRemove: () => removeFile(file) } : {});
 }
 
 // Aktionen der KI in Home Assistant: eine einklappbare Liste, die sich während der Antwort laufend aktualisiert.
@@ -4128,7 +4152,7 @@ function startEdit(group, text, hadFiles, quote = "", pastedIn = []) {
   const pasted = pastedIn.map((f) => ({ name: f.name, text: f.text })); // Arbeitskopie: Änderungen zählen erst beim Senden
   const cards = node("div", "msg-edit-cards");
   const showCards = () => {
-    cards.replaceChildren(...pasted.map((f) => pasteCard(f, {
+    cards.replaceChildren(...pasted.map((f) => attachCard(f, {
       onEdit: () => editPasted(f, showCards),
       onRemove: () => { pasted.splice(pasted.indexOf(f), 1); showCards(); },
     })));
@@ -4438,7 +4462,7 @@ async function prepareImage(file) {
     ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     return type ? new Promise((resolve) => canvas.toBlob(resolve, type, quality)) : canvas.toDataURL("image/jpeg", 0.7);
   };
-  const thumb = draw(72, null);
+  const thumb = draw(240, null);
   let blob = file;
   let name = file.name;
   if (!small) {
