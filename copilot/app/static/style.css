@@ -405,10 +405,19 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 /* ---------- Anhänge ---------- */
 .attach-tray { display: flex; gap: 8px; margin: 0 0 8px; padding: 0 0 2px; overflow-x: auto; scrollbar-width: none; }
 .attach-tray::-webkit-scrollbar { display: none; }
-.file-chip { flex: none; display: inline-flex; align-items: center; gap: 8px; max-width: 210px; height: 40px; padding: 4px 4px 4px 4px; border-radius: var(--r-2); background: var(--panel-2); border: 1px solid var(--line); }
 /* Eingefügter Text: kleine Karte wie „PASTED“ bei Claude – Textanfang abgedunkelt, unten links die Marke, rechts der Stift */
-.paste-card { position: relative; flex: none; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; width: 148px; height: 92px; padding: 9px 9px 7px 10px; border-radius: var(--r-2); background: var(--panel-2); border: 1px solid var(--line); cursor: pointer; overflow: hidden; }
-.paste-card:hover { border-color: var(--line-2); }
+.paste-card { position: relative; flex: none; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; width: 148px; height: 92px; padding: 9px 9px 7px 10px; border-radius: var(--r-2); background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+.paste-card.viewable { cursor: pointer; }
+.paste-card.is-image { padding: 0; }
+.paste-pic { position: absolute; inset: 0; display: grid; place-items: center; background: var(--chip) center / cover no-repeat; color: var(--text-2); }
+.paste-card.is-image .paste-foot { position: relative; margin: auto 0 0; padding: 0 7px 6px 7px; }
+.paste-card.is-image .paste-tag { background: var(--panel-2); }
+.paste-file { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-right: 22px; color: var(--text-2); }
+.paste-file .icon { width: 20px; height: 20px; flex: none; }
+.paste-file-name { font-size: 12.5px; font-weight: 600; line-height: 1.25; color: var(--text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.image-view { display: block; max-width: 100%; max-height: min(66dvh, 640px); margin: 0 auto 12px; border-radius: var(--r-2); }
+.image-gone { margin: 0 0 12px; color: var(--text-2); }
+.paste-card.viewable:hover { border-color: var(--line-2); }
 .paste-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .paste-snippet { flex: 1; min-height: 0; overflow: hidden; font: 11px/1.35 var(--mono, ui-monospace, monospace); color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
 .paste-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
@@ -416,7 +425,7 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .paste-btn, .paste-x { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; color: var(--text-2); }
 .paste-btn .icon, .paste-x .icon { width: 14px; height: 14px; }
 .paste-btn:hover, .paste-x:hover { background: var(--chip); color: var(--text); }
-.paste-x { position: absolute; top: 4px; right: 4px; background: var(--panel-2); }
+.paste-x { position: absolute; top: 4px; right: 4px; background: var(--panel-2); z-index: 1; }
 .msg-edit-cards { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
 .msg-edit-cards[hidden] { display: none; }
 .sheet .pasted-area { display: block; width: 100%; height: min(48dvh, 380px); min-height: 160px; resize: vertical; font: 13px/1.5 var(--mono, ui-monospace, monospace); }
@@ -427,14 +436,6 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .mem-note .mem-text { min-width: 0; overflow-wrap: anywhere; }
 .mem-open { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .mem-open:hover { color: var(--text); }
-.file-thumb { flex: none; width: 32px; height: 32px; border-radius: var(--r-1); display: grid; place-items: center; background: var(--chip) center / cover no-repeat; color: var(--text-2); }
-.file-thumb .icon { width: 18px; height: 18px; }
-.file-meta { min-width: 0; display: grid; line-height: 1.2; }
-.file-meta b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; }
-.file-meta small { font-size: 11.5px; color: var(--text-2); }
-.file-x { flex: none; width: 24px; height: 24px; border-radius: var(--r-1); display: grid; place-items: center; color: var(--text-2); }
-.file-x .icon { width: 14px; height: 14px; }
-.file-x:hover { background: var(--chip); color: var(--text); }
 .reattach { height: 30px; padding: 0 11px 0 9px; border-radius: var(--r-1); display: inline-flex; align-items: center; gap: 6px; align-self: center; font-size: 12.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); }
 .reattach .icon { width: 14px; height: 14px; }
 .msg-group { display: flex; flex-direction: column; align-items: flex-end; margin: 0 0 6px; }
@@ -458,8 +459,6 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .pill.small { height: 34px; padding: 0 16px; font-size: 14px; }
 .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin: 0 0 6px; max-width: 85%; }
 .msg-files { align-items: flex-end; }
-.msg-files .file-chip { height: 38px; max-width: 220px; padding-right: 10px; background: var(--chip); }
-.msg-files .file-thumb { width: 28px; height: 28px; border-radius: 8px; }
 .msg-files .paste-card { background: var(--chip); }
 .drop-hint { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: var(--scrim); pointer-events: none; }
 .attach-tray[hidden], .drop-hint[hidden] { display: none; }
