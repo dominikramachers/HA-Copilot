@@ -42,57 +42,18 @@ configuration:
   ha_users_excluded:
     name: Excluded Home Assistant users (optional)
     description: 'Only with “Allow all Home Assistant users”: usernames, names or IDs, comma separated (e.g. “child1, guest”). These users cannot get in.'
-  ha_url:
-    name: Home Assistant address for sign-in via the domain (optional)
-    description: 'Only if users should sign in via the domain with their Home Assistant account: externally reachable address, e.g. https://ha.example.org. The sign-in page then shows “Sign in with Home Assistant”. Leave empty: Microsoft Entra only.'
-  app_name:
-    name: App name
-    description: 'Name used on the sign-in page, in the title and in the sidebar. Default: HA Copilot. The name of the Home Assistant sidebar entry is fixed and cannot be changed here.'
-  login_text:
-    name: Sign-in page text
-    description: Short sentence below the name, e.g. “Sign in with your company account.”
-  login_placeholder:
-    name: Example address in sign-in field
-    description: Placeholder in the e-mail field of the sign-in page, e.g. name@company.com.
-  logo_tile:
-    name: Logo on dark tile
-    description: 'For logos that only look good on dark backgrounds (light or neon logos): shows them on a dark tile in the light design.'
-  follow_ha_theme:
-    name: Follow Home Assistant theme
-    description: 'On: colours and light/dark follow the active Home Assistant theme live (inside HA) or the default theme (via the domain). Off: built-in colours with the app''s own light/dark switch.'
-  theme_name:
-    name: Theme for the domain (optional)
-    description: 'Name of a Home Assistant theme to use via the domain. Empty: Home Assistant''s default theme.'
-  public_base_url:
-    name: Public address
-    description: e.g. https://chat.example.org. Must match the Entra app's redirect URI. Domain access is on as soon as this address and a login (Entra or ha_url) are set.
-  entra_tenant_id:
-    name: 'Entra: directory (tenant) ID'
-  entra_client_id:
-    name: 'Entra: application (client) ID'
-  entra_client_secret:
-    name: 'Entra: client secret'
-  session_days:
-    name: Sign-in duration (days)
-    description: How long a sign-in via the domain stays valid (1–90).
-  public_trusted_proxies:
-    name: Trusted proxies
-    description: Addresses of reverse proxies (e.g. a Cloudflare tunnel container) whose forwarding headers may be trusted.
-  claude_oauth_token:
-    name: Claude access token (subscription)
-    description: Long-lived token from “claude setup-token” (Claude subscription). ONLY for your own personal use. Several users or the domain side need an API key (observe Anthropic’s terms). With neither a token nor an API key only the test mode runs.
   anthropic_api_key:
     name: Anthropic API key
     description: Alternative to the subscription token (pay-as-you-go via the Claude Console). Takes precedence if both are set.
+  claude_oauth_token:
+    name: Claude access token (subscription)
+    description: Long-lived token from “claude setup-token” (Claude subscription). ONLY for your own personal use. Several users or the domain side need an API key (observe Anthropic’s terms). With neither a token nor an API key only the test mode runs.
+  claude_token_expires:
+    name: Claude token expires on
+    description: Date (YYYY-MM-DD) for the reminder in the app.
   model:
     name: Default model
     description: 'Model for new chats, e.g. claude-sonnet-5-5. Users can switch it per chat (Opus and Haiku are offered as well).'
-  schedules_enabled:
-    name: Allow scheduled tasks
-    description: 'On (default): the “Scheduled” menu item, where the AI performs tasks at fixed times (read-only, no questions). Off: no scheduled tasks, existing ones rest. Scheduled runs use your plan’s quota.'
-  language:
-    name: Language
-    description: 'de (default) for German or en for English. Applies to the interface, the add-on’s messages and the default language of the AI’s answers (anyone who writes in another language still gets the answer in that language). Chats that are already saved stay unchanged.'
   ha_access_default:
     name: Default Home Assistant access
     description: 'Applies to all users without their own setting: none, read, execute (default) or write. With read and execute the AI only sees and controls entities exposed to Assist in Home Assistant.'
@@ -102,18 +63,21 @@ configuration:
   memory_enabled:
     name: AI memory
     description: 'On (default): the AI remembers facts on its own, for the whole household and separately for each person. Everyone can view, edit and delete entries in the chat under “Memory”. Off: no memory.'
+  schedules_enabled:
+    name: Allow scheduled tasks
+    description: 'On (default): the “Scheduled” menu item, where the AI performs tasks at fixed times (read-only, no questions). Off: no scheduled tasks, existing ones rest. Scheduled runs use your plan’s quota.'
+  files_enabled:
+    name: Create files
+    description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
   github_access_default:
     name: Default GitHub access
     description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub in the settings. Can be overridden per user with github_access.'
   connector_access_default:
     name: Default connector access
     description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'
-  files_enabled:
-    name: Create files
-    description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
   openai_api_key:
     name: OpenAI API key (images)
-    description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI (and, if no separate key is set under “Voice”, for speech recognition too); a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
+    description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI (and, if no separate key is set under “Talking to the AI”, for speech recognition too); a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
   google_api_key:
     name: Google API key (images)
     description: 'Key for the Gemini API from aistudio.google.com (Get API key) with billing enabled; a Google subscription is not enough. The image request and reference images are sent to Google. Empty: no images from Google.'
@@ -124,7 +88,7 @@ configuration:
     name: Images per person and month
     description: 'How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.'
   voice:
-    name: Voice (talking to the AI)
+    name: Talking to the AI
     description: 'Everything about talking to the AI (microphone button in the chat) in one group. Who may talk is set here as the default and per user with “Talking to the AI” (voice_access).'
     fields:
       access_default:
@@ -142,17 +106,53 @@ configuration:
       openai_api_key:
         name: OpenAI key for voice only (optional)
         description: 'Key from platform.openai.com (API keys) for speech recognition (and the voice with output: service); a few cents per hour of speech, the API account needs its own credit. Empty: the OpenAI key above (images) applies, and if that is empty too, the browser''s speech recognition. Recordings are sent to OpenAI.'
+  public_base_url:
+    name: Public address
+    description: e.g. https://chat.example.org. Must match the Entra app's redirect URI. Domain access is on as soon as this address and a login (Entra or ha_url) are set.
+  ha_url:
+    name: Home Assistant address for sign-in via the domain (optional)
+    description: 'Only if users should sign in via the domain with their Home Assistant account: externally reachable address, e.g. https://ha.example.org. The sign-in page then shows “Sign in with Home Assistant”. Leave empty: Microsoft Entra only.'
+  entra_tenant_id:
+    name: 'Entra: directory (tenant) ID'
+  entra_client_id:
+    name: 'Entra: application (client) ID'
+  entra_client_secret:
+    name: 'Entra: client secret'
+  entra_secret_expires:
+    name: Entra secret expires on
+    description: Date (YYYY-MM-DD) for the reminder in the app.
+  session_days:
+    name: Sign-in duration (days)
+    description: How long a sign-in via the domain stays valid (1–90).
+  public_trusted_proxies:
+    name: Trusted proxies
+    description: Addresses of reverse proxies (e.g. a Cloudflare tunnel container) whose forwarding headers may be trusted.
+  app_name:
+    name: App name
+    description: 'Name used on the sign-in page, in the title and in the sidebar. Default: HA Copilot. The name of the Home Assistant sidebar entry is fixed and cannot be changed here.'
+  language:
+    name: Language
+    description: 'de (default) for German or en for English. Applies to the interface, the add-on’s messages and the default language of the AI’s answers (anyone who writes in another language still gets the answer in that language). Chats that are already saved stay unchanged.'
+  login_text:
+    name: Sign-in page text
+    description: Short sentence below the name, e.g. “Sign in with your company account.”
+  login_placeholder:
+    name: Example address in sign-in field
+    description: Placeholder in the e-mail field of the sign-in page, e.g. name@company.com.
+  logo_tile:
+    name: Logo on dark tile
+    description: 'For logos that only look good on dark backgrounds (light or neon logos): shows them on a dark tile in the light design.'
+  follow_ha_theme:
+    name: Follow Home Assistant theme
+    description: 'On: colours and light/dark follow the active Home Assistant theme live (inside HA) or the default theme (via the domain). Off: built-in colours with the app''s own light/dark switch.'
+  theme_name:
+    name: Theme for the domain (optional)
+    description: 'Name of a Home Assistant theme to use via the domain. Empty: Home Assistant''s default theme.'
   restore_snapshot:
     name: Restore database
     description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'
   export_database:
     name: Export database (migration)
     description: 'Only for moving to another add-on (e.g. from the local add-on to the GitHub add-on): on start, a copy of all chats is written to the add-on’s config folder as copilot-export.sqlite3. Switch it off afterwards and delete the file.'
-  claude_token_expires:
-    name: Claude token expires on
-    description: Date (YYYY-MM-DD) for the reminder in the app.
-  entra_secret_expires:
-    name: Entra secret expires on
-    description: Date (YYYY-MM-DD) for the reminder in the app.
 network:
   8100/tcp: Domain access (Cloudflare tunnel)

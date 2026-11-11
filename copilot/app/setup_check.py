@@ -212,7 +212,7 @@ def static_items(
             tr("Aus. Sprechen per Mikrofon-Knopf im Chat, auch um Geräte zu schalten („Aria, mach das Licht aus“)."),
             [
                 tr(CONFIG_STEP),
-                tr("Stelle in der Gruppe „Sprache“ den Standard auf `on` oder setze im Benutzer-Eintrag `voice_access` auf `on`. Die Spracherkennung des Browsers ist kostenlos und braucht nichts. Besser sind das Add-on „Whisper“ (kostenlos, läuft auf deinem Home Assistant, Spracherkennung im Sprachassistenten einstellen) oder ein OpenAI-Schlüssel in derselben Gruppe."),
+                tr("Stelle in der Gruppe „Sprechen mit der KI“ den Standard auf `on` oder setze im Benutzer-Eintrag `voice_access` auf `on`. Die Spracherkennung des Browsers ist kostenlos und braucht nichts. Besser sind das Add-on „Whisper“ (kostenlos, läuft auf deinem Home Assistant, Spracherkennung im Sprachassistenten einstellen) oder ein OpenAI-Schlüssel in derselben Gruppe."),
                 tr(RESTART_STEP),
             ],
         ))
@@ -392,7 +392,7 @@ async def _check_voice(items: list[dict], ha: HaApi | None, settings: Settings) 
             steps=[
                 tr("Installiere in Home Assistant unter Einstellungen → Apps das Add-on „Whisper“ (kostenlos) und stelle dort die Sprache auf `de`."),
                 tr("Binde es unter Einstellungen → Geräte & Dienste mit „Wyoming-Protokoll“ ein und wähle im bevorzugten Sprachassistenten bei Sprache-zu-Text „faster-whisper“."),
-                tr("Oder schalte in der Add-on-Konfiguration in der Gruppe „Sprache“ den Browser-Rückfall ein (`browser_stt`) oder trage einen OpenAI-Schlüssel ein."),
+                tr("Oder schalte in der Add-on-Konfiguration in der Gruppe „Sprechen mit der KI“ den Browser-Rückfall ein (`browser_stt`) oder trage einen OpenAI-Schlüssel ein."),
             ],
         )
         return

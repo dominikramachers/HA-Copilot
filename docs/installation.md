@@ -71,7 +71,7 @@ Starte danach das Add-on neu. Solange kein Zugang eingetragen ist, läuft es im 
 | Domain-Zugang | ja | **nein** |
 | Erzeugen | in der [Claude-Konsole](https://platform.claude.com/) unter „API keys“ | `claude setup-token` (Claude-Code-Programm auf irgendeinem Rechner, mit dem Abo angemeldet) |
 
-> **Wichtig zum Abo-Token.** Nach den Nutzungsbedingungen von Anthropic darfst du Abo-Zugänge nicht für andere Personen über ein Programm bereitstellen und nicht weitergeben; Anthropic kann solche Tokens sperren. Trägst du mehrere Benutzer ein oder aktivierst die Domain, nimm den API-Schlüssel. Das ist keine Rechtsberatung: Lies die aktuellen Bedingungen von Anthropic und entscheide selbst. Das Add-on warnt beim Start im Protokoll und in der Einrichtungsprüfung, wenn ein Abo-Token mit mehreren Benutzern oder der Domain zusammentrifft.
+> **Wichtig zum Abo-Token.** Nach den Nutzungsbedingungen von Anthropic darfst du Abo-Zugänge nicht für andere Personen über ein Programm bereitstellen und nicht weitergeben; Anthropic kann solche Tokens sperren. Trägst du mehrere Benutzer ein oder aktivierst die Domain, nimm den API-Schlüssel. Das ist keine Rechtsberatung: Lies die aktuellen Bedingungen von Anthropic und entscheide selbst.
 
 Beides gehört **nur** in diese Konfiguration, nie in Chats, Repositories oder Screenshots. Die Felder sind maskiert.
 
@@ -100,6 +100,7 @@ Unten links im Konto-Menü des Chats führt **Einstellungen → Einrichtungsprü
 | Weitere Personen, Rechte der KI in Home Assistant | [Benutzer und Rechte](benutzer.md) |
 | KI arbeitet mit deinen GitHub-Repositories | [Funktionen: GitHub](funktionen.md#github) |
 | Chat auch außerhalb von Home Assistant, mit Microsoft- oder HA-Anmeldung | [Domain-Zugang](domain-zugang.md) |
+| Mit der KI sprechen (Mikrofon; kostenlos mit Whisper und Piper in Home Assistant) | [Funktionen: Sprechen mit der KI](funktionen.md#sprechen-mit-der-ki) |
 | Name, Logo, Farben, Sprache | [Funktionen: Aussehen und Sprache](funktionen.md#aussehen-und-sprache) |
 | Benachrichtigung aufs Handy bei fertigen Antworten | [Funktionen: Geplante Aufgaben](funktionen.md#geplante-aufgaben-und-benachrichtigungen) |
 | Sicherung, Wiederherstellung, Umzug | [Betrieb](betrieb.md) |

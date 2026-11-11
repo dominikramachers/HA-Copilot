@@ -42,57 +42,18 @@ configuration:
   ha_users_excluded:
     name: Ausgeschlossene Home-Assistant-Benutzer (optional)
     description: 'Nur mit „Alle Home-Assistant-Benutzer zulassen“: Benutzernamen, Namen oder IDs, durch Komma getrennt (z. B. „kind1, gast“). Diese Benutzer kommen nicht herein.'
-  ha_url:
-    name: Adresse von Home Assistant für die Anmeldung über die Domain (optional)
-    description: 'Nur wenn sich Benutzer über die Domain mit ihrem Home-Assistant-Konto anmelden sollen: von außen erreichbare Adresse, z. B. https://ha.example.org. Dann erscheint auf der Anmeldeseite „Mit Home Assistant anmelden“. Leer lassen: nur Microsoft Entra.'
-  app_name:
-    name: App-Name
-    description: 'Name in Anmeldeseite, Titel und Seitenleiste. Standard: HA Copilot. Der Name des Eintrags in der Home-Assistant-Seitenleiste ist fest und lässt sich hier nicht ändern.'
-  login_text:
-    name: Text auf der Anmeldeseite
-    description: Kurzer Satz unter dem Namen, z. B. „Anmelden mit deinem Firmenkonto.“
-  login_placeholder:
-    name: Beispiel-Adresse im Anmeldefeld
-    description: Platzhalter im E-Mail-Feld der Anmeldeseite, z. B. name@firma.de.
-  logo_tile:
-    name: Logo auf dunkler Kachel
-    description: 'Für Logos, die nur auf dunklem Grund gut aussehen (z. B. helle oder neonfarbene Logos): zeigt sie im hellen Design auf einer dunklen Kachel.'
-  follow_ha_theme:
-    name: Home-Assistant-Theme übernehmen
-    description: 'An: Farben und Hell/Dunkel folgen live dem aktiven Theme von Home Assistant (in der Seitenleiste von HA) bzw. dem Standard-Theme (über die Domain). Aus: eingebaute Farben mit eigenem Hell/Dunkel-Schalter.'
-  theme_name:
-    name: Theme für die Domain (optional)
-    description: 'Name eines Home-Assistant-Themes, das über die Domain gelten soll. Leer: Standard-Theme von Home Assistant.'
-  public_base_url:
-    name: Öffentliche Adresse
-    description: z. B. https://chat.example.org. Muss zur Redirect-URI der Entra-App passen. Der Domain-Zugang ist an, sobald diese Adresse und eine Anmeldung (Entra oder ha_url) eingetragen sind.
-  entra_tenant_id:
-    name: 'Entra: Verzeichnis-ID (Tenant)'
-  entra_client_id:
-    name: 'Entra: Anwendungs-ID (Client)'
-  entra_client_secret:
-    name: 'Entra: geheimer Clientschlüssel'
-  session_days:
-    name: Anmeldedauer (Tage)
-    description: Wie lange eine Anmeldung über die Domain gültig bleibt (1–90).
-  public_trusted_proxies:
-    name: Vertrauenswürdige Proxys
-    description: Adressen von Reverse-Proxys (z. B. Cloudflare-Tunnel-Container), deren Weiterleitungs-Header gelten dürfen.
-  claude_oauth_token:
-    name: Claude-Zugangstoken (Abo)
-    description: Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten). Ohne Token und ohne API-Schlüssel läuft nur der Testmodus.
   anthropic_api_key:
     name: Anthropic-API-Schlüssel
     description: Alternative zum Abo-Token (Abrechnung nach Verbrauch über die Claude-Konsole). Hat Vorrang, wenn beides eingetragen ist.
+  claude_oauth_token:
+    name: Claude-Zugangstoken (Abo)
+    description: Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten). Ohne Token und ohne API-Schlüssel läuft nur der Testmodus.
+  claude_token_expires:
+    name: Claude-Token läuft ab am
+    description: Datum (JJJJ-MM-TT) für die Erinnerung in der App.
   model:
     name: Standard-Modell
     description: 'Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln (Opus und Haiku stehen zusätzlich zur Wahl).'
-  schedules_enabled:
-    name: Geplante Aufgaben erlauben
-    description: 'An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos.'
-  language:
-    name: Sprache
-    description: 'de (Standard) für Deutsch oder en für Englisch. Gilt für die Oberfläche, die Meldungen des Add-ons und die Standardsprache der KI-Antworten (wer in einer anderen Sprache schreibt, bekommt die Antwort weiterhin in dieser Sprache). Bereits gespeicherte Chats bleiben unverändert.'
   ha_access_default:
     name: Standard-Zugriff auf Home Assistant
     description: 'Gilt für alle Benutzer ohne eigene Angabe: none, read, execute (Standard) oder write. Bei read und execute sieht und steuert die KI nur Entitäten, die in Home Assistant für Assist freigegeben sind (siehe unten).'
@@ -102,18 +63,21 @@ configuration:
   memory_enabled:
     name: Gedächtnis der KI
     description: 'An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis.'
+  schedules_enabled:
+    name: Geplante Aufgaben erlauben
+    description: 'An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos.'
+  files_enabled:
+    name: Dateien erzeugen
+    description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'
   github_access_default:
     name: Standard-Zugriff auf GitHub
     description: 'Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub in den Einstellungen verbunden hat. Je Benutzer überschreibbar mit github_access.'
   connector_access_default:
     name: Standard-Recht für Konnektoren
     description: 'Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte.'
-  files_enabled:
-    name: Dateien erzeugen
-    description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'
   openai_api_key:
     name: OpenAI-API-Schlüssel (Bilder)
-    description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprache“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI.'
+    description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprechen mit der KI“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI.'
   google_api_key:
     name: Google-API-Schlüssel (Bilder)
     description: 'Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google.'
@@ -124,7 +88,7 @@ configuration:
     name: Bilder je Person und Monat
     description: 'Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts.'
   voice:
-    name: Sprache (Sprechen mit der KI)
+    name: Sprechen mit der KI
     description: 'Alles zum Sprechen mit der KI (Mikrofon-Knopf im Chat) in einer Gruppe. Wer sprechen darf, steht hier als Standard und je Benutzer bei „Sprechen mit der KI“ (voice_access).'
     fields:
       access_default:
@@ -142,17 +106,53 @@ configuration:
       openai_api_key:
         name: OpenAI-Schlüssel nur für die Sprache (optional)
         description: 'Schlüssel von platform.openai.com (API keys) für die Spracherkennung (und die Stimme bei output: service); wenige Cent pro Stunde Sprache, das API-Konto braucht eigenes Guthaben. Leer: es gilt der OpenAI-Schlüssel von oben (Bilder), und ist auch der leer, die Spracherkennung des Browsers. Aufnahmen gehen an OpenAI.'
+  public_base_url:
+    name: Öffentliche Adresse
+    description: z. B. https://chat.example.org. Muss zur Redirect-URI der Entra-App passen. Der Domain-Zugang ist an, sobald diese Adresse und eine Anmeldung (Entra oder ha_url) eingetragen sind.
+  ha_url:
+    name: Adresse von Home Assistant für die Anmeldung über die Domain (optional)
+    description: 'Nur wenn sich Benutzer über die Domain mit ihrem Home-Assistant-Konto anmelden sollen: von außen erreichbare Adresse, z. B. https://ha.example.org. Dann erscheint auf der Anmeldeseite „Mit Home Assistant anmelden“. Leer lassen: nur Microsoft Entra.'
+  entra_tenant_id:
+    name: 'Entra: Verzeichnis-ID (Tenant)'
+  entra_client_id:
+    name: 'Entra: Anwendungs-ID (Client)'
+  entra_client_secret:
+    name: 'Entra: geheimer Clientschlüssel'
+  entra_secret_expires:
+    name: Entra-Schlüssel läuft ab am
+    description: Datum (JJJJ-MM-TT) für die Erinnerung in der App.
+  session_days:
+    name: Anmeldedauer (Tage)
+    description: Wie lange eine Anmeldung über die Domain gültig bleibt (1–90).
+  public_trusted_proxies:
+    name: Vertrauenswürdige Proxys
+    description: Adressen von Reverse-Proxys (z. B. Cloudflare-Tunnel-Container), deren Weiterleitungs-Header gelten dürfen.
+  app_name:
+    name: App-Name
+    description: 'Name in Anmeldeseite, Titel und Seitenleiste. Standard: HA Copilot. Der Name des Eintrags in der Home-Assistant-Seitenleiste ist fest und lässt sich hier nicht ändern.'
+  language:
+    name: Sprache
+    description: 'de (Standard) für Deutsch oder en für Englisch. Gilt für die Oberfläche, die Meldungen des Add-ons und die Standardsprache der KI-Antworten (wer in einer anderen Sprache schreibt, bekommt die Antwort weiterhin in dieser Sprache). Bereits gespeicherte Chats bleiben unverändert.'
+  login_text:
+    name: Text auf der Anmeldeseite
+    description: Kurzer Satz unter dem Namen, z. B. „Anmelden mit deinem Firmenkonto.“
+  login_placeholder:
+    name: Beispiel-Adresse im Anmeldefeld
+    description: Platzhalter im E-Mail-Feld der Anmeldeseite, z. B. name@firma.de.
+  logo_tile:
+    name: Logo auf dunkler Kachel
+    description: 'Für Logos, die nur auf dunklem Grund gut aussehen (z. B. helle oder neonfarbene Logos): zeigt sie im hellen Design auf einer dunklen Kachel.'
+  follow_ha_theme:
+    name: Home-Assistant-Theme übernehmen
+    description: 'An: Farben und Hell/Dunkel folgen live dem aktiven Theme von Home Assistant (in der Seitenleiste von HA) bzw. dem Standard-Theme (über die Domain). Aus: eingebaute Farben mit eigenem Hell/Dunkel-Schalter.'
+  theme_name:
+    name: Theme für die Domain (optional)
+    description: 'Name eines Home-Assistant-Themes, das über die Domain gelten soll. Leer: Standard-Theme von Home Assistant.'
   restore_snapshot:
     name: Datenbank wiederherstellen
     description: 'Nur im Notfall: Name eines Snapshots, der beim nächsten Start eingespielt wird. Danach leeren.'
   export_database:
     name: Datenbank exportieren (Umzug)
     description: 'Nur für den Umzug in ein anderes Add-on (z. B. vom lokalen Add-on zum GitHub-Add-on): Beim Start wird eine Kopie aller Chats als copilot-export.sqlite3 in den Config-Ordner des Add-ons gelegt. Danach ausschalten und die Datei löschen.'
-  claude_token_expires:
-    name: Claude-Token läuft ab am
-    description: Datum (JJJJ-MM-TT) für die Erinnerung in der App.
-  entra_secret_expires:
-    name: Entra-Schlüssel läuft ab am
-    description: Datum (JJJJ-MM-TT) für die Erinnerung in der App.
 network:
   8100/tcp: Domain-Zugang (Cloudflare Tunnel)
