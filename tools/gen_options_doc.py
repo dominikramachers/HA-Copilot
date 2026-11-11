@@ -23,12 +23,10 @@ def render(root: Path = ROOT) -> str:
 
     GROUPS = [
      ("Benutzer", "Wer die App nutzen darf. Ausführlich in [Benutzer und Rechte](benutzer.md).", ["profiles", "all_ha_users", "ha_users_excluded"]),
-     ("Claude (Antworten)", "Zugang zu Claude und Modell. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).", ["anthropic_api_key", "claude_oauth_token", "claude_token_expires", "model"]),
+     ("Claude (Zugang)", "Zugang zu Claude. Ausführlich in [Installation](installation.md#4-zugang-zu-claude). Das Modell steht in der Gruppe „Chat“.", ["anthropic_api_key", "claude_oauth_token", "claude_token_expires"]),
      ("Zugriff auf Home Assistant", "Was die KI in Home Assistant sehen und tun darf.", ["ha_access_default", "ha_limit_to_exposed"]),
-     ("Funktionen", "Gedächtnis, geplante Aufgaben und Dateien.", ["memory_enabled", "schedules_enabled", "files_enabled"]),
-     ("GitHub", "Optional: die KI arbeitet mit deinen Repositories. Jede Person verbindet ihr eigenes GitHub in den Einstellungen; hier steht nur, wer lesen oder schreiben darf.", ["github_access_default"]),
-     ("Konnektoren", "Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (Microsoft 365, Google Workspace, Zabbix …). Ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410).", ["connector_access_default"]),
-     ("Bilder", "Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).", ["openai_api_key", "google_api_key", "image_provider", "image_limit_month"]),
+     ("Chat", "Modell, Gedächtnis, geplante Aufgaben, Dateien und der Standard für GitHub und Konnektoren. Eine eingeklappte Gruppe; GitHub und Konnektoren sind ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410) beschrieben.", ["chat"]),
+     ("Bilder", "Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).", ["images"]),
      ("Sprechen mit der KI", "Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).", ["voice"]),
      ("Zugang über eine eigene Domain", "Optional; der Zugang ist an, sobald `public_base_url` und eine Anmeldung eingetragen sind. Ausführlich in [Domain-Zugang](domain-zugang.md).", ["public_base_url", "ha_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "entra_secret_expires", "session_days", "public_trusted_proxies"]),
      ("Aussehen, Name und Sprache der Oberfläche", "Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben).", ["app_name", "language", "login_text", "login_placeholder", "logo_tile", "follow_ha_theme", "theme_name"]),
@@ -70,13 +68,13 @@ def render(root: Path = ROOT) -> str:
             spec = schema[k]
             if k == "profiles":
                 val = "Liste (Felder siehe unten)"
-            elif k == "voice":
+            elif isinstance(spec, dict):
                 val = "Gruppe (Felder siehe unten)"
             elif isinstance(spec, list):
                 val = "Liste"
             else:
                 val = typ(spec)
-            d = "ein Eintrag „Administrator“" if k == "profiles" else "Standardwerte" if k == "voice" else default(k)
+            d = "ein Eintrag „Administrator“" if k == "profiles" else "Standardwerte" if isinstance(spec, dict) else default(k)
             desc = desc.strip() or EXTRA.get(k, "")
             out.append(f"| `{k}` | {val} | {d} | **{esc(name.rstrip('.'))}.** {esc(desc)} |".replace("**. ", "** ").rstrip().replace("|  |", "| |"))
         if "profiles" in keys:
@@ -84,13 +82,16 @@ def render(root: Path = ROOT) -> str:
             for f, spec in schema["profiles"][0].items():
                 t = tr["profiles"]["fields"][f]
                 out.append(f"| `{f}` | {typ(spec)} | **{esc(t['name'])}.** {esc(t['description'])} |")
-        if "voice" in keys:
-            out += ["", "### Felder der Gruppe `voice`", "", "In Home Assistant als eingeklappte Gruppe „Sprechen mit der KI“. In der Konfigurationsdatei steht es so: `voice:` mit den Feldern darunter.", "", "| Feld | Werte | Standard | Bedeutung |", "|---|---|---|---|"]
-            for f, spec in schema["voice"].items():
-                t = tr["voice"]["fields"][f]
-                v = opts["voice"].get(f)
+        for k in keys:
+            if not isinstance(schema[k], dict):
+                continue
+            title_name = tr[k]["name"]
+            out += ["", f"### Felder der Gruppe `{k}`", "", f"In Home Assistant als eingeklappte Gruppe „{title_name}“. In der Konfigurationsdatei steht es so: `{k}:` mit den Feldern darunter.", "", "| Feld | Werte | Standard | Bedeutung |", "|---|---|---|---|"]
+            for f, spec in schema[k].items():
+                t = tr[k]["fields"][f]
+                v = opts[k].get(f)
                 dv = "leer" if v in ("", None) else "an" if v is True else "aus" if v is False else f"`{v}`"
-                out.append(f"| `voice.{f}` | {typ(spec)} | {dv} | **{esc(t['name'])}.** {esc(t['description'])} |")
+                out.append(f"| `{k}.{f}` | {typ(spec)} | {dv} | **{esc(t['name'])}.** {esc(t['description'])} |")
         out.append("")
     return "\n".join(out) + "\n"
 

@@ -161,7 +161,7 @@ def static_items(
             [
                 tr("Öffne unten links das Konto-Menü, wähle „Einstellungen“ und dort „GitHub“."),
                 tr("Wähle „Mit GitHub verbinden“, gib den angezeigten Code bei GitHub ein und bestätige. Alternativ kannst du ein eigenes Token einfügen."),
-                tr("Ob du lesen oder auch ändern darfst, legt der Administrator mit `github_access_default` oder `github_access` im Benutzer-Eintrag fest: `read` oder `write`."),
+                tr("Ob du lesen oder auch ändern darfst, legt der Administrator in der Gruppe „Chat“ mit `github_access_default` oder `github_access` im Benutzer-Eintrag fest: `read` oder `write`."),
             ],
         ))
     elif github_level == "none":
@@ -170,7 +170,7 @@ def static_items(
             tr("GitHub ist verbunden, aber für dich ausgeschaltet (Stufe `none`)."),
             [
                 tr(CONFIG_STEP),
-                tr("Setze `github_access_default` auf `read` oder `write`, oder trage im Benutzer-Eintrag `github_access` ein."),
+                tr("Setze in der Gruppe „Chat“ `github_access_default` auf `read` oder `write`, oder trage im Benutzer-Eintrag `github_access` ein."),
                 tr(RESTART_STEP),
             ],
         ))
@@ -192,7 +192,7 @@ def static_items(
                 [
                     tr("Lege bei OpenAI (platform.openai.com) oder Google (aistudio.google.com) ein API-Konto mit Guthaben an und erzeuge einen API-Schlüssel. Ein ChatGPT- oder Google-Abo reicht dafür nicht."),
                     tr(CONFIG_STEP),
-                    tr("Trage den Schlüssel bei `openai_api_key` oder `google_api_key` ein. Mit `image_limit_month` legst du fest, wie viele Bilder jede Person im Monat erzeugen darf, bevor der Chat nachfragt."),
+                    tr("Trage den Schlüssel in der Gruppe „Bilder“ bei `openai_api_key` oder `google_api_key` ein. Mit `limit_month` legst du fest, wie viele Bilder jede Person im Monat erzeugen darf, bevor der Chat nachfragt."),
                     tr(RESTART_STEP),
                 ],
             ))

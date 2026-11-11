@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.52.3"
+version: "0.53.0"
 slug: copilot
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -42,18 +42,20 @@ options:
   anthropic_api_key: ""
   claude_oauth_token: ""
   claude_token_expires: ""
-  model: claude-sonnet-5-5
   ha_access_default: execute
   ha_limit_to_exposed: true
-  memory_enabled: true
-  schedules_enabled: true
-  files_enabled: true
-  github_access_default: none
-  connector_access_default: use
-  openai_api_key: ""
-  google_api_key: ""
-  image_provider: auto
-  image_limit_month: 30
+  chat:
+    model: claude-sonnet-5-5
+    memory_enabled: true
+    schedules_enabled: true
+    files_enabled: true
+    github_access_default: none
+    connector_access_default: use
+  images:
+    openai_api_key: ""
+    google_api_key: ""
+    provider: auto
+    limit_month: 30
   voice:
     access_default: "off"
     browser_stt: true
@@ -96,18 +98,20 @@ schema:
   anthropic_api_key: password?
   claude_oauth_token: password?
   claude_token_expires: str?
-  model: str?
   ha_access_default: list(none|read|execute|write)?
   ha_limit_to_exposed: bool?
-  memory_enabled: bool?
-  schedules_enabled: bool?
-  files_enabled: bool?
-  github_access_default: list(none|read|write)?
-  connector_access_default: list(none|use|own|global)?
-  openai_api_key: password?
-  google_api_key: password?
-  image_provider: list(auto|openai|google)?
-  image_limit_month: int(0,10000)?
+  chat:
+    model: str?
+    memory_enabled: bool?
+    schedules_enabled: bool?
+    files_enabled: bool?
+    github_access_default: list(none|read|write)?
+    connector_access_default: list(none|use|own|global)?
+  images:
+    openai_api_key: password?
+    google_api_key: password?
+    provider: list(auto|openai|google)?
+    limit_month: int(0,10000)?
   voice:
     access_default: list(on|off)?
     browser_stt: bool?

@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.53.0",
+    "items": [
+      {
+        "de": {
+          "title": "Einstellungen aufgeräumt",
+          "text": "Wer mich einrichtet, findet die Einstellungen jetzt in klaren Gruppen: Chat, Bilder und Sprechen. Die Reihenfolge folgt den Schritten der Einrichtung."
+        },
+        "en": {
+          "title": "Settings tidied up",
+          "text": "Whoever sets me up now finds the settings in clear groups: chat, images and talking. The order follows the steps of the setup."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.52.3",
     "items": [
       {

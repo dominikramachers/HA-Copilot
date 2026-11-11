@@ -51,42 +51,50 @@ configuration:
   claude_token_expires:
     name: Claude-Token läuft ab am
     description: Datum (JJJJ-MM-TT) für die Erinnerung in der App.
-  model:
-    name: Standard-Modell
-    description: 'Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln (Opus und Haiku stehen zusätzlich zur Wahl).'
   ha_access_default:
     name: Standard-Zugriff auf Home Assistant
     description: 'Gilt für alle Benutzer ohne eigene Angabe: none, read, execute (Standard) oder write. Bei read und execute sieht und steuert die KI nur Entitäten, die in Home Assistant für Assist freigegeben sind (siehe unten).'
   ha_limit_to_exposed:
     name: Nur für Assist freigegebene Entitäten (lesen/ausführen)
     description: 'An (Standard): Benutzer mit read oder execute sehen und steuern nur Entitäten, die in Home Assistant unter Einstellungen → Sprachassistenten → Freigeben für Assist freigegeben sind. Benutzer mit write sind davon nicht betroffen.'
-  memory_enabled:
-    name: Gedächtnis der KI
-    description: 'An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis.'
-  schedules_enabled:
-    name: Geplante Aufgaben erlauben
-    description: 'An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos.'
-  files_enabled:
-    name: Dateien erzeugen
-    description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'
-  github_access_default:
-    name: Standard-Zugriff auf GitHub
-    description: 'Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub in den Einstellungen verbunden hat. Je Benutzer überschreibbar mit github_access.'
-  connector_access_default:
-    name: Standard-Recht für Konnektoren
-    description: 'Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte.'
-  openai_api_key:
-    name: OpenAI-API-Schlüssel (Bilder)
-    description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprechen mit der KI“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI.'
-  google_api_key:
-    name: Google-API-Schlüssel (Bilder)
-    description: 'Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google.'
-  image_provider:
-    name: Bildanbieter
-    description: 'auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen.'
-  image_limit_month:
-    name: Bilder je Person und Monat
-    description: 'Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts.'
+  chat:
+    name: Chat
+    description: 'Einstellungen für den Chat: Modell, Gedächtnis, geplante Aufgaben, Dateien und der Standard für GitHub und Konnektoren.'
+    fields:
+      model:
+        name: Standard-Modell
+        description: 'Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln (Opus und Haiku stehen zusätzlich zur Wahl).'
+      memory_enabled:
+        name: Gedächtnis der KI
+        description: 'An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis.'
+      schedules_enabled:
+        name: Geplante Aufgaben erlauben
+        description: 'An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos.'
+      files_enabled:
+        name: Dateien erzeugen
+        description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'
+      github_access_default:
+        name: Standard-Zugriff auf GitHub
+        description: 'Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub in den Einstellungen verbunden hat. Je Benutzer überschreibbar mit github_access.'
+      connector_access_default:
+        name: Standard-Recht für Konnektoren
+        description: 'Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte.'
+  images:
+    name: Bilder
+    description: 'Die KI erzeugt Bilder von selbst. SVG-Grafiken zeichnet sie kostenlos; für Fotos und Kunstbilder braucht es einen Schlüssel von OpenAI oder Google (beides optional).'
+    fields:
+      openai_api_key:
+        name: OpenAI-API-Schlüssel (Bilder)
+        description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprechen mit der KI“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI.'
+      google_api_key:
+        name: Google-API-Schlüssel (Bilder)
+        description: 'Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google.'
+      provider:
+        name: Bildanbieter
+        description: 'auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen.'
+      limit_month:
+        name: Bilder je Person und Monat
+        description: 'Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts.'
   voice:
     name: Sprechen mit der KI
     description: 'Alles zum Sprechen mit der KI (Mikrofon-Knopf im Chat) in einer Gruppe. Wer sprechen darf, steht hier als Standard und je Benutzer bei „Sprechen mit der KI“ (voice_access).'
