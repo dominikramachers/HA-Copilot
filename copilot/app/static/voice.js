@@ -686,8 +686,9 @@ function stepRing(now) {
   g.globalCompositeOperation = "lighter";
   // Leuchten: weiter Schein, dichter Kern, heller Punkt in der Mitte
   const glow = (radius, alpha, rgb) => {
+    radius = Math.min(radius, c); // nie größer als die Fläche, sonst bricht der Schein am Rand als Viereck ab
     const grad = g.createRadialGradient(c, c, 0, c, c, radius);
-    grad.addColorStop(0, `rgba(${rgb},${alpha})`); grad.addColorStop(0.45, `rgba(${rgb},${alpha * 0.35})`); grad.addColorStop(1, `rgba(${rgb},0)`);
+    for (const [at, k] of [[0, 1], [0.25, 0.62], [0.5, 0.3], [0.75, 0.1], [0.9, 0.025], [1, 0]]) grad.addColorStop(at, `rgba(${rgb},${alpha * k})`); // weich auslaufen
     g.fillStyle = grad; g.beginPath(); g.arc(c, c, radius, 0, Math.PI * 2); g.fill();
   };
   const strength = dim ? 0.7 : 1;
