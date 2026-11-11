@@ -17,7 +17,6 @@ import json
 import re
 import zipfile
 from typing import Any
-from urllib.parse import urlsplit
 
 from . import connector_catalog as ccat
 from . import package_catalog as pcat

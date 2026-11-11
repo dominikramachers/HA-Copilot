@@ -234,7 +234,7 @@ def edit_text(data: bytes, ops: list[dict], ctx: Context) -> tuple[bytes, list[s
                 lines = _split_lines(_str(op, "text", allow_empty=True).replace("\r\n", "\n"))
                 report.append(f"Datei neu geschrieben ({len(lines)} Zeilen)")
             else:
-                raise EditError(f"Unbekannter Befehl. Möglich bei Textdateien: replace, replace_lines, insert_lines, delete_lines, append, write.")
+                raise EditError("Unbekannter Befehl. Möglich bei Textdateien: replace, replace_lines, insert_lines, delete_lines, append, write.")
         except EditError as exc:
             raise EditError(f"Änderung {i + 1} ({kind}): {exc}") from None
     body = "\n".join(lines)

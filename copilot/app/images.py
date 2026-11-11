@@ -14,7 +14,6 @@ bei Änderungen) wird an den gewählten Anbieter übertragen.
 """
 from __future__ import annotations
 
-import asyncio
 import base64
 import logging
 import re

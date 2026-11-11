@@ -90,6 +90,13 @@
     const pre = document.createElement("pre");
     const code = document.createElement("code");
     code.textContent = lines.join("\n");
+    if (meta.language) { // Sprache oben links (wie bei Claude), die Knöpfe sitzen rechts in derselben Zeile
+      const lang = document.createElement("span");
+      lang.className = "code-lang";
+      lang.textContent = meta.language;
+      box.classList.add("has-lang");
+      box.append(lang);
+    }
     const tools = document.createElement("div");
     tools.className = "code-tools";
     const show = (button, name, label) => {

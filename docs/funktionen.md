@@ -22,6 +22,7 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 |---|---|
 | ![Eigene Nachricht mit Zeitpunkt, Stift und Kopieren](screenshots/nachricht-zeit.png) | ![Eigene Nachricht im Editor](screenshots/nachricht-bearbeiten.png) |
 
+- **Wie in Claude:** Unter der letzten Antwort gibt es **Antwort neu erzeugen** (bei Nachrichten ohne Dateianhang), ein runder **Pfeil nach unten** springt ans Ende des Chats, und Codeblöcke zeigen ihre Sprache als kleine Marke.
 - **Lange Antworten** bleiben beim Entstehen mit ihrem Anfang oben im Bild stehen: Du liest von vorn, der Chat springt weder mit noch am Ende nach unten. Scrollst du selbst, wird dir das nicht aus der Hand genommen.
 - Lange Chats werden **automatisch zusammengefasst**, statt abgeschnitten zu werden.
 - Ein kurzer **Titel** entsteht automatisch, und jeder Chat lässt sich umbenennen.
