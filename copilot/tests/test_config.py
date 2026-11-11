@@ -97,3 +97,20 @@ def test_shipped_defaults_parse_to_the_documented_defaults():
     assert s.model == "claude-sonnet-5-5" and s.memory_enabled and s.schedules_enabled and s.files_enabled
     assert s.image_provider == "auto" and s.image_limit_month == 30 and s.voice_access_default == "off"
     assert list(config["options"]) == list(config["schema"])  # gleiche Reihenfolge in Optionen und Schema
+
+
+def test_options_backup_is_written_once_and_private(tmp_path):
+    import json, stat
+    from app.config import load_settings, BACKUP_NAME
+    options = tmp_path / "options.json"
+    options.write_text(json.dumps({"profiles": [{"label": "Admin"}], "app_name": "Aria"}), encoding="utf-8")
+    load_settings(options)
+    backup = tmp_path / BACKUP_NAME
+    assert json.loads(backup.read_text(encoding="utf-8"))["app_name"] == "Aria"
+    assert stat.S_IMODE(backup.stat().st_mode) == 0o600
+    stamp = backup.stat().st_mtime_ns
+    load_settings(options)  # unverändert: keine neue Datei
+    assert backup.stat().st_mtime_ns == stamp
+    options.write_text(json.dumps({"profiles": [{"label": "Admin"}], "app_name": "Neu"}), encoding="utf-8")
+    load_settings(options)
+    assert json.loads(backup.read_text(encoding="utf-8"))["app_name"] == "Neu"

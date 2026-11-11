@@ -478,11 +478,37 @@ def _parse_date(value: Any, name: str) -> date | None:
         raise ConfigError(f"{name} muss ein Datum im Format JJJJ-MM-TT sein, z. B. 2027-10-26") from None
 
 
+BACKUP_NAME = "options-backup.json"
+
+
+def save_options_backup(raw: dict[str, Any], path: Path) -> None:
+    """Legt eine Kopie der Optionen neben ``options.json`` ab (nur wenn sie sich geändert hat).
+
+    Grund: Ändert sich die Gliederung der Add-on-Konfiguration, wirft der Supervisor Einträge weg, die nicht mehr im Schema
+    stehen. Mit der Kopie aus dem Stand davor kann eine spätere Version die alten Werte übernehmen. Die Datei liegt im
+    Datenordner wie ``options.json`` selbst (Rechte 0600) und steckt in jeder Sicherung des Add-ons.
+    """
+    target = Path(path).with_name(BACKUP_NAME)
+    try:
+        text = json.dumps(raw, ensure_ascii=False, indent=1, sort_keys=True)
+        if target.exists() and target.read_text(encoding="utf-8") == text:
+            return
+        tmp = target.with_suffix(".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, target)
+    except OSError as exc:
+        logging.getLogger("copilot.config").warning("Sicherung der Optionen nicht möglich: %s", type(exc).__name__)
+
+
 def load_settings(path: Path = OPTIONS_PATH) -> Settings:
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigError(f"Optionen nicht lesbar: {exc}") from exc
+    if isinstance(raw, dict):
+        save_options_backup(raw, path)
 
     override = os.environ.get("COPILOT_INGRESS_PEERS")
     peers = (
