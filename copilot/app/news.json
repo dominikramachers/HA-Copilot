@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.53.1",
+    "items": [
+      {
+        "de": {
+          "title": "Vorlesen auf dem Handy",
+          "text": "Auf dem Handy lese ich meine Antworten jetzt wieder vor. Klappt das Vorlesen einmal nicht, sage ich es dir und zeige den Text, statt ewig zu warten."
+        },
+        "en": {
+          "title": "Reading aloud on the phone",
+          "text": "On your phone I read my answers aloud again. If reading aloud does not work once, I tell you and show the text instead of waiting forever."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.0",
     "items": [
       {

@@ -1,5 +1,12 @@
 # Änderungen
 
+## 0.53.1
+- **Sprachausgabe auf dem Handy.** Auf dem Handy (iPhone/Android, Web-App vom Home-Bildschirm) kam die Antwort als Text, wurde aber nicht vorgelesen, und die Anzeige blieb bei „Ich antworte …“. Ursache: Die Wiedergabe startete erst nach den Abrufen (Erkennung, KI, `api/voice/speak`) und damit nicht mehr direkt aus der Berührung; mobile Browser blockieren das (Autoplay-Regel), und die Stimme des Geräts als Rückfall meldete dann weder Anfang noch Ende, `speak()` kam nie zurück.
+  - `unlockAudio()` läuft in `openVoice()` und `talkNow()` (also im Klick): ein gemeinsamer `Audio`-Abspieler (`VOICE.player`, `playsinline`) spielt einen kurzen stillen Ton (als `blob:` erzeugt, weil die CSP `data:` bei `media-src` nicht erlaubt) und `speechSynthesis` bekommt eine stumme Äußerung. Alle Stücke der Antwort laufen danach über denselben, freigeschalteten Abspieler (vorher je Stück ein neues `Audio`).
+  - Zeitwächter: `playChunk()` gilt nach `VOICE.PLAY_START_WAIT` (6 s) ohne `playing` als blockiert und fällt auf die Stimme des Geräts zurück; `speakDevice()` gibt nach `VOICE.DEVICE_START_WAIT` (3 s) ohne `onstart` auf und hat eine Höchstdauer nach Textlänge.
+  - `speak()` gibt jetzt zurück, ob etwas zu hören war. Wenn nicht, zeigt das Fenster „Ich konnte die Antwort nicht vorlesen. Den Text siehst du oben.“ und wartet wieder auf „Sprechen“, statt in „Ich antworte …“ zu hängen.
+  - Nicht geprüft: echtes iPhone/Android-Gerät (nur die Logik mit nachgebildetem `Audio`/`speechSynthesis`). Die Wartezeit der Antwort selbst (Erkennung, KI) ändert sich damit nicht.
+
 ## 0.53.0
 - **Konfiguration mit drei eingeklappten Gruppen: `chat`, `images`, `voice`.** In der Add-on-Konfiguration stehen jetzt untereinander „Chat“, „Bilder“ und „Sprechen mit der KI“, alle gleich aufgebaut. Der Claude-Zugang (`anthropic_api_key`, `claude_oauth_token`, `claude_token_expires`) bleibt bewusst einzeln darüber, damit er beim Umstellen nicht verloren geht.
   - `chat`: `model`, `memory_enabled`, `schedules_enabled`, `files_enabled`, `github_access_default`, `connector_access_default`.
