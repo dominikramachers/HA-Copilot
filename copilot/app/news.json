@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.53.5",
+    "items": [
+      {
+        "de": {
+          "title": "Anhang ohne Text senden",
+          "text": "Du kannst einen langen eingefügten Text oder eine Datei jetzt allein abschicken. Den eingefügten Text siehst du als kleine Karte und kannst ihn noch ändern."
+        },
+        "en": {
+          "title": "Send an attachment alone",
+          "text": "You can now send a long pasted text or a file on its own. You see the pasted text as a small card and can still change it."
+        }
+      },
+      {
+        "de": {
+          "title": "Antworten besser nutzbar",
+          "text": "Schon während ich schreibe, kannst du Code kopieren. Stichpunkte zeige ich eingerückt, Code steht sauber in seinem Kasten, und das Mitscrollen hängt nicht mehr."
+        },
+        "en": {
+          "title": "Answers are easier to use",
+          "text": "You can copy code while I am still writing. I show bullet points indented, code sits neatly in its box, and following along no longer lags."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.4",
     "items": [
       {

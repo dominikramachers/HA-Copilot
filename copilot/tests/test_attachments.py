@@ -392,3 +392,23 @@ def test_history_content_pieces():
     text = att.history_content({"content": "Frage", "attachments": metas})
     assert 'name="p.txt"' in text and "hallo" in text and "a.pdf (PDF, 9 B)" in text and "p.txt (" not in text.split("---")[-1]
     assert att.history_content({"content": "x", "attachments": []}) == "x"
+
+
+def test_attachment_alone_can_be_sent_without_text(memory_client, backend):
+    client = memory_client
+    chat_id = new_chat(client)
+    name = "Eingefügter Text.txt"
+    assert send(client, chat_id, "", [(name, PASTE.encode())], pasted={name}).status_code == 200
+    messages = client.get(f"/api/chats/{chat_id}/messages", headers=as_user(ADM01)).json()
+    assert messages[0]["content"] == "" and messages[0]["attachments"][0]["text"] == PASTE
+    assert backend.calls[0]["message"].strip() and "Anhänge" in backend.calls[0]["message"]  # die KI bekommt einen Hinweis statt einer leeren Frage
+    title = client.get("/api/chats", headers=as_user(ADM01)).json()
+    assert any(MARKER in c["title"] or "Zeile mit Inhalt" in c["title"] for c in title)
+    send(client, chat_id, "Und jetzt kürzer")
+    assert MARKER in backend.calls[1]["history"][0]["content"]
+
+
+def test_empty_message_without_attachment_is_still_refused(client):
+    chat_id = new_chat(client)
+    assert send(client, chat_id, "   ").status_code == 422
+    assert send(client, chat_id, "", []).status_code == 422
