@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.53.6.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.53.7.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -419,7 +419,7 @@ Auf der Seite lässt sich jede Aufgabe pausieren und fortsetzen (Schalter), sofo
 
 - *Nur im Chat* (Standard, wenn nichts anderes möglich ist): Der Chat steht ungelesen in der Liste.
 - *Zusätzlich Meldung in Home Assistant*: eine Meldung in der Glocke von Home Assistant (`persistent_notification`) mit dem Anfang der Antwort. Je Aufgabe gibt es eine Meldung, die beim nächsten Lauf ersetzt wird.
-- *Zusätzlich aufs Handy*: Dienst `notify_service` der Person (nächster Absatz); Voreinstellung, sobald die Person einen hat. Ist `public_base_url` gesetzt, öffnet ein Tipp auf die Benachrichtigung die Domain-Adresse.
+- *Zusätzlich aufs Handy*: die Geräte der Person (nächster Absatz); steht zur Wahl, sobald Home Assistant verbunden ist (ab 0.53.7 ohne `notify_service`). Findet der Chat beim Senden kein Gerät, steht das im Ergebnis der Aufgabe. Ist `public_base_url` gesetzt, öffnet ein Tipp auf die Benachrichtigung die Domain-Adresse.
 
 Es wird nur nach einem erfolgreichen Lauf benachrichtigt. Schlägt die Benachrichtigung selbst fehl, steht das bei der Aufgabe.
 
@@ -469,6 +469,7 @@ Unter **Einstellungen → Einrichtungsprüfung** (Konto-Menü unten links) finde
 
 - Beim ersten Start nach der Installation läuft der Chat im Testmodus (solange kein Claude-Zugang eingetragen ist). Oben erscheint dann ein Hinweis mit dem Knopf „Schritte anzeigen“, der direkt die Anleitung für den Claude-Zugang öffnet.
 - **Sprechen mit der KI** nennt, welche Spracherkennung und welche Stimme wirklich benutzt werden (OpenAI, Sprachassistent von Home Assistant oder Browser). Bleibt keine Spracherkennung übrig, steht dort eine Warnung mit den Schritten für Whisper.
+- **Handy-Meldungen und GitHub gelten je Person (ab 0.53.7).** „Benachrichtigungen aufs Handy“ zeigt die Geräte, die Home Assistant *dir* zuordnet, und ob die Meldungen an sind; fehlt ein Gerät, stehen die Schritte da (Companion-App, Gerät bei deiner Person unter „Geräte verfolgen“ eintragen). `notify_service` ist nur noch eine Ausweichlösung des Administrators. „GitHub“ sagt, ob der Administrator es für dich freigegeben hat, ob dein eigenes Konto verbunden ist und wie weit du lesen oder schreiben darfst.
 - Die Prüfung zeigt nie ein Geheimnis, nur ob es gesetzt ist. Bei GitHub steht zusätzlich der Kontoname, zu dem das Token gehört.
 - Bei einem Umzug in ein anderes Add-on (siehe „Daten und Sicherung“) nennt die Prüfung den neuen Hostnamen, auf den der Cloudflare Tunnel zeigen muss (`http://<Hostname>:8100`), und die Adresse, die bei `public_trusted_proxies` einzutragen ist, sobald die Anmeldeseite einmal über die Domain geöffnet wurde.
 - Über die Domain-Seite gibt es die Prüfung nicht: Die Konfiguration ändert man in Home Assistant.

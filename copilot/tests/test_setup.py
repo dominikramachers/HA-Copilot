@@ -111,8 +111,11 @@ def test_image_rows():
 
 
 def test_github_rows():
-    off = rows(make())["github"]
+    off = rows(make(chat={"github_access_default": "read"}))["github"]
     assert off["status"] == "off" and "Mit GitHub verbinden" in " ".join(off["steps"]) and "github_access" in " ".join(off["steps"])
+    assert "eigenes Konto" in off["detail"] or "Jede Person" in off["detail"]
+    blocked = rows(make())["github"]  # der Administrator hat GitHub für diese Person nicht freigegeben: kein Hinweis zum Verbinden
+    assert blocked["status"] == "off" and "nicht freigegeben" in blocked["detail"] and "Mit GitHub verbinden" not in " ".join(blocked["steps"])
     muted = rows(make(), github_enabled=True, github_level="none")["github"]
     assert muted["status"] == "warn" and "github_access_default" in " ".join(muted["steps"])
     ok = rows(make(), github_enabled=True, github_level="write")["github"]
@@ -178,10 +181,44 @@ def test_domain_on_without_trusted_proxy_names_the_seen_address():
 # ------------------------------------------------- Benachrichtigungen, Ablaufdaten
 
 
-def test_notify_rows():
-    assert rows(make())["notify"]["status"] == "off"
-    settings = make(profiles=[{**RAW["profiles"][0], "notify_service": "notify.mobile_app_pixel"}])
-    assert rows(settings)["notify"]["status"] == "ok"
+def test_notify_rows_name_the_per_person_setup_not_the_config():
+    waiting = rows(make())["notify"]
+    assert waiting["status"] == "off" and "Personen" in " ".join(waiting["steps"]) and "Benachrichtigungen" in " ".join(waiting["steps"])
+    assert "notify_service" not in " ".join(waiting["steps"]) + waiting["detail"]
+    assert rows(make(), ha_enabled=False)["notify"]["detail"].startswith("Braucht die Verbindung")
+
+
+class FakeNotifier:
+    available = True
+
+    def __init__(self, devices, enabled=True):
+        self.state = {"enabled": enabled, "devices": devices}
+
+    async def devices(self, profile):
+        return self.state
+
+
+def live_notify(settings, notifier):
+    items = list(rows(settings).values())
+    asyncio.run(sc.run_live(items, None, None, settings.profiles[0], None, notifier))
+    return next(i for i in items if i["id"] == "notify")
+
+
+def test_live_notify_lists_the_devices_home_assistant_assigns_to_the_person():
+    pixel = {"service": "notify.mobile_app_pixel", "label": "Pixel", "selected": True}
+    ipad = {"service": "notify.mobile_app_ipad", "label": "Ipad", "selected": False}
+    ok = live_notify(make(), FakeNotifier([pixel, ipad]))
+    assert ok["status"] == "ok" and "Pixel" in ok["detail"] and "Ipad" not in ok["detail"] and ok["steps"] == []
+    none = live_notify(make(), FakeNotifier([]))
+    assert none["status"] == "off" and "Personen" in " ".join(none["steps"])
+    muted = live_notify(make(), FakeNotifier([pixel], enabled=False))
+    assert muted["status"] == "off" and "ausgeschaltet" in muted["detail"] and "Einstellungen" in " ".join(muted["steps"])
+
+
+def test_live_notify_warns_about_a_stale_notify_service_override():
+    settings = make(profiles=[{**RAW["profiles"][0], "notify_service": "notify.mobile_app_alt"}])
+    gone = live_notify(settings, FakeNotifier([{"service": "notify.mobile_app_pixel", "label": "Pixel", "selected": True}]))
+    assert gone["status"] == "warn" and "notify.mobile_app_alt" in gone["detail"] and gone["steps"]
 
 
 class FakeHa(HaApi):
@@ -198,21 +235,14 @@ class FakeHa(HaApi):
         return self.answers[command["type"]]
 
 
-def test_live_ha_reports_version_and_checks_the_notify_service():
-    settings = make(profiles=[{**RAW["profiles"][0], "notify_service": "notify.mobile_app_pixel"}])
+def test_live_ha_reports_version():
+    settings = make()
     profile = settings.profiles[0]
     good = FakeHa({"location_name": "Zuhause", "version": "2026.10.1"}, {"notify": {"mobile_app_pixel": {}}})
     items = list(rows(settings).values())
     asyncio.run(sc.run_live(items, good, None, profile))
     ha = next(i for i in items if i["id"] == "ha")
     assert ha["status"] == "ok" and "Zuhause" in ha["detail"] and "2026.10.1" in ha["detail"]
-    assert next(i for i in items if i["id"] == "notify")["status"] == "ok"
-
-    gone = FakeHa({"version": "2026.10.1"}, {"notify": {"mobile_app_anderes": {}}})
-    items = list(rows(settings).values())
-    asyncio.run(sc.run_live(items, gone, None, profile))
-    notify = next(i for i in items if i["id"] == "notify")
-    assert notify["status"] == "warn" and "notify.mobile_app_pixel" in notify["detail"] and notify["steps"]
 
 
 def test_live_ha_failure_becomes_a_warning_with_steps():

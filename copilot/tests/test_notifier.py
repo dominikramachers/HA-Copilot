@@ -228,3 +228,11 @@ def test_scheduled_task_uses_the_chosen_devices(store):
     scheduler = app.state.scheduler
     assert run(scheduler.notify(profile(), "phone", "Bericht", "Text")) is None
     assert [c["service"] for c in ha.sent()] == ["mobile_app_tablet"]
+
+
+def test_setup_check_shows_the_own_phone_from_home_assistant_without_notify_service(store):
+    _, client, _, _ = build(store)
+    items = {i["id"]: i for i in client.get("/api/setup", headers=as_user(ADM01)).json()["items"]}
+    assert items["notify"]["status"] == "ok" and "Pixel" in items["notify"]["detail"] and "Tablet" not in items["notify"]["detail"]
+    other = {i["id"]: i for i in client.get("/api/setup", headers=as_user(DORA)).json()["items"]}
+    assert "Sinas handy" in other["notify"]["detail"] and "Pixel" not in other["notify"]["detail"]

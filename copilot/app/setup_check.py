@@ -18,6 +18,9 @@ from .github_api import GithubApi, GithubError
 from .ha_client import HaApi, HaApiError
 
 CONFIG_STEP = "Öffne in Home Assistant Einstellungen → Apps (früher Add-ons) → HA Copilot → Konfiguration."
+NOTIFY_STEP_APP = "Installiere die Home-Assistant-Companion-App auf dem Handy und melde dich mit deinem eigenen Home-Assistant-Benutzer an."
+NOTIFY_STEP_PERSON = "Öffne in Home Assistant Einstellungen → Personen, wähle deine Person und trage bei „Geräte verfolgen“ dein Handy ein (`device_tracker.…`). So ordnet Home Assistant das Handy dir zu; fremde Handys bekommen nie deine Meldungen."
+NOTIFY_STEP_CHOOSE = "Öffne diese Prüfung danach erneut. Dein Handy steht dann hier. Wann und wohin ich dir Bescheid gebe, stellst du im Konto-Menü unter „Einstellungen“ → „Benachrichtigungen“ selbst ein."
 RESTART_STEP = "Speichere und starte das Add-on neu (Reiter „Info“ → Neustart)."
 LEVEL_ORDER = {"required": 0, "recommended": 1, "optional": 2}
 ACCESS_TEXT = {
@@ -53,6 +56,10 @@ class PeerLog:
 
     def recent(self) -> list[str]:
         return list(reversed(self._peers))
+
+
+def _notify_steps() -> list[str]:
+    return [tr(NOTIFY_STEP_APP), tr(NOTIFY_STEP_PERSON), tr(NOTIFY_STEP_CHOOSE)]
 
 
 def _item(item_id: str, level: str, status: str, title: str, detail: str = "", steps: Iterable[str] = ()) -> dict:
@@ -153,18 +160,9 @@ def static_items(
                 detail += tr(" Sie sieht nur Entitäten, die in Home Assistant für Assist freigegeben sind (Einstellungen → Sprachassistenten → Entitäten).")
             items.append(_item("ha_access", "optional", "ok", tr("Zugriff der KI auf Home Assistant"), detail.strip()))
 
-    # --- GitHub
-    if not github_enabled:
-        items.append(_item(
-            "github", "optional", "off", "GitHub",
-            tr("Nicht verbunden. Nur nötig, wenn die KI mit deinen GitHub-Repositories arbeiten soll."),
-            [
-                tr("Öffne unten links das Konto-Menü, wähle „Einstellungen“ und dort „GitHub“."),
-                tr("Wähle „Mit GitHub verbinden“, gib den angezeigten Code bei GitHub ein und bestätige. Alternativ kannst du ein eigenes Token einfügen."),
-                tr("Ob du lesen oder auch ändern darfst, legt der Administrator in der Gruppe „Chat“ mit `github_access_default` oder `github_access` im Benutzer-Eintrag fest: `read` oder `write`."),
-            ],
-        ))
-    elif github_level == "none":
+    # --- GitHub (gehört der Person: eigenes Konto, verbunden in den Einstellungen)
+    configured = profile.github_access or settings.github_access_default
+    if github_enabled and github_level == "none":
         items.append(_item(
             "github", "optional", "warn", "GitHub",
             tr("GitHub ist verbunden, aber für dich ausgeschaltet (Stufe `none`)."),
@@ -174,10 +172,29 @@ def static_items(
                 tr(RESTART_STEP),
             ],
         ))
+    elif not github_enabled and configured == "none":
+        items.append(_item(
+            "github", "optional", "off", "GitHub",
+            tr("Für dich ausgeschaltet: Der Administrator hat GitHub für dich nicht freigegeben (Stufe `none`). Ohne Freigabe kannst du kein Konto verbinden."),
+            [
+                tr(CONFIG_STEP),
+                tr("Setze in der Gruppe „Chat“ `github_access_default` auf `read` oder `write`, oder trage im Benutzer-Eintrag `github_access` ein. Danach verbindest du dein eigenes Konto in den Einstellungen unter „GitHub“."),
+                tr(RESTART_STEP),
+            ],
+        ))
+    elif not github_enabled:
+        items.append(_item(
+            "github", "optional", "off", "GitHub",
+            tr("Dein GitHub-Konto ist nicht verbunden. Nur nötig, wenn die KI mit deinen GitHub-Repositories arbeiten soll. Jede Person verbindet ihr eigenes Konto."),
+            [
+                tr("Öffne unten links das Konto-Menü, wähle „Einstellungen“ und dort „GitHub“."),
+                tr("Wähle „Mit GitHub verbinden“, gib den angezeigten Code bei GitHub ein und bestätige. Alternativ kannst du ein eigenes Token einfügen."),
+                tr("Ob du lesen oder auch ändern darfst, legt der Administrator in der Gruppe „Chat“ mit `github_access_default` oder `github_access` im Benutzer-Eintrag fest: `read` oder `write`."),
+            ],
+        ))
     else:
-        scope = tr(" Es ist dein eigenes GitHub-Konto.")
         mode = tr("lesen und schreiben") if github_level == "write" else tr("nur lesen")
-        items.append(_item("github", "optional", "ok", "GitHub", tr("Eingerichtet, du darfst {mode}.", mode=mode) + scope))
+        items.append(_item("github", "optional", "ok", "GitHub", tr("Eingerichtet, du darfst {mode}.", mode=mode) + tr(" Es ist dein eigenes GitHub-Konto.")))
 
     # --- Bilder
     if settings.images_enabled and settings.files_enabled:
@@ -252,23 +269,18 @@ def static_items(
                 [tr(CONFIG_STEP), find, tr(RESTART_STEP)],
             ))
 
-    # --- Benachrichtigungen
-    if profile.notify_service:
-        items.append(_item(
-            "notify", "optional", "ok", tr("Benachrichtigungen aufs Handy"),
-            tr("Eingerichtet für dich: {service}.", service=profile.notify_service),
-        ))
-    else:
+    # --- Benachrichtigungen (je Person: die Geräte kommen aus Home Assistant, die Auswahl trifft die Person selbst)
+    if not ha_enabled:
         items.append(_item(
             "notify", "optional", "off", tr("Benachrichtigungen aufs Handy"),
-            tr("Für dich nicht eingerichtet. Damit meldet sich die KI auf deinem Handy, wenn eine längere Antwort oder eine geplante Aufgabe fertig ist."),
-            [
-                tr("Installiere die Home-Assistant-Companion-App auf dem Handy und melde dich an."),
-                tr("Suche in Home Assistant unter Entwicklerwerkzeuge → Aktionen nach „notify.mobile_app“; dein Gerät steht dort, z. B. `notify.mobile_app_pixel`."),
-                tr(CONFIG_STEP),
-                tr("Trage den Dienst im Benutzer-Eintrag bei `notify_service` ein."),
-                tr(RESTART_STEP),
-            ],
+            tr("Braucht die Verbindung zu Home Assistant (siehe oben)."),
+        ))
+    else:
+        # Zunächst der Stand ohne Abfrage; ``_check_notify`` ersetzt ihn durch die tatsächlich gefundenen Geräte.
+        items.append(_item(
+            "notify", "optional", "off", tr("Benachrichtigungen aufs Handy"),
+            tr("Für dich ist noch kein Handy gefunden. Damit meldet sich die KI auf deinem Handy, wenn eine längere Antwort oder eine geplante Aufgabe fertig ist."),
+            _notify_steps(),
         ))
 
     # --- Erinnerungen an Ablaufdaten
@@ -322,24 +334,42 @@ async def _check_ha(items: list[dict], ha: HaApi, profile: Profile) -> None:
     if isinstance(config, dict):
         name, version = str(config.get("location_name") or "")[:60], str(config.get("version") or "")[:20]
         ha_item["detail"] = tr("Verbunden") + (tr(" mit „{name}“", name=name) if name else "") + (tr(" (Home Assistant {version}).", version=version) if version else ".")
-    notify = _find(items, "notify")
-    if notify is not None and notify["status"] == "ok" and profile.notify_service:
-        try:
-            services = await ha.call({"type": "get_services"}, timeout=8)
-        except HaApiError:
-            return
-        if not _service_exists(services, profile.notify_service):
-            notify.update(
-                status="warn",
-                detail=tr("Der Dienst {service} ist in Home Assistant nicht vorhanden.", service=profile.notify_service),
-                steps=[
-                    tr("Suche in Home Assistant unter Entwicklerwerkzeuge → Aktionen nach „notify.mobile_app“ und kopiere den Namen deines Geräts."),
-                    tr("Prüfe, ob die Companion-App auf dem Handy angemeldet ist (der Dienst verschwindet, wenn das Gerät entfernt wurde)."),
-                    tr(CONFIG_STEP),
-                    tr("Korrigiere `notify_service` im Benutzer-Eintrag."),
-                    tr(RESTART_STEP),
-                ],
-            )
+
+
+async def _check_notify(items: list[dict], notifier: object, profile: Profile) -> None:
+    """Handy-Meldungen: zeigt die Geräte, die Home Assistant dieser Person zuordnet, und was sie davon gewählt hat."""
+    item = _find(items, "notify")
+    if item is None or notifier is None or not getattr(notifier, "available", False):
+        return
+    try:
+        state = await notifier.devices(profile)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - die Prüfung darf nie an der Abfrage scheitern
+        return
+    devices = state.get("devices") or []
+    chosen = [d["label"] for d in devices if d.get("selected")]
+    ours = profile.notify_service
+    if ours and not any(d["service"] == ours for d in devices):
+        item.update(
+            status="warn",
+            detail=tr("Der im Benutzer-Eintrag festgelegte Dienst {service} ist in Home Assistant nicht vorhanden oder gehört nicht zu dir.", service=ours),
+            steps=[
+                tr("Suche in Home Assistant unter Entwicklerwerkzeuge → Aktionen nach „notify.mobile_app“ und prüfe, ob das Gerät noch angemeldet ist."),
+                tr("Am besten entfernst du `notify_service` im Benutzer-Eintrag ganz: Deine Geräte werden aus Home Assistant erkannt, gewählt wird in den Einstellungen unter „Benachrichtigungen“. Wer nur den Eintrag korrigieren will:"),
+                tr(CONFIG_STEP),
+                tr("Korrigiere `notify_service` im Benutzer-Eintrag."),
+                tr(RESTART_STEP),
+            ],
+        )
+    elif not devices:
+        item.update(status="off", steps=_notify_steps())
+    elif not state.get("enabled", True):
+        item.update(
+            status="off",
+            detail=tr("Handy gefunden ({names}), die Meldungen sind für dich aber ausgeschaltet.", names=", ".join(d["label"] for d in devices)),
+            steps=[tr("Schalte sie im Konto-Menü unter „Einstellungen“ → „Benachrichtigungen“ ein.")],
+        )
+    else:
+        item.update(status="ok", steps=[], detail=tr("Eingerichtet für dich: Meldungen gehen an {names}. Ändern kannst du das unter „Einstellungen“ → „Benachrichtigungen“.", names=", ".join(chosen) or ", ".join(d["label"] for d in devices)))
 
 
 async def _check_github(items: list[dict], github: GithubApi) -> None:
@@ -431,7 +461,7 @@ async def _check_voice(items: list[dict], ha: HaApi | None, settings: Settings) 
         item["detail"] = detail
 
 
-async def run_live(items: list[dict], ha: HaApi | None, github: GithubApi | None, profile: Profile, settings: Settings | None = None) -> list[dict]:
+async def run_live(items: list[dict], ha: HaApi | None, github: GithubApi | None, profile: Profile, settings: Settings | None = None, notifier: object | None = None) -> list[dict]:
     """Ergänzt die Zeilen um Antworten von Home Assistant und GitHub (je höchstens ein paar Sekunden, Fehler werden zu Hinweisen)."""
     jobs = []
     if ha is not None:
@@ -440,6 +470,8 @@ async def run_live(items: list[dict], ha: HaApi | None, github: GithubApi | None
         jobs.append(_check_github(items, github))
     if settings is not None:
         jobs.append(_check_voice(items, ha, settings))
+    if notifier is not None:
+        jobs.append(_check_notify(items, notifier, profile))
     await asyncio.gather(*jobs, return_exceptions=True)
     for item in items:
         if item["status"] in ("todo", "warn") and not item["steps"]:

@@ -849,7 +849,7 @@ def register_chat_routes(
             "default_model": settings.model,
             "limits": limits.current(),
             "schedules": settings.schedules_enabled and scheduler is not None,
-            "notify_phone": bool(profile.notify_service) or notifier.has_choice(profile),
+            "notify_phone": notifier.available,  # die Geräte der Person ermittelt der Melder beim Senden aus Home Assistant
             "notify": notifier.available,
             "notify_ha": ha is not None and ha.enabled,
             "memory": settings.memory_enabled,
@@ -912,7 +912,7 @@ def register_chat_routes(
             public_peers=public_peers.recent() if public_peers else (),
         )
         gh_api = accounts.api_for(profile.id)
-        await setup_check.run_live(items, ha if ha is not None and ha.enabled else None, gh_api if gh_api.enabled else None, profile, settings)
+        await setup_check.run_live(items, ha if ha is not None and ha.enabled else None, gh_api if gh_api.enabled else None, profile, settings, notifier)
         return {"items": items, "open": setup_check.open_count(items)}
 
     # ------------------------------------------------------------ GitHub-Konto der Person
@@ -1889,8 +1889,8 @@ def register_chat_routes(
             mode = str(fields["notify"])
             if mode not in NOTIFY_MODES:
                 raise HTTPException(status_code=422, detail=tr("Unbekannte Art der Benachrichtigung"))
-            if mode == "phone" and not profile.notify_service:
-                raise HTTPException(status_code=422, detail=tr("Für dich ist kein Benachrichtigungsdienst eingetragen."))
+            if mode == "phone" and not notifier.available:
+                raise HTTPException(status_code=422, detail=tr("Home Assistant ist nicht verbunden."))
             if mode == "ha" and not (ha is not None and ha.enabled):
                 raise HTTPException(status_code=422, detail=tr("Home Assistant ist nicht verbunden."))
             out["notify"] = mode

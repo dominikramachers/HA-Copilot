@@ -387,7 +387,7 @@ class Scheduler:
         elif mode == "phone":
             services = await self.phone_services(profile) if self.phone_services else ([profile.notify_service] if profile.notify_service else [])
             if not services:
-                return tr("Benachrichtigung nicht gesendet: Für dich ist kein Benachrichtigungsdienst eingetragen.")
+                return tr("Benachrichtigung nicht gesendet: Für dich wurde kein Handy gefunden (Einstellungen → Benachrichtigungen).")
             data: dict[str, Any] = {}
             base = self.settings.public_base_url
             if base:
