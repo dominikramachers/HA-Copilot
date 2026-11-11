@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.52.3
+- **Einrichtungsprüfung aufgeräumt.** Die Zeile „Abo-Token mit mehreren Personen“ (`claude_terms`) und die gleichlautende Warnung im Protokoll beim Start sind weg (`subscription_shared` gibt es nicht mehr); die Hinweise zu den Nutzungsbedingungen stehen weiter in der Dokumentation. Der Pfad „Einstellungen → Sprachassistenten → Entitäten“ ist jetzt richtig geschrieben (vorher „Sprach-Assistenten“).
+- **Zeile „Sprechen mit der KI“ prüft live.** `setup_check._check_voice` fragt die bevorzugte Assist-Pipeline ab (`HaApi.pipeline_engines`) und nennt, welche Spracherkennung (OpenAI, Home Assistant oder Browser) und welche Stimme (Gerät, OpenAI oder Home Assistant) wirklich gelten. Bleibt keine Spracherkennung übrig (Pipeline ohne Sprache-zu-Text, kein OpenAI-Schlüssel, `voice.browser_stt` aus), wird die Zeile zur Warnung mit den Schritten für das Add-on „Whisper“. `run_live` bekommt dafür den optionalen Parameter `settings`. Der Hinweistext der ausgeschalteten Zeile nennt Whisper statt nur allgemein „Spracherkennung im Sprachassistenten“.
+- **Doku:** Abschnitt „Sprechen mit der KI“ mit dem kostenlosen lokalen Weg (Whisper und Piper, weibliche Stimme `de_DE-ramona-low`); Einrichtungsprüfung und Betriebs-Doku ohne den entfernten Hinweis. Englische Texte angepasst (`en.json`), Tests für die Sprach-Zeile ergänzt.
+
 ## 0.52.2
 - **Kein sichtbares Viereck mehr um die Kugel:** Der Schein (Radialverlauf) wurde bei hohem Pegel größer als die Zeichenfläche und brach an deren Rand ab. Jetzt ist er auf die Fläche begrenzt und läuft mit mehreren Stufen bis auf 0 aus (Rand-Alpha gemessen: 0 bei Ruhe und bei höchstem Pegel).
 

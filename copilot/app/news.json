@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.52.3",
+    "items": [
+      {
+        "de": {
+          "title": "Klarer Blick auf das Sprechen",
+          "text": "In der Einrichtungsprüfung steht jetzt genau, womit ich dich verstehe und mit welcher Stimme ich antworte. Fehlt mir etwas zum Zuhören, sage ich dir, was du einrichten kannst."
+        },
+        "en": {
+          "title": "A clear view of talking",
+          "text": "The setup check now shows exactly how I understand you and which voice I answer with. If I am missing something to listen with, I tell you what you can set up."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.52.2",
     "items": [
       {

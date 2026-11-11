@@ -53,12 +53,9 @@ def test_claude_ok_names_the_billing_path_without_showing_secrets():
     assert "API-Schlüssel" in key["detail"] and KEY not in str(key) and ABO not in str(key)
 
 
-def test_shared_subscription_gets_a_warning_with_steps():
-    shared = rows(make(backend="claude", claude_oauth_token=ABO))  # zwei Profile
-    assert shared["claude_terms"]["status"] == "warn" and "anthropic_api_key" in " ".join(shared["claude_terms"]["steps"])
-    solo = make(backend="claude", claude_oauth_token=ABO, profiles=[RAW["profiles"][0]])
-    assert "claude_terms" not in rows(solo)
-    assert "claude_terms" not in rows(make(backend="claude", claude_oauth_token=ABO, anthropic_api_key=KEY))
+def test_subscription_token_with_several_people_gets_no_warning_row():
+    assert "claude_terms" not in rows(make(backend="claude", claude_oauth_token=ABO))  # zwei Profile
+    assert not hasattr(sc, "subscription_shared")
 
 
 def test_required_items_come_first():
@@ -223,6 +220,48 @@ def test_live_ha_failure_becomes_a_warning_with_steps():
     asyncio.run(sc.run_live(items, FakeHa(error=HaApiError("get_config: TimeoutError")), None, make().profiles[0]))
     ha = next(i for i in items if i["id"] == "ha")
     assert ha["status"] == "warn" and ha["steps"] and "TimeoutError" in ha["detail"]
+
+
+class VoiceHa:
+    """Nur das, was die Sprach-Zeile abfragt: was die bevorzugte Assist-Pipeline kann."""
+
+    def __init__(self, stt=False, tts=False):
+        self.engines = {"stt": stt, "tts": tts}
+
+    async def pipeline_engines(self):
+        return self.engines
+
+
+def voice_row(settings, ha):
+    items = list(rows(settings).values())
+    asyncio.run(sc.run_live(items, ha, None, settings.profiles[0], settings))
+    return next(i for i in items if i["id"] == "voice")
+
+
+def test_voice_row_names_the_recognition_and_voice_really_used():
+    on = {"voice": {"access_default": "on"}}
+    local = voice_row(make(**on), VoiceHa(stt=True, tts=True))
+    assert local["status"] == "ok" and "Home Assistant" in local["detail"] and "Stimme des Geräts" in local["detail"]
+    served = voice_row(make(voice={"access_default": "on", "output": "service"}), VoiceHa(stt=True, tts=True))
+    assert "Stimme: Home Assistant" in served["detail"]
+    no_tts = voice_row(make(voice={"access_default": "on", "output": "service"}), VoiceHa(stt=True))
+    assert "keine Sprachausgabe" in no_tts["detail"]
+    key = voice_row(make(voice={"access_default": "on", "openai_api_key": "sk-geheim"}), VoiceHa())
+    assert "OpenAI" in key["detail"] and "geheim" not in str(key)
+
+
+def test_voice_row_warns_when_nothing_can_recognise_speech():
+    settings = make(voice={"access_default": "on", "browser_stt": False})
+    row = voice_row(settings, VoiceHa())
+    assert row["status"] == "warn" and "Whisper" in " ".join(row["steps"]) and "browser_stt" in " ".join(row["steps"])
+    assert voice_row(make(voice={"access_default": "on", "browser_stt": False}), VoiceHa(stt=True))["status"] == "ok"
+    browser = voice_row(make(voice={"access_default": "on"}), VoiceHa())  # Browser-Rückfall ist an
+    assert browser["status"] == "ok" and "Browser" in browser["detail"]
+
+
+def test_voice_row_is_left_alone_when_off():
+    row = voice_row(make(), VoiceHa(stt=True))
+    assert row["status"] == "off" and "Whisper" in " ".join(row["steps"])
 
 
 def test_expiry_reminder_rows():

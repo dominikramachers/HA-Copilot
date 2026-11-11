@@ -88,7 +88,7 @@ from .identity import AccessDenied, Registry, resolve_entra, resolve_ingress
 from .oidc import EntraClient, OidcError, PendingLogins, pkce_pair
 from .ops import Health
 from . import setup_check
-from .setup_check import PeerLog, subscription_shared
+from .setup_check import PeerLog
 from .ratelimit import RateLimiter
 
 log = logging.getLogger("copilot")
@@ -888,7 +888,7 @@ def register_chat_routes(
             public_peers=public_peers.recent() if public_peers else (),
         )
         gh_api = accounts.api_for(profile.id)
-        await setup_check.run_live(items, ha if ha is not None and ha.enabled else None, gh_api if gh_api.enabled else None, profile)
+        await setup_check.run_live(items, ha if ha is not None and ha.enabled else None, gh_api if gh_api.enabled else None, profile, settings)
         return {"items": items, "open": setup_check.open_count(items)}
 
     # ------------------------------------------------------------ GitHub-Konto der Person
@@ -2883,8 +2883,6 @@ def main() -> None:
             api_key=settings.anthropic_api_key,
         )
         log.info("KI-Backend: Claude (%s), Standard-Aufwand %s", settings.model, settings.default_effort)
-        if subscription_shared(settings):
-            log.warning("Hinweis: Ein Claude-Abo-Token ist nur für den persönlichen Gebrauch gedacht, hier nutzen aber mehrere Personen oder die Domain-Seite die App. Nimm dafür einen API-Schlüssel (anthropic_api_key); siehe Anthropic-Nutzungsbedingungen.")
     else:
         backend = EchoBackend()
         log.warning("KI-Backend: Echo-Testmodus – es wird KEINE echte KI verwendet")

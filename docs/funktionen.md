@@ -183,7 +183,7 @@ Die Oberfläche passt sich dem Gerät an: Die Chat-Liste öffnet als Fenster von
 
 ## Einrichtungsprüfung
 
-In den **Einstellungen** zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Schritten, und prüft Home Assistant, GitHub und den Benachrichtigungsdienst live. Siehe [Installation](installation.md#6-einrichtungsprüfung).
+In den **Einstellungen** zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Schritten, und prüft Home Assistant, GitHub, den Benachrichtigungsdienst und die Sprach-Pipeline (welche Spracherkennung und Stimme gelten) live. Siehe [Installation](installation.md#6-einrichtungsprüfung).
 
 ## Sicherheit und Datenschutz
 
