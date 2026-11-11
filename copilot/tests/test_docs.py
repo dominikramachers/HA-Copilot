@@ -43,7 +43,7 @@ def test_options_page_is_current():
 def test_every_option_is_documented():
     cfg = yaml.safe_load((ROOT / "copilot" / "config.yaml").read_text(encoding="utf-8"))
     page = (DOCS / "einstellungen.md").read_text(encoding="utf-8")
-    names = set(cfg["schema"]) | set(cfg["schema"]["profiles"][0])
+    names = {f"{g}.{f}" for g, fields in cfg["schema"].items() for f in fields} | set(cfg["schema"]["users"]["profiles"][0])
     missing = sorted(n for n in names if f"`{n}`" not in page)
     assert not missing, f"nicht in docs/einstellungen.md: {missing}"
 

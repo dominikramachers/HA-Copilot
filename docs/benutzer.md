@@ -8,13 +8,14 @@ HA Copilot hat **keine eigene Benutzerverwaltung** in der Oberfläche. Wer die A
 
 1. **Add-on starten** (siehe [Installation](installation.md)). Ein Eintrag nur mit Anzeigename (so ist es voreingestellt) startet die App, passt aber auf niemanden.
 2. **HA Copilot in der Seitenleiste öffnen.** Es erscheint die Seite **Kein Zugriff**. Sie zeigt deinen **Benutzernamen** und deine **ID**. Das ist die Information, die du brauchst.
-3. **Konfiguration öffnen** und den Eintrag unter **Benutzer (Profile)** anpassen:
+3. **Konfiguration öffnen**, die Gruppe **Benutzer** aufklappen und den Eintrag unter **Benutzer (Profile)** anpassen:
 
    ```yaml
-   profiles:
-     - ha_user: dominik        # Anmeldename aus der Seite „Kein Zugriff“
-       label: Dominik          # Anzeigename in der App (optional)
-       ha_access: write        # Rechte der KI in Home Assistant (optional)
+   users:
+     profiles:
+       - ha_user: dominik        # Anmeldename aus der Seite „Kein Zugriff“
+         label: Dominik          # Anzeigename in der App (optional)
+         ha_access: write        # Rechte der KI in Home Assistant (optional)
    ```
 
 4. **Speichern** und das Add-on **neu starten**.
@@ -24,22 +25,23 @@ HA Copilot hat **keine eigene Benutzerverwaltung** in der Oberfläche. Wer die A
 
 ## Weitere Benutzer hinzufügen
 
-In der Konfiguration bei **Benutzer (Profile)** auf **Hinzufügen** tippen und einen weiteren Eintrag ausfüllen. In der YAML-Ansicht (⋮ → In YAML bearbeiten) sieht das so aus:
+In der Konfiguration in der Gruppe **Benutzer** bei **Benutzer (Profile)** auf **Hinzufügen** tippen und einen weiteren Eintrag ausfüllen. In der YAML-Ansicht (⋮ → In YAML bearbeiten) sieht das so aus:
 
 ```yaml
-profiles:
-  - ha_user: dominik
-    label: Dominik
-    ha_access: write          # darf in Home Assistant alles bauen und ändern
-    github_access: write      # darf bei GitHub schreiben
-    notify_service: notify.mobile_app_pixel
-  - ha_user: anna
-    label: Anna
-    ha_access: execute        # darf Geräte bedienen, aber nichts umbauen
-  - ha_user: kind1
-    label: Lisa
-    ha_access: none           # chattet nur, die KI sieht Home Assistant nicht
-    web_access: off           # keine Websuche
+users:
+  profiles:
+    - ha_user: dominik
+      label: Dominik
+      ha_access: write          # darf in Home Assistant alles bauen und ändern
+      github_access: write      # darf bei GitHub schreiben
+      notify_service: notify.mobile_app_pixel
+    - ha_user: anna
+      label: Anna
+      ha_access: execute        # darf Geräte bedienen, aber nichts umbauen
+    - ha_user: kind1
+      label: Lisa
+      ha_access: none           # chattet nur, die KI sieht Home Assistant nicht
+      web_access: off           # keine Websuche
 ```
 
 Nach dem Speichern das Add-on neu starten. Jeder Benutzer meldet sich dabei wie gewohnt in Home Assistant an; das Add-on erkennt ihn über Home Assistant und ordnet ihn seinem Profil zu. Ein Passwort für die App gibt es nicht.
@@ -59,7 +61,7 @@ Nach dem Speichern das Add-on neu starten. Jeder Benutzer meldet sich dabei wie 
 | `notify_service` | nein | Nur eine Vorgabe: Benachrichtigungsdienst fürs Handy, z. B. `notify.mobile_app_pixel`. Die Geräte einer Person erkennt der Chat sonst selbst aus Home Assistant; gewählt wird unter Einstellungen → Benachrichtigungen. |
 | `id` | nein | Interner, stabiler Schlüssel. **Die Chats gehören diesem Schlüssel**, nach dem Anlegen nicht mehr ändern. |
 
-Die vollständige Liste mit allen Werten steht in [Alle Einstellungen](einstellungen.md#benutzer).
+Die vollständige Liste mit allen Werten steht in [Alle Einstellungen](einstellungen.md#benutzer-users).
 
 ## Rechte der KI
 
@@ -72,20 +74,21 @@ Die Stufen gelten **je Benutzer** und werden vom Server durchgesetzt, nicht von 
 | `execute` | zusätzlich Geräte bedienen (Licht, Klima, Rollos, Szenen …) | (nicht vorhanden) |
 | `write` | zusätzlich Automationen, Skripte, Szenen, Dashboards, Helfer anlegen und ändern | zusätzlich Dateien einchecken, Zweige, Pull Requests, Issues |
 
-Voreinstellung ohne eigenen Eintrag: Home Assistant `execute` (`ha_access_default`), GitHub `none` (`chat.github_access_default`). Änderungen an der Konfiguration von Home Assistant und GitHub fragen im Chat nach, Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung von Home Assistant sind nie möglich. Alle Einzelheiten: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant-ab-0150) und [GitHub](../copilot/DOCS.md#github-ab-0190).
+Voreinstellung ohne eigenen Eintrag: Home Assistant `execute` (`chat.ha_access_default`), GitHub `none` (`chat.github_access_default`). Änderungen an der Konfiguration von Home Assistant und GitHub fragen im Chat nach, Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung von Home Assistant sind nie möglich. Alle Einzelheiten: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant-ab-0150) und [GitHub](../copilot/DOCS.md#github-ab-0190).
 
 ## Alle Home-Assistant-Benutzer zulassen
 
 Statt jeden Benutzer einzutragen, kannst du jeden Home-Assistant-Benutzer automatisch zulassen:
 
 ```yaml
-all_ha_users: true
-ha_users_excluded: "gast, kind1"
+users:
+  all_ha_users: true
+  ha_users_excluded: "gast, kind1"
 ```
 
 - Jeder Home-Assistant-Benutzer bekommt beim ersten Zugriff automatisch ein **eigenes Profil** (Kennung `ha-` plus Anfang seiner ID) mit eigenen, von den anderen getrennten Chats.
-- `ha_users_excluded` nimmt Benutzernamen, Namen oder IDs, durch Komma getrennt. Diese Benutzer kommen nicht herein.
-- Die Liste `profiles` brauchst du dann nur noch für Sonderfälle: eigener Anzeigename, abweichende Rechte, Microsoft-Anmeldung. Wer eingetragen ist, behält sein Profil und seine Rechte; alle anderen haben die Standardrechte (`ha_access_default`, `chat.github_access_default`).
+- `users.ha_users_excluded` nimmt Benutzernamen, Namen oder IDs, durch Komma getrennt. Diese Benutzer kommen nicht herein.
+- Die Liste `users.profiles` brauchst du dann nur noch für Sonderfälle: eigener Anzeigename, abweichende Rechte, Microsoft-Anmeldung. Wer eingetragen ist, behält sein Profil und seine Rechte; alle anderen haben die Standardrechte (`chat.ha_access_default`, `chat.github_access_default`).
 - Ein Abo-Token ist mit mehreren Benutzern nicht erlaubt, siehe [Installation](installation.md#4-zugang-zu-claude).
 
 ## Benutzer entfernen, umbenennen, wechseln

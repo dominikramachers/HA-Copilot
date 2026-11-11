@@ -69,6 +69,10 @@ GROUPED = {
     "image_provider": ("images", "provider"),
     "image_limit_month": ("images", "limit_month"),
 }
+# Seit 0.54.0 stehen auch die früheren Einzeloptionen in Gruppen (users, chat, domain, look, global)
+for _group_name, _keys in _config.MOVED.items():
+    for _key in _keys:
+        GROUPED[_key] = (_group_name, _key)
 
 
 def nest_options(raw):
@@ -82,7 +86,7 @@ def nest_options(raw):
                 out[group] = {**out[group], field: value}
         else:
             out[key] = value if key not in out else out[key]
-    for group in ("chat", "images", "voice"):  # eine fertig angegebene Gruppe ergänzen statt zu überschreiben
+    for group in ("users", "chat", "images", "voice", "domain", "look", "global"):  # eine fertig angegebene Gruppe ergänzen statt zu überschreiben
         if isinstance(raw.get(group), dict) and isinstance(out.get(group), dict):
             out[group] = {**raw[group], **out[group]}
     return out

@@ -267,11 +267,11 @@ def test_language_option_defaults_to_german_and_is_validated():
 def test_add_on_manifest_offers_the_language_with_german_as_default():
     yaml = pytest.importorskip("yaml")
     config = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
-    assert config["options"]["language"] == "de"
-    assert config["schema"]["language"] == "list(de|en)?"
+    assert config["options"]["look"]["language"] == "de"
+    assert config["schema"]["look"]["language"] == "list(de|en)?"
     for lang in ("de", "en"):
         translation = yaml.safe_load((ROOT / "translations" / f"{lang}.yaml").read_text(encoding="utf-8"))
-        assert translation["configuration"]["language"]["name"]
+        assert translation["configuration"]["look"]["fields"]["language"]["name"]
 
 
 # ------------------------------------------------------------------------- Englische Oberfläche
@@ -339,7 +339,7 @@ def test_english_setup_check(store, backend):
         assert german not in text
     assert "test mode" in text and "Settings → Apps" in text
     # Namen von Optionen und Befehlen bleiben unverändert
-    assert "`claude setup-token`" in text and "`claude_oauth_token`" in text
+    assert "`claude setup-token`" in text and "`chat.claude_oauth_token`" in text
 
 
 def test_english_export_names_and_texts(store):

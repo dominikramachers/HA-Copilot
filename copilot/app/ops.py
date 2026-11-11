@@ -43,6 +43,15 @@ class Health:
         if self.db_problem:
             found.append({"id": "db", "level": "error", "text": self.db_problem})
         s = self.settings
+        if s.migrated_options:
+            found.append({
+                "id": "migrated-" + str(len(s.migrated_options)),
+                "level": "warn",
+                "text": tr(
+                    "Die Add-on-Konfiguration hat jetzt Gruppen. Diese Werte stammen noch aus der alten Konfiguration und gelten weiter: {names}. Trage sie in den neuen Gruppen ein und speichere, dann verschwindet dieser Hinweis.",
+                    names=", ".join(s.migrated_options),
+                ),
+            })
         found.append(
             _expiry(
                 "claude", s.claude_token_expires, today,

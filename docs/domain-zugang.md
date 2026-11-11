@@ -4,7 +4,7 @@ Im Normalfall öffnest du HA Copilot über die Seitenleiste von Home Assistant; 
 
 Der Domain-Zugang ist **standardmäßig aus**. Das Add-on öffnet von sich aus nichts zum Internet; den Tunnel richtest du selbst ein.
 
-> **Wichtig:** Wer die Domain aktiviert, nutzt die App für mehrere Personen oder von außen. Dafür gehört ein **API-Schlüssel** (`anthropic_api_key`) in die Konfiguration, kein Abo-Token. Siehe [Installation](installation.md#4-zugang-zu-claude).
+> **Wichtig:** Wer die Domain aktiviert, nutzt die App für mehrere Personen oder von außen. Dafür gehört ein **API-Schlüssel** (`chat.anthropic_api_key`) in die Konfiguration, kein Abo-Token. Siehe [Installation](installation.md#4-zugang-zu-claude).
 
 ## Überblick
 
@@ -24,7 +24,7 @@ Browser ──https──▶ Cloudflare Tunnel ──http──▶ HA Copilot (P
 5. Unter **Zertifikate & Geheimnisse → Neuer geheimer Clientschlüssel** einen Schlüssel anlegen und den **Wert** sofort kopieren (er wird später nicht mehr angezeigt). Das Ablaufdatum notieren.
 6. Zusätzliche API-Berechtigungen sind nicht nötig; die Anmeldung fragt nur `openid`, `profile` und `email` ab.
 
-Wer sich anmelden darf, entscheidet nicht Entra, sondern allein die Liste `profiles` in der Konfiguration: Die UPN des Kontos muss bei einem Benutzer unter `entra_upn` stehen. Unbekannte Konten bekommen nie ein Profil.
+Wer sich anmelden darf, entscheidet nicht Entra, sondern allein die Liste `users.profiles` in der Konfiguration: Die UPN des Kontos muss bei einem Benutzer unter `entra_upn` stehen. Unbekannte Konten bekommen nie ein Profil.
 
 ## 2. Cloudflare Tunnel
 
@@ -40,25 +40,29 @@ Der Hostname im `service` ist der Name des Add-ons im internen Netz von Home Ass
 
 ## 3. Konfiguration
 
+In der Add-on-Konfiguration gehört alles zum Domain-Zugang in die Gruppe **Domain-Zugang (Entra)**; der Benutzer mit seinem Microsoft-Konto steht in der Gruppe **Benutzer**:
+
 ```yaml
-public_base_url: https://chat.example.org      # https, ohne Pfad, ohne Schrägstrich am Ende
-entra_tenant_id: 00000000-0000-0000-0000-000000000000
-entra_client_id: 00000000-0000-0000-0000-000000000000
-entra_client_secret: "…"
-session_days: 30                                # angemeldet bleiben, 1 bis 90 Tage
-profiles:
-  - ha_user: dominik
-    label: Dominik
-    entra_upn: dominik@example.org              # Konto, mit dem er sich bei Microsoft anmeldet
+domain:
+  public_base_url: https://chat.example.org      # https, ohne Pfad, ohne Schrägstrich am Ende
+  entra_tenant_id: 00000000-0000-0000-0000-000000000000
+  entra_client_id: 00000000-0000-0000-0000-000000000000
+  entra_client_secret: "…"
+  session_days: 30                                # angemeldet bleiben, 1 bis 90 Tage
+users:
+  profiles:
+    - ha_user: dominik
+      label: Dominik
+      entra_upn: dominik@example.org              # Konto, mit dem er sich bei Microsoft anmeldet
 ```
 
-Speichern und das Add-on **neu starten**. Fehlt etwas oder ist es ungültig, startet das Add-on nicht und nennt den Grund im Protokoll. Alle Optionen: [Alle Einstellungen](einstellungen.md#zugang-über-eine-eigene-domain).
+Speichern und das Add-on **neu starten**. Fehlt etwas oder ist es ungültig, startet das Add-on nicht und nennt den Grund im Protokoll. Alle Optionen: [Alle Einstellungen](einstellungen.md#domain-zugang-entra-domain).
 
 Danach `https://chat.example.org` öffnen, die E-Mail-Adresse eingeben und bei Microsoft anmelden. Beim **ersten** Login bindet das Add-on die Entra-Objekt-ID fest an das Profil; ab dann zählt nur noch diese ID, nicht mehr der Name.
 
 ## 4. Anmeldeversuche je Besucher zählen
 
-Hinter einem Tunnel kommen alle Besucher von derselben Adresse. Ohne weitere Angabe teilen sie sich die Begrenzung der Anmeldeversuche (10 je 10 Minuten): Wenige falsche Versuche würden die Anmeldung für alle sperren. Trage deshalb die Adresse des Tunnels bei `public_trusted_proxies` ein, damit das Add-on den Header `CF-Connecting-IP` von dort auswerten darf.
+Hinter einem Tunnel kommen alle Besucher von derselben Adresse. Ohne weitere Angabe teilen sie sich die Begrenzung der Anmeldeversuche (10 je 10 Minuten): Wenige falsche Versuche würden die Anmeldung für alle sperren. Trage deshalb die Adresse des Tunnels bei `domain.public_trusted_proxies` ein, damit das Add-on den Header `CF-Connecting-IP` von dort auswerten darf.
 
 1. Rufe die Anmeldeseite einmal über deine Adresse auf.
 2. Öffne die **Einrichtungsprüfung**. Sie nennt unter „Anmeldeversuche werden nicht je Besucher gezählt“ die Adresse, von der die Anfragen kommen.
@@ -66,17 +70,18 @@ Hinter einem Tunnel kommen alle Besucher von derselben Adresse. Ohne weitere Ang
 
 ## Anmeldung mit Home Assistant (optional)
 
-Mit `ha_url` (von außen erreichbare Adresse von Home Assistant, https) zeigt die Anmeldeseite zusätzlich **Mit Home Assistant anmelden**. Ohne Entra-Angaben ist das der einzige Weg.
+Mit `domain.ha_url` (von außen erreichbare Adresse von Home Assistant, https) zeigt die Anmeldeseite zusätzlich **Mit Home Assistant anmelden**. Ohne Entra-Angaben ist das der einzige Weg.
 
 ```yaml
-ha_url: https://ha.example.org
+domain:
+  ha_url: https://ha.example.org
 ```
 
-Der Knopf führt zur Anmeldung von Home Assistant selbst, mit allem, was dort eingerichtet ist (auch Zwei-Faktor). Das Add-on sieht dein Passwort nie: Es tauscht nur den Rückgabecode gegen ein Token, fragt ab, wer du bist, und widerruft das Token sofort. Wer hineindarf, entscheidet dieselbe Regel wie im HA-Panel: eingetragener Benutzer oder `all_ha_users` ohne Ausschluss. Home Assistant muss von der Domain-Seite aus erreichbar sein. Als Weiterleitungsadresse verwendet das Add-on `https://chat.example.org/auth/ha-callback`.
+Der Knopf führt zur Anmeldung von Home Assistant selbst, mit allem, was dort eingerichtet ist (auch Zwei-Faktor). Das Add-on sieht dein Passwort nie: Es tauscht nur den Rückgabecode gegen ein Token, fragt ab, wer du bist, und widerruft das Token sofort. Wer hineindarf, entscheidet dieselbe Regel wie im HA-Panel: eingetragener Benutzer oder `users.all_ha_users` ohne Ausschluss. Home Assistant muss von der Domain-Seite aus erreichbar sein. Als Weiterleitungsadresse verwendet das Add-on `https://chat.example.org/auth/ha-callback`.
 
 ## Als App auf dem Handy
 
-Im Handy-Browser über **Zum Home-Bildschirm** ablegen. Name (`app_name`) und Symbol (`icon.png`) kommen aus der Konfiguration, die App öffnet im Vollbild ohne Browserleiste. Auf dem iPhone hat die App einen eigenen Speicher, die Anmeldung ist dort einmal neu nötig.
+Im Handy-Browser über **Zum Home-Bildschirm** ablegen. Name (`look.app_name`) und Symbol (`icon.png`) kommen aus der Konfiguration, die App öffnet im Vollbild ohne Browserleiste. Auf dem iPhone hat die App einen eigenen Speicher, die Anmeldung ist dort einmal neu nötig.
 
 ## Sicherheit
 
@@ -85,7 +90,7 @@ Im Handy-Browser über **Zum Home-Bildschirm** ablegen. Name (`app_name`) und Sy
 - Schreibende Anfragen verlangen einen eigenen Header und einen passenden `Origin`.
 - Anmeldeversuche sind begrenzt, die Seiten nicht in fremden Frames darstellbar und senden HSTS.
 - Die Rechtestufen der Person gelten auch bei Anmeldung über die Domain.
-- Das **Entra-Geheimnis läuft ab**. Trage das Ablaufdatum bei `entra_secret_expires` ein (`JJJJ-MM-TT`); 30 Tage vorher erscheint ein Hinweis im Chat.
+- Das **Entra-Geheimnis läuft ab**. Trage das Ablaufdatum bei `domain.entra_secret_expires` ein (`JJJJ-MM-TT`); 30 Tage vorher erscheint ein Hinweis im Chat.
 
 Alle Einzelheiten: [Sicherheit in Kürze](../copilot/DOCS.md#sicherheit-in-kürze) und [SECURITY.md](../SECURITY.md).
 
@@ -93,8 +98,8 @@ Alle Einzelheiten: [Sicherheit in Kürze](../copilot/DOCS.md#sicherheit-in-kürz
 
 | Beobachtung | Abhilfe |
 |---|---|
-| Das Add-on startet nach dem Einschalten nicht mehr | Im Protokoll steht, welche Angabe fehlt oder ungültig ist (`public_base_url` mit `https://`, GUIDs für Mandant und Client). |
+| Das Add-on startet nach dem Einschalten nicht mehr | Im Protokoll steht, welche Angabe fehlt oder ungültig ist (`domain.public_base_url` mit `https://`, GUIDs für Mandant und Client). |
 | Microsoft meldet „Umleitungs-URI stimmt nicht überein“ | In der App-Registrierung muss genau `https://<deine Adresse>/auth/callback` stehen. |
 | Nach der Anmeldung steht „Kein Zugriff“ | Die UPN des Kontos steht bei keinem Benutzer unter `entra_upn`. Die Seite zeigt die erkannte UPN. Bei Gastkonten ist es die E-Mail-Adresse des Gastes, nicht der `…#EXT#…`-Name. |
 | Die Seite lädt nicht oder bricht ab | Tunnel und Hostname prüfen (`http://<Add-on-Hostname>:8100`), Tunnel-Protokoll ansehen. |
-| Die Anmeldung wird nach mehreren Versuchen zeitweise abgelehnt | Begrenzung der Anmeldeversuche; kurz warten und `public_trusted_proxies` setzen (Abschnitt 4). |
+| Die Anmeldung wird nach mehreren Versuchen zeitweise abgelehnt | Begrenzung der Anmeldeversuche; kurz warten und `domain.public_trusted_proxies` setzen (Abschnitt 4). |

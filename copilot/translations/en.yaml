@@ -1,69 +1,67 @@
 configuration:
-  profiles:
-    name: Users (profiles)
-    description: Who may use the app. “Add” creates another user; usually the Home Assistant username is enough and everything else is optional. Anyone not listed sees their username and ID in the app so they can be added. Restart the add-on after saving.
+  users:
+    name: Users
+    description: 'Who may use the app: the user list, access for all Home Assistant users and who is excluded.'
     fields:
-      ha_user:
-        name: Home Assistant username
-        description: Login name or person of the user in Home Assistant (e.g. “doralab”). The add-on derives the ID from it. Alternatively enter the ID below.
-      label:
-        name: Display name (optional)
-        description: Name shown in the app. Leave empty to use the Home Assistant username.
-      ha_user_id:
-        name: Home Assistant user ID (optional)
-        description: 32 characters. Only needed when the username is ambiguous. The add-on log lists all users with their IDs at start.
-      entra_upn:
-        name: E-mail / UPN for domain sign-in (optional)
-        description: Account the person uses to sign in via the public domain with Microsoft Entra.
-      ha_access:
-        name: Home Assistant access (optional)
-        description: 'What the AI may do in Home Assistant for this user: none, read, execute (read and operate devices) or write (read, execute and change automations, scripts, dashboards, helpers). Empty: the default below applies.'
-      github_access:
-        name: GitHub access (optional)
-        description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default below applies. The token belongs to you as the operator: every user with read or write can see your private repositories through it (unless the allow-list restricts it).'
-      connector_access:
-        name: Connectors (optional)
-        description: 'What the AI may do with connectors (MCP servers such as Microsoft 365, Google Workspace or Zabbix) for this user: none, use (use shared/global connectors), own (also create their own), global (also create and change global connectors for everyone, including home-network addresses). Empty: the default below applies.'
-      web_access:
-        name: Web search (optional)
-        description: 'on = the AI may search the web and read pages for this user, off = not. Empty: the default below applies.'
-      voice_access:
-        name: Talking to the AI (optional)
-        description: 'on = this person may talk to the AI by voice (microphone button in the chat), off = not. Empty: the default below applies.'
-      notify_service:
-        name: Notification service (optional)
-        description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). Default device of this person (everyone picks their own devices under Settings → Notifications; without a choice the devices of their person in Home Assistant apply). Empty: no default.'
-      id:
-        name: Short name (optional)
-        description: 'Internal id, a–z, 0–9, hyphen. Leave empty to derive it from the display name. Do not change later: chats are tied to it.'
-  all_ha_users:
-    name: Allow all Home Assistant users
-    description: 'Off (default): only the users listed above. On: every Home Assistant user may use the app and automatically gets a profile of their own, with their own chats, on first access. Listed users keep their profile. Listing is then only needed for a display name or Microsoft sign-in.'
-  ha_users_excluded:
-    name: Excluded Home Assistant users (optional)
-    description: 'Only with “Allow all Home Assistant users”: usernames, names or IDs, comma separated (e.g. “child1, guest”). These users cannot get in.'
-  anthropic_api_key:
-    name: Anthropic API key
-    description: Alternative to the subscription token (pay-as-you-go via the Claude Console). Takes precedence if both are set.
-  claude_oauth_token:
-    name: Claude access token (subscription)
-    description: Long-lived token from “claude setup-token” (Claude subscription). ONLY for your own personal use. Several users or the domain side need an API key (observe Anthropic’s terms). With neither a token nor an API key only the test mode runs.
-  claude_token_expires:
-    name: Claude token expires on
-    description: Date (YYYY-MM-DD) for the reminder in the app.
-  ha_access_default:
-    name: Default Home Assistant access
-    description: 'Applies to all users without their own setting: none, read, execute (default) or write. With read and execute the AI only sees and controls entities exposed to Assist in Home Assistant.'
-  ha_limit_to_exposed:
-    name: Only entities exposed to Assist (read/execute)
-    description: 'On (default): users with read or execute only see and control entities that are exposed to Assist in Home Assistant. Users with write are not affected.'
+      profiles:
+        name: Users (profiles)
+        description: Who may use the app. “Add” creates another user; usually the Home Assistant username is enough and everything else is optional. Anyone not listed sees their username and ID in the app so they can be added. Restart the add-on after saving.
+        fields:
+          ha_user:
+            name: Home Assistant username
+            description: Login name or person of the user in Home Assistant (e.g. “doralab”). The add-on derives the ID from it. Alternatively enter the ID below.
+          label:
+            name: Display name (optional)
+            description: Name shown in the app. Leave empty to use the Home Assistant username.
+          ha_user_id:
+            name: Home Assistant user ID (optional)
+            description: 32 characters. Only needed when the username is ambiguous. The add-on log lists all users with their IDs at start.
+          entra_upn:
+            name: E-mail / UPN for domain sign-in (optional)
+            description: Account the person uses to sign in via the public domain with Microsoft Entra.
+          ha_access:
+            name: Home Assistant access (optional)
+            description: 'What the AI may do in Home Assistant for this user: none, read, execute (read and operate devices) or write (read, execute and change automations, scripts, dashboards, helpers). Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies.'
+          github_access:
+            name: GitHub access (optional)
+            description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies. The token belongs to you as the operator: every user with read or write can see your private repositories through it (unless the allow-list restricts it).'
+          connector_access:
+            name: Connectors (optional)
+            description: 'What the AI may do with connectors (MCP servers such as Microsoft 365, Google Workspace or Zabbix) for this user: none, use (use shared/global connectors), own (also create their own), global (also create and change global connectors for everyone, including home-network addresses). Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies.'
+          web_access:
+            name: Web search (optional)
+            description: 'on = the AI may search the web and read pages for this user, off = not. Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies.'
+          voice_access:
+            name: Talking to the AI (optional)
+            description: 'on = this person may talk to the AI by voice (microphone button in the chat), off = not. Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies.'
+          notify_service:
+            name: Notification service (optional)
+            description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). Default device of this person (everyone picks their own devices under Settings → Notifications; without a choice the devices of their person in Home Assistant apply). Empty: no default.'
+          id:
+            name: Short name (optional)
+            description: 'Internal id, a–z, 0–9, hyphen. Leave empty to derive it from the display name. Do not change later: chats are tied to it.'
+      all_ha_users:
+        name: Allow all Home Assistant users
+        description: 'Off (default): only the users listed above. On: every Home Assistant user may use the app and automatically gets a profile of their own, with their own chats, on first access. Listed users keep their profile. Listing is then only needed for a display name or Microsoft sign-in.'
+      ha_users_excluded:
+        name: Excluded Home Assistant users (optional)
+        description: 'Only with “Allow all Home Assistant users”: usernames, names or IDs, comma separated (e.g. “child1, guest”). These users cannot get in.'
   chat:
-    name: Chat
-    description: 'Settings for the chat: model, memory, scheduled tasks, files, and the default for GitHub and connectors.'
+    name: Chat and Claude
+    description: Access to Claude (subscription token or API key), model, memory, scheduled tasks, files, access to Home Assistant and the defaults for GitHub and connectors.
     fields:
+      anthropic_api_key:
+        name: Anthropic API key
+        description: Alternative to the subscription token (pay-as-you-go via the Claude Console). Takes precedence if both are set.
+      claude_oauth_token:
+        name: Claude access token (subscription)
+        description: Long-lived token from “claude setup-token” (Claude subscription). ONLY for your own personal use. Several users or the domain side need an API key (observe Anthropic’s terms). With neither a token nor an API key only the test mode runs.
+      claude_token_expires:
+        name: Claude token expires on
+        description: Date (YYYY-MM-DD) for the reminder in the app.
       model:
         name: Default model
-        description: 'Model for new chats, e.g. claude-sonnet-5-5. Users can switch it per chat (Opus and Haiku are offered as well).'
+        description: Model for new chats, e.g. claude-sonnet-5-5. Users can switch it per chat (Opus and Haiku are offered as well).
       memory_enabled:
         name: AI memory
         description: 'On (default): the AI remembers facts on its own, for the whole household and separately for each person. Everyone can view, edit and delete entries in the chat under “Memory”. Off: no memory.'
@@ -73,6 +71,12 @@ configuration:
       files_enabled:
         name: Create files
         description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
+      ha_access_default:
+        name: Default Home Assistant access
+        description: 'Applies to all users without their own setting: none, read, execute (default) or write. With read and execute the AI only sees and controls entities exposed to Assist in Home Assistant.'
+      ha_limit_to_exposed:
+        name: Only entities exposed to Assist (read/execute)
+        description: 'On (default): users with read or execute only see and control entities that are exposed to Assist in Home Assistant. Users with write are not affected.'
       github_access_default:
         name: Default GitHub access
         description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub in the settings. Can be overridden per user with github_access.'
@@ -81,7 +85,7 @@ configuration:
         description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'
   images:
     name: Images
-    description: 'The AI creates images by itself. It draws SVG graphics for free; photos and artwork need a key from OpenAI or Google (both optional).'
+    description: The AI creates images by itself. It draws SVG graphics for free; photos and artwork need a key from OpenAI or Google (both optional).
     fields:
       openai_api_key:
         name: OpenAI API key (images)
@@ -91,19 +95,19 @@ configuration:
         description: 'Key for the Gemini API from aistudio.google.com (Get API key) with billing enabled; a Google subscription is not enough. The image request and reference images are sent to Google. Empty: no images from Google.'
       openai_key_expires:
         name: OpenAI key expires on
-        description: 'Date (YYYY-MM-DD) for the reminder in the app. platform.openai.com under “API keys” shows whether and when the key expires; 30 days before, a notice appears in the chat.'
+        description: Date (YYYY-MM-DD) for the reminder in the app. platform.openai.com under “API keys” shows whether and when the key expires; 30 days before, a notice appears in the chat.
       google_key_expires:
         name: Google key expires on
-        description: 'Date (YYYY-MM-DD) for the reminder in the app. aistudio.google.com under “API keys” or the Google Cloud console shows whether and when the key expires; 30 days before, a notice appears in the chat.'
+        description: Date (YYYY-MM-DD) for the reminder in the app. aistudio.google.com under “API keys” or the Google Cloud console shows whether and when the key expires; 30 days before, a notice appears in the chat.
       provider:
         name: Image provider
         description: 'auto (default): the AI chooses per image, Google for drafts and edits (cheaper), OpenAI for images with text or top quality. openai or google: always this provider. If only one key is entered, that one is used.'
       limit_month:
         name: Images per person and month
-        description: 'How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.'
+        description: How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.
   voice:
     name: Talking to the AI
-    description: 'Everything about talking to the AI (microphone button in the chat) in one group. Who may talk is set here as the default and per user with “Talking to the AI” (voice_access).'
+    description: Everything about talking to the AI (microphone button in the chat) in one group. Who may talk is set here as the default and per user with “Talking to the AI” (voice_access).
     fields:
       access_default:
         name: Default – who may talk
@@ -113,66 +117,78 @@ configuration:
         description: 'On (default): without an OpenAI key and without speech recognition in Home Assistant, the app uses the free speech recognition built into the browser (Chrome, Edge, Safari; missing in Firefox). The audio then goes to Google or Apple, not to this add-on. Off: talking then only works with an OpenAI key or Home Assistant.'
       output:
         name: Voice
-        description: 'device (default) = the device reads the answer aloud, free. service = the same service as speech recognition reads it aloud (OpenAI or Home Assistant), sounds better, costs a few cents at OpenAI.'
+        description: device (default) = the device reads the answer aloud, free. service = the same service as speech recognition reads it aloud (OpenAI or Home Assistant), sounds better, costs a few cents at OpenAI.
       instructions:
         name: Your own wishes for spoken answers (optional)
         description: 'One to three sentences the AI also follows for every spoken answer, for example “Always name the rooms” or “Answer in one sentence”. At most 600 characters. Empty: only the basic rules (short, the way people talk, no device names).'
       chat_days:
         name: Keep voice conversations (days)
-        description: 'Voice conversations not started inside a chat are not listed with your chats and are deleted after this many days (default 30, 0 = keep). Pinned ones stay.'
+        description: Voice conversations not started inside a chat are not listed with your chats and are deleted after this many days (default 30, 0 = keep). Pinned ones stay.
       openai_api_key:
         name: OpenAI key for voice only (optional)
-        description: 'Key from platform.openai.com (API keys) for speech recognition (and the voice with output: service); a few cents per hour of speech, the API account needs its own credit. Empty: the OpenAI key above (images) applies, and if that is empty too, the browser''s speech recognition. Recordings are sent to OpenAI.'
+        description: 'Key from platform.openai.com (API keys) for speech recognition (and the voice with output: service); a few cents per hour of speech, the API account needs its own credit. Empty: the OpenAI key of the group “Images” applies, and if that is empty too, the browser''s speech recognition. Recordings are sent to OpenAI.'
       openai_key_expires:
         name: OpenAI key (voice) expires on
-        description: 'Date (YYYY-MM-DD) for the reminder in the app, only for the own key of this group. 30 days before, a notice appears in the chat. Without its own key, the date under “Images” (images.openai_key_expires) applies.'
-  public_base_url:
-    name: Public address
-    description: e.g. https://chat.example.org. Must match the Entra app's redirect URI. Domain access is on as soon as this address and a login (Entra or ha_url) are set.
-  ha_url:
-    name: Home Assistant address for sign-in via the domain (optional)
-    description: 'Only if users should sign in via the domain with their Home Assistant account: externally reachable address, e.g. https://ha.example.org. The sign-in page then shows “Sign in with Home Assistant”. Leave empty: Microsoft Entra only.'
-  entra_tenant_id:
-    name: 'Entra: directory (tenant) ID'
-  entra_client_id:
-    name: 'Entra: application (client) ID'
-  entra_client_secret:
-    name: 'Entra: client secret'
-  entra_secret_expires:
-    name: Entra secret expires on
-    description: Date (YYYY-MM-DD) for the reminder in the app.
-  session_days:
-    name: Sign-in duration (days)
-    description: How long a sign-in via the domain stays valid (1–90).
-  public_trusted_proxies:
-    name: Trusted proxies
-    description: Addresses of reverse proxies (e.g. a Cloudflare tunnel container) whose forwarding headers may be trusted.
-  app_name:
-    name: App name
-    description: 'Name used on the sign-in page, in the title and in the sidebar. Default: HA Copilot. The name of the Home Assistant sidebar entry is fixed and cannot be changed here.'
-  language:
-    name: Language
-    description: 'de (default) for German or en for English. Applies to the interface, the add-on’s messages and the default language of the AI’s answers (anyone who writes in another language still gets the answer in that language). Chats that are already saved stay unchanged.'
-  login_text:
-    name: Sign-in page text
-    description: Short sentence below the name, e.g. “Sign in with your company account.”
-  login_placeholder:
-    name: Example address in sign-in field
-    description: Placeholder in the e-mail field of the sign-in page, e.g. name@company.com.
-  logo_tile:
-    name: Logo on dark tile
-    description: 'For logos that only look good on dark backgrounds (light or neon logos): shows them on a dark tile in the light design.'
-  follow_ha_theme:
-    name: Follow Home Assistant theme
-    description: 'On: colours and light/dark follow the active Home Assistant theme live (inside HA) or the default theme (via the domain). Off: built-in colours with the app''s own light/dark switch.'
-  theme_name:
-    name: Theme for the domain (optional)
-    description: 'Name of a Home Assistant theme to use via the domain. Empty: Home Assistant''s default theme.'
-  restore_snapshot:
-    name: Restore database
-    description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'
-  export_database:
-    name: Export database (migration)
-    description: 'Only for moving to another add-on (e.g. from the local add-on to the GitHub add-on): on start, a copy of all chats is written to the add-on’s config folder as copilot-export.sqlite3. Switch it off afterwards and delete the file.'
+        description: Date (YYYY-MM-DD) for the reminder in the app, only for the own key of this group. 30 days before, a notice appears in the chat. Without its own key, the date under “Images” (images.openai_key_expires) applies.
+  domain:
+    name: Domain access (Entra)
+    description: 'Optional: access via your own domain with Microsoft Entra or Home Assistant sign-in. Domain access is on as soon as the public address and a sign-in are set.'
+    fields:
+      public_base_url:
+        name: Public address
+        description: e.g. https://chat.example.org. Must match the Entra app's redirect URI. Domain access is on as soon as this address and a login (Entra or ha_url) are set.
+      ha_url:
+        name: Home Assistant address for sign-in via the domain (optional)
+        description: 'Only if users should sign in via the domain with their Home Assistant account: externally reachable address, e.g. https://ha.example.org. The sign-in page then shows “Sign in with Home Assistant”. Leave empty: Microsoft Entra only.'
+      entra_tenant_id:
+        name: 'Entra: directory (tenant) ID'
+      entra_client_id:
+        name: 'Entra: application (client) ID'
+      entra_client_secret:
+        name: 'Entra: client secret'
+      entra_secret_expires:
+        name: Entra secret expires on
+        description: Date (YYYY-MM-DD) for the reminder in the app.
+      session_days:
+        name: Sign-in duration (days)
+        description: How long a sign-in via the domain stays valid (1–90).
+      public_trusted_proxies:
+        name: Trusted proxies
+        description: Addresses of reverse proxies (e.g. a Cloudflare tunnel container) whose forwarding headers may be trusted.
+  look:
+    name: Personalisation
+    description: 'All optional: name, language, sign-in page, logo and colours.'
+    fields:
+      app_name:
+        name: App name
+        description: 'Name used on the sign-in page, in the title and in the sidebar. Default: HA Copilot. The name of the Home Assistant sidebar entry is fixed and cannot be changed here.'
+      language:
+        name: Language
+        description: de (default) for German or en for English. Applies to the interface, the add-on’s messages and the default language of the AI’s answers (anyone who writes in another language still gets the answer in that language). Chats that are already saved stay unchanged.
+      login_text:
+        name: Sign-in page text
+        description: Short sentence below the name, e.g. “Sign in with your company account.”
+      login_placeholder:
+        name: Example address in sign-in field
+        description: Placeholder in the e-mail field of the sign-in page, e.g. name@company.com.
+      logo_tile:
+        name: Logo on dark tile
+        description: 'For logos that only look good on dark backgrounds (light or neon logos): shows them on a dark tile in the light design.'
+      follow_ha_theme:
+        name: Follow Home Assistant theme
+        description: 'On: colours and light/dark follow the active Home Assistant theme live (inside HA) or the default theme (via the domain). Off: built-in colours with the app''s own light/dark switch.'
+      theme_name:
+        name: Theme for the domain (optional)
+        description: 'Name of a Home Assistant theme to use via the domain. Empty: Home Assistant''s default theme.'
+  global:
+    name: Global settings
+    description: Data and backup. Normally empty or off; only for restoring and moving.
+    fields:
+      restore_snapshot:
+        name: Restore database
+        description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'
+      export_database:
+        name: Export database (migration)
+        description: 'Only for moving to another add-on (e.g. from the local add-on to the GitHub add-on): on start, a copy of all chats is written to the add-on’s config folder as copilot-export.sqlite3. Switch it off afterwards and delete the file.'
 network:
   8100/tcp: Domain access (Cloudflare tunnel)

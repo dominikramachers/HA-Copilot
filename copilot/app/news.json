@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.54.0",
+    "items": [
+      {
+        "de": {
+          "title": "Einstellungen übersichtlicher",
+          "text": "Die Einstellungen stehen jetzt in Gruppen wie Benutzer, Chat, Domain und Personalisierung. Deine bisherigen Werte behalte ich, bis du sie dort einträgst."
+        },
+        "en": {
+          "title": "Clearer settings",
+          "text": "The settings are now in groups such as Users, Chat, Domain and Personalisation. I keep your existing values until you enter them there."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.9",
     "items": [
       {

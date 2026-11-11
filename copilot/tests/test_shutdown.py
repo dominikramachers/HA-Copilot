@@ -22,8 +22,7 @@ def _free_port() -> int:
 def test_sigterm_shuts_down_cleanly_with_exit_code_zero(tmp_path):
     options = tmp_path / "options.json"
     options.write_text(json.dumps({
-        "profiles": [{"id": "adm01", "label": "Admin", "ha_user_id": "0123456789abcdef0123456789abcdef"}],
-        "public_enabled": False,
+        "users": {"profiles": [{"id": "adm01", "label": "Admin", "ha_user_id": "0123456789abcdef0123456789abcdef"}]},
     }))
     port = _free_port()
     env = {

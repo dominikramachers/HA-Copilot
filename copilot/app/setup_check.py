@@ -98,7 +98,7 @@ def static_items(
                 "`claude setup-token` aus und kopiere das ausgegebene Token. Nutzen mehrere Personen den Chat, erzeuge stattdessen in der "
                 "Claude Console (console.anthropic.com) unter „API Keys“ einen API-Schlüssel; dann wird nach Verbrauch abgerechnet."),
                 tr(CONFIG_STEP),
-                tr("Trage das Abo-Token bei `claude_oauth_token` oder den API-Schlüssel bei `anthropic_api_key` ein."),
+                tr("Trage das Abo-Token bei `chat.claude_oauth_token` oder den API-Schlüssel bei `chat.anthropic_api_key` ein."),
                 tr(RESTART_STEP),
             ],
         ))
@@ -113,8 +113,8 @@ def static_items(
             [
                 tr("Lies die Meldung oben genau; sie sagt, was beim Start gefunden wurde."),
                 tr(CONFIG_STEP),
-                tr("Trage bei `restore_snapshot` den Dateinamen eines Schnappschusses ein (Ordner `snapshots` im Datenordner des Add-ons, der neueste steht im Protokoll)."),
-                tr(RESTART_STEP) + tr(" Danach `restore_snapshot` wieder leeren."),
+                tr("Trage bei `global.restore_snapshot` den Dateinamen eines Schnappschusses ein (Ordner `snapshots` im Datenordner des Add-ons, der neueste steht im Protokoll)."),
+                tr(RESTART_STEP) + tr(" Danach `global.restore_snapshot` wieder leeren."),
             ],
         ))
 
@@ -149,7 +149,7 @@ def static_items(
                 tr("Für dich ist der Zugriff der KI auf Home Assistant aus."),
                 [
                     tr(CONFIG_STEP),
-                    tr("Setze `ha_access_default` auf `read` (nur lesen), `execute` (Geräte bedienen) oder `write` (zusätzlich Automationen ändern). "
+                    tr("Setze `chat.ha_access_default` auf `read` (nur lesen), `execute` (Geräte bedienen) oder `write` (zusätzlich Automationen ändern). "
                     "Einzelnen Personen gibst du mit `ha_access` im Benutzer-Eintrag eine andere Stufe."),
                     tr(RESTART_STEP),
                 ],
@@ -243,7 +243,7 @@ def static_items(
                 tr("Richte in Microsoft Entra eine App-Registrierung ein. Weiterleitungs-URI: `https://deine-adresse/auth/callback`."),
                 tr("Richte einen Cloudflare Tunnel ein (z. B. mit dem Add-on „Cloudflared“), der auf `http://{host}:8100` zeigt.", host=hostname or tr("Hostname-des-Add-ons")),
                 tr(CONFIG_STEP) + tr(" Aktiviere unter „Netzwerk“ den Port 8100."),
-                tr("Trage `public_base_url`, `entra_tenant_id`, `entra_client_id` und `entra_client_secret` ein (Beschreibung: Dokumentation, Abschnitt „Domain-Zugang“)."),
+                tr("Trage `domain.public_base_url`, `domain.entra_tenant_id`, `domain.entra_client_id` und `domain.entra_client_secret` ein (Beschreibung: Dokumentation, Abschnitt „Domain-Zugang“)."),
                 tr(RESTART_STEP),
             ],
         ))
@@ -256,15 +256,15 @@ def static_items(
         if not settings.public_trusted_proxies:
             seen = list(public_peers)
             if seen:
-                find = tr("Zuletzt kamen die Anfragen an die Domain-Seite von: {peers}. Trage diese Adresse bei `public_trusted_proxies` ein.", peers=", ".join(seen))
+                find = tr("Zuletzt kamen die Anfragen an die Domain-Seite von: {peers}. Trage diese Adresse bei `domain.public_trusted_proxies` ein.", peers=", ".join(seen))
             else:
                 find = (
                     tr("Rufe die Anmeldeseite einmal über deine Adresse auf und öffne diese Prüfung danach erneut. Dann steht hier die Adresse, "
-                    "von der die Anfragen des Tunnels kommen. Trage sie bei `public_trusted_proxies` ein.")
+                    "von der die Anfragen des Tunnels kommen. Trage sie bei `domain.public_trusted_proxies` ein.")
                 )
             items.append(_item(
                 "domain_proxies", "recommended", "warn", tr("Anmeldeversuche werden nicht je Besucher gezählt"),
-                tr("Hinter einem Tunnel kommen alle Besucher von derselben Adresse. Ohne `public_trusted_proxies` teilen sie sich eine gemeinsame Begrenzung: "
+                tr("Hinter einem Tunnel kommen alle Besucher von derselben Adresse. Ohne `domain.public_trusted_proxies` teilen sie sich eine gemeinsame Begrenzung: "
                 "Wenige falsche Versuche sperren die Anmeldung dann für alle."),
                 [tr(CONFIG_STEP), find, tr(RESTART_STEP)],
             ))
