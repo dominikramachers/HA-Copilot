@@ -271,7 +271,6 @@
  "Gerade zu viele Anfragen. Bitte kurz warten.": "Too many requests right now. Please wait a moment.",
  "Dieser Chat existiert nicht mehr.": "This chat no longer exists.",
  "Fehler {0}": "Error {0}",
- "Schreibe noch eine Frage zu den Dateien.": "Write a question about the files as well.",
  "Der Chat konnte nicht angelegt werden.": "The chat could not be created.",
  "Die Verbindung wurde unterbrochen.": "The connection was interrupted.",
  "Das Sitzungslimit (5 Stunden)": "The session limit (5 hours)",
@@ -976,5 +975,9 @@
  "Ich konnte die Antwort nicht vorlesen. Den Text siehst du oben.": "I could not read the answer aloud. You can see the text above.",
  "Die Spracherkennung des Browsers ist nicht erreichbar. Prüfe die Internetverbindung.": "The browser's speech recognition is not reachable. Check the internet connection.",
  "Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration unter „Sprechen mit der KI“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "No speech recognition is set up. Enter an OpenAI key under “Talking to the AI” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant.",
- "Dieser Browser hat keine eingebaute Spracherkennung. Trage in der Add-on-Konfiguration unter „Sprechen mit der KI“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "This browser has no built-in speech recognition. Enter an OpenAI key under “Talking to the AI” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant."
+ "Dieser Browser hat keine eingebaute Spracherkennung. Trage in der Add-on-Konfiguration unter „Sprechen mit der KI“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "This browser has no built-in speech recognition. Enter an OpenAI key under “Talking to the AI” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant.",
+ "Eingefügt": "Pasted",
+ "Eingefügten Text bearbeiten": "Edit pasted text",
+ "Eingefügter Text": "Pasted text",
+ "Der Text darf nicht leer sein.": "The text must not be empty."
 }

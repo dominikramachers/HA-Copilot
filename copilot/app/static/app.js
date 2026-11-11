@@ -3642,7 +3642,64 @@ function openPasted(file) {
   });
 }
 
+// Eingefügter Text als kompakte Karte (wie „PASTED“ bei Claude): Anfang des Textes, darunter die Marke und, solange die Nachricht
+// noch nicht gesendet ist, ein Stift zum Bearbeiten. Antippen zeigt den ganzen Text.
+function pasteCard(file, { onEdit = null, onRemove = null } = {}) {
+  const card = node("div", "paste-card");
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+  card.setAttribute("aria-label", tr("{0} ansehen", file.name));
+  card.title = `${file.name} · ${formatSize(file.size ?? file.text.length)}`;
+  card.append(node("div", "paste-snippet", file.text.slice(0, 280)));
+  const foot = node("div", "paste-foot");
+  foot.append(node("span", "paste-tag", tr("Eingefügt")));
+  const button = (cls, name, label, handler) => {
+    const b = node("button", cls);
+    b.type = "button";
+    b.setAttribute("aria-label", label);
+    b.title = label;
+    b.append(icon(name));
+    b.addEventListener("click", (event) => { event.stopPropagation(); handler(); });
+    return b;
+  };
+  if (onEdit) foot.append(button("paste-btn", "edit", tr("Eingefügten Text bearbeiten"), onEdit));
+  card.append(foot);
+  if (onRemove) card.append(button("paste-x", "close", tr("{0} entfernen", file.name), onRemove));
+  const open = () => openPasted(file);
+  card.addEventListener("click", open);
+  card.addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target === card) { event.preventDefault(); open(); } });
+  return card;
+}
+
+// Text eines eingefügten Anhangs ändern (im Eingabefeld oder beim Bearbeiten einer Nachricht).
+function editPasted(file, after) {
+  let area = null;
+  openSheet({
+    title: tr("Eingefügten Text bearbeiten"),
+    ok: tr("Speichern"),
+    panel: (body) => {
+      area = document.createElement("textarea");
+      area.className = "field area pasted-area";
+      area.value = file.text;
+      area.maxLength = PASTE_MAX_CHARS;
+      area.spellcheck = false;
+      area.setAttribute("aria-label", tr("Eingefügter Text"));
+      body.append(area);
+    },
+    onOk: async () => {
+      if (!area.value.trim()) { toast(tr("Der Text darf nicht leer sein.")); return false; }
+      file.text = area.value;
+      if ("blob" in file) { file.blob = new Blob([file.text], { type: "text/plain;charset=utf-8" }); file.size = file.blob.size; }
+      after();
+      return true;
+    },
+  });
+}
+
 function fileChip(file, removable) {
+  if (file.pasted && file.text) {
+    return pasteCard(file, removable ? { onEdit: () => editPasted(file, renderTray), onRemove: () => removeFile(file) } : {});
+  }
   const chip = node("div", "file-chip");
   const thumb = node("span", "file-thumb");
   if (file.thumb) thumb.style.backgroundImage = `url("${file.thumb}")`;
@@ -3650,16 +3707,6 @@ function fileChip(file, removable) {
   const meta = node("span", "file-meta");
   meta.append(node("b", "", file.name), node("small", "", `${KIND_LABEL[file.kind] || tr("Datei")} · ${formatSize(file.size)}`));
   chip.append(thumb, meta);
-  if (file.pasted && file.text) {
-    // Eingefügter Text: Antippen zeigt den Inhalt (er bleibt im Chat gespeichert, anders als hochgeladene Dateien).
-    chip.classList.add("viewable");
-    chip.tabIndex = 0;
-    chip.setAttribute("role", "button");
-    chip.setAttribute("aria-label", tr("{0} ansehen", file.name));
-    const open = () => openPasted(file);
-    chip.addEventListener("click", (event) => { if (!event.target.closest(".file-x")) open(); });
-    chip.addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target === chip) { event.preventDefault(); open(); } });
-  }
   if (removable) {
     const x = node("button", "file-x");
     x.type = "button";
@@ -4038,9 +4085,13 @@ function userMessage(text, files = [], meta = {}) {
     const cite = node("div", "msg-quote");
     cite.append(icon("quote"), node("span", "msg-quote-text", quote));
     bubble.append(cite, node("div", "msg-text", body));
+  } else if (/^\s*([-*+]|\d{1,9}[.)])\s+\S/m.test(text)) {
+    bubble.classList.add("has-list"); // Stichpunkte werden als Liste mit Einrückung dargestellt, sonst bleibt der Text, wie getippt
+    bubble.append(window.renderMarkdown(text, { plain: true }));
   } else {
     bubble.textContent = text;
   }
+  bubble.hidden = !text.trim(); // nur Anhang ohne weiteren Text
   const bar = node("div", "msg-meta");
   const time = node("span", "msg-time");
   const refresh = () => { time.textContent = sentAgo(group.dataset.at); time.title = exactTime(group.dataset.at); };
@@ -4053,6 +4104,7 @@ function userMessage(text, files = [], meta = {}) {
       setTimeout(() => copy.replaceChildren(icon("copy")), 1600);
     } catch { toast(tr("Kopieren nicht möglich.")); }
   });
+  copy.hidden = !body.trim();
   bar.append(time, edit, copy);
   group.append(bubble, bar);
   refresh();
@@ -4068,11 +4120,21 @@ function userMessage(text, files = [], meta = {}) {
 }
 
 // Nachricht bearbeiten: Die Blase wird zum Eingabefeld; „Senden“ ersetzt diese Frage und alles danach durch eine neue Antwort.
-function startEdit(group, text, hadFiles, quote = "", pasted = []) {
+function startEdit(group, text, hadFiles, quote = "", pastedIn = []) {
   if (state.streaming) { toast(tr("Warte, bis die Antwort fertig ist.")); return; }
   if (!group.dataset.id) { toast(tr("Diese Nachricht lässt sich gerade nicht bearbeiten.")); return; }
   const bubble = group.querySelector(".msg.user");
   const box = node("div", "msg-edit");
+  const pasted = pastedIn.map((f) => ({ name: f.name, text: f.text })); // Arbeitskopie: Änderungen zählen erst beim Senden
+  const cards = node("div", "msg-edit-cards");
+  const showCards = () => {
+    cards.replaceChildren(...pasted.map((f) => pasteCard(f, {
+      onEdit: () => editPasted(f, showCards),
+      onRemove: () => { pasted.splice(pasted.indexOf(f), 1); showCards(); },
+    })));
+    cards.hidden = pasted.length === 0;
+  };
+  showCards();
   const area = document.createElement("textarea");
   area.value = text;
   area.maxLength = 20000;
@@ -4091,7 +4153,7 @@ function startEdit(group, text, hadFiles, quote = "", pasted = []) {
   cancel.addEventListener("click", close);
   save.addEventListener("click", () => {
     const value = area.value.trim();
-    if (!value) return;
+    if (!value && !pasted.length) return;
     close();
     sendMessage({ id: Number(group.dataset.id), text: value, el: group, quote, pasted }).catch(() => {});
   });
@@ -4100,7 +4162,7 @@ function startEdit(group, text, hadFiles, quote = "", pasted = []) {
     else if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); save.click(); }
   });
   row.append(cancel, save);
-  box.append(area);
+  box.append(cards, area);
   if (notes.length) box.append(node("p", "msg-edit-note", notes.join(" ")));
   box.append(row);
   group.classList.add("editing");
@@ -4625,7 +4687,7 @@ async function consume(response, run, bubble) {
     frame = 0;
     if (run.detached) return;
     build();
-    parts.text.replaceChildren(window.renderMarkdown(out.answer));
+    window.renderMarkdownInto(parts.text, out.answer); // gleicht ab: Codeblöcke und ihre Knöpfe bleiben bestehen (Kopieren geht schon beim Schreiben)
     followAnswer(bubble);
   };
   try {
@@ -5113,10 +5175,9 @@ async function sendMessage(edit = null, spoken = null) {
   if (state.streaming) { if (!edit && !spoken) stopAnswer(); return; }
   const input = $("input");
   const text = edit ? edit.text : spoken ? spoken.text : input.value.trim();
-  if (!text) {
-    if (state.files.length) toast(tr("Schreibe noch eine Frage zu den Dateien."));
-    return;
-  }
+  // Ein Anhang allein genügt (wie bei Claude): die KI geht dann auf den Anhang ein.
+  const hasFiles = edit ? (edit.pasted || []).length > 0 : !spoken && state.files.length > 0;
+  if (!text && !hasFiles) return;
 
   if (!state.activeId) {
     try {

@@ -219,7 +219,7 @@ class SeenBody(BaseModel):
 
 
 class SendBody(BaseModel):
-    content: str = Field(min_length=1, max_length=20000)
+    content: str = Field(default="", max_length=20000)  # leer ist erlaubt, wenn Anhänge dabei sind
     effort: Literal["low", "medium", "high"] | None = None
     model: str | None = Field(default=None, max_length=64)  # nur aus der Liste der Konfiguration; sonst gilt das Standard-Modell
     web: bool | None = None  # False = Websuche für diese Nachricht abschalten
@@ -492,6 +492,19 @@ async def _pump(factory: Callable[[], AsyncIterator[str]], interval: float) -> A
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+
+
+ONLY_FILES_PROMPT = "(Die Nachricht enthält nur Anhänge, keinen weiteren Text. Gehe auf die Anhänge ein: fasse sie kurz zusammen und frage, was ich damit vorhabe.)"
+
+
+def _title_source(text: str, metas: list[dict] | None) -> str:
+    """Text für den Chat-Titel: die Frage, bei reinem Anhang dessen Anfang oder Name."""
+    if text.strip():
+        return text
+    for meta in metas or []:
+        if meta.get("text"):
+            return meta["text"]
+    return next((m.get("name", "") for m in metas or []), "")
 
 
 def _title_from(text: str) -> str:
@@ -1975,14 +1988,14 @@ def register_chat_routes(
         if len(history) < 2 or history[0]["role"] != "user":
             return chat
         first, answer = history[0]["content"], history[1]["content"]
-        provisional = _title_from(first)
+        provisional = _title_from(_title_source(first, history[0].get("attachments")))
         generate = getattr(backend, "title", None)
         if chat["title"] != provisional or generate is None:
             return chat
         new_title = None
         try:
             async with title_lock, asyncio.timeout(TITLE_TIMEOUT):
-                new_title = await generate(first, answer)
+                new_title = await generate(_title_source(first, history[0].get("attachments")), answer)
         except (TimeoutError, Exception):  # Titel sind Beiwerk: der Vorlauf-Titel bleibt stehen
             log.info("Chat-Titel nicht erzeugt", exc_info=True)
         if new_title and new_title != provisional:
@@ -2001,15 +2014,15 @@ def register_chat_routes(
         chat_id: str, body: SendBody, profile: Profile = Depends(current_profile)
     ) -> StreamingResponse:
         text = body.content.strip()
-        if not text:
+        if not text and not body.files:
             raise HTTPException(status_code=422, detail=tr("Leere Nachricht"))
         spoken = body.voice
         if spoken:
             if not voice_allowed(profile):
                 raise HTTPException(status_code=403, detail=tr("Sprache ist für dich nicht freigeschaltet."))
-            if body.files or body.quote or body.edit_message_id is not None:
+            if not text or body.files or body.quote or body.edit_message_id is not None:
                 raise HTTPException(status_code=422, detail=tr("Gesprochene Nachrichten haben keine Anhänge."))
-        text = quotes.with_quote(body.quote, text)
+        text = quotes.with_quote(body.quote, text) if text else ""
         history = store.list_messages(profile.id, chat_id)
         if history is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
@@ -2075,12 +2088,13 @@ def register_chat_routes(
             if cut:
                 store.restore_cut(profile.id, chat_id, cut)
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
-        provisional = _title_from(text)
+        provisional = _title_from(_title_source(text, metas))
         if first_exchange:
             store.rename_chat(profile.id, chat_id, provisional)
         if requested_model:
             store.set_chat_model(profile.id, chat_id, "" if requested_model == settings.model else requested_model)
-        run = Run(key, text, first_exchange)
+        asked = text or ONLY_FILES_PROMPT  # was Claude zu sehen bekommt; gespeichert und angezeigt wird der leere Text
+        run = Run(key, asked, first_exchange)
         runs[key] = run
 
         def withdraw_question() -> None:
@@ -2243,7 +2257,7 @@ def register_chat_routes(
                 # Zu langer Verlauf: älteren Teil zusammenfassen, statt ihn stillschweigend abzuschneiden.
                 summary, upto = store.get_summary(profile.id, chat_id)
                 pending = [m for m in history if upto is None or m["id"] > upto]
-                if summarize and compact.needs_compaction(summary, pending, text):
+                if summarize and compact.needs_compaction(summary, pending, asked):
                     plan = compact.split(pending)
                     if plan:
                         older, recent = plan
@@ -2272,7 +2286,7 @@ def register_chat_routes(
                 ]
                 try:
                     async with asyncio.timeout(REQUEST_TIMEOUT + (TOOL_EXTRA_TIMEOUT if specs else 0)):
-                        live = _pump(lambda: backend.stream(context, text, effort, **extra), KEEPALIVE_SECONDS)
+                        live = _pump(lambda: backend.stream(context, asked, effort, **extra), KEEPALIVE_SECONDS)
                         async with contextlib.aclosing(live):
                             async for piece in live:
                                 if piece is not None:
@@ -2300,7 +2314,7 @@ def register_chat_routes(
                     withdraw_question()
                 run.error = error
                 run.kept = bool(answer)
-                run.title = _title_from(text) if first_exchange and answer else None
+                run.title = _title_from(_title_source(text, metas)) if first_exchange and answer else None
             except Exception:
                 log.exception("Antwort konnte nicht gespeichert werden")
                 run.error = run.error or tr("Die Antwort konnte nicht gespeichert werden.")
