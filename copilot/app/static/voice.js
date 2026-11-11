@@ -13,6 +13,8 @@ const VOICE = {
   START_WAIT: 12,       // so lange wartet das Fenster auf den Satzanfang, danach „Tippe zum Sprechen“
   MIN_SPEECH: 0.25,
   CHUNK_CHARS: 600,
+  PLAY_START_WAIT: 6000, // so lange darf der Start eines Tons dauern, danach gilt er als blockiert (ms)
+  DEVICE_START_WAIT: 3000, // dasselbe für die Stimme des Geräts
   open: false,
   state: "idle",        // idle | listening | thinking | speaking | muted | error
   muted: false,
@@ -21,7 +23,7 @@ const VOICE = {
   used: false,
   token: 0,             // erhöht sich bei Schließen/Neustart: alte Schleifen hören dann auf
   stream: null, ctx: null, source: null, proc: null, level: 0, target: 0,
-  audio: null, urls: [], rec: null, meter: true,
+  audio: null, player: null, urls: [], rec: null, meter: true, spoke: true,
   returnFocus: null,
 };
 
@@ -142,6 +144,7 @@ async function openVoice() {
   VOICE.muted = false;
   VOICE.chatId = state.activeId || null;
   VOICE.standalone = !state.activeId;
+  unlockAudio(); // direkt beim Antippen: Handys erlauben Ton sonst nicht, wenn er erst später startet
   const token = ++VOICE.token;
   $("voice-said").textContent = "";
   $("voice-answer").textContent = "";
@@ -229,6 +232,7 @@ function setMuted(on) {
 function talkNow() {
   if (!VOICE.open || VOICE.state === "thinking") return;
   if (VOICE.muted) setMuted(false);
+  unlockAudio();
   stopSpeaking();
   stopCapture();
   voiceLoop(++VOICE.token);
@@ -364,8 +368,10 @@ async function voiceLoop(token) {
     $("voice-answer").textContent = answer;
     VOICE.used = true;
     if (VOICE.standalone) $("voice-keep").hidden = false;
-    if (answer) await speak(answer, alive);
-    if (alive()) setVoiceState("idle");
+    const spokeAloud = answer ? await speak(answer, alive) : true;
+    if (!alive()) return;
+    if (!spokeAloud) setVoiceState("idle", tr("Ich konnte die Antwort nicht vorlesen. Den Text siehst du oben."));
+    else setVoiceState("idle");
   } catch (err) {
     stopCapture();
     if (!alive()) return;
@@ -513,34 +519,97 @@ async function voiceSettings() {
   return voiceInfo;
 }
 
+// Ein stilles, winziges WAV: schaltet den Abspieler frei, solange der Finger noch auf dem Knopf war.
+let silenceUrl = null;
+// Aus der Seite erzeugt (blob:), denn die Sicherheitsregeln der App erlauben Ton nur von hier und als blob:, nicht als data:.
+function silence() {
+  if (!silenceUrl) {
+    const bytes = Uint8Array.from(atob("UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA=="), (c) => c.charCodeAt(0));
+    silenceUrl = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+  }
+  return silenceUrl;
+}
+
+function unlockAudio() {
+  try {
+    if (!VOICE.player) { VOICE.player = new Audio(); VOICE.player.preload = "auto"; VOICE.player.setAttribute("playsinline", ""); }
+    VOICE.player.src = silence();
+    VOICE.player.play()?.catch(() => { /* wird beim Vorlesen noch einmal versucht */ });
+  } catch { /* ohne Abspieler bleibt die Stimme des Geräts */ }
+  try { // auch die Stimme des Geräts braucht eine Berührung
+    const synth = window.speechSynthesis;
+    if (synth) { const blank = new SpeechSynthesisUtterance(" "); blank.volume = 0; synth.speak(blank); }
+  } catch { /* optional */ }
+}
+
+// Gibt true zurück, wenn etwas zu hören war, sonst false (blockiert, Fehler oder Zeitüberschreitung).
 async function speak(text, alive) {
   const spoken = plainSpeech(text);
-  if (!spoken) return;
+  if (!spoken) return true;
   setVoiceState("speaking");
   const info = await voiceSettings();
+  let heard = false;
   if (info.speech !== "device") {
-    try { await speakService(spoken, alive); return; } catch { /* Stimme des Geräts als Rückfall */ }
+    try { heard = await speakService(spoken, alive); } catch { /* Stimme des Geräts als Rückfall */ }
+    if (heard || !alive()) return heard;
   }
-  await speakDevice(spoken, alive, info.language);
+  return await speakDevice(spoken, alive, info.language);
 }
 
 function speakDevice(text, alive, language) {
   return new Promise((resolve) => {
     const synth = window.speechSynthesis;
-    if (!synth || !alive()) { resolve(); return; }
+    if (!synth || !alive()) { resolve(false); return; }
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language === "en" ? "en-US" : language === "de" ? "de-DE" : (document.documentElement.lang || "de");
     const voice = synth.getVoices().find((v) => v.lang?.toLowerCase().startsWith(utterance.lang.slice(0, 2).toLowerCase()) && v.localService) ||
       synth.getVoices().find((v) => v.lang?.toLowerCase().startsWith(utterance.lang.slice(0, 2).toLowerCase()));
     if (voice) utterance.voice = voice;
-    let done = false;
-    const finish = () => { if (done) return; done = true; clearInterval(watch); VOICE.level = 0; resolve(); };
-    utterance.onend = finish;
-    utterance.onerror = finish;
-    const watch = setInterval(() => { if (!alive()) { synth.cancel(); finish(); } }, 200); // Fenster zu: sofort still
+    let done = false, started = false;
+    const begun = Date.now();
+    const finish = (heard) => { if (done) return; done = true; clearInterval(watch); VOICE.level = 0; resolve(heard); };
+    utterance.onstart = () => { started = true; };
+    utterance.onend = () => finish(true);
+    utterance.onerror = () => finish(started);
+    const longest = 8000 + text.length * 120; // länger als jede Stimme für diesen Text braucht
+    const watch = setInterval(() => {
+      if (!alive()) { synth.cancel(); finish(started); return; }
+      // Manche Handys starten die Stimme nie und melden weder Anfang noch Ende: dann nicht ewig warten.
+      if ((!started && Date.now() - begun > VOICE.DEVICE_START_WAIT) || Date.now() - begun > longest) { synth.cancel(); finish(started); }
+    }, 200);
     VOICE.speaking = true;
     synth.speak(utterance);
+  });
+}
+
+// Spielt ein Stück auf dem freigeschalteten Abspieler. Löst auf, wenn es zu Ende ist; wirft, wenn der Ton blockiert ist oder nie startet.
+function playChunk(url, alive) {
+  return new Promise((resolve, reject) => {
+    if (!VOICE.player) VOICE.player = new Audio();
+    const audio = VOICE.player;
+    VOICE.audio = audio;
+    let done = false, started = false;
+    const begun = Date.now();
+    const end = (error) => {
+      if (done) return;
+      done = true;
+      clearInterval(watch);
+      audio.onended = audio.onerror = audio.onplaying = null;
+      if (error) reject(error); else resolve();
+    };
+    audio.onplaying = () => { started = true; };
+    audio.onended = () => end();
+    audio.onerror = () => end(new Error(tr("Die Stimme konnte nicht abgespielt werden.")));
+    const watch = setInterval(() => {
+      if (!alive()) { audio.pause(); end(); return; }
+      const limit = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 + 5000 : 60000;
+      if (!started && Date.now() - begun > VOICE.PLAY_START_WAIT) { audio.pause(); end(new Error(tr("Die Stimme konnte nicht abgespielt werden."))); }
+      else if (Date.now() - begun > limit + VOICE.PLAY_START_WAIT) { audio.pause(); end(); }
+    }, 200);
+    audio.src = url;
+    const promise = audio.play();
+    if (promise?.catch) promise.catch((e) => end(e));
   });
 }
 
@@ -556,27 +625,22 @@ async function speakService(text, alive) {
     return URL.createObjectURL(await response.blob());
   };
   let next = fetchChunk(chunks[0]);
+  let played = false;
   for (let i = 0; i < chunks.length; i++) {
     const url = await next;
     VOICE.urls.push(url);
     if (i + 1 < chunks.length) next = fetchChunk(chunks[i + 1]); // das nächste Stück lädt schon, während das erste läuft
-    if (!alive()) return;
-    await new Promise((resolve, reject) => {
-      const audio = new Audio(url);
-      VOICE.audio = audio;
-      audio.onended = () => resolve();
-      audio.onerror = () => reject(new Error(tr("Die Stimme konnte nicht abgespielt werden.")));
-      const watch = setInterval(() => { if (!alive()) { audio.pause(); clearInterval(watch); resolve(); } }, 200);
-      audio.addEventListener("ended", () => clearInterval(watch));
-      audio.play().catch(reject);
-    });
+    if (!alive()) return played;
+    try { await playChunk(url, alive); played = true; }
+    catch (err) { if (played) return true; throw err; } // schon etwas gehört: den Rest nicht doppelt über die Stimme des Geräts sprechen
     URL.revokeObjectURL(url);
   }
+  return played;
 }
 
 function stopSpeaking() {
   try { window.speechSynthesis?.cancel(); } catch { /* optional */ }
-  if (VOICE.audio) { try { VOICE.audio.pause(); } catch { /* optional */ } VOICE.audio = null; }
+  if (VOICE.audio) { try { VOICE.audio.pause(); VOICE.audio.onended = VOICE.audio.onerror = VOICE.audio.onplaying = null; } catch { /* optional */ } VOICE.audio = null; }
   for (const url of VOICE.urls.splice(0)) URL.revokeObjectURL(url);
   VOICE.level = 0;
 }

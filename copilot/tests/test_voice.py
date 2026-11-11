@@ -406,3 +406,29 @@ def test_voice_uses_its_own_key_for_recognition():
     voice = service(transport=httpx.MockTransport(handler), openai_api_key="sk-bilder", voice_openai_api_key="sk-sprache", voice_access_default="on")
     asyncio.run(voice.transcribe(wav()))
     assert seen["auth"] == "Bearer sk-sprache"
+
+
+# ------------------------------------------------------------------ Vorlesen auf dem Handy (0.53.1)
+
+def _voice_js():
+    from pathlib import Path
+    return (Path(__file__).resolve().parents[1] / "app" / "static" / "voice.js").read_text(encoding="utf-8")
+
+
+def test_audio_is_unlocked_in_the_click_that_opens_or_restarts_the_conversation():
+    js = _voice_js()
+    open_voice = js[js.index("async function openVoice()"):js.index("// Welche Spracherkennung gilt")]
+    talk_now = js[js.index("function talkNow()"):js.index("// ---", js.index("function talkNow()"))]
+    assert "unlockAudio()" in open_voice and "unlockAudio()" in talk_now
+
+
+def test_the_silent_unlock_sound_is_a_blob_because_the_csp_forbids_data_audio():
+    js = _voice_js()
+    assert "data:audio" not in js and "createObjectURL(new Blob" in js and "media-src 'self' blob:" in open(
+        __import__("pathlib").Path(__file__).resolve().parents[1] / "app" / "main.py", encoding="utf-8").read()
+
+
+def test_speaking_never_hangs_without_a_start_and_tells_when_nothing_was_heard():
+    js = _voice_js()
+    assert "PLAY_START_WAIT" in js and "DEVICE_START_WAIT" in js and "utterance.onstart" in js
+    assert "Ich konnte die Antwort nicht vorlesen. Den Text siehst du oben." in js
