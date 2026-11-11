@@ -506,15 +506,39 @@ async function handleSentence(sentence, alive, onText, turn) {
 
 // ------------------------------------------------------------- Vorlesen
 
-function plainSpeech(text) {
+// Einheiten und Zeichen, die eine Stimme sonst falsch oder gar nicht liest („21,5 °C“, „40 %“, „km/h“).
+function spokenUnits(text) {
   return text
+    .replace(/(\d)\s?°\s?C\b/g, "$1 Grad Celsius")
+    .replace(/(\d)\s?°\s?F\b/g, "$1 Grad Fahrenheit")
+    .replace(/(\d)\s?°/g, "$1 Grad")
+    .replace(/(\d)\s?%/g, "$1 Prozent")
+    .replace(/\bkm\/h\b/g, "Kilometer pro Stunde")
+    .replace(/\bm\/s\b/g, "Meter pro Sekunde")
+    .replace(/\bkWh\b/g, "Kilowattstunden")
+    .replace(/\bkW\b/g, "Kilowatt")
+    .replace(/(\d)\s?W\b/g, "$1 Watt")
+    .replace(/(\d)\s?V\b/g, "$1 Volt")
+    .replace(/(\d)\s?m²/g, "$1 Quadratmeter")
+    .replace(/(\d)\s?m³/g, "$1 Kubikmeter")
+    .replace(/(\d)\s?hPa\b/g, "$1 Hektopascal")
+    .replace(/(\d)\s?lx\b/g, "$1 Lux")
+    .replace(/(\d)\s?€/g, "$1 Euro");
+}
+
+function speechIsEnglish() {
+  return String((typeof voiceInfo !== "undefined" && voiceInfo?.language) || document.documentElement.lang || "de").toLowerCase().startsWith("en");
+}
+
+function plainSpeech(text) {
+  const plain = text
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`([^`]*)`/g, "$1")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/https?:\/\/\S+/g, "")
     .replace(/[*_#>~|]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/["„“”]/g, "");
+  return (speechIsEnglish() ? plain : spokenUnits(plain)).replace(/\s+/g, " ").trim();
 }
 
 function speechChunks(text) {

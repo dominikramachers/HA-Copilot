@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.config import ConfigError, parse_settings
 from app.ha_client import HaApiError
+from app import voice as voicelib
 from app.main import build_ingress_app
 from app.voice import MAX_AUDIO_BYTES, QuickResult, VoiceError, VoiceService, read_wav, strip_wake
 from conftest import ADM01, RAW, as_user, parse_with_fixed
@@ -476,3 +477,42 @@ def test_the_answer_text_reaches_the_speaker_while_it_streams():
     assert "run.onText = spoken.onText" in app_js and "run.onText?.(out.answer)" in app_js
     assert "createSpeaker(alive, turn)" in voice_js and "speaker.feed(text)" in voice_js and "speaker.finish(answer)" in voice_js
     assert "api/voice/timing" in voice_js
+
+
+# ------------------------------------------------------------------ Kürzere Antworten, eigene Wünsche, Einheiten (0.53.4)
+
+def test_voice_note_forbids_device_names_and_asks_for_short_confirmations():
+    note = voicelib.VOICE_NOTE
+    assert "Lichtschalter" in note and "nie Namen oder Kennungen" in note and "Ich habe" in note
+    assert "Das Licht im Bad ist an." in note and "21 Grad" in note and "40 Prozent" in note
+
+
+def test_own_instructions_are_appended_to_the_voice_note_only_when_set():
+    assert voicelib.voice_note("") == voicelib.VOICE_NOTE and voicelib.voice_note("   ") == voicelib.VOICE_NOTE
+    note = voicelib.voice_note("Nenne Räume immer beim Namen.")
+    assert note.startswith(voicelib.VOICE_NOTE) and note.endswith("Nenne Räume immer beim Namen.")
+
+
+def test_voice_instructions_option_is_trimmed_limited_and_empty_by_default():
+    from app.config import VOICE_INSTRUCTIONS_MAX
+
+    assert parse_with_fixed(RAW, frozenset()).voice_instructions == ""
+    s = parse_settings.__wrapped__({**RAW, "voice": {"instructions": "  Antworte   in einem Satz.\n"}}, frozenset())
+    assert s.voice_instructions == "Antworte in einem Satz."
+    with pytest.raises(ConfigError, match="voice.instructions"):
+        parse_settings.__wrapped__({**RAW, "voice": {"instructions": "x" * (VOICE_INSTRUCTIONS_MAX + 1)}}, frozenset())
+
+
+def test_spoken_message_carries_the_own_instructions(store):
+    backend = RecordingBackend()
+    client = app_client(store, backend=backend, voice_instructions="Antworte immer mit dem Raumnamen.", **OPENAI)
+    chat = post(client, "/api/chats", json={}).json()["id"]
+    out = post(client, f"/api/chats/{chat}/send", json={"content": "Licht im Bad an", "voice": True})
+    assert out.status_code == 200 and "Antworte immer mit dem Raumnamen." in backend.seen["note"]
+
+
+def test_units_are_spoken_out_for_the_voice():
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / "app" / "static" / "voice.js").read_text(encoding="utf-8")
+    assert "function spokenUnits" in js and "Grad Celsius" in js and "Prozent" in js and "Kilowattstunden" in js
+    assert "speechIsEnglish()" in js

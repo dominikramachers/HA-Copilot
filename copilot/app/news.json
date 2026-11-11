@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.53.4",
+    "items": [
+      {
+        "de": {
+          "title": "Kürzere Antworten beim Sprechen",
+          "text": "Wenn du mit mir sprichst, antworte ich jetzt kürzer und ohne Gerätenamen. Zahlen und Einheiten spreche ich besser aus. Eigene Wünsche kann der Admin eintragen."
+        },
+        "en": {
+          "title": "Shorter spoken answers",
+          "text": "When you talk to me, I now answer more briefly and without device names. I also pronounce numbers and units better. The admin can add their own wishes."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.3",
     "items": [
       {

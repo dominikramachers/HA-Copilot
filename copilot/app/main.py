@@ -2230,7 +2230,7 @@ def register_chat_routes(
         if connectors.level(profile.id) >= 1 and not spoken:
             extra["note"] += "\n" + connector_box.note()
         if spoken:
-            extra["note"] += "\n" + voicelib.VOICE_NOTE
+            extra["note"] += "\n" + voicelib.voice_note(settings.voice_instructions)
         elif any(s.name.startswith("github_") for s in specs):
             extra["note"] += "\n" + GITHUB_NOTE + " " + github_level_text(gh_level, accounts.policy_for(profile.id))
         else:
