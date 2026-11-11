@@ -112,8 +112,8 @@ configuration:
     name: Create files
     description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
   openai_api_key:
-    name: OpenAI API key (images)
-    description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI; a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
+    name: OpenAI API key (images and speech)
+    description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI and for speech recognition when talking to the AI (a few cents per hour of speech); a ChatGPT subscription is not enough, the API account needs its own credit. The image request, reference images and recordings are sent to OpenAI. Empty: no images and no speech recognition from OpenAI.'
   google_api_key:
     name: Google API key (images)
     description: 'Key for the Gemini API from aistudio.google.com (Get API key) with billing enabled; a Google subscription is not enough. The image request and reference images are sent to Google. Empty: no images from Google.'

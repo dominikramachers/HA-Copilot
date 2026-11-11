@@ -972,5 +972,6 @@
  "Ich habe nichts verstanden. Tippe zum Sprechen.": "I did not understand anything. Tap to speak.",
  "Ja? Tippe zum Sprechen.": "Yes? Tap to speak.",
  "Die Antwort ist nicht angekommen.": "The answer did not arrive.",
- "Die Stimme konnte nicht abgespielt werden.": "The voice could not be played."
+ "Die Stimme konnte nicht abgespielt werden.": "The voice could not be played.",
+ "Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "No speech recognition is set up. Enter the “openai_api_key” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant."
 }

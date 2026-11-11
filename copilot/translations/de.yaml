@@ -112,8 +112,8 @@ configuration:
     name: Dateien erzeugen
     description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'
   openai_api_key:
-    name: OpenAI-API-Schlüssel (Bilder)
-    description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI; ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI.'
+    name: OpenAI-API-Schlüssel (Bilder und Sprache)
+    description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI und für die Spracherkennung beim Sprechen mit der KI (wenige Cent pro Stunde Sprache); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch, Referenzbilder und Aufnahmen werden an OpenAI übertragen. Leer: keine Bilder und keine Spracherkennung von OpenAI.'
   google_api_key:
     name: Google-API-Schlüssel (Bilder)
     description: 'Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google.'

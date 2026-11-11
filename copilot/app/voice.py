@@ -156,7 +156,7 @@ class VoiceService:
             except HaApiError as exc:
                 log.warning("Spracherkennung über Home Assistant fehlgeschlagen: %s", exc)
                 raise VoiceError(tr("Die Spracherkennung von Home Assistant antwortet nicht.")) from None
-        raise VoiceError(tr("Es ist keine Spracherkennung eingerichtet."))
+        raise VoiceError(tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein."))
 
     async def _openai_stt(self, wav: bytes) -> str:
         try:

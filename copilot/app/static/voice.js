@@ -125,7 +125,7 @@ function setVoiceState(next, detail = "") {
   box.dataset.state = next;
   $("voice-status").textContent = detail || STATUS_TEXT()[next];
   $("voice-talk").disabled = next === "thinking" || next === "muted";
-  if (reducedMotion()) drawRing(performance.now());
+  kickRing();
 }
 
 async function openVoice() {
@@ -156,6 +156,13 @@ async function openVoice() {
   $("voice-close").focus();
   startRing();
   voiceLoop(token);
+}
+
+// Ohne Spracherkennung gar nicht erst aufnehmen: das Fenster sagt sofort, was einzurichten ist.
+async function recognitionMissing() {
+  voiceInfo = null; // jedes Mal frisch fragen, damit eine neue Einstellung gleich greift
+  const info = await voiceSettings();
+  return info.allowed && !info.stt;
 }
 
 function closeVoice() {
@@ -328,6 +335,8 @@ async function voiceLoop(token) {
   const alive = () => VOICE.open && token === VOICE.token;
   if (VOICE.muted) { setVoiceState("muted"); return; }
   try {
+    if (await recognitionMissing()) { voiceFail(tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.")); return; }
+    if (!alive()) return;
     setVoiceState("listening");
     await startCapture();
     if (!alive()) { stopCapture(); return; }
@@ -496,59 +505,119 @@ function stopSpeaking() {
   VOICE.level = 0;
 }
 
-// ------------------------------------------------------------- Partikel-Ring
+// ------------------------------------------------------------- Partikel-Scheibe
+// Eine mit Partikeln gefüllte Scheibe (Sonnenblumen-Verteilung). Jedes Teilchen hängt an einer Feder an seinem Platz;
+// Maus oder Finger wischen sie weg, danach schwingen sie zurück. Der Pegel lässt die Scheibe atmen und den Rand sprühen.
 
-let ringFrame = 0, ringParticles = [];
+const RING = { p: [], frame: 0, running: false, ptr: { x: 0, y: 0, vx: 0, vy: 0, on: false, t: 0 }, R: 0, scale: 1, bound: false };
 
 function startRing() {
   const canvas = $("voice-ring");
   const scale = Math.min(2, window.devicePixelRatio || 1);
-  const size = Math.min(window.innerWidth, window.innerHeight, 420) * 0.78;
+  const size = Math.round(Math.min(window.innerWidth, window.innerHeight * 0.62, 460));
   canvas.width = canvas.height = Math.round(size * scale);
-  canvas.style.width = canvas.style.height = `${Math.round(size)}px`;
-  ringParticles = Array.from({ length: 150 }, (_, i) => ({
-    angle: (i / 150) * Math.PI * 2, jitter: Math.random(), drift: (Math.random() - 0.5) * 0.4, size: 0.8 + Math.random() * 1.6,
-  }));
-  cancelAnimationFrame(ringFrame);
-  const tick = (now) => { drawRing(now); if (VOICE.open && !reducedMotion()) ringFrame = requestAnimationFrame(tick); };
-  if (reducedMotion()) drawRing(performance.now()); else ringFrame = requestAnimationFrame(tick);
+  canvas.style.width = canvas.style.height = `${size}px`;
+  RING.scale = scale;
+  RING.R = canvas.width * 0.38;
+  const count = size < 340 ? 520 : 820;
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  RING.p = Array.from({ length: count }, (_, i) => {
+    const r = Math.sqrt((i + 0.5) / count), a = i * golden;
+    const hx = Math.cos(a) * r, hy = Math.sin(a) * r;
+    return {
+      hx, hy, r, a, x: canvas.width / 2 + hx * RING.R, y: canvas.height / 2 + hy * RING.R, vx: 0, vy: 0,
+      size: (0.7 + Math.random() * 1.1) * scale, phase: Math.random() * 6.28, k: 0.05 + Math.random() * 0.03,
+    };
+  });
+  if (!RING.bound) {
+    RING.bound = true;
+    const at = (e) => {
+      const box = canvas.getBoundingClientRect();
+      const x = (e.clientX - box.left) * (canvas.width / box.width), y = (e.clientY - box.top) * (canvas.height / box.height);
+      const q = RING.ptr, dt = Math.max(1, e.timeStamp - q.t);
+      q.vx = q.on ? (x - q.x) / dt * 16 : 0; q.vy = q.on ? (y - q.y) / dt * 16 : 0; // Wischgeschwindigkeit je Bild
+      q.x = x; q.y = y; q.t = e.timeStamp; q.on = true;
+      kickRing();
+    };
+    canvas.addEventListener("pointermove", at);
+    canvas.addEventListener("pointerdown", (e) => { canvas.setPointerCapture?.(e.pointerId); at(e); });
+    for (const name of ["pointerleave", "pointerup", "pointercancel"]) canvas.addEventListener(name, () => { RING.ptr.on = false; kickRing(); });
+  }
+  RING.ptr.on = false;
+  kickRing();
 }
 
-function stopRing() { cancelAnimationFrame(ringFrame); }
+function kickRing() {
+  if (RING.running || !VOICE.open) return;
+  RING.running = true;
+  const tick = (now) => {
+    const energy = stepRing(now);
+    if (VOICE.open && (!reducedMotion() || RING.ptr.on || energy > 0.02)) RING.frame = requestAnimationFrame(tick);
+    else RING.running = false;
+  };
+  RING.frame = requestAnimationFrame(tick);
+}
 
-function drawRing(now) {
+function stopRing() { cancelAnimationFrame(RING.frame); RING.running = false; RING.ptr.on = false; }
+function drawRing(now) { stepRing(now); }
+
+function stepRing(now) {
   const canvas = $("voice-ring");
-  if (!canvas || !canvas.width) return;
+  if (!canvas || !canvas.width || !RING.p.length) return 0;
   const g = canvas.getContext("2d");
-  const w = canvas.width, c = w / 2;
-  g.clearRect(0, 0, w, w);
-  const t = now / 1000;
-  const st = VOICE.state;
-  // Pegel: beim Zuhören vom Mikrofon, beim Antworten ein ruhiges Wogen, beim Denken ein langsames Kreisen
+  const w = canvas.width, c = w / 2, R = RING.R;
+  const t = now / 1000, st = VOICE.state, still = reducedMotion();
   let amp;
   if (st === "listening") amp = VOICE.target;
   else if (st === "speaking") amp = 0.35 + 0.3 * Math.sin(t * 5.1) * Math.sin(t * 2.3);
-  else if (st === "thinking") amp = 0.12;
-  else amp = 0.04;
+  else if (st === "thinking") amp = 0.18;
+  else amp = 0.05;
   VOICE.level += (amp - VOICE.level) * 0.18;
   VOICE.target *= 0.9;
+  const lvl = still ? 0 : VOICE.level;
+  const swirl = still ? 0 : st === "thinking" ? t * 1.1 : t * 0.08;
   const style = getComputedStyle(document.documentElement);
   const color = st === "error" ? (style.getPropertyValue("--danger").trim() || "#d92d20") : (style.getPropertyValue("--accent").trim() || "#3b82f6");
-  const base = w * 0.3;
-  const spin = reducedMotion() ? 0 : st === "thinking" ? t * 0.9 : t * 0.12;
+  const dim = st === "muted" || st === "idle";
+  const q = RING.ptr, reach = R * 0.34;
+  let energy = 0;
+  g.clearRect(0, 0, w, w);
   g.fillStyle = color;
-  const muted = st === "muted" || st === "idle";
-  for (const p of ringParticles) {
-    const wobble = Math.sin(p.angle * 5 + t * (st === "speaking" ? 4 : 2.4) + p.jitter * 6) * 0.5 + 0.5;
-    const push = reducedMotion() ? 0 : VOICE.level * w * 0.09 * (0.35 + wobble) * (0.6 + p.jitter * 0.8);
-    const radius = base + push + p.drift * w * 0.012;
-    const a = p.angle + spin * (p.drift > 0 ? 1 : 0.7);
-    g.globalAlpha = muted ? 0.35 : 0.45 + 0.55 * wobble;
-    g.beginPath();
-    g.arc(c + Math.cos(a) * radius, c + Math.sin(a) * radius, p.size * (w / 400) * (1 + VOICE.level * 0.9), 0, Math.PI * 2);
-    g.fill();
+  const buckets = [[], [], [], []];
+  for (const p of RING.p) {
+    // Zielplatz: Scheibe, die atmet; beim Nachdenken dreht der Kern schneller als der Rand; beim Antworten laufen Wellen nach außen
+    const turn = swirl * (1.15 - p.r);
+    const ca = Math.cos(turn), sa = Math.sin(turn);
+    let tx = p.hx * ca - p.hy * sa, ty = p.hx * sa + p.hy * ca;
+    const wave = st === "speaking" ? Math.sin(p.r * 9 - t * 5) * 0.045 * lvl * 6 : 0;
+    const edge = lvl * (0.1 * (0.25 + 0.75 * p.r * p.r)) * (0.7 + 0.6 * Math.sin(p.phase + t * 7)) + wave;
+    const grow = 1 + edge + (still ? 0 : Math.sin(t * 1.3) * 0.012);
+    tx = c + tx * R * grow; ty = c + ty * R * grow;
+    p.vx += (tx - p.x) * p.k; p.vy += (ty - p.y) * p.k;
+    if (q.on) { // Wischen: Teilchen weichen aus und nehmen etwas von der Wischrichtung mit
+      const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy);
+      if (d < reach) {
+        const f = (1 - d / reach) ** 2;
+        const nx = d > 0.5 ? dx / d : Math.cos(p.phase), ny = d > 0.5 ? dy / d : Math.sin(p.phase);
+        p.vx += nx * f * R * 0.07 + q.vx * f * 0.35;
+        p.vy += ny * f * R * 0.07 + q.vy * f * 0.35;
+      }
+    }
+    p.vx *= 0.86; p.vy *= 0.86;
+    p.x += p.vx; p.y += p.vy;
+    energy += Math.abs(p.vx) + Math.abs(p.vy);
+    const twinkle = still ? 0.5 : 0.5 + 0.5 * Math.sin(p.phase + t * 1.8);
+    const alpha = (dim ? 0.3 : 0.42) + (dim ? 0.25 : 0.5) * (0.35 * twinkle + 0.65 * p.r * p.r);
+    buckets[Math.min(3, Math.floor(alpha * 4.2))].push(p);
   }
+  buckets.forEach((list, i) => {
+    g.globalAlpha = (i + 0.7) / 4.4;
+    g.beginPath();
+    for (const p of list) { const r = p.size * (1 + lvl * 0.6); g.moveTo(p.x + r, p.y); g.arc(p.x, p.y, r, 0, Math.PI * 2); }
+    g.fill();
+  });
   g.globalAlpha = 1;
+  return energy / RING.p.length;
 }
 
 document.addEventListener("visibilitychange", () => { if (document.hidden && VOICE.open && VOICE.state === "listening") talkReset(); });
