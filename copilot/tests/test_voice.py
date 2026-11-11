@@ -497,10 +497,10 @@ def test_voice_instructions_option_is_trimmed_limited_and_empty_by_default():
     from app.config import VOICE_INSTRUCTIONS_MAX
 
     assert parse_with_fixed(RAW, frozenset()).voice_instructions == ""
-    s = parse_settings.__wrapped__({**RAW, "voice": {"instructions": "  Antworte   in einem Satz.\n"}}, frozenset())
+    s = parse_settings({**RAW, "voice": {"instructions": "  Antworte   in einem Satz.\n"}}, frozenset())
     assert s.voice_instructions == "Antworte in einem Satz."
     with pytest.raises(ConfigError, match="voice.instructions"):
-        parse_settings.__wrapped__({**RAW, "voice": {"instructions": "x" * (VOICE_INSTRUCTIONS_MAX + 1)}}, frozenset())
+        parse_settings({**RAW, "voice": {"instructions": "x" * (VOICE_INSTRUCTIONS_MAX + 1)}}, frozenset())
 
 
 def test_spoken_message_carries_the_own_instructions(store):

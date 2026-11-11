@@ -6,6 +6,7 @@ internen Profil (``Profile.id``), nie einer HA-ID oder einer UPN direkt.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -102,6 +103,7 @@ class Settings:
     entra_secret_expires: date | None = None
     openai_key_expires: date | None = None
     google_key_expires: date | None = None
+    migrated_options: tuple[str, ...] = ()  # Optionen, deren Wert aus der alten Konfiguration übernommen wurde (Gruppe.Name)
     default_effort: str = "medium"  # fest; im Chat wählbar
     language: str = "de"  # Sprache der Oberfläche und der Systemmeldungen: de oder en (die KI antwortet standardmäßig in dieser Sprache)
     # Zugriff der KI auf Home Assistant (pro Benutzer überschreibbar)
@@ -227,6 +229,96 @@ def _text(entry: dict[str, Any], key: str) -> str:
     return value.strip()
 
 
+# Gliederung der Add-on-Konfiguration (ab 0.54.0): Gruppe -> Optionen, die früher einzeln auf oberster Ebene standen.
+# ``chat`` hat außerdem die eigenen Felder (model, memory_enabled …), ``images`` und ``voice`` sind unverändert.
+MOVED = {
+    "users": ("profiles", "all_ha_users", "ha_users_excluded"),
+    "chat": ("anthropic_api_key", "claude_oauth_token", "claude_token_expires", "ha_access_default", "ha_limit_to_exposed"),
+    "domain": ("public_base_url", "ha_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "entra_secret_expires", "session_days", "public_trusted_proxies"),
+    "look": ("app_name", "language", "login_text", "login_placeholder", "logo_tile", "follow_ha_theme", "theme_name"),
+    "global": ("restore_snapshot", "export_database"),
+}
+_MOVED_FLAT = frozenset(k for keys in MOVED.values() for k in keys)
+# Standardwerte der verschobenen Optionen (wie in config.yaml; ein Test vergleicht beides)
+MOVED_DEFAULTS: dict[str, Any] = {
+    "profiles": [{"label": "Administrator"}], "all_ha_users": False, "ha_users_excluded": "",
+    "anthropic_api_key": "", "claude_oauth_token": "", "claude_token_expires": "", "ha_access_default": "execute", "ha_limit_to_exposed": True,
+    "public_base_url": "", "ha_url": "", "entra_tenant_id": "", "entra_client_id": "", "entra_client_secret": "", "entra_secret_expires": "",
+    "session_days": 30, "public_trusted_proxies": [],
+    "app_name": "HA Copilot", "language": "de", "login_text": "", "login_placeholder": "", "logo_tile": False, "follow_ha_theme": True, "theme_name": "",
+    "restore_snapshot": "", "export_database": False,
+}
+
+
+def _flatten(raw: dict[str, Any]) -> dict[str, Any]:
+    """Die Gruppen ``users``, ``chat``, ``domain``, ``look``, ``global`` auf die einzelnen Namen abbilden, mit denen ``parse_settings`` arbeitet.
+
+    Alte Einträge auf oberster Ebene (vor 0.54.0) werden hier nicht gelesen; ``migrate_options`` übernimmt sie vorher in die Gruppen.
+    """
+    flat = {k: v for k, v in raw.items() if k not in _MOVED_FLAT}
+    for group, keys in MOVED.items():
+        values = raw.get(group)
+        if values is None:
+            continue
+        if not isinstance(values, dict):
+            raise ConfigError(f"{group} muss eine Gruppe sein")
+        for key in keys:
+            if key in values:
+                flat[key] = values[key]
+    return flat
+
+
+def _legacy_values(backup: dict[str, Any]) -> dict[str, Any]:
+    """Die verschobenen Optionen aus einer Sicherung, ob sie noch oben stehen (alte Gliederung) oder schon in Gruppen."""
+    found: dict[str, Any] = {}
+    for group, keys in MOVED.items():
+        values = backup.get(group)
+        for key in keys:
+            if key in backup:
+                found[key] = backup[key]
+            elif isinstance(values, dict) and key in values:
+                found[key] = values[key]
+    return found
+
+
+def migrate_options(raw: dict[str, Any], backup: dict[str, Any] | None) -> tuple[dict[str, Any], list[str], dict[str, Any]]:
+    """Alte Werte in die neue Gliederung übernehmen.
+
+    Beim Wechsel auf die Gruppen wirft der Supervisor die alten Einträge weg; die Gruppen stehen dann auf Standard. Die Kopie der
+    Optionen aus dem Start davor (``options-backup.json``) liefert die alten Werte. Sie werden übernommen, solange die Option in der
+    neuen Gruppe noch auf dem Standardwert steht. Trägt jemand dort etwas ein, gilt das und die alte Übernahme endet für diese
+    Option (``pending`` merkt sich, was noch aussteht). Rückgabe: Optionen mit Übernahme, Namen der übernommenen (``Gruppe.Name``)
+    und die noch ausstehenden Werte für die nächste Sicherung.
+    """
+    if not isinstance(raw, dict):
+        return raw, [], {}
+    backup = backup if isinstance(backup, dict) else {}
+    if isinstance(backup.get(PENDING_KEY), dict):
+        pending = dict(backup[PENDING_KEY])
+    else:  # erste Sicherung in der neuen Gliederung: alles, was die alte Sicherung abweichend vom Standard enthält
+        pending = {k: v for k, v in _legacy_values(backup).items() if v is not None and v != MOVED_DEFAULTS[k]}
+    result = dict(raw)
+    taken: list[str] = []
+    remaining: dict[str, Any] = {}
+    for group, keys in MOVED.items():
+        current = raw.get(group)
+        if current is not None and not isinstance(current, dict):
+            continue
+        merged = dict(current or {})
+        changed = False
+        for key in keys:
+            if key not in pending:
+                continue
+            if merged.get(key, MOVED_DEFAULTS[key]) == MOVED_DEFAULTS[key]:
+                merged[key] = pending[key]
+                remaining[key] = pending[key]
+                taken.append(f"{group}.{key}")
+                changed = True
+        if changed:
+            result[group] = merged
+    return result, taken, remaining
+
+
 def _group(raw: dict, name: str, fields: str) -> dict:
     """Eine Gruppe der Add-on-Konfiguration (``chat``, ``images``, ``voice``) als Wörterbuch; fehlt sie, ist sie leer."""
     group = raw.get(name) or {}
@@ -236,6 +328,7 @@ def _group(raw: dict, name: str, fields: str) -> dict:
 
 
 def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = None) -> Settings:
+    raw = _flatten(raw)
     entries = raw.get("profiles")
     all_ha_users = bool(raw.get("all_ha_users", False))
     if not isinstance(entries, list):
@@ -479,9 +572,10 @@ def _parse_date(value: Any, name: str) -> date | None:
 
 
 BACKUP_NAME = "options-backup.json"
+PENDING_KEY = "_pending"  # in der Sicherung: Werte aus der alten Gliederung, die noch in die neuen Gruppen übernommen werden
 
 
-def save_options_backup(raw: dict[str, Any], path: Path) -> None:
+def save_options_backup(raw: dict[str, Any], path: Path, pending: dict[str, Any] | None = None) -> None:
     """Legt eine Kopie der Optionen neben ``options.json`` ab (nur wenn sie sich geändert hat).
 
     Grund: Ändert sich die Gliederung der Add-on-Konfiguration, wirft der Supervisor Einträge weg, die nicht mehr im Schema
@@ -490,7 +584,7 @@ def save_options_backup(raw: dict[str, Any], path: Path) -> None:
     """
     target = Path(path).with_name(BACKUP_NAME)
     try:
-        text = json.dumps(raw, ensure_ascii=False, indent=1, sort_keys=True)
+        text = json.dumps({**raw, PENDING_KEY: pending or {}}, ensure_ascii=False, indent=1, sort_keys=True)
         if target.exists() and target.read_text(encoding="utf-8") == text:
             return
         tmp = target.with_suffix(".tmp")
@@ -502,16 +596,27 @@ def save_options_backup(raw: dict[str, Any], path: Path) -> None:
         logging.getLogger("copilot.config").warning("Sicherung der Optionen nicht möglich: %s", type(exc).__name__)
 
 
+def _read_backup(path: Path) -> dict[str, Any] | None:
+    try:
+        data = json.loads(Path(path).with_name(BACKUP_NAME).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def load_settings(path: Path = OPTIONS_PATH) -> Settings:
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigError(f"Optionen nicht lesbar: {exc}") from exc
+    taken: list[str] = []
     if isinstance(raw, dict):
-        save_options_backup(raw, path)
+        raw, taken, pending = migrate_options(raw, _read_backup(path))
+        save_options_backup(raw, path, pending)
 
     override = os.environ.get("COPILOT_INGRESS_PEERS")
     peers = (
         frozenset(p.strip() for p in override.split(",") if p.strip()) if override else None
     )
-    return parse_settings(raw, peers)
+    settings = parse_settings(raw, peers)
+    return dataclasses.replace(settings, migrated_options=tuple(taken)) if taken else settings

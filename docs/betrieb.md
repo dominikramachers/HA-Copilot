@@ -24,9 +24,9 @@ Zusätzlich legt das Add-on etwa einmal am Tag einen geprüften Schnappschuss an
 
 **Aus einem Schnappschuss:** Die Namen stehen beim Start im Protokoll (`copilot-JJJJ-MM-TT_HHMMSS.sqlite3`).
 
-1. In der Konfiguration `restore_snapshot` auf den Dateinamen setzen.
+1. In der Konfiguration `global.restore_snapshot` auf den Dateinamen setzen.
 2. Speichern, Add-on neu starten. Der bisherige Stand wird vorher als `vor-wiederherstellung-…` gesichert.
-3. Danach `restore_snapshot` **leeren**, sonst wird bei jedem Start erneut überschrieben.
+3. Danach `global.restore_snapshot` **leeren**, sonst wird bei jedem Start erneut überschrieben.
 
 **Aus einer Home-Assistant-Sicherung:** **Einstellungen → System → Sicherungen**, die Sicherung wählen und nur HA Copilot wiederherstellen (Teilwiederherstellung).
 
@@ -36,15 +36,25 @@ Neue Versionen erscheinen als Release auf GitHub; Home Assistant zeigt sie im Ad
 
 Nach „Nach Updates suchen“ kann ein Dialog „Unknown error, see supervisor logs“ erscheinen. Das ist ein Zeitlimit von Home Assistant beim Neuladen des Stores und kein Fehler des Add-ons; das Update wird trotzdem gefunden.
 
+## Update auf die Gruppen in der Konfiguration (ab 0.54.0)
+
+Ab 0.54.0 ist die Add-on-Konfiguration in eingeklappte Gruppen gegliedert: **Benutzer**, **Chat und Claude**, **Bilder**, **Sprechen mit der KI**, **Domain-Zugang (Entra)**, **Personalisierung** und **Globale Einstellungen**. Home Assistant verwirft beim Wechsel die alten Einträge, die nicht mehr im Schema stehen. Damit du nichts neu eintragen musst, gilt:
+
+1. **Erst auf 0.53.9 (oder neuer, aber noch vor 0.54.0) aktualisieren und das Add-on einmal starten.** Es legt dabei eine Kopie der Optionen als `options-backup.json` im Datenordner an. Wer direkt von einer älteren Version auf 0.54.0 geht, hat keine Kopie und muss seine Werte nach dem Update neu eintragen (Schlüssel und Benutzerliste vorher notieren, am besten über ⋮ → „In YAML bearbeiten“).
+2. **Auf 0.54.0 aktualisieren.** Die Gruppen stehen zunächst auf Standardwerten. Das Add-on liest die alten Werte aus der Kopie und verwendet sie weiter, solange die Option in der neuen Gruppe noch auf dem Standardwert steht. Oben im Chat erscheint ein Hinweis, welche Werte so übernommen wurden.
+3. **Werte in die Gruppen eintragen** (Hinweis als Anleitung): die Gruppe aufklappen, den Wert eintragen, speichern, das Add-on neu starten. Sobald du einen Wert selbst einträgst, gilt dein Eintrag, und der Hinweis für diese Option verschwindet. Das Eintragen ist nötig, damit die Konfiguration in Home Assistant wieder vollständig zu sehen ist; das Add-on läuft in der Zwischenzeit mit den alten Werten.
+
+Die Kopie enthält wie `options.json` auch Schlüssel und Secrets. Sie liegt im Datenordner des Add-ons und steckt damit in Sicherungen.
+
 ## Umzug in ein anderes Add-on
 
 Für Home Assistant ist jedes Add-on mit eigener Kennung ein eigenes Add-on mit eigenen Daten (z. B. das lokale Add-on im Ordner `/addons` und das aus diesem Repository). Die Chats wandern nicht von selbst mit. So nimmst du sie mit:
 
 1. Im **alten** Add-on `export_database: true` setzen, speichern, neu starten. Es legt `copilot-export.sqlite3` (Versionen bis 0.28: `ki_chat-export.sqlite3`) in seinen Config-Ordner (`/addon_configs/<alte Kennung>/`). Das geht ab Version 0.23.0; ältere Versionen vorher aktualisieren.
 2. Die Datei in den Config-Ordner des **neuen** Add-ons kopieren (`/addon_configs/<neue Kennung>/`).
-3. Im neuen Add-on `restore_snapshot` auf diesen Dateinamen setzen und neu starten. Chats, Projekte, Gedächtnis und geplante Aufgaben sind danach da. Von der KI erzeugte Dateien und Projektdateien-Inhalte, die nicht in der Datenbank liegen, nicht.
-4. `restore_snapshot` leeren, `export_database` ausschalten und die Export-Datei löschen (sie enthält alle Chats).
-5. Konfiguration (Benutzer, Zugangsdaten) im neuen Add-on eintragen, bei Domain-Zugang den Tunnel auf den neuen Hostnamen richten (`http://<Hostname>:8100`, den nennt die Einrichtungsprüfung) und `public_trusted_proxies` neu setzen.
+3. Im neuen Add-on `global.restore_snapshot` auf diesen Dateinamen setzen und neu starten. Chats, Projekte, Gedächtnis und geplante Aufgaben sind danach da. Von der KI erzeugte Dateien und Projektdateien-Inhalte, die nicht in der Datenbank liegen, nicht.
+4. `global.restore_snapshot` leeren, `global.export_database` ausschalten und die Export-Datei löschen (sie enthält alle Chats).
+5. Konfiguration (Benutzer, Zugangsdaten) im neuen Add-on eintragen, bei Domain-Zugang den Tunnel auf den neuen Hostnamen richten (`http://<Hostname>:8100`, den nennt die Einrichtungsprüfung) und `domain.public_trusted_proxies` neu setzen.
 6. Das alte Add-on deinstallieren.
 
 ## Umzug von der Kennung ki_chat auf copilot (Version 0.28 auf 0.29)
@@ -53,18 +63,18 @@ Bis Version 0.28 hieß die Kennung des Add-ons `ki_chat` (in Home Assistant `<Re
 
 Nimm dir etwa eine halbe Stunde. Die Oberfläche ist dazwischen kurz nicht erreichbar.
 
-1. **Auf 0.28.0 sein.** Das alte Add-on muss mindestens 0.23.0 haben (dann kennt es `export_database`).
+1. **Auf 0.28.0 sein.** Das alte Add-on muss mindestens 0.23.0 haben (dann kennt es `global.export_database`).
 2. **Notieren, was nicht in der Datenbank steht:** die Optionen des alten Add-ons (Konfiguration, Menü ⋮, **In YAML bearbeiten**, den Text kopieren; er enthält auch Token und Schlüssel) und die eigenen Dateien im Config-Ordner (`logo.png`, `logo-full.png`, `icon.png`, `custom.css`).
 3. **Exportieren:** Im alten Add-on `export_database: true` setzen, speichern und neu starten. Es legt `ki_chat-export.sqlite3` im Ordner `/addon_configs/<Repository-Kennung>_ki_chat/` ab (per Samba-Freigabe `addon_configs` oder Datei-Editor erreichbar).
 4. **Altes Add-on stoppen.** Sonst laufen geplante Aufgaben doppelt.
 5. **Neues Add-on installieren.** Nach der Aktualisierung des Repositories (Add-on-Store, ⋮, **Nach Updates suchen**) steht HA Copilot mit der neuen Kennung `copilot` im Store. Installieren, aber noch nicht starten.
 6. **Dateien übertragen:** `ki_chat-export.sqlite3` und, falls vorhanden, Logo-Dateien und `custom.css` in den Ordner `/addon_configs/<Repository-Kennung>_copilot/` kopieren. Fehlt der Ordner noch, starte das neue Add-on einmal kurz (es meldet dann womöglich, dass noch keine Benutzer eingetragen sind) und stoppe es wieder.
-7. **Optionen übernehmen:** In der Konfiguration des neuen Add-ons **In YAML bearbeiten** wählen und den kopierten Text einfügen. Dazu `restore_snapshot: ki_chat-export.sqlite3` setzen, `export_database` aus lassen, speichern.
+7. **Optionen übernehmen:** In der Konfiguration des neuen Add-ons **In YAML bearbeiten** wählen und den kopierten Text einfügen. Dazu `restore_snapshot: ki_chat-export.sqlite3` setzen, `global.export_database` aus lassen, speichern.
 8. **Starten.** Im Protokoll steht „Datenbank aus Schnappschuss ki_chat-export.sqlite3 wiederhergestellt“. Chats, Projekte, Gedächtnis und geplante Aufgaben sind da. Von der KI erzeugte Dateien und angehängte Originale nicht.
-9. **Aufräumen im neuen Add-on:** `restore_snapshot` leeren und die Export-Datei löschen (sie enthält alle Chats).
+9. **Aufräumen im neuen Add-on:** `global.restore_snapshot` leeren und die Export-Datei löschen (sie enthält alle Chats).
 10. **Umgebung anpassen:**
     - Bei Domain-Zugang den Tunnel auf den neuen Hostnamen richten (`http://<Repository-Kennung>-copilot:8100`; die Einrichtungsprüfung nennt ihn). Die Rückkehradresse in Entra (`https://<deine Domain>/auth/callback`) bleibt unverändert, weil sie an der Domain hängt.
-    - `public_trusted_proxies` prüfen (die Adresse kann sich ändern; die Einrichtungsprüfung zeigt sie).
+    - `domain.public_trusted_proxies` prüfen (die Adresse kann sich ändern; die Einrichtungsprüfung zeigt sie).
     - Der Eintrag in der Seitenleiste von Home Assistant ist jetzt der des neuen Add-ons. Lesezeichen, Dashboard-Links und Verknüpfungen in der Companion-App, die auf den alten Pfad (`/<Repository-Kennung>_ki_chat`) zeigen, anpassen.
 11. **Prüfen:** Einrichtungsprüfung öffnen (Einstellungen), einen Chat öffnen, eine Frage senden, bei Bedarf die Anmeldung über die Domain testen.
 12. **Altes Add-on deinstallieren,** wenn alles stimmt. Seine Daten und der alte Config-Ordner verschwinden damit; die Export-Datei darin hast du vorher gelöscht.
@@ -84,8 +94,8 @@ Zugangsdaten werden nie ins Protokoll geschrieben.
 
 Trage die Ablaufdaten ein, dann erinnert das Add-on im Chat (30 Tage vorher gelb, danach rot):
 
-- `claude_token_expires`: ein Abo-Token gilt ein Jahr ab dem Tag von `claude setup-token`.
-- `entra_secret_expires`: zu sehen in Entra unter „Zertifikate & Geheimnisse“.
+- `chat.claude_token_expires`: ein Abo-Token gilt ein Jahr ab dem Tag von `claude setup-token`.
+- `domain.entra_secret_expires`: zu sehen in Entra unter „Zertifikate & Geheimnisse“.
 - `voice.openai_key_expires` (ab 0.53.9): Ablaufdatum des eigenen OpenAI-Schlüssels für das Sprechen; ohne eigenen Schlüssel gilt das Datum bei den Bildern.
 - `images.openai_key_expires` und `images.google_key_expires` (ab 0.53.8): nur nötig, wenn der Schlüssel abläuft; das Datum steht bei platform.openai.com unter „API keys“ bzw. bei aistudio.google.com.
 
@@ -93,21 +103,21 @@ Trage die Ablaufdaten ein, dann erinnert das Add-on im Chat (30 Tage vorher gelb
 
 | Beobachtung | Ursache und Abhilfe |
 |---|---|
-| „Kein Zugriff“ in der App | Benutzer nicht in `profiles` (oder `all_ha_users` aus). Seite nennt Benutzername und ID, eintragen, neu starten. |
-| „Testmodus“-Hinweis, Antworten nur als Echo | Es ist noch kein Zugang zu Claude eingetragen. `claude_oauth_token` oder `anthropic_api_key` eintragen und das Add-on neu starten. |
+| „Kein Zugriff“ in der App | Benutzer nicht in `users.profiles` (oder `users.all_ha_users` aus). Seite nennt Benutzername und ID, eintragen, neu starten. |
+| „Testmodus“-Hinweis, Antworten nur als Echo | Es ist noch kein Zugang zu Claude eingetragen. `chat.claude_oauth_token` oder `chat.anthropic_api_key` eintragen und das Add-on neu starten. |
 | Antworten enden mit Fehler | Zugangsdaten ungültig/abgelaufen, Nutzungslimit erreicht oder Modell vom Abo nicht zugelassen. Meldung im Chat, Einzelheiten im Protokoll. |
 | „Gerade zu viele Anfragen“ | Es laufen höchstens zwei Antworten gleichzeitig (alle Benutzer, geplante Aufgaben eingerechnet). Kurz warten. |
-| Die KI sieht keine Entitäten | `ha_access` des Benutzers ist `none`, oder die Entitäten sind nicht für Assist freigegeben (`ha_limit_to_exposed`). |
+| Die KI sieht keine Entitäten | `ha_access` des Benutzers ist `none`, oder die Entitäten sind nicht für Assist freigegeben (`chat.ha_limit_to_exposed`). |
 | Geplante Aufgabe läuft nicht | Pause, Nutzungslimit erreicht oder Add-on war länger als 2 Stunden aus („Übersprungen“ auf der Aufgabenseite). Uhrzeiten gelten in der Zeitzone von Home Assistant. |
 | Keine Handy-Benachrichtigung | Einrichtungsprüfung öffnen: Die Zeile „Benachrichtigungen aufs Handy“ zeigt die Geräte, die Home Assistant der Person zuordnet (sonst: Handy in Home Assistant unter Einstellungen → Personen bei „Geräte verfolgen“ eintragen), und ob die Meldungen unter Einstellungen → Benachrichtigungen an sind. `notify_service` ist nur eine Ausweichlösung. |
 | Rote Meldung zur Datenbank | Schnappschuss wiederherstellen (oben). |
-| Seite bleibt weiß hinter dem Tunnel | Tunnel-Ziel (`http://<Hostname>:8100`) und `public_base_url` prüfen. |
+| Seite bleibt weiß hinter dem Tunnel | Tunnel-Ziel (`http://<Hostname>:8100`) und `domain.public_base_url` prüfen. |
 
 Hilft das nicht: Protokoll des Add-ons und, falls es um Home Assistant geht, **Einstellungen → System → Protokolle** ansehen und ein [Issue](https://github.com/dominikramachers/HA-Copilot/issues) anlegen (ohne Zugangsdaten). Sicherheitsprobleme bitte nach [SECURITY.md](../SECURITY.md) melden.
 
 ## Deinstallation
 
-Das Deinstallieren des Add-ons löscht seine Daten (Chats, Schnappschüsse). Vorher exportieren: in der App **Einstellungen → Meine Daten → Alle Chats exportieren** oder die Datenbank per `export_database` sichern. Ob der Ordner `addon_config` (Logo, Export) mit entfernt wird, hängt von der Home-Assistant-Version ab; prüfe unter `/addon_configs/` nach und lösche ihn bei Bedarf von Hand.
+Das Deinstallieren des Add-ons löscht seine Daten (Chats, Schnappschüsse). Vorher exportieren: in der App **Einstellungen → Meine Daten → Alle Chats exportieren** oder die Datenbank per `global.export_database` sichern. Ob der Ordner `addon_config` (Logo, Export) mit entfernt wird, hängt von der Home-Assistant-Version ab; prüfe unter `/addon_configs/` nach und lösche ihn bei Bedarf von Hand.
 
 ## Entwicklung und Tests
 

@@ -4,7 +4,7 @@
 
 Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von Home Assistant, optional zusätzlich über eine eigene Domain mit Anmeldung per Microsoft Entra ID oder Home Assistant. Chats sind pro Benutzer getrennt, bleiben gespeichert und lassen sich wie in Claude selbst in Projekten ordnen.
 
-*In short: a self-hosted Claude chat UI for Home Assistant (Ingress panel, per-user chats, projects, attachments, optional public domain with Entra ID sign-in). The interface is available in German (default) and English (option `language`).*
+*In short: a self-hosted Claude chat UI for Home Assistant (Ingress panel, per-user chats, projects, attachments, optional public domain with Entra ID sign-in). The interface is available in German (default) and English (option `look.language`).*
 
 > **Inoffizielles Projekt.** Nicht von Anthropic oder Nabu Casa. „Claude“ ist eine Marke von Anthropic.
 
@@ -44,7 +44,7 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 - Dateianhänge bis 50 MB: Bilder, PDF, Word, Excel, PowerPoint, Text und Code (zum Bearbeiten als Kopie im Chat, sonst nur im Arbeitsspeicher)
 - Lange Chats werden automatisch zusammengefasst, statt abgeschnitten zu werden
 - Zugang über das HA-Panel (Ingress) und optional über eine eigene Domain mit Entra-ID-Anmeldung oder „Mit Home Assistant anmelden“
-- **Deutsch oder Englisch** (Option `language`, Standard Deutsch)
+- **Deutsch oder Englisch** (Option `look.language`, Standard Deutsch)
 - Benutzer, Name, Logo, Texte und Farben in der Add-on-Konfiguration; das Theme von Home Assistant wird übernommen
 - Tägliche, geprüfte Datenbank-Schnappschüsse; HA-Sicherung im gestoppten Zustand (`backup: cold`)
 
@@ -64,8 +64,8 @@ Du brauchst eigene Zugangsdaten. Sie werden nur in deiner Add-on-Konfiguration g
 
 > **Wichtig zum Abo-Token.** Das Add-on kann sich mit einem Claude-Abo (Pro oder Max) über `claude setup-token` anmelden. Das ist **nur für deinen eigenen, persönlichen Gebrauch** gedacht. Nach den Nutzungsbedingungen von Anthropic darfst du Abo-Zugänge nicht für andere Personen über ein Programm bereitstellen und nicht weitergeben; Anthropic kann solche Tokens sperren oder die Nutzung einschränken. Trägst du mehrere Benutzer ein, aktivierst du den Zugang über eine Domain oder teilst den Chat mit anderen, ist der **API-Schlüssel** der richtige Weg. Ich bin kein Rechtsberater: Lies die aktuellen Bedingungen von Anthropic selbst und entscheide eigenverantwortlich. Das Add-on weist beim Start im Protokoll und in der Einrichtungsprüfung darauf hin, wenn ein Abo-Token mit mehreren Benutzern oder der Domain-Seite zusammentrifft.
 
-- **API-Schlüssel** (`anthropic_api_key`, aus der [Claude-Konsole](https://platform.claude.com/)): der von Anthropic vorgesehene Weg für Programme, Abrechnung nach Verbrauch. Empfohlen, sobald mehr als eine Person das Add-on nutzt.
-- **Abo-Token** (`claude_oauth_token`, per `claude setup-token`): nur für deinen eigenen, persönlichen Gebrauch, siehe Hinweis oben.
+- **API-Schlüssel** (`chat.anthropic_api_key`, aus der [Claude-Konsole](https://platform.claude.com/)): der von Anthropic vorgesehene Weg für Programme, Abrechnung nach Verbrauch. Empfohlen, sobald mehr als eine Person das Add-on nutzt.
+- **Abo-Token** (`chat.claude_oauth_token`, per `claude setup-token`): nur für deinen eigenen, persönlichen Gebrauch, siehe Hinweis oben.
 
 ## Datenschutz und Sicherheit
 

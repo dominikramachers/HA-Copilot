@@ -94,14 +94,16 @@ def test_schema_and_translations_describe_the_same_options():
     for lang in ("de", "en"):
         tr = yaml.safe_load((ROOT / "translations" / f"{lang}.yaml").read_text(encoding="utf-8"))["configuration"]
         assert set(tr) == set(config["schema"]), lang
-        assert set(tr["profiles"]["fields"]) == set(config["schema"]["profiles"][0]), lang
+        assert set(tr["users"]["fields"]["profiles"]["fields"]) == set(config["schema"]["users"]["profiles"][0]), lang
+        for group, fields in config["schema"].items():
+            assert set(tr[group]["fields"]) == set(fields), (lang, group)
 
 
 def test_new_options_are_optional_so_old_configurations_stay_valid():
     schema = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))["schema"]
-    for key in ("all_ha_users", "ha_users_excluded", "ha_url"):
-        assert schema[key].endswith("?"), key
-    assert all(str(v).endswith("?") for v in schema["profiles"][0].values())
+    for group, key in (("users", "all_ha_users"), ("users", "ha_users_excluded"), ("domain", "ha_url")):
+        assert schema[group][key].endswith("?"), key
+    assert all(str(v).endswith("?") for v in schema["users"]["profiles"][0].values())
 
 
 # ------------------------------------------------------------------ Registry

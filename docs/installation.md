@@ -37,12 +37,13 @@ Die Begriffe in Home Assistant wechseln je nach Version („Add-ons“ oder „A
 
 ## 3. Benutzer eintragen
 
-Auf dem Reiter **Konfiguration** steht unter **Benutzer (Profile)** schon ein Eintrag „Administrator“, der auf niemanden passt. Ersetze ihn durch deinen eigenen Benutzer:
+Die Konfiguration ist in eingeklappte Gruppen gegliedert (Benutzer, Chat und Claude, Bilder, Sprechen mit der KI, Domain-Zugang, Personalisierung, Globale Einstellungen). Auf dem Reiter **Konfiguration** klappst du **Benutzer** auf: Unter **Benutzer (Profile)** steht schon ein Eintrag „Administrator“, der auf niemanden passt. Ersetze ihn durch deinen eigenen Benutzer:
 
 ```yaml
-profiles:
-  - ha_user: dein-ha-benutzername
-    label: Dein Name
+users:
+  profiles:
+    - ha_user: dein-ha-benutzername
+      label: Dein Name
 ```
 
 `ha_user` ist dein Anmeldename in Home Assistant, also der Name, mit dem du dich dort anmeldest. Beim Start schreibt das Add-on alle Benutzer mit Anmeldename und ID ins Protokoll. Alles Weitere, auch weitere Benutzer und ihre Rechte, steht unter [Benutzer und Rechte](benutzer.md).
@@ -51,12 +52,13 @@ Weißt du den Namen nicht? Starte das Add-on trotzdem, öffne die App und lies i
 
 ## 4. Zugang zu Claude
 
-Trage **eines** von beidem in der Konfiguration ein:
+Trage **eines** von beidem in der Gruppe **Chat und Claude** ein:
 
 ```yaml
-anthropic_api_key: sk-ant-...        # API-Schlüssel, Abrechnung nach Verbrauch
-# oder
-claude_oauth_token: sk-ant-oat-...   # Token deines Abos, nur für dich allein
+chat:
+  anthropic_api_key: sk-ant-...        # API-Schlüssel, Abrechnung nach Verbrauch
+  # oder
+  claude_oauth_token: sk-ant-oat-...   # Token deines Abos, nur für dich allein
 ```
 
 Starte danach das Add-on neu. Solange kein Zugang eingetragen ist, läuft es im **Testmodus**: Es gibt deine Nachricht nur zurück, ruft keine KI auf und kostet nichts. So lässt sich die Einrichtung ohne Risiko ausprobieren.
@@ -107,7 +109,7 @@ Unten links im Konto-Menü des Chats führt **Einstellungen → Einrichtungsprü
 
 ## Updates
 
-Neue Versionen erscheinen als Release auf GitHub. Home Assistant zeigt sie im Add-on als **Update** an (bei Bedarf unter **Add-on-Store → ⋮ → Nach Updates suchen**). Ein Update ändert deine Konfiguration nie: Neue Optionen sind immer optional und haben einen Standardwert. Was neu ist, steht im Reiter **Änderungsprotokoll** und im [CHANGELOG](../copilot/CHANGELOG.md). Vor einem Update legt das Add-on bei neuer Datenbankversion automatisch einen Schnappschuss an. Du kannst in der Add-on-Info zusätzlich „Automatisch aktualisieren“ einschalten oder vorher eine Sicherung anlegen (empfohlen).
+Neue Versionen erscheinen als Release auf GitHub. Home Assistant zeigt sie im Add-on als **Update** an (bei Bedarf unter **Add-on-Store → ⋮ → Nach Updates suchen**). Ein Update ändert deine Konfiguration nie: Neue Optionen sind immer optional und haben einen Standardwert. Einzige Ausnahme war der Wechsel auf die Gruppen in 0.54.0: Home Assistant verwirft dabei die alten Einträge, das Add-on übernimmt sie aber aus einer Kopie (siehe [Betrieb](betrieb.md#update-auf-die-gruppen-in-der-konfiguration-ab-0540)). Was neu ist, steht im Reiter **Änderungsprotokoll** und im [CHANGELOG](../copilot/CHANGELOG.md). Vor einem Update legt das Add-on bei neuer Datenbankversion automatisch einen Schnappschuss an. Du kannst in der Add-on-Info zusätzlich „Automatisch aktualisieren“ einschalten oder vorher eine Sicherung anlegen (empfohlen).
 
 Meldet Home Assistant beim Suchen nach Updates „Unknown error, see supervisor logs“, ist das ein Zeitlimit von Home Assistant beim Neuladen des Stores und kein Fehler des Add-ons. Das Update wird trotzdem gefunden.
 
@@ -117,7 +119,7 @@ Meldet Home Assistant beim Suchen nach Updates „Unknown error, see supervisor 
 |---|---|
 | Der Store zeigt HA Copilot nicht | Repository-Adresse prüfen (genau wie oben, ohne Leerzeichen), Seite neu laden. Der Supervisor lädt das Repository beim Hinzufügen; dauert es, hilft **⋮ → Nach Updates suchen**. |
 | Die App zeigt „Kein Zugriff“ | Dein Benutzer ist nicht eingetragen. Die Seite nennt deinen Benutzernamen und deine ID: bei `ha_user` bzw. `ha_user_id` eintragen, speichern, Add-on neu starten. |
-| Oben steht „Testmodus“ | Es ist noch kein Zugang zu Claude eingetragen. `claude_oauth_token` oder `anthropic_api_key` eintragen und neu starten. |
+| Oben steht „Testmodus“ | Es ist noch kein Zugang zu Claude eingetragen. `chat.claude_oauth_token` oder `chat.anthropic_api_key` eintragen und neu starten. |
 | Antworten enden mit einem Fehler | Zugangsdaten falsch oder abgelaufen, oder das Nutzungslimit des Abos ist erreicht. Die Meldung steht im Chat, Einzelheiten im Protokoll des Add-ons. |
 | „HA Copilot“ fehlt in der Seitenleiste | Auf dem Reiter Info **In der Seitenleiste anzeigen** einschalten und die Seite neu laden. |
 
