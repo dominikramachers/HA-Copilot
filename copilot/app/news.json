@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.53.2",
+    "items": [
+      {
+        "de": {
+          "title": "Ich antworte schneller",
+          "text": "Wenn du mit mir sprichst, fange ich schon beim ersten fertigen Satz an zu antworten. Nicht erst, wenn die ganze Antwort fertig ist."
+        },
+        "en": {
+          "title": "I answer faster",
+          "text": "When you talk to me, I start answering with the first finished sentence, not only when the whole answer is ready."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.1",
     "items": [
       {

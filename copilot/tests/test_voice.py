@@ -432,3 +432,47 @@ def test_speaking_never_hangs_without_a_start_and_tells_when_nothing_was_heard()
     js = _voice_js()
     assert "PLAY_START_WAIT" in js and "DEVICE_START_WAIT" in js and "utterance.onstart" in js
     assert "Ich konnte die Antwort nicht vorlesen. Den Text siehst du oben." in js
+
+
+# ------------------------------------------------------------------ Tempo: Zeitmessung und satzweises Sprechen (0.53.2)
+
+def test_timing_endpoint_is_closed_by_default_and_checks_its_numbers(store):
+    client = app_client(store)
+    assert post(client, "/api/voice/timing", json={"path": "ai"}).status_code == 403
+    client = app_client(store, **OPENAI)
+    assert post(client, "/api/voice/timing", json={"path": "kaputt"}).status_code == 422
+    assert post(client, "/api/voice/timing", json={"path": "ai", "stt_ms": -5}).status_code == 422
+    assert post(client, "/api/voice/timing", json={"path": "ai", "total_ms": 10**9}).status_code == 422
+
+
+def test_timing_endpoint_writes_one_log_line_with_numbers_only(store, caplog):
+    client = app_client(store, **OPENAI)
+    with caplog.at_level("INFO", logger="copilot"):
+        out = post(client, "/api/voice/timing", json={"path": "ai", "stt_ms": 900, "answer_ms": 2400, "first_sound_ms": 700, "total_ms": 5100, "sentences": 3})
+    assert out.status_code == 200 and out.json() == {"ok": True}
+    line = next(r.getMessage() for r in caplog.records if "Sprache: Runde" in r.getMessage())
+    assert line == "Sprache: Runde über KI: Erkennung 0.9 s, KI bis erster Text 2.4 s, bis erster Ton 0.7 s, Antwort gesamt 5.1 s, 3 Sätze"
+
+
+def test_quick_round_is_labelled_as_quick_path(store, caplog):
+    client = app_client(store, **OPENAI)
+    with caplog.at_level("INFO", logger="copilot"):
+        post(client, "/api/voice/timing", json={"path": "quick", "answer_ms": 300})
+    assert any("Schnellpfad: Antwort 0.3 s" in r.getMessage() for r in caplog.records)
+
+
+def test_transcribe_logs_how_long_the_recognition_took(store, caplog):
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, json={"text": "Aria, mach das Licht aus."}))
+    client = app_client(store, transport=transport, **OPENAI)
+    with caplog.at_level("INFO", logger="copilot"):
+        post(client, "/api/voice/transcribe", content=wav(), headers={"Content-Type": "audio/wav"})
+    assert any("Sprache: Erkennung über openai dauerte" in r.getMessage() for r in caplog.records)
+
+
+def test_the_answer_text_reaches_the_speaker_while_it_streams():
+    from pathlib import Path
+    static = Path(__file__).resolve().parents[1] / "app" / "static"
+    app_js, voice_js = (static / "app.js").read_text(encoding="utf-8"), (static / "voice.js").read_text(encoding="utf-8")
+    assert "run.onText = spoken.onText" in app_js and "run.onText?.(out.answer)" in app_js
+    assert "createSpeaker(alive, turn)" in voice_js and "speaker.feed(text)" in voice_js and "speaker.finish(answer)" in voice_js
+    assert "api/voice/timing" in voice_js
