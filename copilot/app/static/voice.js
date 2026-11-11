@@ -170,8 +170,8 @@ async function recognitionMode() {
 async function missingText() {
   const info = await voiceSettings();
   return info.browser
-    ? tr("Dieser Browser hat keine eingebaute Spracherkennung. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.")
-    : tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.");
+    ? tr("Dieser Browser hat keine eingebaute Spracherkennung. Trage in der Add-on-Konfiguration unter „Sprache“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.")
+    : tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration unter „Sprache“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.");
 }
 
 function closeVoice() {

@@ -63,14 +63,16 @@ options:
   github_access_default: none
   connector_access_default: use
   files_enabled: true
-  voice_access_default: "off"
-  voice_output: device
-  voice_browser_stt: true
-  voice_chat_days: 30
   openai_api_key: ""
   google_api_key: ""
   image_provider: auto
   image_limit_month: 30
+  voice:
+    access_default: "off"
+    browser_stt: true
+    output: device
+    chat_days: 30
+    openai_api_key: ""
   restore_snapshot: ""
   export_database: false
   claude_token_expires: ""
@@ -116,14 +118,16 @@ schema:
   github_access_default: list(none|read|write)?
   connector_access_default: list(none|use|own|global)?
   files_enabled: bool?
-  voice_access_default: list(on|off)?
-  voice_output: list(device|service)?
-  voice_browser_stt: bool?
-  voice_chat_days: int(0,365)?
   openai_api_key: password?
   google_api_key: password?
   image_provider: list(auto|openai|google)?
   image_limit_month: int(0,10000)?
+  voice:
+    access_default: list(on|off)?
+    browser_stt: bool?
+    output: list(device|service)?
+    chat_days: int(0,365)?
+    openai_api_key: password?
   restore_snapshot: str?
   export_database: bool?
   claude_token_expires: str?

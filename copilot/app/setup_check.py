@@ -218,7 +218,7 @@ def static_items(
 
     # --- Sprache
     if settings.voice_access_default == "on" or any(p.voice_access == "on" for p in settings.profiles):
-        if settings.openai_api_key:
+        if settings.voice_openai_key:
             stt = "OpenAI"
         elif settings.voice_browser_stt:
             stt = tr("den Browser (kostenlos, über Google oder Apple) oder, falls eingerichtet, Home Assistant")
@@ -231,7 +231,7 @@ def static_items(
             tr("Aus. Sprechen per Mikrofon-Knopf im Chat, auch um Geräte zu schalten („Aria, mach das Licht aus“)."),
             [
                 tr(CONFIG_STEP),
-                tr("Setze `voice_access_default` auf `on` oder setze im Benutzer-Eintrag `voice_access` auf `on`. Für die Spracherkennung brauchst du `openai_api_key` oder eine Spracherkennung im Sprachassistenten von Home Assistant."),
+                tr("Stelle in der Gruppe „Sprache“ den Standard auf `on` oder setze im Benutzer-Eintrag `voice_access` auf `on`. Die Spracherkennung des Browsers ist kostenlos und braucht nichts; besser sind ein OpenAI-Schlüssel in derselben Gruppe oder eine Spracherkennung im Sprachassistenten von Home Assistant."),
                 tr(RESTART_STEP),
             ],
         ))

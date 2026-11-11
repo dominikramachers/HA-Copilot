@@ -973,7 +973,7 @@
  "Ja? Tippe zum Sprechen.": "Yes? Tap to speak.",
  "Die Antwort ist nicht angekommen.": "The answer did not arrive.",
  "Die Stimme konnte nicht abgespielt werden.": "The voice could not be played.",
- "Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "No speech recognition is set up. Enter the “openai_api_key” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant.",
- "Dieser Browser hat keine eingebaute Spracherkennung. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "This browser has no built-in speech recognition. Enter the “openai_api_key” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant.",
- "Die Spracherkennung des Browsers ist nicht erreichbar. Prüfe die Internetverbindung.": "The browser's speech recognition is not reachable. Check the internet connection."
+ "Die Spracherkennung des Browsers ist nicht erreichbar. Prüfe die Internetverbindung.": "The browser's speech recognition is not reachable. Check the internet connection.",
+ "Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration unter „Sprache“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "No speech recognition is set up. Enter an OpenAI key under “Voice” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant.",
+ "Dieser Browser hat keine eingebaute Spracherkennung. Trage in der Add-on-Konfiguration unter „Sprache“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "This browser has no built-in speech recognition. Enter an OpenAI key under “Voice” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant."
 }

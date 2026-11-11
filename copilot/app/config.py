@@ -131,6 +131,7 @@ class Settings:
     image_limit_month: int = 30  # Bilder von OpenAI/Google je Person und Monat, danach fragt der Chat vor jedem weiteren nach (0 = kein Limit)
     # Sprache (Sprechen per Knopf): Spracherkennung über OpenAI (openai_api_key) oder die Assist-Pipeline von Home Assistant
     voice_access_default: str = "off"  # wer mit der KI sprechen darf (on | off), pro Benutzer überschreibbar (voice_access)
+    voice_openai_api_key: str = field(default="", repr=False)  # eigener OpenAI-Schlüssel nur für die Sprache; leer = openai_api_key
     voice_browser_stt: bool = True  # kostenlose Spracherkennung des Browsers, wenn es keine andere gibt
     voice_output: str = "device"  # Stimme: device = Stimme des Geräts (kostenlos), service = derselbe Dienst wie die Spracherkennung
     voice_chat_days: int = 30  # Sprachgespräche außerhalb eines Chats nach so vielen Tagen löschen (0 = behalten)
@@ -175,6 +176,11 @@ class Settings:
     def web_level(self, profile: Profile) -> str:
         """Darf diese Person die Websuche nutzen? (on | off)"""
         return profile.web_access or self.web_access_default
+
+    @property
+    def voice_openai_key(self) -> str:
+        """OpenAI-Schlüssel für die Sprache: der eigene, sonst der gemeinsame (Bilder)."""
+        return self.voice_openai_api_key or self.openai_api_key
 
     def voice_level(self, profile: Profile) -> str:
         """Darf diese Person mit der KI sprechen? (on | off)"""
@@ -312,18 +318,21 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
     if not 0 <= image_limit_month <= 10000:
         raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)")
-    voice_access_default = str(raw.get("voice_access_default") or "off").strip().lower()
+    voice = raw.get("voice") or {}
+    if not isinstance(voice, dict):
+        raise ConfigError("voice muss eine Gruppe sein (access_default, browser_stt, output, chat_days, openai_api_key)")
+    voice_access_default = str(voice.get("access_default") or "off").strip().lower()
     if voice_access_default not in VOICE_ACCESS_LEVELS:
-        raise ConfigError("voice_access_default muss on oder off sein")
-    voice_output = str(raw.get("voice_output") or "device").strip().lower()
+        raise ConfigError("voice.access_default muss on oder off sein")
+    voice_output = str(voice.get("output") or "device").strip().lower()
     if voice_output not in ("device", "service"):
-        raise ConfigError("voice_output muss device oder service sein")
+        raise ConfigError("voice.output muss device oder service sein")
     try:
-        voice_chat_days = int(raw.get("voice_chat_days", 30))
+        voice_chat_days = int(voice.get("chat_days", 30))
     except (TypeError, ValueError):
-        raise ConfigError("voice_chat_days muss eine Zahl von 0 bis 365 sein (0 = behalten)") from None
+        raise ConfigError("voice.chat_days muss eine Zahl von 0 bis 365 sein (0 = behalten)") from None
     if not 0 <= voice_chat_days <= 365:
-        raise ConfigError("voice_chat_days muss eine Zahl von 0 bis 365 sein (0 = behalten)")
+        raise ConfigError("voice.chat_days muss eine Zahl von 0 bis 365 sein (0 = behalten)")
     image_provider = str(raw.get("image_provider") or "auto").strip().lower()
     if image_provider not in ("auto", "openai", "google"):
         raise ConfigError("image_provider muss auto, openai oder google sein")
@@ -422,7 +431,8 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         image_limit_month=image_limit_month,
         voice_access_default=voice_access_default,
         voice_output=voice_output,
-        voice_browser_stt=bool(raw.get("voice_browser_stt", True)),
+        voice_browser_stt=bool(voice.get("browser_stt", True)),
+        voice_openai_api_key=str(voice.get("openai_api_key") or "").strip(),
         voice_chat_days=voice_chat_days,
     )
 
