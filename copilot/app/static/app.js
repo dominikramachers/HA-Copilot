@@ -32,6 +32,8 @@ const ICONS = {
   chat: ["M20 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"],
   fold: ["M4 8l4 4-4 4M12 6h8M12 12h8M12 18h8"],
   close: ["M6 6l12 12M18 6L6 18"],
+  mic: ["M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z", "M6 11a6 6 0 0 0 12 0M12 17v4"],
+  wave: ["M4 12v0M8 8v8M12 4v16M16 8v8M20 12v0"],
   reply: ["M9 14L4 9l5-5", "M4 9h9a6 6 0 0 1 6 6v4"],
   quote: ["M5 5v6a3 3 0 0 0 3 3h11", "M15 10l4 4-4 4"],
   info: ["M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z", "M12 11v5.5", "M12 7.8h.01"],
@@ -5106,10 +5108,10 @@ function initQuotePicker() {
   });
 }
 
-async function sendMessage(edit = null) {
-  if (state.streaming) { if (!edit) stopAnswer(); return; }
+async function sendMessage(edit = null, spoken = null) {
+  if (state.streaming) { if (!edit && !spoken) stopAnswer(); return; }
   const input = $("input");
-  const text = edit ? edit.text : input.value.trim();
+  const text = edit ? edit.text : spoken ? spoken.text : input.value.trim();
   if (!text) {
     if (state.files.length) toast(tr("Schreibe noch eine Frage zu den Dateien."));
     return;
@@ -5140,16 +5142,16 @@ async function sendMessage(edit = null) {
     // Die alte Frage und alles danach verschwindet aus der Ansicht; der Server ersetzt es beim Annehmen.
     for (let n = edit.el; n;) { const next = n.nextElementSibling; n.remove(); n = next; }
   }
-  const sentFiles = edit ? (edit.pasted || []).map(pastedFile) : state.files;
-  const quote = edit ? (edit.quote || "") : state.quote;
-  if (!edit) { state.files = []; renderTray(); setQuote(""); }
+  const sentFiles = edit ? (edit.pasted || []).map(pastedFile) : spoken ? [] : state.files;
+  const quote = edit ? (edit.quote || "") : spoken ? "" : state.quote;
+  if (!edit && !spoken) { state.files = []; renderTray(); setQuote(""); }
   const userEl = messageEl("user", withQuote(quote, text), sentFiles);
   const bubble = node("div", "msg assistant pending");
   thread.append(userEl, bubble);
   followReset();
   scrollDown(true);
 
-  if (!edit) { input.value = ""; autosize(); }
+  if (!edit && !spoken) { input.value = ""; autosize(); }
   const run = openRun(chatId);
   addBusy(run, bubble);
   // Beim Bearbeiten holt ein Fehler ohne Antwort den alten Stand vom Server zurück (kein ``userEl`` in der Ansicht).
@@ -5167,6 +5169,7 @@ async function sendMessage(edit = null) {
         content: text, effort: state.effort, files,
         ...(quote ? { quote } : {}),
         ...(edit ? { edit_message_id: edit.id } : {}),
+        ...(spoken ? { voice: true } : {}),
         ...((state.me?.models?.length || 0) > 1 && validModel(state.model) ? { model: state.model } : {}),
         ...(state.me?.web && !state.web ? { web: false } : {}),
       }),
@@ -5181,6 +5184,7 @@ async function sendMessage(edit = null) {
     if (err.name !== "AbortError") out.failure = { message: err.message || tr("Die Verbindung wurde unterbrochen."), text: "" };
   }
   await settleRun(run, bubble, out, view);
+  return out;
 }
 
 // -------------------------------------------------------------------- Start
@@ -6919,6 +6923,7 @@ async function init() {
 
   try {
     state.me = await api("api/me");
+    initVoiceButton();
     $("who").textContent = state.me.label;
     $("avatar").textContent = state.me.label.charAt(0).toUpperCase();
     let stored = null;

@@ -1216,3 +1216,43 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .notify-dev input:disabled { opacity: .5; }
 .notify-dev-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notify-dev small { flex: none; font-size: 12.5px; color: var(--muted); }
+
+/* ---------- Sprechen mit der KI ---------- */
+.send.voice-btn { background: var(--chip); color: var(--text-2); margin-right: 6px; }
+.send.voice-btn:hover { background: var(--panel-2); color: var(--text); }
+.send.voice-btn .icon { width: 19px; height: 19px; }
+.voice-btn.has-tip::after { left: auto; right: 0; }
+@media (max-width: 639px) {
+  .composer-main .send.voice-btn { right: 57px; margin: 0; }
+}
+body.voice-open { overflow: hidden; }
+.voice {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  background: var(--bg);
+  color: var(--text); text-align: center;
+}
+.voice[hidden] { display: none; }
+.voice-ring { display: block; max-width: 100%; }
+.voice-status { margin: 0; font-size: 18px; font-weight: 600; min-height: 1.4em; }
+.voice[data-state="error"] .voice-status { color: var(--danger); }
+.voice-said { margin: 0; max-width: 34em; font-size: 16px; color: var(--text-2); min-height: 1.4em; }
+.voice-answer { margin: 0; max-width: 34em; max-height: 20vh; overflow: auto; font-size: 16px; line-height: 1.45; }
+.voice-hint { margin: 0; max-width: 30em; font-size: 13px; color: var(--text-2); }
+.voice-bar { display: flex; gap: 18px; align-items: center; margin-top: 6px; }
+.voice-btn-round { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--chip); color: var(--text); transition: transform .15s, background .15s; }
+.voice-btn-round:hover { background: var(--panel-2); }
+.voice-btn-round:active { transform: scale(.94); }
+.voice-btn-round:disabled { opacity: .4; cursor: default; }
+.voice-btn-round .icon { width: 24px; height: 24px; }
+.voice-btn-round.off { background: var(--danger-soft); color: var(--danger); }
+.voice-talk { background: var(--accent); color: var(--on-accent); width: 68px; height: 68px; }
+.voice-talk:hover { background: var(--accent); filter: brightness(1.08); }
+.voice-close { background: var(--text); color: var(--bg); }
+.voice-close:hover { background: var(--text); filter: brightness(1.15); }
+.voice-keep { min-height: 40px; padding: 0 18px; border-radius: 999px; background: var(--chip); font-size: 14px; font-weight: 600; }
+.voice-keep:hover { background: var(--panel-2); }
+.voice button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-height: 560px) { .voice { gap: 6px; } .voice-answer { max-height: 12vh; } .voice-hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { .voice-btn-round { transition: none; } }

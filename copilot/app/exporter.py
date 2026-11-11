@@ -129,9 +129,11 @@ def build_zip(store: Store, profile_id: str, app_name: str = "", now: datetime |
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(tr("LIESMICH.txt"), tr(README, app=app_name or "HA Copilot", when=now.strftime("%d.%m.%Y %H:%M")))
-        for chat in store.list_chats(profile_id):
+        for chat in store.list_chats(profile_id) + store.list_chats(profile_id, "voice"):
             messages = store.list_messages(profile_id, chat["id"]) or []
-            if chat.get("schedule_id"):
+            if chat.get("kind") == "voice":
+                folder = safe_name(tr("Sprachgespräche"))
+            elif chat.get("schedule_id"):
                 folder = safe_name(tr(SCHEDULED))
             else:
                 folder = safe_name(names.get(chat["project_id"] or "", ""), tr(NO_PROJECT))

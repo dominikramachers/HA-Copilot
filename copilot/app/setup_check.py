@@ -216,6 +216,21 @@ def static_items(
                 ],
             ))
 
+    # --- Sprache
+    if settings.voice_access_default == "on" or any(p.voice_access == "on" for p in settings.profiles):
+        stt = "OpenAI" if settings.openai_api_key else tr("Home Assistant (Sprachassistent)")
+        items.append(_item("voice", "optional", "ok", tr("Sprechen mit der KI"), tr("Mikrofon-Knopf im Chat. Spracherkennung über {stt}.", stt=stt)))
+    else:
+        items.append(_item(
+            "voice", "optional", "off", tr("Sprechen mit der KI"),
+            tr("Aus. Sprechen per Mikrofon-Knopf im Chat, auch um Geräte zu schalten („Aria, mach das Licht aus“)."),
+            [
+                tr(CONFIG_STEP),
+                tr("Setze `voice_access_default` auf `on` oder setze im Benutzer-Eintrag `voice_access` auf `on`. Für die Spracherkennung brauchst du `openai_api_key` oder eine Spracherkennung im Sprachassistenten von Home Assistant."),
+                tr(RESTART_STEP),
+            ],
+        ))
+
     # --- Domain-Zugang
     if not settings.public_enabled:
         items.append(_item(

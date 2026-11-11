@@ -27,6 +27,9 @@ configuration:
       web_access:
         name: Web search (optional)
         description: 'on = the AI may search the web and read pages for this user, off = not. Empty: the default below applies.'
+      voice_access:
+        name: Talking to the AI (optional)
+        description: 'on = this person may talk to the AI by voice (microphone button in the chat), off = not. Empty: the default below applies.'
       notify_service:
         name: Notification service (optional)
         description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). Default device of this person (everyone picks their own devices under Settings → Notifications; without a choice the devices of their person in Home Assistant apply). Empty: no default.'
@@ -120,6 +123,15 @@ configuration:
   image_limit_month:
     name: Images per person and month
     description: 'How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.'
+  voice_access_default:
+    name: 'Talking to the AI: default'
+    description: 'Who may talk to the AI by voice when nothing is set for the user: off (default) = nobody, on = everyone. Recognising speech needs `openai_api_key` or a speech-to-text engine in the Home Assistant voice assistant settings.'
+  voice_output:
+    name: 'Talking to the AI: voice'
+    description: 'device (default) = the device reads the answer aloud, free. service = the same service as speech recognition reads it aloud (OpenAI or Home Assistant), sounds better, costs a few cents at OpenAI.'
+  voice_chat_days:
+    name: Keep voice conversations (days)
+    description: 'Voice conversations not started inside a chat are not listed with your chats and are deleted after this many days (default 30, 0 = keep). Pinned ones stay.'
   restore_snapshot:
     name: Restore database
     description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'
