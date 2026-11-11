@@ -2,7 +2,7 @@
 
 Diese Seite listet **jede** Option des Add-ons mit Standardwert und Bedeutung. Du findest sie in Home Assistant unter **Einstellungen → Apps → HA Copilot → Konfiguration**. Mit ⋮ → „In YAML bearbeiten“ kannst du alles als Text sehen, kopieren und einfügen. Nach jeder Änderung speichern und das Add-on **neu starten**.
 
-Pflichtfelder (immer vorhanden, mit Standardwert voreingestellt): `profiles`, `public_trusted_proxies`, `voice`. Alle anderen Optionen sind optional; fehlt eine, gilt der Standardwert. Bestehende Einstellungen werden bei Updates nie überschrieben.
+Pflichtfelder (immer vorhanden, mit Standardwert voreingestellt): `profiles`, `voice`, `public_trusted_proxies`. Alle anderen Optionen sind optional; fehlt eine, gilt der Standardwert. Bestehende Einstellungen werden bei Updates nie überschrieben.
 
 ## Benutzer
 
@@ -32,12 +32,13 @@ Wer die App nutzen darf. Ausführlich in [Benutzer und Rechte](benutzer.md).
 
 ## Claude (Antworten)
 
-Zugang zu Claude und Modelle. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).
+Zugang zu Claude und Modell. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `claude_oauth_token` | Text (geheim) | leer | **Claude-Zugangstoken (Abo).** Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten). Ohne Token und ohne API-Schlüssel läuft nur der Testmodus. |
 | `anthropic_api_key` | Text (geheim) | leer | **Anthropic-API-Schlüssel.** Alternative zum Abo-Token (Abrechnung nach Verbrauch über die Claude-Konsole). Hat Vorrang, wenn beides eingetragen ist. |
+| `claude_oauth_token` | Text (geheim) | leer | **Claude-Zugangstoken (Abo).** Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten). Ohne Token und ohne API-Schlüssel läuft nur der Testmodus. |
+| `claude_token_expires` | Text | leer | **Claude-Token läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. |
 | `model` | Text | `claude-sonnet-5-5` | **Standard-Modell.** Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln (Opus und Haiku stehen zusätzlich zur Wahl). |
 
 ## Zugriff auf Home Assistant
@@ -48,6 +49,16 @@ Was die KI in Home Assistant sehen und tun darf.
 |---|---|---|---|
 | `ha_access_default` | `none` \| `read` \| `execute` \| `write` | `execute` | **Standard-Zugriff auf Home Assistant.** Gilt für alle Benutzer ohne eigene Angabe: none, read, execute (Standard) oder write. Bei read und execute sieht und steuert die KI nur Entitäten, die in Home Assistant für Assist freigegeben sind (siehe unten). |
 | `ha_limit_to_exposed` | an/aus | an | **Nur für Assist freigegebene Entitäten (lesen/ausführen).** An (Standard): Benutzer mit read oder execute sehen und steuern nur Entitäten, die in Home Assistant unter Einstellungen → Sprachassistenten → Freigeben für Assist freigegeben sind. Benutzer mit write sind davon nicht betroffen. |
+
+## Funktionen
+
+Gedächtnis, geplante Aufgaben und Dateien.
+
+| Option | Werte | Standard | Bedeutung |
+|---|---|---|---|
+| `memory_enabled` | an/aus | an | **Gedächtnis der KI.** An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis. |
+| `schedules_enabled` | an/aus | an | **Geplante Aufgaben erlauben.** An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos. |
+| `files_enabled` | an/aus | an | **Dateien erzeugen.** An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke. |
 
 ## GitHub
 
@@ -65,39 +76,28 @@ Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (M
 |---|---|---|---|
 | `connector_access_default` | `none` \| `use` \| `own` \| `global` | `use` | **Standard-Recht für Konnektoren.** Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte. |
 
-## Funktionen
-
-Gedächtnis, geplante Aufgaben, Dateien und Sprache.
-
-| Option | Werte | Standard | Bedeutung |
-|---|---|---|---|
-| `language` | `de` \| `en` | `de` | **Sprache.** de (Standard) für Deutsch oder en für Englisch. Gilt für die Oberfläche, die Meldungen des Add-ons und die Standardsprache der KI-Antworten (wer in einer anderen Sprache schreibt, bekommt die Antwort weiterhin in dieser Sprache). Bereits gespeicherte Chats bleiben unverändert. |
-| `memory_enabled` | an/aus | an | **Gedächtnis der KI.** An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis. |
-| `schedules_enabled` | an/aus | an | **Geplante Aufgaben erlauben.** An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos. |
-| `files_enabled` | an/aus | an | **Dateien erzeugen.** An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke. |
-
 ## Bilder
 
 Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Bilder).** Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprache“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI. |
+| `openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Bilder).** Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprechen mit der KI“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI. |
 | `google_api_key` | Text (geheim) | leer | **Google-API-Schlüssel (Bilder).** Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google. |
 | `image_provider` | `auto` \| `openai` \| `google` | `auto` | **Bildanbieter.** auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen. |
 | `image_limit_month` | Zahl 0 bis 10000 | `30` | **Bilder je Person und Monat.** Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts. |
 
-## Sprache
+## Sprechen mit der KI
 
 Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `voice` | Gruppe (Felder siehe unten) | Standardwerte | **Sprache (Sprechen mit der KI).** Alles zum Sprechen mit der KI (Mikrofon-Knopf im Chat) in einer Gruppe. Wer sprechen darf, steht hier als Standard und je Benutzer bei „Sprechen mit der KI“ (voice_access). |
+| `voice` | Gruppe (Felder siehe unten) | Standardwerte | **Sprechen mit der KI.** Alles zum Sprechen mit der KI (Mikrofon-Knopf im Chat) in einer Gruppe. Wer sprechen darf, steht hier als Standard und je Benutzer bei „Sprechen mit der KI“ (voice_access). |
 
 ### Felder der Gruppe `voice`
 
-In Home Assistant als eingeklappte Gruppe „Sprache“. In der Konfigurationsdatei steht es so: `voice:` mit den Feldern darunter.
+In Home Assistant als eingeklappte Gruppe „Sprechen mit der KI“. In der Konfigurationsdatei steht es so: `voice:` mit den Feldern darunter.
 
 | Feld | Werte | Standard | Bedeutung |
 |---|---|---|---|
@@ -114,27 +114,29 @@ Optional; der Zugang ist an, sobald `public_base_url` und eine Anmeldung eingetr
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
 | `public_base_url` | Text | leer | **Öffentliche Adresse.** z. B. https://chat.example.org. Muss zur Redirect-URI der Entra-App passen. Der Domain-Zugang ist an, sobald diese Adresse und eine Anmeldung (Entra oder ha_url) eingetragen sind. |
+| `ha_url` | Text | leer | **Adresse von Home Assistant für die Anmeldung über die Domain (optional).** Nur wenn sich Benutzer über die Domain mit ihrem Home-Assistant-Konto anmelden sollen: von außen erreichbare Adresse, z. B. https://ha.example.org. Dann erscheint auf der Anmeldeseite „Mit Home Assistant anmelden“. Leer lassen: nur Microsoft Entra. |
 | `entra_tenant_id` | Text | leer | **Entra: Verzeichnis-ID (Tenant).** GUID aus der Entra-App-Registrierung (Übersicht, „Verzeichnis-ID (Mandant)“). |
 | `entra_client_id` | Text | leer | **Entra: Anwendungs-ID (Client).** GUID aus der Entra-App-Registrierung (Übersicht, „Anwendungs-ID (Client)“). |
 | `entra_client_secret` | Text (geheim) | leer | **Entra: geheimer Clientschlüssel.** Wert des Clientschlüssels (Zertifikate & Geheimnisse). Läuft ab: Datum bei `entra_secret_expires` eintragen. |
-| `ha_url` | Text | leer | **Adresse von Home Assistant für die Anmeldung über die Domain (optional).** Nur wenn sich Benutzer über die Domain mit ihrem Home-Assistant-Konto anmelden sollen: von außen erreichbare Adresse, z. B. https://ha.example.org. Dann erscheint auf der Anmeldeseite „Mit Home Assistant anmelden“. Leer lassen: nur Microsoft Entra. |
+| `entra_secret_expires` | Text | leer | **Entra-Schlüssel läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. |
 | `session_days` | Zahl 1 bis 90 | `30` | **Anmeldedauer (Tage).** Wie lange eine Anmeldung über die Domain gültig bleibt (1–90). |
 | `public_trusted_proxies` | Liste | leer | **Vertrauenswürdige Proxys.** Adressen von Reverse-Proxys (z. B. Cloudflare-Tunnel-Container), deren Weiterleitungs-Header gelten dürfen. |
 
-## Aussehen und Name
+## Aussehen, Name und Sprache der Oberfläche
 
 Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben).
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
 | `app_name` | Text | `HA Copilot` | **App-Name.** Name in Anmeldeseite, Titel und Seitenleiste. Standard: HA Copilot. Der Name des Eintrags in der Home-Assistant-Seitenleiste ist fest und lässt sich hier nicht ändern. |
+| `language` | `de` \| `en` | `de` | **Sprache.** de (Standard) für Deutsch oder en für Englisch. Gilt für die Oberfläche, die Meldungen des Add-ons und die Standardsprache der KI-Antworten (wer in einer anderen Sprache schreibt, bekommt die Antwort weiterhin in dieser Sprache). Bereits gespeicherte Chats bleiben unverändert. |
 | `login_text` | Text | leer | **Text auf der Anmeldeseite.** Kurzer Satz unter dem Namen, z. B. „Anmelden mit deinem Firmenkonto.“ |
 | `login_placeholder` | Text | leer | **Beispiel-Adresse im Anmeldefeld.** Platzhalter im E-Mail-Feld der Anmeldeseite, z. B. name@firma.de. |
 | `logo_tile` | an/aus | aus | **Logo auf dunkler Kachel.** Für Logos, die nur auf dunklem Grund gut aussehen (z. B. helle oder neonfarbene Logos): zeigt sie im hellen Design auf einer dunklen Kachel. |
 | `follow_ha_theme` | an/aus | an | **Home-Assistant-Theme übernehmen.** An: Farben und Hell/Dunkel folgen live dem aktiven Theme von Home Assistant (in der Seitenleiste von HA) bzw. dem Standard-Theme (über die Domain). Aus: eingebaute Farben mit eigenem Hell/Dunkel-Schalter. |
 | `theme_name` | Text | leer | **Theme für die Domain (optional).** Name eines Home-Assistant-Themes, das über die Domain gelten soll. Leer: Standard-Theme von Home Assistant. |
 
-## Daten, Sicherung und Erinnerungen
+## Daten und Sicherung
 
 Normalerweise leer oder aus. Siehe [Betrieb](betrieb.md).
 
@@ -142,6 +144,4 @@ Normalerweise leer oder aus. Siehe [Betrieb](betrieb.md).
 |---|---|---|---|
 | `restore_snapshot` | Text | leer | **Datenbank wiederherstellen.** Nur im Notfall: Name eines Snapshots, der beim nächsten Start eingespielt wird. Danach leeren. |
 | `export_database` | an/aus | aus | **Datenbank exportieren (Umzug).** Nur für den Umzug in ein anderes Add-on (z. B. vom lokalen Add-on zum GitHub-Add-on): Beim Start wird eine Kopie aller Chats als copilot-export.sqlite3 in den Config-Ordner des Add-ons gelegt. Danach ausschalten und die Datei löschen. |
-| `claude_token_expires` | Text | leer | **Claude-Token läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. |
-| `entra_secret_expires` | Text | leer | **Entra-Schlüssel läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. |
 

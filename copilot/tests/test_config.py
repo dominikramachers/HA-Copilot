@@ -60,13 +60,3 @@ def test_api_key_option_is_read_and_takes_precedence(tmp_path):
 
     with pytest.raises(BackendError):
         ClaudeSdkBackend("", "m", tmp_path)
-
-
-def test_subscription_token_shared_warning():
-    from app.main import subscription_shared
-    one = {**RAW, "profiles": [RAW["profiles"][0]]}
-    assert not subscription_shared(parse_settings({**one, "claude_oauth_token": "t"}, frozenset()))  # eine Person: in Ordnung
-    assert subscription_shared(parse_settings({**RAW, "claude_oauth_token": "t"}, frozenset()))  # mehrere Personen
-    assert subscription_shared(parse_settings({**one, "claude_oauth_token": "t", "all_ha_users": True}, frozenset()))
-    assert not subscription_shared(parse_settings({**RAW, "claude_oauth_token": "t", "anthropic_api_key": "k"}, frozenset()))  # API-Schlüssel
-    assert not subscription_shared(parse_settings({**RAW}, frozenset()))  # kein Token

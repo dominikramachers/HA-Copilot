@@ -75,7 +75,7 @@ Nimm dir etwa eine halbe Stunde. Die Oberfläche ist dazwischen kurz nicht errei
 
 - die Liste aller Home-Assistant-Benutzer mit Anmeldename und ID,
 - die Zeitzone, die für geplante Aufgaben gilt („Zeitzone für geplante Aufgaben: …“),
-- Hinweise zur Konfiguration (z. B. Abo-Token mit mehreren Benutzern, nicht auflösbare `ha_user`),
+- Hinweise zur Konfiguration (z. B. nicht auflösbare `ha_user`),
 - die vorhandenen Schnappschüsse.
 
 Zugangsdaten werden nie ins Protokoll geschrieben.

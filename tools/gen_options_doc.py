@@ -23,19 +23,20 @@ def render(root: Path = ROOT) -> str:
 
     GROUPS = [
      ("Benutzer", "Wer die App nutzen darf. Ausführlich in [Benutzer und Rechte](benutzer.md).", ["profiles", "all_ha_users", "ha_users_excluded"]),
-     ("Claude (Antworten)", "Zugang zu Claude und Modelle. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).", ["claude_oauth_token", "anthropic_api_key", "model"]),
+     ("Claude (Antworten)", "Zugang zu Claude und Modell. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).", ["anthropic_api_key", "claude_oauth_token", "claude_token_expires", "model"]),
      ("Zugriff auf Home Assistant", "Was die KI in Home Assistant sehen und tun darf.", ["ha_access_default", "ha_limit_to_exposed"]),
+     ("Funktionen", "Gedächtnis, geplante Aufgaben und Dateien.", ["memory_enabled", "schedules_enabled", "files_enabled"]),
      ("GitHub", "Optional: die KI arbeitet mit deinen Repositories. Jede Person verbindet ihr eigenes GitHub in den Einstellungen; hier steht nur, wer lesen oder schreiben darf.", ["github_access_default"]),
      ("Konnektoren", "Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (Microsoft 365, Google Workspace, Zabbix …). Ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410).", ["connector_access_default"]),
-     ("Funktionen", "Gedächtnis, geplante Aufgaben, Dateien und Sprache.", ["language", "memory_enabled", "schedules_enabled", "files_enabled"]),
      ("Bilder", "Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).", ["openai_api_key", "google_api_key", "image_provider", "image_limit_month"]),
-     ("Sprache", "Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).", ["voice"]),
-     ("Zugang über eine eigene Domain", "Optional; der Zugang ist an, sobald `public_base_url` und eine Anmeldung eingetragen sind. Ausführlich in [Domain-Zugang](domain-zugang.md).", ["public_base_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "ha_url", "session_days", "public_trusted_proxies"]),
-     ("Aussehen und Name", "Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben).", ["app_name", "login_text", "login_placeholder", "logo_tile", "follow_ha_theme", "theme_name"]),
-     ("Daten, Sicherung und Erinnerungen", "Normalerweise leer oder aus. Siehe [Betrieb](betrieb.md).", ["restore_snapshot", "export_database", "claude_token_expires", "entra_secret_expires"]),
+     ("Sprechen mit der KI", "Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).", ["voice"]),
+     ("Zugang über eine eigene Domain", "Optional; der Zugang ist an, sobald `public_base_url` und eine Anmeldung eingetragen sind. Ausführlich in [Domain-Zugang](domain-zugang.md).", ["public_base_url", "ha_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "entra_secret_expires", "session_days", "public_trusted_proxies"]),
+     ("Aussehen, Name und Sprache der Oberfläche", "Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben).", ["app_name", "language", "login_text", "login_placeholder", "logo_tile", "follow_ha_theme", "theme_name"]),
+     ("Daten und Sicherung", "Normalerweise leer oder aus. Siehe [Betrieb](betrieb.md).", ["restore_snapshot", "export_database"]),
     ]
     listed = [k for _, _, ks in GROUPS for k in ks]
-    assert sorted(listed) == sorted(schema), (set(schema) ^ set(listed))
+    # Die Reihenfolge der Konfiguration in Home Assistant folgt den Gruppen (Schema, Optionen und Übersetzungen gleich)
+    assert listed == list(schema) == list(opts) == list(tr), "Reihenfolge in config.yaml, translations/de.yaml und tools/gen_options_doc.py muss übereinstimmen"
 
     def typ(spec):
         s = str(spec); opt = s.endswith("?"); s = s.rstrip("?")
@@ -84,7 +85,7 @@ def render(root: Path = ROOT) -> str:
                 t = tr["profiles"]["fields"][f]
                 out.append(f"| `{f}` | {typ(spec)} | **{esc(t['name'])}.** {esc(t['description'])} |")
         if "voice" in keys:
-            out += ["", "### Felder der Gruppe `voice`", "", "In Home Assistant als eingeklappte Gruppe „Sprache“. In der Konfigurationsdatei steht es so: `voice:` mit den Feldern darunter.", "", "| Feld | Werte | Standard | Bedeutung |", "|---|---|---|---|"]
+            out += ["", "### Felder der Gruppe `voice`", "", "In Home Assistant als eingeklappte Gruppe „Sprechen mit der KI“. In der Konfigurationsdatei steht es so: `voice:` mit den Feldern darunter.", "", "| Feld | Werte | Standard | Bedeutung |", "|---|---|---|---|"]
             for f, spec in schema["voice"].items():
                 t = tr["voice"]["fields"][f]
                 v = opts["voice"].get(f)

@@ -28,13 +28,6 @@ ACCESS_TEXT = {
 BANNER_TEXT = "Der Chat läuft im Testmodus: Es ist noch kein Zugang zu Claude eingerichtet."
 
 
-def subscription_shared(settings: Settings) -> bool:
-    """Abo-Token (ohne API-Schlüssel) bei mehreren Personen oder offener Domain-Seite: gegen die Bedingungen von Anthropic."""
-    if settings.anthropic_api_key or not settings.claude_oauth_token:
-        return False
-    return len(settings.profiles) > 1 or settings.all_ha_users or settings.public_enabled
-
-
 def banner(settings: Settings) -> str | None:
     """Hinweis für den Kopf der Oberfläche, solange etwas Nötiges fehlt (nur Dinge, die ohne Live-Abfrage feststehen)."""
     return tr(BANNER_TEXT) if settings.backend == "echo" else None
@@ -106,18 +99,6 @@ def static_items(
         via = tr("über den API-Schlüssel (Abrechnung nach Verbrauch)") if settings.anthropic_api_key else tr("über dein Claude-Abo")
         items.append(_item("claude", "required", "ok", tr("Zugang zu Claude"), tr("Eingerichtet {via}. Modell: {model}.", via=via, model=settings.model)))
 
-    if subscription_shared(settings):
-        items.append(_item(
-            "claude_terms", "recommended", "warn", tr("Abo-Token mit mehreren Personen"),
-            tr("Ein Claude-Abo ist nur für den persönlichen Gebrauch gedacht. Hier nutzen aber mehrere Personen oder die Domain-Seite den Chat über dasselbe Abo."),
-            [
-                tr("Erzeuge in der Claude Console (console.anthropic.com) unter „API Keys“ einen API-Schlüssel."),
-                tr(CONFIG_STEP),
-                tr("Trage den Schlüssel bei `anthropic_api_key` ein. Er hat Vorrang vor dem Abo-Token."),
-                tr(RESTART_STEP) + tr(" Danach wird nach Verbrauch bei Anthropic abgerechnet, nicht über das Abo."),
-            ],
-        ))
-
     # --- Datenbank (nur wenn es ein Problem gibt)
     if db_problem:
         items.append(_item(
@@ -169,7 +150,7 @@ def static_items(
         else:
             detail = tr(ACCESS_TEXT[ha_level]) if ha_level in ACCESS_TEXT else ""
             if settings.ha_limit_to_exposed:
-                detail += tr(" Sie sieht nur Entitäten, die in Home Assistant für Assist freigegeben sind (Einstellungen → Sprach-Assistenten → Entitäten).")
+                detail += tr(" Sie sieht nur Entitäten, die in Home Assistant für Assist freigegeben sind (Einstellungen → Sprachassistenten → Entitäten).")
             items.append(_item("ha_access", "optional", "ok", tr("Zugriff der KI auf Home Assistant"), detail.strip()))
 
     # --- GitHub
@@ -231,7 +212,7 @@ def static_items(
             tr("Aus. Sprechen per Mikrofon-Knopf im Chat, auch um Geräte zu schalten („Aria, mach das Licht aus“)."),
             [
                 tr(CONFIG_STEP),
-                tr("Stelle in der Gruppe „Sprache“ den Standard auf `on` oder setze im Benutzer-Eintrag `voice_access` auf `on`. Die Spracherkennung des Browsers ist kostenlos und braucht nichts; besser sind ein OpenAI-Schlüssel in derselben Gruppe oder eine Spracherkennung im Sprachassistenten von Home Assistant."),
+                tr("Stelle in der Gruppe „Sprechen mit der KI“ den Standard auf `on` oder setze im Benutzer-Eintrag `voice_access` auf `on`. Die Spracherkennung des Browsers ist kostenlos und braucht nichts. Besser sind das Add-on „Whisper“ (kostenlos, läuft auf deinem Home Assistant, Spracherkennung im Sprachassistenten einstellen) oder ein OpenAI-Schlüssel in derselben Gruppe."),
                 tr(RESTART_STEP),
             ],
         ))
@@ -386,13 +367,55 @@ async def _check_github(items: list[dict], github: GithubApi) -> None:
         item["detail"] += tr(" Verbunden als {login}; der Zugang ist gültig.", login=login)
 
 
-async def run_live(items: list[dict], ha: HaApi | None, github: GithubApi | None, profile: Profile) -> list[dict]:
+async def _check_voice(items: list[dict], ha: HaApi | None, settings: Settings) -> None:
+    """Sprechen mit der KI: sagt, welche Spracherkennung und Stimme wirklich benutzt werden, und warnt, wenn keine bleibt."""
+    item = _find(items, "voice")
+    if item is None or item["status"] != "ok":
+        return
+    engines = {"stt": False, "tts": False}
+    if ha is not None:
+        try:
+            engines = await ha.pipeline_engines()
+        except Exception:  # noqa: BLE001 - die Prüfung darf nie an der Abfrage scheitern
+            return
+    has_key = bool(settings.voice_openai_key)
+    if has_key:
+        stt = "OpenAI"
+    elif engines["stt"]:
+        stt = tr("Home Assistant (Sprachassistent)")
+    elif settings.voice_browser_stt:
+        stt = tr("den Browser (kostenlos, über Google oder Apple)")
+    else:
+        item.update(
+            status="warn",
+            detail=tr("Das Sprechen ist erlaubt, aber es gibt keine Spracherkennung: Der bevorzugte Sprachassistent in Home Assistant hat keine, und weder ein OpenAI-Schlüssel noch der Browser-Rückfall sind eingerichtet."),
+            steps=[
+                tr("Installiere in Home Assistant unter Einstellungen → Apps das Add-on „Whisper“ (kostenlos) und stelle dort die Sprache auf `de`."),
+                tr("Binde es unter Einstellungen → Geräte & Dienste mit „Wyoming-Protokoll“ ein und wähle im bevorzugten Sprachassistenten bei Sprache-zu-Text „faster-whisper“."),
+                tr("Oder schalte in der Add-on-Konfiguration in der Gruppe „Sprechen mit der KI“ den Browser-Rückfall ein (`browser_stt`) oder trage einen OpenAI-Schlüssel ein."),
+            ],
+        )
+        return
+    if settings.voice_output != "service":
+        voice = tr("die Stimme des Geräts")
+    elif has_key:
+        voice = "OpenAI"
+    elif engines["tts"]:
+        voice = tr("Home Assistant (Sprachassistent)")
+    else:
+        voice = tr("die Stimme des Geräts (der Sprachassistent hat keine Sprachausgabe)")
+    item["detail"] = tr("Mikrofon-Knopf im Chat. Spracherkennung über {stt}. Stimme: {voice}.", stt=stt, voice=voice)
+
+
+async def run_live(items: list[dict], ha: HaApi | None, github: GithubApi | None, profile: Profile, settings: Settings | None = None) -> list[dict]:
     """Ergänzt die Zeilen um Antworten von Home Assistant und GitHub (je höchstens ein paar Sekunden, Fehler werden zu Hinweisen)."""
     jobs = []
     if ha is not None:
         jobs.append(_check_ha(items, ha, profile))
     if github is not None:
         jobs.append(_check_github(items, github))
+    if settings is not None:
+        jobs.append(_check_voice(items, ha, settings))
     await asyncio.gather(*jobs, return_exceptions=True)
     for item in items:
         if item["status"] in ("todo", "warn") and not item["steps"]:
