@@ -100,7 +100,7 @@ Unten links im Konto-Menü des Chats führt **Einstellungen → Einrichtungsprü
 | Weitere Personen, Rechte der KI in Home Assistant | [Benutzer und Rechte](benutzer.md) |
 | KI arbeitet mit deinen GitHub-Repositories | [Funktionen: GitHub](funktionen.md#github) |
 | Chat auch außerhalb von Home Assistant, mit Microsoft- oder HA-Anmeldung | [Domain-Zugang](domain-zugang.md) |
-| Mit der KI sprechen (Mikrofon; kostenlos mit Whisper und Piper in Home Assistant) | [Funktionen: Sprechen mit der KI](funktionen.md#sprechen-mit-der-ki) |
+| Mit der KI sprechen (Mikrofon; kostenlos mit Whisper und Piper in Home Assistant, oder mit OpenAI-Schlüssel) | [Funktionen: Sprechen mit der KI](funktionen.md#sprechen-mit-der-ki), [OpenAI für die Sprache](bilder-konten.md#openai-für-die-sprache-spracherkennung-und-stimme) |
 | Name, Logo, Farben, Sprache | [Funktionen: Aussehen und Sprache](funktionen.md#aussehen-und-sprache) |
 | Benachrichtigung aufs Handy bei fertigen Antworten | [Funktionen: Geplante Aufgaben](funktionen.md#geplante-aufgaben-und-benachrichtigungen) |
 | Sicherung, Wiederherstellung, Umzug | [Betrieb](betrieb.md) |

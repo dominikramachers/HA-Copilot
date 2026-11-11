@@ -108,6 +108,9 @@ configuration:
       output:
         name: Stimme
         description: 'device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent.'
+      instructions:
+        name: Eigene Wünsche an die gesprochenen Antworten (optional)
+        description: 'Ein bis drei Sätze, die die KI bei jeder gesprochenen Antwort zusätzlich beachtet, zum Beispiel „Nenne Räume immer beim Namen“ oder „Antworte in einem Satz“. Höchstens 600 Zeichen. Leer: nur die Grundregeln (kurz, wie man spricht, keine Gerätenamen).'
       chat_days:
         name: Sprachgespräche aufbewahren (Tage)
         description: 'Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben.'

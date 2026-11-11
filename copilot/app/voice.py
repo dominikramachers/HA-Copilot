@@ -41,12 +41,26 @@ HA_AGENT = "conversation.home_assistant"
 VOICE_NOTE = (
     "Diese Nachricht wurde gesprochen (Spracherkennung, Hörfehler sind möglich) und deine Antwort wird vorgelesen. "
     "Antworte deshalb kurz und so, wie man spricht: höchstens zwei bis drei Sätze, kein Markdown, keine Listen, keine "
-    "Tabellen, keine Codeblöcke, keine Emojis, keine Entitäts-IDs. Zahlen und Einheiten so, dass sie sich gut vorlesen lassen. "
+    "Tabellen, keine Codeblöcke, keine Emojis, keine Entitäts-IDs, keine Anführungszeichen um Namen. Kurze Sätze, keine "
+    "Abkürzungen und keine englischen Fachwörter, wo es ein deutsches Wort gibt. "
+    "Wenn du etwas geschaltet hast, bestätige es nur kurz und natürlich, mit den Worten der Person und ohne Technik, "
+    "zum Beispiel „Das Licht im Bad ist an.“ oder „Erledigt.“. Nenne dabei nie Namen oder Kennungen von Geräten, "
+    "Schaltern oder Bereichen aus Home Assistant (zum Beispiel „Lichtschalter“ oder „Bereich bad“) und beginne nicht mit "
+    "„Ich habe …“. Fragt die Person nach einem Wert, nenne nur den Wert in einem Satz. "
+    "Schreibe Zahlen und Einheiten so, wie man sie spricht: „21 Grad“, „40 Prozent“, „zwei Kilowattstunden“. "
     "Ist etwas zu lang zum Vorlesen, nenne das Wichtigste und biete an, den Rest hier im Chat aufzuschreiben. "
-    "Hast du etwas geschaltet, bestätige es in einem kurzen Satz. Ist der Satz unverständlich, frage kurz nach. "
+    "Ist der Satz unverständlich, frage kurz nach. "
     "Per Sprache sind Schlösser, Alarmanlagen, Türen und Tore gesperrt und Rückfragen werden automatisch abgelehnt: "
     "sag dann, dass das nur getippt im Chat geht."
 )
+
+
+def voice_note(instructions: str = "") -> str:
+    """Der Hinweis für gesprochene Antworten, auf Wunsch mit eigenen Wünschen aus ``voice.instructions``."""
+    note = VOICE_NOTE
+    if instructions.strip():
+        note += " Zusätzliche Wünsche der Person, die das Add-on eingerichtet hat: " + instructions.strip()
+    return note
 
 
 class VoiceError(Exception):

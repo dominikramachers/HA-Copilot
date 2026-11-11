@@ -74,6 +74,7 @@ class Profile:
 DEFAULT_MODELS = ("claude-opus-5-5", "claude-haiku-5-5")  # neben ``model`` wählbar
 TITLE_MODEL = "claude-haiku-5-5"
 VOICE_MODEL = "claude-haiku-5-5"  # gesprochene Antworten: das schnelle Modell
+VOICE_INSTRUCTIONS_MAX = 600  # Zeichen für eigene Wünsche an die gesprochenen Antworten (voice.instructions)
 IMAGE_MODEL_OPENAI = "gpt-image-2.5-sunburst"
 IMAGE_MODEL_GOOGLE = "gemini-3.1-flash-image-preview"
 APP_NAME_DEFAULT = "HA Copilot"
@@ -134,6 +135,7 @@ class Settings:
     voice_openai_api_key: str = field(default="", repr=False)  # eigener OpenAI-Schlüssel nur für die Sprache; leer = openai_api_key
     voice_browser_stt: bool = True  # kostenlose Spracherkennung des Browsers, wenn es keine andere gibt
     voice_output: str = "device"  # Stimme: device = Stimme des Geräts (kostenlos), service = derselbe Dienst wie die Spracherkennung
+    voice_instructions: str = ""  # eigene Wünsche an die gesprochenen Antworten, werden an den Hinweis für die KI angehängt
     voice_chat_days: int = 30  # Sprachgespräche außerhalb eines Chats nach so vielen Tagen löschen (0 = behalten)
     voice_model: str = VOICE_MODEL  # fest
     # Domain-Zugang (nur relevant, wenn public_enabled)
@@ -328,13 +330,16 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("images.limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
     if not 0 <= image_limit_month <= 10000:
         raise ConfigError("images.limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)")
-    voice = _group(raw, "voice", "access_default, browser_stt, output, chat_days, openai_api_key")
+    voice = _group(raw, "voice", "access_default, browser_stt, output, instructions, chat_days, openai_api_key")
     voice_access_default = str(voice.get("access_default") or "off").strip().lower()
     if voice_access_default not in VOICE_ACCESS_LEVELS:
         raise ConfigError("voice.access_default muss on oder off sein")
     voice_output = str(voice.get("output") or "device").strip().lower()
     if voice_output not in ("device", "service"):
         raise ConfigError("voice.output muss device oder service sein")
+    voice_instructions = " ".join(str(voice.get("instructions") or "").split())
+    if len(voice_instructions) > VOICE_INSTRUCTIONS_MAX:
+        raise ConfigError(f"voice.instructions darf höchstens {VOICE_INSTRUCTIONS_MAX} Zeichen lang sein")
     try:
         voice_chat_days = int(voice.get("chat_days", 30))
     except (TypeError, ValueError):
@@ -442,6 +447,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         voice_browser_stt=bool(voice.get("browser_stt", True)),
         voice_openai_api_key=str(voice.get("openai_api_key") or "").strip(),
         voice_chat_days=voice_chat_days,
+        voice_instructions=voice_instructions,
     )
 
 
