@@ -1139,6 +1139,7 @@ def register_chat_routes(
             "speech": await voice.speech() if allowed else "device",
             "name": settings.app_name,
             "language": settings.language,
+            "browser": settings.voice_browser_stt,
             "chat_days": settings.voice_chat_days,
         }
 

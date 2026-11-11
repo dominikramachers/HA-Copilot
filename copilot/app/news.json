@@ -4,12 +4,12 @@
     "items": [
       {
         "de": {
-          "title": "Neue Sprach-Animation",
-          "text": "Beim Sprechen siehst du jetzt eine runde Fläche voller Punkte, die auf deine Stimme reagiert. Du kannst sie mit Maus oder Finger wegwischen. Fehlt die Spracherkennung, sage ich, was einzurichten ist."
+          "title": "Sprechen ohne Schlüssel",
+          "text": "Ich kann dich jetzt auch ohne Zusatzdienst verstehen: Der Browser hört zu, ich antworte. Dazu gibt es eine neue Sprach-Animation, die du mit Maus oder Finger wegwischen kannst."
         },
         "en": {
-          "title": "New voice animation",
-          "text": "When you talk, you now see a round field of dots that reacts to your voice. You can swipe them away with the mouse or your finger. If speech recognition is missing, I tell you what to set up."
+          "title": "Talking without a key",
+          "text": "I can now understand you without any extra service: the browser listens and I answer. There is also a new voice animation that you can swipe away with the mouse or your finger."
         }
       }
     ]

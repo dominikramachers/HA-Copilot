@@ -131,6 +131,7 @@ class Settings:
     image_limit_month: int = 30  # Bilder von OpenAI/Google je Person und Monat, danach fragt der Chat vor jedem weiteren nach (0 = kein Limit)
     # Sprache (Sprechen per Knopf): Spracherkennung über OpenAI (openai_api_key) oder die Assist-Pipeline von Home Assistant
     voice_access_default: str = "off"  # wer mit der KI sprechen darf (on | off), pro Benutzer überschreibbar (voice_access)
+    voice_browser_stt: bool = True  # kostenlose Spracherkennung des Browsers, wenn es keine andere gibt
     voice_output: str = "device"  # Stimme: device = Stimme des Geräts (kostenlos), service = derselbe Dienst wie die Spracherkennung
     voice_chat_days: int = 30  # Sprachgespräche außerhalb eines Chats nach so vielen Tagen löschen (0 = behalten)
     voice_model: str = VOICE_MODEL  # fest
@@ -421,6 +422,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         image_limit_month=image_limit_month,
         voice_access_default=voice_access_default,
         voice_output=voice_output,
+        voice_browser_stt=bool(raw.get("voice_browser_stt", True)),
         voice_chat_days=voice_chat_days,
     )
 

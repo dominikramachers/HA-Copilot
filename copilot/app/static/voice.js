@@ -21,7 +21,7 @@ const VOICE = {
   used: false,
   token: 0,             // erhöht sich bei Schließen/Neustart: alte Schleifen hören dann auf
   stream: null, ctx: null, source: null, proc: null, level: 0, target: 0,
-  audio: null, urls: [],
+  audio: null, urls: [], rec: null, meter: true,
   returnFocus: null,
 };
 
@@ -158,11 +158,20 @@ async function openVoice() {
   voiceLoop(token);
 }
 
-// Ohne Spracherkennung gar nicht erst aufnehmen: das Fenster sagt sofort, was einzurichten ist.
-async function recognitionMissing() {
+// Welche Spracherkennung gilt: "server" (OpenAI oder Home Assistant), "browser" (kostenloser Rückfall) oder "" (keine).
+async function recognitionMode() {
   voiceInfo = null; // jedes Mal frisch fragen, damit eine neue Einstellung gleich greift
   const info = await voiceSettings();
-  return info.allowed && !info.stt;
+  if (info.stt) return "server";
+  if (info.browser && (window.SpeechRecognition || window.webkitSpeechRecognition)) return "browser";
+  return "";
+}
+
+async function missingText() {
+  const info = await voiceSettings();
+  return info.browser
+    ? tr("Dieser Browser hat keine eingebaute Spracherkennung. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.")
+    : tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.");
 }
 
 function closeVoice() {
@@ -244,6 +253,8 @@ async function startCapture() {
 }
 
 function stopCapture() {
+  try { VOICE.rec?.abort(); } catch { /* schon beendet */ }
+  VOICE.rec = null;
   try { VOICE.proc?.disconnect(); } catch { /* schon getrennt */ }
   try { VOICE.source?.disconnect(); } catch { /* schon getrennt */ }
   VOICE.stream?.getTracks().forEach((t) => t.stop());
@@ -335,25 +346,14 @@ async function voiceLoop(token) {
   const alive = () => VOICE.open && token === VOICE.token;
   if (VOICE.muted) { setVoiceState("muted"); return; }
   try {
-    if (await recognitionMissing()) { voiceFail(tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.")); return; }
+    const mode = await recognitionMode();
+    if (!mode) { voiceFail(await missingText()); return; }
     if (!alive()) return;
     setVoiceState("listening");
-    await startCapture();
-    if (!alive()) { stopCapture(); return; }
-    const samples = await recordSentence(token);
-    stopCapture();
-    if (!alive()) return;
-    if (!samples) { setVoiceState("idle"); return; }
+    const heard = mode === "browser" ? await listenBrowser(alive) : await listenServer(token, alive);
+    if (!alive() || heard === null) return;
+    if (!heard) { setVoiceState("idle"); return; }
     setVoiceState("thinking");
-    const response = await fetch("api/voice/transcribe", {
-      method: "POST", credentials: "same-origin",
-      headers: { "X-Requested-With": "ki-chat", "Content-Type": "audio/wav" },
-      body: toWav(samples),
-    });
-    if (response.status === 401) { window.location.assign("login"); return; }
-    if (!response.ok) throw await voiceError(response);
-    const heard = await response.json();
-    if (!alive()) return;
     const sentence = (heard.command || "").trim();
     if (!heard.text?.trim()) { setVoiceState("idle", tr("Ich habe nichts verstanden. Tippe zum Sprechen.")); return; }
     $("voice-said").textContent = heard.text;
@@ -373,6 +373,82 @@ async function voiceLoop(token) {
     else if (err?.name === "NotFoundError") voiceFail(tr("Es wurde kein Mikrofon gefunden."));
     else voiceFail(err?.message || tr("Das hat nicht geklappt"));
   }
+}
+
+// Spracherkennung über das Add-on (OpenAI oder Home Assistant): Aufnahme als WAV hochladen.
+// Gibt {text, command} zurück, "" wenn nichts gesagt wurde, null wenn abgebrochen wurde.
+async function listenServer(token, alive) {
+  await startCapture();
+  if (!alive()) { stopCapture(); return null; }
+  VOICE.meter = true;
+  const samples = await recordSentence(token);
+  stopCapture();
+  if (!alive()) return null;
+  if (!samples) return "";
+  setVoiceState("thinking");
+  const response = await fetch("api/voice/transcribe", {
+    method: "POST", credentials: "same-origin",
+    headers: { "X-Requested-With": "ki-chat", "Content-Type": "audio/wav" },
+    body: toWav(samples),
+  });
+  if (response.status === 401) { window.location.assign("login"); return null; }
+  if (!response.ok) throw await voiceError(response);
+  return await response.json();
+}
+
+// Kostenlose Spracherkennung des Browsers (Rückfall ohne Schlüssel): der Ton geht an Google bzw. Apple, nicht an das Add-on.
+function listenBrowser(alive) {
+  return new Promise((resolve, reject) => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new Recognition();
+    rec.lang = voiceInfo?.language === "en" ? "en-US" : "de-DE";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    VOICE.rec = rec;
+    VOICE.meter = false;
+    let finalText = "", interim = "", done = false;
+    const finish = (value, error) => {
+      if (done) return;
+      done = true;
+      clearInterval(watch);
+      if (VOICE.rec === rec) VOICE.rec = null;
+      if (error) { reject(error); return; }
+      resolve(value);
+    };
+    rec.onresult = (event) => {
+      interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const part = event.results[i];
+        if (part.isFinal) finalText += part[0].transcript; else interim += part[0].transcript;
+      }
+      $("voice-said").textContent = (finalText + interim).trim(); // Zwischenstand sofort zeigen
+      VOICE.target = 0.6;
+    };
+    rec.onerror = (event) => {
+      if (event.error === "no-speech" || event.error === "aborted") finish("");
+      else if (event.error === "not-allowed" || event.error === "service-not-allowed") finish(null, Object.assign(new Error("denied"), { name: "NotAllowedError" }));
+      else if (event.error === "audio-capture") finish(null, Object.assign(new Error("none"), { name: "NotFoundError" }));
+      else if (event.error === "network") finish(null, new Error(tr("Die Spracherkennung des Browsers ist nicht erreichbar. Prüfe die Internetverbindung.")));
+      else finish(null, new Error(tr("Das hat nicht geklappt")));
+    };
+    rec.onend = () => {
+      const text = (finalText || interim).trim();
+      finish(text ? { text, command: stripWake(text, state.me?.voice_wake || "") } : "");
+    };
+    const watch = setInterval(() => { if (!alive()) { try { rec.abort(); } catch { /* schon beendet */ } finish(null); } }, 200);
+    try { rec.start(); } catch (err) { finish(null, err); }
+  });
+}
+
+function stripWake(text, name) {
+  // Gleiche Regel wie auf dem Server: „(Hey|Hallo|Hi|OK) <Name>“ am Satzanfang entfernen.
+  text = text.replace(/\s+/g, " ").trim();
+  name = (name || "").trim();
+  if (!name) return text;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rest = text.replace(new RegExp("^(?:(?:hey|hallo|hi|ok|okay)[\\s,]+)?" + escaped + "(?![\\w-])[\\s,.:;!?-]*", "i"), "");
+  return rest !== text ? rest.trim() : text;
 }
 
 async function voiceError(response) {
@@ -568,7 +644,7 @@ function stepRing(now) {
   const w = canvas.width, c = w / 2, R = RING.R;
   const t = now / 1000, st = VOICE.state, still = reducedMotion();
   let amp;
-  if (st === "listening") amp = VOICE.target;
+  if (st === "listening") amp = VOICE.meter ? VOICE.target : Math.max(VOICE.target, 0.2 + 0.1 * Math.sin(t * 3.1) * Math.sin(t * 1.3)); // Browser-Erkennung liefert keinen Pegel
   else if (st === "speaking") amp = 0.35 + 0.3 * Math.sin(t * 5.1) * Math.sin(t * 2.3);
   else if (st === "thinking") amp = 0.18;
   else amp = 0.05;

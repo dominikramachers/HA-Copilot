@@ -65,6 +65,7 @@ options:
   files_enabled: true
   voice_access_default: "off"
   voice_output: device
+  voice_browser_stt: true
   voice_chat_days: 30
   openai_api_key: ""
   google_api_key: ""
@@ -117,6 +118,7 @@ schema:
   files_enabled: bool?
   voice_access_default: list(on|off)?
   voice_output: list(device|service)?
+  voice_browser_stt: bool?
   voice_chat_days: int(0,365)?
   openai_api_key: password?
   google_api_key: password?

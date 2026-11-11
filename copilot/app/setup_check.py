@@ -218,7 +218,12 @@ def static_items(
 
     # --- Sprache
     if settings.voice_access_default == "on" or any(p.voice_access == "on" for p in settings.profiles):
-        stt = "OpenAI" if settings.openai_api_key else tr("Home Assistant (Sprachassistent)")
+        if settings.openai_api_key:
+            stt = "OpenAI"
+        elif settings.voice_browser_stt:
+            stt = tr("den Browser (kostenlos, über Google oder Apple) oder, falls eingerichtet, Home Assistant")
+        else:
+            stt = tr("Home Assistant (Sprachassistent)")
         items.append(_item("voice", "optional", "ok", tr("Sprechen mit der KI"), tr("Mikrofon-Knopf im Chat. Spracherkennung über {stt}.", stt=stt)))
     else:
         items.append(_item(

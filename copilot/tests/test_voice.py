@@ -351,3 +351,23 @@ def test_security_headers_allow_the_microphone_and_blob_audio(store):
     client = app_client(store)
     headers = client.get("/api/me", headers=HEAD).headers
     assert "microphone=(self)" in headers["permissions-policy"] and "media-src 'self' blob:" in headers["content-security-policy"]
+
+
+# ------------------------------------------------------------------ Spracherkennung des Browsers (Rückfall)
+
+def test_browser_recognition_is_the_default_when_no_service_is_set(store):
+    client = app_client(store, voice_access_default="on")
+    info = client.get("/api/voice", headers=HEAD).json()
+    assert info["stt"] == "" and info["browser"] is True  # der Browser springt ein
+
+
+def test_browser_recognition_can_be_switched_off_and_yields_to_a_key(store):
+    off = app_client(store, voice_access_default="on", voice_browser_stt=False).get("/api/voice", headers=HEAD).json()
+    assert off["stt"] == "" and off["browser"] is False
+    keyed = app_client(store, **OPENAI).get("/api/voice", headers=HEAD).json()
+    assert keyed["stt"] == "openai"  # mit Schlüssel läuft die Erkennung über das Add-on
+
+
+def test_voice_browser_stt_option_defaults_to_on():
+    assert parse_settings(RAW, frozenset()).voice_browser_stt is True
+    assert parse_settings({**RAW, "voice_browser_stt": False}, frozenset()).voice_browser_stt is False

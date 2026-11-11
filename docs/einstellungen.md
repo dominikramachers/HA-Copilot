@@ -94,6 +94,7 @@ Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dok
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
 | `voice_access_default` | `on` \| `off` | `off` | **Sprechen mit der KI: Standard.** Wer per Sprache mit der KI sprechen darf, wenn beim Benutzer nichts eingetragen ist: off (Standard) = niemand, on = alle. Zum Erkennen der Sprache braucht es `openai_api_key` oder eine Spracherkennung in der Home-Assistant-Sprachassistenten-Einstellung. |
+| `voice_browser_stt` | an/aus | an | **Sprechen mit der KI: Browser-Spracherkennung.** An (Standard): Gibt es weder `openai_api_key` noch eine Spracherkennung in Home Assistant, nutzt die App die kostenlose Spracherkennung des Browsers (Chrome, Edge, Safari; fehlt in Firefox). Der Ton geht dabei an Google bzw. Apple, nicht an dieses Add-on. Aus: dann ist Sprechen nur mit `openai_api_key` oder Home Assistant möglich. |
 | `voice_output` | `device` \| `service` | `device` | **Sprechen mit der KI: Stimme.** device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent. |
 | `voice_chat_days` | Zahl 0 bis 365 | `30` | **Sprachgespräche aufbewahren (Tage).** Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben. |
 

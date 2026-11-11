@@ -129,6 +129,9 @@ configuration:
   voice_output:
     name: 'Talking to the AI: voice'
     description: 'device (default) = the device reads the answer aloud, free. service = the same service as speech recognition reads it aloud (OpenAI or Home Assistant), sounds better, costs a few cents at OpenAI.'
+  voice_browser_stt:
+    name: 'Talking to the AI: browser speech recognition'
+    description: 'On (default): if there is neither `openai_api_key` nor speech recognition in Home Assistant, the app uses the free speech recognition built into the browser (Chrome, Edge, Safari; missing in Firefox). The audio then goes to Google or Apple, not to this add-on. Off: talking then only works with `openai_api_key` or Home Assistant.'
   voice_chat_days:
     name: Keep voice conversations (days)
     description: 'Voice conversations not started inside a chat are not listed with your chats and are deleted after this many days (default 30, 0 = keep). Pinned ones stay.'

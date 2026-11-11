@@ -129,6 +129,9 @@ configuration:
   voice_output:
     name: 'Sprechen mit der KI: Stimme'
     description: 'device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent.'
+  voice_browser_stt:
+    name: 'Sprechen mit der KI: Browser-Spracherkennung'
+    description: 'An (Standard): Gibt es weder `openai_api_key` noch eine Spracherkennung in Home Assistant, nutzt die App die kostenlose Spracherkennung des Browsers (Chrome, Edge, Safari; fehlt in Firefox). Der Ton geht dabei an Google bzw. Apple, nicht an dieses Add-on. Aus: dann ist Sprechen nur mit `openai_api_key` oder Home Assistant möglich.'
   voice_chat_days:
     name: Sprachgespräche aufbewahren (Tage)
     description: 'Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben.'

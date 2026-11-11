@@ -555,5 +555,6 @@
  "Mikrofon-Knopf im Chat. Spracherkennung über {stt}.": "Microphone button in the chat. Speech recognition via {stt}.",
  "Sprechen mit der KI": "Talking to the AI",
  "Setze `voice_access_default` auf `on` oder setze im Benutzer-Eintrag `voice_access` auf `on`. Für die Spracherkennung brauchst du `openai_api_key` oder eine Spracherkennung im Sprachassistenten von Home Assistant.": "Set `voice_access_default` to `on` or set `voice_access` to `on` in the user entry. For speech recognition you need `openai_api_key` or a speech-to-text engine in the Home Assistant voice assistant.",
- "Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "No speech recognition is set up. Enter the “openai_api_key” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant."
+ "Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration den „openai_api_key“ ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "No speech recognition is set up. Enter the “openai_api_key” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant.",
+ "den Browser (kostenlos, über Google oder Apple) oder, falls eingerichtet, Home Assistant": "the browser (free, via Google or Apple) or, if set up, Home Assistant"
 }
