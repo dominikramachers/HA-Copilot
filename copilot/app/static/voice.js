@@ -13,6 +13,7 @@ const VOICE = {
   START_WAIT: 12,       // so lange wartet das Fenster auf den Satzanfang, danach „Tippe zum Sprechen“
   MIN_SPEECH: 0.25,
   CHUNK_CHARS: 600,
+  MIN_SENTENCE: 25,     // kürzere Satzstücke werden mit dem nächsten zusammen gesprochen (zum Beispiel „z. B.“)
   PLAY_START_WAIT: 6000, // so lange darf der Start eines Tons dauern, danach gilt er als blockiert (ms)
   DEVICE_START_WAIT: 3000, // dasselbe für die Stimme des Geräts
   open: false,
@@ -349,6 +350,7 @@ async function voiceLoop(token) {
   // Eine Runde je Knopfdruck: zuhören, verstehen, antworten. Danach wartet das Fenster auf „Sprechen“.
   const alive = () => VOICE.open && token === VOICE.token;
   if (VOICE.muted) { setVoiceState("muted"); return; }
+  let speaker = null;
   try {
     const mode = await recognitionMode();
     if (!mode) { voiceFail(await missingText()); return; }
@@ -363,17 +365,27 @@ async function voiceLoop(token) {
     $("voice-said").textContent = heard.text;
     $("voice-answer").textContent = "";
     if (!sentence) { setVoiceState("idle", tr("Ja? Tippe zum Sprechen.")); return; }
-    const answer = await handleSentence(sentence, alive);
-    if (!alive() || answer === null) return;
+    const turn = { path: "ai", heardAt: Date.now(), stt: heard.ms ?? null, firstText: 0, answerAt: 0, firstSound: 0, sentences: 0 };
+    speaker = createSpeaker(alive, turn);
+    const onText = (text) => { // die Antwort kommt Stück für Stück: Anzeige und Vorlesen fangen schon beim ersten ganzen Satz an
+      turn.firstText ||= Date.now();
+      $("voice-answer").textContent = text;
+      speaker.feed(text);
+    };
+    const answer = await handleSentence(sentence, alive, onText, turn);
+    if (!alive() || answer === null) { speaker.abort(); return; }
+    turn.answerAt = Date.now();
     $("voice-answer").textContent = answer;
     VOICE.used = true;
     if (VOICE.standalone) $("voice-keep").hidden = false;
-    const spokeAloud = answer ? await speak(answer, alive) : true;
+    const spokeAloud = await speaker.finish(answer);
+    reportTiming(turn);
     if (!alive()) return;
     if (!spokeAloud) setVoiceState("idle", tr("Ich konnte die Antwort nicht vorlesen. Den Text siehst du oben."));
     else setVoiceState("idle");
   } catch (err) {
     stopCapture();
+    speaker?.abort();
     if (!alive()) return;
     if (err?.name === "NotAllowedError" || err?.name === "SecurityError") voiceFail(tr("Das Mikrofon ist blockiert. Erlaube es in den Einstellungen des Browsers oder der App."));
     else if (err?.name === "NotFoundError") voiceFail(tr("Es wurde kein Mikrofon gefunden."));
@@ -392,6 +404,7 @@ async function listenServer(token, alive) {
   if (!alive()) return null;
   if (!samples) return "";
   setVoiceState("thinking");
+  const uploaded = Date.now();
   const response = await fetch("api/voice/transcribe", {
     method: "POST", credentials: "same-origin",
     headers: { "X-Requested-With": "ki-chat", "Content-Type": "audio/wav" },
@@ -399,7 +412,9 @@ async function listenServer(token, alive) {
   });
   if (response.status === 401) { window.location.assign("login"); return null; }
   if (!response.ok) throw await voiceError(response);
-  return await response.json();
+  const result = await response.json();
+  result.ms = Date.now() - uploaded; // Hochladen und Erkennen zusammen
+  return result;
 }
 
 // Kostenlose Spracherkennung des Browsers (Rückfall ohne Schlüssel): der Ton geht an Google bzw. Apple, nicht an das Add-on.
@@ -464,7 +479,7 @@ async function voiceError(response) {
 }
 
 // Gibt die Antwort zum Vorlesen zurück, "" wenn nichts zu sagen ist, null wenn abgebrochen wurde.
-async function handleSentence(sentence, alive) {
+async function handleSentence(sentence, alive, onText, turn) {
   // Neues Sprachgespräch: der Chat entsteht erst jetzt, ohne Eintrag in der Chatliste.
   if (!VOICE.chatId) {
     const chat = await api("api/chats", { method: "POST", body: JSON.stringify({ voice: true }) });
@@ -477,11 +492,13 @@ async function handleSentence(sentence, alive) {
     .catch((err) => { if (err.status === 403 || err.status === 409) throw err; return { handled: false }; });
   if (!alive()) return null;
   if (quick.handled) {
+    turn.path = "quick";
+    turn.firstText = Date.now();
     if (!VOICE.standalone) await selectChat(id); // im sichtbaren Chat erscheinen Frage und Antwort
     return quick.speech || "";
   }
   if (state.activeId !== id) return null;
-  const out = await sendMessage(null, { text: sentence, voice: true });
+  const out = await sendMessage(null, { text: sentence, voice: true, onText });
   if (!alive()) return null;
   if (!out || out.failure) throw new Error(out?.failure?.message || tr("Die Antwort ist nicht angekommen."));
   return out.answer || "";
@@ -542,18 +559,111 @@ function unlockAudio() {
   } catch { /* optional */ }
 }
 
-// Gibt true zurück, wenn etwas zu hören war, sonst false (blockiert, Fehler oder Zeitüberschreitung).
-async function speak(text, alive) {
-  const spoken = plainSpeech(text);
-  if (!spoken) return true;
-  setVoiceState("speaking");
-  const info = await voiceSettings();
-  let heard = false;
-  if (info.speech !== "device") {
-    try { heard = await speakService(spoken, alive); } catch { /* Stimme des Geräts als Rückfall */ }
-    if (heard || !alive()) return heard;
-  }
-  return await speakDevice(spoken, alive, info.language);
+const ABBREVIATION = /(?:^|[\s(])(?:\p{L}|\d{1,2}|ca|bzw|usw|etc|vgl|ggf|ggfs|inkl|evtl|Nr|Dr|Std|max|min|sog)\.$/iu;
+
+// Liest die Antwort satzweise vor: Sobald ein ganzer Satz da ist, wird er gesprochen, während der Rest noch geschrieben wird.
+// feed(text) bekommt den bisherigen Antworttext, finish(text) den ganzen; finish gibt true zurück, wenn etwas zu hören war
+// (oder nichts zu sagen war), sonst false (blockiert, Fehler, Zeitüberschreitung).
+function createSpeaker(alive, turn) {
+  let seen = 0, ended = false, aborted = false, heardAny = false, wake = null, queued = 0;
+  const pending = [];
+  const poke = () => { const w = wake; wake = null; if (w) w(); };
+  const push = (text) => { for (const part of speechChunks(text)) { pending.push(part); turn.sentences++; } };
+
+  // Schneidet aus dem bisherigen Text die fertigen Sätze heraus (Satzende plus Leerraum, oder Zeilenumbruch).
+  const take = (raw, final) => {
+    let text = raw;
+    if (!final && (text.match(/```/g) || []).length % 2) text = text.slice(0, text.lastIndexOf("```")); // offener Codeblock wird nicht gesprochen
+    const fences = [];
+    for (let at = text.indexOf("```"); at >= 0; at = text.indexOf("```", at + 3)) fences.push(at);
+    const inCode = (i) => { for (let k = 0; k + 1 < fences.length; k += 2) if (i > fences[k] && i < fences[k + 1] + 3) return true; return false; };
+    let start = seen;
+    const boundary = /[.!?…]+["”')\]]*\s+|\n+/g;
+    boundary.lastIndex = start;
+    for (let m = boundary.exec(text); m; m = boundary.exec(text)) {
+      if (inCode(m.index)) continue; // im Codeblock wird nicht geschnitten, er wird ganz übersprungen
+      const end = m.index + m[0].length;
+      const before = text.slice(start, m.index + 1);
+      if (m[0][0] === "." && ABBREVIATION.test(before)) continue; // „z. B.“, „ca.“, „am 7. Januar“ sind kein Satzende
+      const sentence = plainSpeech(text.slice(start, end));
+      if (sentence.length >= VOICE.MIN_SENTENCE) { push(sentence); start = end; }
+    }
+    if (final) {
+      const rest = plainSpeech(raw.slice(start));
+      if (rest) push(rest);
+      start = raw.length;
+    }
+    seen = Math.max(seen, start);
+  };
+
+  const worker = (async () => {
+    const info = await voiceSettings();
+    let useService = info.speech !== "device";
+    let started = false;
+    const ready = []; // bis zu zwei Stücke sind schon bestellt, während das erste läuft
+    const refill = () => {
+      while (pending.length && ready.length < 2) {
+        const text = pending.shift();
+        queued++;
+        const url = useService ? fetchSpeech(text) : null;
+        if (url) url.catch(() => { /* Fehler wird beim Abspielen behandelt */ });
+        ready.push({ text, url });
+      }
+    };
+    const begin = () => {
+      if (started) return;
+      started = true;
+      turn.firstSound = Date.now();
+      setVoiceState("speaking");
+    };
+    for (;;) {
+      if (!alive() || aborted) break;
+      refill();
+      if (!ready.length) {
+        if (ended) break;
+        await Promise.race([new Promise((resolve) => { wake = resolve; }), new Promise((resolve) => setTimeout(resolve, 300))]);
+        continue;
+      }
+      const item = ready.shift();
+      let ok = false;
+      if (useService) {
+        try {
+          const url = await item.url;
+          if (!alive() || aborted) break;
+          begin();
+          await playChunk(url, alive);
+          URL.revokeObjectURL(url);
+          VOICE.urls = VOICE.urls.filter((u) => u !== url);
+          ok = true;
+        } catch { useService = false; } // Stimme des Geräts als Rückfall, für diesen und alle weiteren Sätze
+      }
+      if (!ok && alive() && !aborted) { begin(); ok = await speakDevice(item.text, alive, info.language); }
+      if (ok) heardAny = true;
+      else if (!heardAny) break; // gar nichts zu hören: nicht jeden Satz einzeln abwarten
+    }
+    return heardAny || queued === 0;
+  })();
+
+  return {
+    feed(raw) { if (!ended && !aborted) { take(raw, false); poke(); } },
+    finish(raw) { take(raw || "", true); ended = true; poke(); return worker; },
+    abort() { aborted = true; poke(); },
+  };
+}
+
+// Schickt die Zeiten der Runde an das Add-on, das sie als eine Zeile ins Protokoll schreibt (nur Zahlen, keine Inhalte).
+function reportTiming(turn) {
+  const first = turn.firstText || turn.answerAt;
+  const body = {
+    path: turn.path,
+    stt_ms: turn.stt,
+    answer_ms: first ? Math.max(0, first - turn.heardAt) : null,
+    first_sound_ms: turn.firstSound && first ? Math.max(0, turn.firstSound - first) : null,
+    total_ms: turn.answerAt ? Math.max(0, turn.answerAt - turn.heardAt) : null,
+    sentences: turn.sentences,
+  };
+  try { console.info("Sprachrunde", body); } catch { /* optional */ }
+  api("api/voice/timing", { method: "POST", body: JSON.stringify(body) }).catch(() => { /* nur Messung */ });
 }
 
 function speakDevice(text, alive, language) {
@@ -613,29 +723,17 @@ function playChunk(url, alive) {
   });
 }
 
-async function speakService(text, alive) {
-  const chunks = speechChunks(text);
-  const fetchChunk = async (part) => {
-    const response = await fetch("api/voice/speak", {
-      method: "POST", credentials: "same-origin",
-      headers: { "X-Requested-With": "ki-chat", "Content-Type": "application/json" },
-      body: JSON.stringify({ text: part }),
-    });
-    if (!response.ok) throw await voiceError(response);
-    return URL.createObjectURL(await response.blob());
-  };
-  let next = fetchChunk(chunks[0]);
-  let played = false;
-  for (let i = 0; i < chunks.length; i++) {
-    const url = await next;
-    VOICE.urls.push(url);
-    if (i + 1 < chunks.length) next = fetchChunk(chunks[i + 1]); // das nächste Stück lädt schon, während das erste läuft
-    if (!alive()) return played;
-    try { await playChunk(url, alive); played = true; }
-    catch (err) { if (played) return true; throw err; } // schon etwas gehört: den Rest nicht doppelt über die Stimme des Geräts sprechen
-    URL.revokeObjectURL(url);
-  }
-  return played;
+// Bestellt die Stimme für ein Stück Text beim Add-on und gibt die Adresse des Tons zurück.
+async function fetchSpeech(text) {
+  const response = await fetch("api/voice/speak", {
+    method: "POST", credentials: "same-origin",
+    headers: { "X-Requested-With": "ki-chat", "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) throw await voiceError(response);
+  const url = URL.createObjectURL(await response.blob());
+  VOICE.urls.push(url);
+  return url;
 }
 
 function stopSpeaking() {

@@ -4633,6 +4633,7 @@ async function consume(response, run, bubble) {
       if (ev.type === "delta") {
         out.answer += ev.text;
         statusText = "";
+        try { run.onText?.(out.answer); } catch { /* das Vorlesen darf die Anzeige nicht stören */ }
         if (!frame) frame = requestAnimationFrame(paint);
       } else if (ev.type === "status") {
         statusText = ev.text.replace(/\s*…\s*$/, "");
@@ -5153,6 +5154,7 @@ async function sendMessage(edit = null, spoken = null) {
 
   if (!edit && !spoken) { input.value = ""; autosize(); }
   const run = openRun(chatId);
+  if (spoken?.onText) run.onText = spoken.onText; // Sprachgespräch: der Text geht schon beim Eintreffen zum Vorlesen
   addBusy(run, bubble);
   // Beim Bearbeiten holt ein Fehler ohne Antwort den alten Stand vom Server zurück (kein ``userEl`` in der Ansicht).
   const view = edit ? { text, sentFiles, first } : { userEl, text, sentFiles, first, quote };
