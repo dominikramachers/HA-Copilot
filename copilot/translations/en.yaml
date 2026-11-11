@@ -123,6 +123,9 @@ configuration:
       openai_api_key:
         name: OpenAI key for voice only (optional)
         description: 'Key from platform.openai.com (API keys) for speech recognition (and the voice with output: service); a few cents per hour of speech, the API account needs its own credit. Empty: the OpenAI key above (images) applies, and if that is empty too, the browser''s speech recognition. Recordings are sent to OpenAI.'
+      openai_key_expires:
+        name: OpenAI key (voice) expires on
+        description: 'Date (YYYY-MM-DD) for the reminder in the app, only for the own key of this group. 30 days before, a notice appears in the chat. Without its own key, the date under “Images” (images.openai_key_expires) applies.'
   public_base_url:
     name: Public address
     description: e.g. https://chat.example.org. Must match the Entra app's redirect URI. Domain access is on as soon as this address and a login (Entra or ha_url) are set.

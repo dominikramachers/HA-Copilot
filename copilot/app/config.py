@@ -134,6 +134,7 @@ class Settings:
     image_limit_month: int = 30  # Bilder von OpenAI/Google je Person und Monat, danach fragt der Chat vor jedem weiteren nach (0 = kein Limit)
     # Sprache (Sprechen per Knopf): Spracherkennung über OpenAI (openai_api_key) oder die Assist-Pipeline von Home Assistant
     voice_access_default: str = "off"  # wer mit der KI sprechen darf (on | off), pro Benutzer überschreibbar (voice_access)
+    voice_openai_key_expires: date | None = None
     voice_openai_api_key: str = field(default="", repr=False)  # eigener OpenAI-Schlüssel nur für die Sprache; leer = openai_api_key
     voice_browser_stt: bool = True  # kostenlose Spracherkennung des Browsers, wenn es keine andere gibt
     voice_output: str = "device"  # Stimme: device = Stimme des Geräts (kostenlos), service = derselbe Dienst wie die Spracherkennung
@@ -332,7 +333,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("images.limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
     if not 0 <= image_limit_month <= 10000:
         raise ConfigError("images.limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)")
-    voice = _group(raw, "voice", "access_default, browser_stt, output, instructions, chat_days, openai_api_key")
+    voice = _group(raw, "voice", "access_default, browser_stt, output, instructions, chat_days, openai_api_key, openai_key_expires")
     voice_access_default = str(voice.get("access_default") or "off").strip().lower()
     if voice_access_default not in VOICE_ACCESS_LEVELS:
         raise ConfigError("voice.access_default muss on oder off sein")
@@ -452,6 +453,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         voice_output=voice_output,
         voice_browser_stt=bool(voice.get("browser_stt", True)),
         voice_openai_api_key=str(voice.get("openai_api_key") or "").strip(),
+        voice_openai_key_expires=_parse_date(voice.get("openai_key_expires"), "voice.openai_key_expires"),
         voice_chat_days=voice_chat_days,
         voice_instructions=voice_instructions,
     )
@@ -476,11 +478,37 @@ def _parse_date(value: Any, name: str) -> date | None:
         raise ConfigError(f"{name} muss ein Datum im Format JJJJ-MM-TT sein, z. B. 2027-10-26") from None
 
 
+BACKUP_NAME = "options-backup.json"
+
+
+def save_options_backup(raw: dict[str, Any], path: Path) -> None:
+    """Legt eine Kopie der Optionen neben ``options.json`` ab (nur wenn sie sich geändert hat).
+
+    Grund: Ändert sich die Gliederung der Add-on-Konfiguration, wirft der Supervisor Einträge weg, die nicht mehr im Schema
+    stehen. Mit der Kopie aus dem Stand davor kann eine spätere Version die alten Werte übernehmen. Die Datei liegt im
+    Datenordner wie ``options.json`` selbst (Rechte 0600) und steckt in jeder Sicherung des Add-ons.
+    """
+    target = Path(path).with_name(BACKUP_NAME)
+    try:
+        text = json.dumps(raw, ensure_ascii=False, indent=1, sort_keys=True)
+        if target.exists() and target.read_text(encoding="utf-8") == text:
+            return
+        tmp = target.with_suffix(".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, target)
+    except OSError as exc:
+        logging.getLogger("copilot.config").warning("Sicherung der Optionen nicht möglich: %s", type(exc).__name__)
+
+
 def load_settings(path: Path = OPTIONS_PATH) -> Settings:
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigError(f"Optionen nicht lesbar: {exc}") from exc
+    if isinstance(raw, dict):
+        save_options_backup(raw, path)
 
     override = os.environ.get("COPILOT_INGRESS_PEERS")
     peers = (

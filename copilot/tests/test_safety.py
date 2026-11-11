@@ -140,6 +140,13 @@ def test_image_key_expiry_notices():
         parse_settings({**RAW, "images": {"google_key_expires": "bald"}})
 
 
+def test_voice_key_expiry_notice():
+    raw = {**RAW, "public_enabled": False, "voice": {"openai_api_key": "sk-v", "openai_key_expires": "2026-11-10"}}
+    texts = [n["text"] for n in Health(parse_settings(raw)).notices(date(2026, 10, 27))]
+    assert any("Sprechen" in t and "14 Tagen" in t for t in texts)
+    assert Health(parse_settings({**RAW, "public_enabled": False, "voice": {"openai_key_expires": "2026-11-10"}})).notices(date(2026, 10, 27)) == []
+
+
 def test_bad_date_is_rejected():
     with pytest.raises(ConfigError):
         parse_settings({**RAW, "claude_token_expires": "nächstes Jahr"})

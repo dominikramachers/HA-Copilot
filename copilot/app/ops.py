@@ -58,6 +58,14 @@ class Health:
                     tr("Neuen Schlüssel bei platform.openai.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von OpenAI."),
                 )
             )
+        if s.voice_openai_api_key:
+            found.append(
+                _expiry(
+                    "voice-openai", s.voice_openai_key_expires, today,
+                    tr("Der OpenAI-Schlüssel für das Sprechen"),
+                    tr("Neuen Schlüssel bei platform.openai.com anlegen und im Add-on eintragen, sonst geht Sprechen mit OpenAI nicht mehr."),
+                )
+            )
         if s.google_api_key:
             found.append(
                 _expiry(

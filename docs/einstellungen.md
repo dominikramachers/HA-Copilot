@@ -111,6 +111,7 @@ In Home Assistant als eingeklappte Gruppe „Sprechen mit der KI“. In der Konf
 | `voice.instructions` | Text | leer | **Eigene Wünsche an die gesprochenen Antworten (optional).** Ein bis drei Sätze, die die KI bei jeder gesprochenen Antwort zusätzlich beachtet, zum Beispiel „Nenne Räume immer beim Namen“ oder „Antworte in einem Satz“. Höchstens 600 Zeichen. Leer: nur die Grundregeln (kurz, wie man spricht, keine Gerätenamen). |
 | `voice.chat_days` | Zahl 0 bis 365 | `30` | **Sprachgespräche aufbewahren (Tage).** Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben. |
 | `voice.openai_api_key` | Text (geheim) | leer | **OpenAI-Schlüssel nur für die Sprache (optional).** Schlüssel von platform.openai.com (API keys) für die Spracherkennung (und die Stimme bei output: service); wenige Cent pro Stunde Sprache, das API-Konto braucht eigenes Guthaben. Leer: es gilt der OpenAI-Schlüssel von oben (Bilder), und ist auch der leer, die Spracherkennung des Browsers. Aufnahmen gehen an OpenAI. |
+| `voice.openai_key_expires` | Text | leer | **OpenAI-Schlüssel (Sprache) läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App, nur für den eigenen Schlüssel dieser Gruppe. 30 Tage vorher erscheint ein Hinweis im Chat. Ohne eigenen Schlüssel gilt das Datum bei „Bilder“ (images.openai_key_expires). |
 
 ## Zugang über eine eigene Domain
 
