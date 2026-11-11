@@ -11,6 +11,16 @@
           "title": "Attachments look the same",
           "text": "Images, files and pasted text now appear as cards of the same size. If you tap an image, I open it large in a window."
         }
+      },
+      {
+        "de": {
+          "title": "Sprechen auch ohne Whisper",
+          "text": "Wenn bei mir die Spracherkennung ausfällt oder fehlt, sage ich dir, was zu tun ist. Wenn möglich nutze ich stattdessen die Spracherkennung des Browsers."
+        },
+        "en": {
+          "title": "Talking even without Whisper",
+          "text": "If my speech recognition fails or is missing, I tell you what to do. If possible I use the browser's speech recognition instead."
+        }
       }
     ]
   },

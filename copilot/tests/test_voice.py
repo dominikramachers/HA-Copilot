@@ -516,3 +516,90 @@ def test_units_are_spoken_out_for_the_voice():
     js = (Path(__file__).resolve().parents[1] / "app" / "static" / "voice.js").read_text(encoding="utf-8")
     assert "function spokenUnits" in js and "Grad Celsius" in js and "Prozent" in js and "Kilowattstunden" in js
     assert "speechIsEnglish()" in js
+
+
+# ------------------------------------------------------------------ Whisper oder Piper fehlen oder laufen nicht (0.53.6)
+
+from app.ha_client import HaApi  # noqa: E402
+
+
+class PipelineHa(HaApi):
+    """Home Assistant mit einer bevorzugten Pipeline und frei wählbaren Zuständen der Engine-Entitäten."""
+
+    def __init__(self, stt="stt.faster_whisper", tts="tts.piper", states=None, states_fail=False):
+        super().__init__("t", "ws://x")
+        self.pipeline = {"id": "p1", "stt_engine": stt, "tts_engine": tts}
+        self.entity_states = states if states is not None else {}
+        self.states_fail = states_fail
+
+    async def call(self, command, timeout=None):
+        if command["type"] == "assist_pipeline/pipeline/list":
+            return {"preferred_pipeline": "p1", "pipelines": [self.pipeline]}
+        if command["type"] == "get_states":
+            if self.states_fail:
+                raise HaApiError("get_states: Zeitüberschreitung")
+            return [{"entity_id": k, "state": v} for k, v in self.entity_states.items()]
+        raise AssertionError(command)
+
+
+def run(coro):
+    import asyncio
+    return asyncio.run(coro)
+
+
+def test_engines_are_usable_only_when_the_service_really_runs():
+    ok = run(PipelineHa(states={"stt.faster_whisper": "unknown", "tts.piper": "unknown"}).pipeline_engines())
+    assert ok == {"stt": True, "tts": True, "stt_down": False, "tts_down": False}
+    down = run(PipelineHa(states={"stt.faster_whisper": "unavailable", "tts.piper": "unknown"}).pipeline_engines())
+    assert down["stt"] is False and down["stt_down"] is True and down["tts"] is True
+    removed = run(PipelineHa(states={}).pipeline_engines())  # Add-on und Integration entfernt: die Entitäten gibt es nicht mehr
+    assert removed == {"stt": False, "tts": False, "stt_down": True, "tts_down": True}
+
+
+def test_engines_without_an_entry_are_not_reported_as_down_and_unknown_state_counts_as_present():
+    empty = run(PipelineHa(stt=None, tts=None).pipeline_engines())
+    assert empty == {"stt": False, "tts": False, "stt_down": False, "tts_down": False}
+    legacy = run(PipelineHa(stt="cloud", tts="cloud").pipeline_engines())  # Engine ohne Entität: kein Grund zur Annahme, sie fehle
+    assert legacy["stt"] and legacy["tts"] and not legacy["stt_down"]
+    silent = run(PipelineHa(states_fail=True).pipeline_engines())  # Home Assistant gibt keine Zustände heraus: im Zweifel vorhanden
+    assert silent["stt"] and silent["tts"] and not silent["stt_down"]
+
+
+def test_a_stopped_whisper_makes_the_app_fall_back_instead_of_failing():
+    ha = PipelineHa(states={"stt.faster_whisper": "unavailable", "tts.piper": "unknown"})
+    service = VoiceService(parse_with_fixed({**RAW, **nest({"voice_access_default": "on"})}, frozenset()), ha)
+    assert run(service.provider()) == ""  # kein Server-Dienst: die Oberfläche nimmt den Browser oder sagt, was fehlt
+    with pytest.raises(VoiceError, match="keine Spracherkennung"):
+        run(service.transcribe(wav()))
+
+
+def test_a_failing_whisper_or_piper_names_the_add_on_in_the_error():
+    class Broken(PipelineHa):
+        async def pipeline_stt(self, *args, **kwargs):
+            raise HaApiError("assist_pipeline: Zeitüberschreitung")
+
+        async def pipeline_tts(self, *args, **kwargs):
+            raise HaApiError("assist_pipeline: Zeitüberschreitung")
+
+    ha = Broken(states={"stt.faster_whisper": "unknown", "tts.piper": "unknown"})
+    service = VoiceService(parse_with_fixed({**RAW, **nest({"voice_access_default": "on", "voice_output": "service"})}, frozenset()), ha)
+    with pytest.raises(VoiceError, match="Whisper"):
+        run(service.transcribe(wav()))
+    with pytest.raises(VoiceError, match="Piper"):
+        run(service.speak("Hallo"))
+
+
+def test_nothing_configured_is_caught_on_the_server_and_in_the_window(store):
+    client = app_client(store, voice_access_default="on", voice_browser_stt=False)
+    info = client.get("/api/voice", headers=HEAD).json()
+    assert info["stt"] == "" and info["speech"] == "device" and info["browser"] is False
+    out = post(client, "/api/voice/transcribe", content=wav(), headers={"Content-Type": "audio/wav"})
+    assert out.status_code == 422 and "keine Spracherkennung" in out.json()["detail"]
+    assert post(client, "/api/voice/speak", json={"text": "Hallo"}).status_code == 422  # ohne Stimme-Dienst: das Gerät spricht, nicht das Add-on
+
+
+def test_the_window_falls_back_to_the_browser_when_the_recognition_fails():
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / "app" / "static" / "voice.js").read_text(encoding="utf-8")
+    assert "failure.recognition = true" in js and "err?.recognition && !VOICE.browserOnly" in js
+    assert "VOICE.browserOnly = false" in js and "Die Spracherkennung im Add-on antwortet nicht. Ich nutze jetzt die des Browsers." in js

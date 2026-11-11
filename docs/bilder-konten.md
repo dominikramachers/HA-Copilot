@@ -44,6 +44,8 @@ Derselbe OpenAI-Zugang kann auch das **Sprechen mit der KI** übernehmen: `gpt-4
 4. Speichere und starte das Add-on neu. Die Zeile „Mit der KI sprechen“ in der **Einrichtungsprüfung** (Einstellungen) nennt danach die Spracherkennung „OpenAI“ und die Stimme.
 5. Sprich einen Satz. In einem Protokoll-Eintrag des Add-ons steht je Runde, wie lange Erkennung, KI und Stimme gebraucht haben.
 
+**Nachträglich eintragen:** Du kannst den Schlüssel auch später ergänzen, wenn Whisper und Piper schon laufen. Nach dem Neustart des Add-ons nimmt das Sprechen automatisch OpenAI, in Home Assistant musst du nichts umstellen. Die Stimme wechselt nur, wenn `voice.output` auf `service` steht. Möchtest du zu Whisper und Piper zurück, lösche den Schlüssel (oder nimm ihn aus der Gruppe „Sprechen mit der KI“; steht derselbe Schlüssel bei `images.openai_api_key`, gilt er auch dort für die Sprache) und starte neu.
+
 Wichtig: Bei OpenAI gehen deine **Aufnahmen** an OpenAI (bei der Stimme auch die Antworttexte). Wer das nicht möchte, nimmt Whisper und Piper lokal. Ein ChatGPT-Plus-Abo bezahlt auch das nicht. Schneller wird vor allem die Erkennung und die Stimme; die Zeit, die die KI zum Antworten braucht, ändert sich dadurch nicht.
 
 ## Im Add-on eintragen und prüfen

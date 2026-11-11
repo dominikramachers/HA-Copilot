@@ -972,6 +972,7 @@
  "Ja? Tippe zum Sprechen.": "Yes? Tap to speak.",
  "Die Antwort ist nicht angekommen.": "The answer did not arrive.",
  "Die Stimme konnte nicht abgespielt werden.": "The voice could not be played.",
+ "Die Spracherkennung im Add-on antwortet nicht. Ich nutze jetzt die des Browsers.": "Speech recognition in the add-on is not responding. I am now using the browser's.",
  "Ich konnte die Antwort nicht vorlesen. Den Text siehst du oben.": "I could not read the answer aloud. You can see the text above.",
  "Die Spracherkennung des Browsers ist nicht erreichbar. Prüfe die Internetverbindung.": "The browser's speech recognition is not reachable. Check the internet connection.",
  "Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration unter „Sprechen mit der KI“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.": "No speech recognition is set up. Enter an OpenAI key under “Talking to the AI” in the add-on configuration or set up speech recognition under Voice assistants in Home Assistant.",
