@@ -287,6 +287,10 @@ def static_items(
     expiring: list[tuple[str, bool]] = []
     if settings.claude_oauth_token and not settings.anthropic_api_key:
         expiring.append(("claude_token_expires", settings.claude_token_expires is not None))
+    if settings.openai_api_key:
+        expiring.append(("images.openai_key_expires", settings.openai_key_expires is not None))
+    if settings.google_api_key:
+        expiring.append(("images.google_key_expires", settings.google_key_expires is not None))
     if settings.public_enabled:
         expiring.append(("entra_secret_expires", settings.entra_secret_expires is not None))
     if expiring:
@@ -298,7 +302,7 @@ def static_items(
                 [
                     tr(CONFIG_STEP),
                     tr("Trage das Datum im Format JJJJ-MM-TT ein: ") + " und ".join(f"`{name}`" for name in missing)
-                    + tr(". Das Abo-Token läuft ein Jahr nach `claude setup-token` ab, das Entra-Secret nach der Laufzeit, die du beim Anlegen gewählt hast."),
+                    + tr(". Das Abo-Token läuft ein Jahr nach `claude setup-token` ab, das Entra-Secret nach der Laufzeit, die du beim Anlegen gewählt hast. Bei OpenAI und Google zeigt die Seite mit den API-Schlüsseln, ob und wann ein Schlüssel abläuft."),
                     tr(RESTART_STEP),
                 ],
             ))

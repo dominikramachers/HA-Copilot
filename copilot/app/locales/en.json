@@ -281,7 +281,6 @@
  "Prüfe, ob Home Assistant gerade startet oder neu geladen wird, und öffne diese Prüfung gleich noch einmal.": "Check whether Home Assistant is just starting or reloading, and open this check again in a moment.",
  "Bleibt es so, starte das Add-on neu.": "If it stays like this, restart the add-on.",
  "Korrigiere `notify_service` im Benutzer-Eintrag.": "Correct `notify_service` in the user entry.",
- ". Das Abo-Token läuft ein Jahr nach `claude setup-token` ab, das Entra-Secret nach der Laufzeit, die du beim Anlegen gewählt hast.": ". The subscription token expires one year after `claude setup-token`, the Entra secret after the lifetime you chose when creating it.",
  "Hostname-des-Add-ons": "addon-hostname",
  "Trage das Datum im Format JJJJ-MM-TT ein: ": "Enter the date in the format YYYY-MM-DD: ",
  "Seite lesen: {page}": "Read page: {page}",
@@ -568,5 +567,10 @@
  "Setze in der Gruppe „Chat“ `github_access_default` auf `read` oder `write`, oder trage im Benutzer-Eintrag `github_access` ein. Danach verbindest du dein eigenes Konto in den Einstellungen unter „GitHub“.": "In the “Chat” group set `github_access_default` to `read` or `write`, or set `github_access` in the user entry. Then connect your own account in Settings under “GitHub”.",
  "Suche in Home Assistant unter Entwicklerwerkzeuge → Aktionen nach „notify.mobile_app“ und prüfe, ob das Gerät noch angemeldet ist.": "In Home Assistant, look under Developer tools → Actions for “notify.mobile_app” and check that the device is still signed in.",
  "Öffne diese Prüfung danach erneut. Dein Handy steht dann hier. Wann und wohin ich dir Bescheid gebe, stellst du im Konto-Menü unter „Einstellungen“ → „Benachrichtigungen“ selbst ein.": "Then open this check again. Your phone will be listed here. When and where I notify you is set by you in the account menu under “Settings” → “Notifications”.",
- "Öffne in Home Assistant Einstellungen → Personen, wähle deine Person und trage bei „Geräte verfolgen“ dein Handy ein (`device_tracker.…`). So ordnet Home Assistant das Handy dir zu; fremde Handys bekommen nie deine Meldungen.": "In Home Assistant open Settings → People, choose your person and add your phone under “Track devices” (`device_tracker.…`). This is how Home Assistant assigns the phone to you; other people’s phones never receive your notifications."
+ "Öffne in Home Assistant Einstellungen → Personen, wähle deine Person und trage bei „Geräte verfolgen“ dein Handy ein (`device_tracker.…`). So ordnet Home Assistant das Handy dir zu; fremde Handys bekommen nie deine Meldungen.": "In Home Assistant open Settings → People, choose your person and add your phone under “Track devices” (`device_tracker.…`). This is how Home Assistant assigns the phone to you; other people’s phones never receive your notifications.",
+ ". Das Abo-Token läuft ein Jahr nach `claude setup-token` ab, das Entra-Secret nach der Laufzeit, die du beim Anlegen gewählt hast. Bei OpenAI und Google zeigt die Seite mit den API-Schlüsseln, ob und wann ein Schlüssel abläuft.": ". The subscription token expires one year after `claude setup-token`, the Entra secret after the lifetime you chose when creating it. At OpenAI and Google, the page with the API keys shows whether and when a key expires.",
+ "Der OpenAI-Schlüssel": "The OpenAI key",
+ "Der Google-Schlüssel": "The Google key",
+ "Neuen Schlüssel bei platform.openai.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von OpenAI.": "Create a new key at platform.openai.com and enter it in the add-on, otherwise no images are created by OpenAI.",
+ "Neuen Schlüssel bei aistudio.google.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von Google.": "Create a new key at aistudio.google.com and enter it in the add-on, otherwise no images are created by Google."
 }

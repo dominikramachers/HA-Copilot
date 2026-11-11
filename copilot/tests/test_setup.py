@@ -299,6 +299,10 @@ def test_expiry_reminder_rows():
     assert none_set["status"] == "off" and "claude_token_expires" in " ".join(none_set["steps"])
     assert rows(make(backend="claude", claude_oauth_token=ABO, claude_token_expires="2027-10-01"))["expiry"]["status"] == "ok"
     assert "expiry" not in rows(make(backend="claude", anthropic_api_key=KEY))  # API-Schlüssel läuft nicht ab
+    images = rows(make(backend="claude", anthropic_api_key=KEY, images={"openai_api_key": "sk-x", "google_api_key": "g-x"}))["expiry"]
+    assert images["status"] == "off" and "images.openai_key_expires" in " ".join(images["steps"]) and "images.google_key_expires" in " ".join(images["steps"])
+    done = rows(make(backend="claude", anthropic_api_key=KEY, images={"openai_api_key": "sk-x", "openai_key_expires": "2027-01-01"}))["expiry"]
+    assert done["status"] == "ok"
 
 
 def test_every_open_row_has_steps_and_no_row_leaks_secrets():

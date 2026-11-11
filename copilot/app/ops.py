@@ -50,6 +50,22 @@ class Health:
                 tr("Neues Token mit „claude setup-token“ erzeugen und im Add-on eintragen."),
             )
         )
+        if s.openai_api_key:
+            found.append(
+                _expiry(
+                    "openai", s.openai_key_expires, today,
+                    tr("Der OpenAI-Schlüssel"),
+                    tr("Neuen Schlüssel bei platform.openai.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von OpenAI."),
+                )
+            )
+        if s.google_api_key:
+            found.append(
+                _expiry(
+                    "google", s.google_key_expires, today,
+                    tr("Der Google-Schlüssel"),
+                    tr("Neuen Schlüssel bei aistudio.google.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von Google."),
+                )
+            )
         if s.public_enabled:
             found.append(
                 _expiry(

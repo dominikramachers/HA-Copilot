@@ -130,6 +130,16 @@ def test_entra_notice_only_when_domain_is_on():
     assert "Entra" in Health(parse_settings(on)).notices(date(2026, 10, 27))[0]["text"]
 
 
+def test_image_key_expiry_notices():
+    raw = {**RAW, "public_enabled": False, "images": {"openai_api_key": "sk-x", "openai_key_expires": "2026-11-10", "google_api_key": "g-x", "google_key_expires": "2026-11-05"}}
+    texts = [n["text"] for n in Health(parse_settings(raw)).notices(date(2026, 10, 27))]
+    assert any("OpenAI" in t and "14 Tagen" in t for t in texts) and any("Google" in t for t in texts)
+    no_key = {**RAW, "public_enabled": False, "images": {"openai_key_expires": "2026-11-10"}}
+    assert Health(parse_settings(no_key)).notices(date(2026, 10, 27)) == []  # ohne Schlüssel keine Erinnerung
+    with pytest.raises(ConfigError):
+        parse_settings({**RAW, "images": {"google_key_expires": "bald"}})
+
+
 def test_bad_date_is_rejected():
     with pytest.raises(ConfigError):
         parse_settings({**RAW, "claude_token_expires": "nächstes Jahr"})

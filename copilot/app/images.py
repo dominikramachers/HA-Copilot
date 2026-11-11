@@ -192,7 +192,7 @@ def _api_message(response: httpx.Response) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip()[:300]
 
 
-def explain_failure(provider: str, status: int, message: str) -> str:
+def explain_failure(provider: str, status: int, message: str, retry_after: str = "") -> str:
     who = {"openai": "OpenAI", "google": "Google"}[provider]
     if status in (401, 403) and re.search(r"verif", message, re.I):
         return f"{who} verlangt für dieses Modell eine verifizierte Organisation ({message}). Der Betreiber muss das im Konto bei {who} abschließen."
@@ -201,7 +201,12 @@ def explain_failure(provider: str, status: int, message: str) -> str:
     if status == 402 or (status == 429 and re.search(r"quota|billing|credit|insufficient|exhaust", message, re.I)):
         return f"Das Guthaben oder Kontingent bei {who} ist aufgebraucht ({message}). Der Betreiber muss es aufladen."
     if status == 429:
-        return f"{who} bremst gerade (zu viele Anfragen). In einer Minute noch einmal versuchen."
+        detail = f" Antwort von {who}: {message}" if message else ""
+        if re.search(r"limit:?\s*0\b", message, re.I):
+            return (f"{who} erlaubt diesem Konto für das Bildmodell noch keine Anfragen (Limit 0).{detail} "
+                    f"Der Betreiber prüft bei {who}, ob das Konto verifiziert ist und Guthaben hat (neue Konten haben oft erst nach der ersten Aufladung ein Limit).")
+        wait = f"{retry_after.strip()} Sekunden" if retry_after.strip().isdigit() else "einer Minute"
+        return f"{who} bremst gerade (zu viele Anfragen). In {wait} noch einmal versuchen.{detail}"
     if status == 404:
         return f"{who} kennt dieses Bildmodell nicht ({message}). Der Betreiber prüft den Modellnamen in der Konfiguration."
     if status == 400:
@@ -237,6 +242,12 @@ class ImageService:
             return requested
         return "google" if "google" in have else have[0]
 
+    @staticmethod
+    def _failure(provider: str, response: httpx.Response) -> str:
+        message = _api_message(response)
+        log.warning("Bildanbieter %s: HTTP %s %s (Retry-After: %s)", provider, response.status_code, message, response.headers.get("retry-after", "-"))
+        return explain_failure(provider, response.status_code, message, response.headers.get("retry-after", ""))
+
     async def generate(self, provider: str, prompt: str, size: str, quality: str, refs: list[tuple[str, bytes, str]]) -> bytes:
         try:
             async with httpx.AsyncClient(transport=self.transport, timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=15)) as client:
@@ -258,7 +269,7 @@ class ImageService:
         else:
             response = await client.post(f"{OPENAI_URL}/generations", headers=headers, json={**fields, "n": 1})
         if response.status_code != 200:
-            raise ImageError(explain_failure("openai", response.status_code, _api_message(response)))
+            raise ImageError(self._failure("openai", response))
         try:
             return base64.b64decode(response.json()["data"][0]["b64_json"], validate=False)
         except (ValueError, KeyError, IndexError, TypeError):
@@ -273,7 +284,7 @@ class ImageService:
         }
         response = await client.post(f"{GOOGLE_URL}/{self.google_model}:generateContent", headers={"x-goog-api-key": self.google_key}, json=body)
         if response.status_code != 200:
-            raise ImageError(explain_failure("google", response.status_code, _api_message(response)))
+            raise ImageError(self._failure("google", response))
         try:
             payload = response.json()
         except ValueError:

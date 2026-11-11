@@ -100,6 +100,8 @@ class Settings:
     export_database: bool = False  # Datenbank beim Start in den Config-Ordner kopieren (Umzug in ein anderes Add-on)
     claude_token_expires: date | None = None
     entra_secret_expires: date | None = None
+    openai_key_expires: date | None = None
+    google_key_expires: date | None = None
     default_effort: str = "medium"  # fest; im Chat wählbar
     language: str = "de"  # Sprache der Oberfläche und der Systemmeldungen: de oder en (die KI antwortet standardmäßig in dieser Sprache)
     # Zugriff der KI auf Home Assistant (pro Benutzer überschreibbar)
@@ -317,7 +319,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     if ha_access_default not in HA_ACCESS_LEVELS:
         raise ConfigError("ha_access_default muss none, read, execute oder write sein")
     chat = _group(raw, "chat", "model, memory_enabled, schedules_enabled, files_enabled, github_access_default, connector_access_default")
-    images = _group(raw, "images", "openai_api_key, google_api_key, provider, limit_month")
+    images = _group(raw, "images", "openai_api_key, google_api_key, openai_key_expires, google_key_expires, provider, limit_month")
     github_access_default = str(chat.get("github_access_default") or "none").strip().lower()
     if github_access_default not in GITHUB_ACCESS_LEVELS:
         raise ConfigError("chat.github_access_default muss none, read oder write sein")
@@ -357,6 +359,8 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("restore_snapshot muss ein Dateiname aus dem Ordner snapshots sein (endet auf .sqlite3)")
     token_expires = _parse_date(raw.get("claude_token_expires"), "claude_token_expires")
     secret_expires = _parse_date(raw.get("entra_secret_expires"), "entra_secret_expires")
+    openai_key_expires = _parse_date(images.get("openai_key_expires"), "images.openai_key_expires")
+    google_key_expires = _parse_date(images.get("google_key_expires"), "images.google_key_expires")
 
     base_url = str(raw.get("public_base_url") or "").strip().rstrip("/").lower()
     tenant = str(raw.get("entra_tenant_id") or "").strip().lower()
@@ -431,6 +435,8 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         export_database=bool(raw.get("export_database", False)),
         claude_token_expires=token_expires,
         entra_secret_expires=secret_expires,
+        openai_key_expires=openai_key_expires,
+        google_key_expires=google_key_expires,
         language=language,
         ha_access_default=ha_access_default,
         ha_limit_to_exposed=bool(raw.get("ha_limit_to_exposed", True)),
