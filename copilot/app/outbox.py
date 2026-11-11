@@ -26,7 +26,7 @@ import math
 import os
 import re
 from collections.abc import Callable
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -197,8 +197,8 @@ def _docx_numbering(doc, accent: str):
 
     root = doc.part.numbering_part.element
     w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
-    abstract_ids = [int(a.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}abstractNumId")) for a in root.findall(f"{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}abstractNum")]
-    num_ids = [int(n.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numId")) for n in root.findall(f"{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}num")]
+    abstract_ids = [int(a.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}abstractNumId")) for a in root.findall("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}abstractNum")]
+    num_ids = [int(n.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numId")) for n in root.findall("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}num")]
     bullet_abs, ordered_abs = max(abstract_ids, default=0) + 1, max(abstract_ids, default=0) + 2
     next_num = [max(num_ids, default=0) + 1]
 
@@ -352,7 +352,7 @@ def _toc_field(doc, entries: list[tuple[int, str]], color: tuple[int, int, int])
     """Echtes Word-Inhaltsverzeichnis (Feld TOC), vorab mit den Überschriften gefüllt; Word rechnet Seitenzahlen nach „Feld aktualisieren“ (F9)."""
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
-    from docx.shared import Cm, Pt, RGBColor
+    from docx.shared import Cm, Pt
 
     def mark(par, kind: str, text: str | None = None) -> None:
         run = par.add_run()

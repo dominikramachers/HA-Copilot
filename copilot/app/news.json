@@ -11,6 +11,16 @@
           "title": "Setup check is up to date",
           "text": "In the setup check I now show your own phone and your own GitHub account. If something is missing, I tell you exactly what to do."
         }
+      },
+      {
+        "de": {
+          "title": "Antworten besser nutzbar",
+          "text": "Ich kann eine Antwort jetzt neu erzeugen, du springst mit einem Pfeil nach unten, und Codeblöcke zeigen ihre Sprache. Auf dem Handy sind die Startkarten ordentlicher."
+        },
+        "en": {
+          "title": "Answers easier to use",
+          "text": "I can now regenerate an answer, you can jump down with an arrow, and code blocks show their language. On the phone the starter cards look tidier."
+        }
       }
     ]
   },

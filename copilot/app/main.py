@@ -40,7 +40,7 @@ from . import attachments as filelib, compact, safety
 from . import news as newslib
 from . import quotes
 from . import i18n
-from .i18n import tr, trn
+from .i18n import tr
 from .previews import MAX_CHARS as PREVIEW_MAX_CHARS, PREVIEW_HEADERS, PreviewStore
 from .branding import Branding
 from .config import (
@@ -78,7 +78,7 @@ from . import voice as voicelib
 from .voice import VoiceError, VoiceService
 from .github_accounts import AccountError, GithubAccounts
 from . import connector_catalog, connector_icons
-from .connectors import CONNECTOR_NOTE, ConnectorError, ConnectorService, ConnectorToolbox
+from .connectors import ConnectorError, ConnectorService, ConnectorToolbox
 from .vault import Vault
 from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_RIGHT, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
 from .ha_scan import OverviewScanner

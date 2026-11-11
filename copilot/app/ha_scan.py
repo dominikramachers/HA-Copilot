@@ -21,7 +21,7 @@ from typing import Any
 
 from .i18n import tr
 from .context_tools import _SECRET, CONTENT_MAX, TOPIC_MAX
-from .db import AUTO_AUTHOR, AUTO_PREFIX, Store
+from .db import AUTO_PREFIX, Store
 from .ha_client import HaApi, HaApiError
 
 log = logging.getLogger("copilot.scan")

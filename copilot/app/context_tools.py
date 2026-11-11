@@ -530,7 +530,7 @@ class ContextToolbox:
         for r in sorted(rows, key=lambda r: r["updated_at"], reverse=True):
             line = f"- {r['topic']}: {r['content']}"
             if size + len(line) > limit:
-                out.append(f"- … weitere Einträge, mit memory_list ansehen")
+                out.append("- … weitere Einträge, mit memory_list ansehen")
                 break
             out.append(line)
             size += len(line)

@@ -19,6 +19,8 @@ const ICONS = {
   file: ["M7 3h7l5 5v13H7z", "M14 3v5h5"],
   picture: ["M4 5h16v14H4z", "M4 16l5-5 4 4 3-3 4 4", "M9 9.5h.01"],
   edit: ["M16.5 4.5l3 3L8 19l-4 1 1-4z"],
+  refresh: ["M19.5 12a7.5 7.5 0 1 1-2.2-5.3", "M19.5 4.5v4.5H15"],
+  arrowDown: ["M12 5v14M6 13l6 6 6-6"],
   trash: ["M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"],
   arrowUp: ["M12 19V5M6 11l6-6 6 6"],
   stop: ["M7 7h10v10H7z"],
@@ -4120,6 +4122,7 @@ function userMessage(text, files = [], meta = {}) {
   const time = node("span", "msg-time");
   const refresh = () => { time.textContent = sentAgo(group.dataset.at); time.title = exactTime(group.dataset.at); };
   const keptText = files.filter((f) => f.pasted && f.text); // eingefügte Texte gehen beim Bearbeiten mit
+  group.retry = files.length === keptText.length ? { text: body, quote, pasted: keptText } : null; // mit hochgeladenen Dateien geht „Neu erzeugen“ nicht (sie liegen nicht mehr vor)
   const edit = actionButton(tr("Nachricht bearbeiten"), "edit", "msg-act msg-edit-btn", () => startEdit(group, body, files.length > keptText.length, quote, keptText));
   const copy = actionButton(tr("Nachricht kopieren"), "copy", "msg-act", async () => {
     try {
@@ -4222,12 +4225,19 @@ function answerMeta(text, el) {
   const save = actionButton(tr("Als Datei speichern"), "download", "msg-act", () => {
     saveFile(tr("antwort.md"), text, "text/markdown").catch(() => toast(tr("Speichern hat nicht geklappt.")));
   });
+  // Antwort neu erzeugen (wie „Erneut versuchen“ bei Claude): sendet die Frage davor noch einmal, die alte Antwort wird ersetzt.
+  const again = actionButton(tr("Antwort neu erzeugen"), "refresh", "msg-act answer-retry", () => {
+    const group = el.previousElementSibling;
+    const retry = group?.retry;
+    if (state.streaming || !retry || !group.dataset.id) return;
+    sendMessage({ id: Number(group.dataset.id), text: retry.text, el: group, quote: retry.quote, pasted: retry.pasted }).catch(() => {});
+  });
   const time = node("span", "msg-time");
   const refresh = () => { time.textContent = sentAgo(el.dataset.at); time.title = exactTime(el.dataset.at); };
   refresh();
   el.addEventListener("pointerenter", refresh);
   el.addEventListener("focusin", refresh);
-  bar.append(copy, save, time);
+  bar.append(copy, save, again, time);
   return bar;
 }
 
@@ -4296,6 +4306,21 @@ function initFollow() {
   box.addEventListener("scroll", () => {
     if (!follow.anchored && box.scrollHeight - box.scrollTop - box.clientHeight < 40) follow.on = true;
   }, { passive: true });
+  // „Nach unten“ (wie bei Claude): erscheint, sobald man im Chat weit nach oben gescrollt hat.
+  const jump = $("to-bottom");
+  jump.append(icon("arrowDown"));
+  jump.addEventListener("click", () => {
+    follow.on = true;
+    const far = box.scrollHeight - box.scrollTop - box.clientHeight > 2500; // weite Wege ohne langes Gleiten
+    box.scrollTo({ top: box.scrollHeight, behavior: far ? "auto" : "smooth" });
+  });
+  let queued = false;
+  const check = () => {
+    queued = false;
+    jump.classList.toggle("show", box.scrollHeight - box.scrollTop - box.clientHeight > 320);
+  };
+  box.addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(check); } }, { passive: true });
+  new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(check); } }).observe($("thread"), { childList: true });
 }
 
 // Trennlinie zwischen dem zusammengefassten älteren Verlauf und den wörtlich mitgeschickten Nachrichten.
