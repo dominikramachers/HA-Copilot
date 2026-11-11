@@ -347,6 +347,9 @@ def test_every_option_named_in_the_steps_exists():
 
     config = yaml.safe_load((pathlib.Path(__file__).parent.parent / "config.yaml").read_text())
     options = set(config["options"]) | set(config["schema"]) | {"ha_user", "ha_user_id", "github_access", "notify_service", "ha_access", "connector_access", "voice_access"}
+    for value in config["schema"].values():  # Felder in den Gruppen (chat, images, voice) heißen für sich
+        if isinstance(value, dict):
+            options |= set(value)
     settings = domain_settings(backend="echo")
     items = rows(settings, ha_enabled=False, db_problem="x", pending_users=[settings.profiles[0]], github_level="none")
     items.update(rows(make(backend="claude", claude_oauth_token=ABO), github_enabled=True, github_level="none"))

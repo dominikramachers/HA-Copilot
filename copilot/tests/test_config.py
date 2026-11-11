@@ -60,3 +60,40 @@ def test_api_key_option_is_read_and_takes_precedence(tmp_path):
 
     with pytest.raises(BackendError):
         ClaudeSdkBackend("", "m", tmp_path)
+
+
+def test_chat_and_images_are_groups_and_flat_entries_are_ignored():
+    import pytest
+    from app.config import ConfigError
+
+    real = parse_settings.__wrapped__  # das Format der Konfiguration, ohne die Kurznamen der Tests
+    s = real({
+        **RAW,
+        "chat": {"model": "claude-opus-5-5", "memory_enabled": False, "schedules_enabled": False, "files_enabled": False,
+                 "github_access_default": "read", "connector_access_default": "own"},
+        "images": {"openai_api_key": "sk-o", "google_api_key": "g-k", "provider": "google", "limit_month": 7},
+    }, frozenset())
+    assert (s.model, s.memory_enabled, s.schedules_enabled, s.files_enabled) == ("claude-opus-5-5", False, False, False)
+    assert (s.github_access_default, s.connector_access_default) == ("read", "own")
+    assert (s.openai_api_key, s.google_api_key, s.image_provider, s.image_limit_month) == ("sk-o", "g-k", "google", 7)
+
+    # Ohne Gruppen gelten die Standardwerte, und die früheren flachen Einträge werden nicht mehr gelesen
+    plain = real({**RAW, "model": "claude-opus-5-5", "image_limit_month": 0, "google_api_key": "x", "memory_enabled": False}, frozenset())
+    assert plain.model == "claude-sonnet-5-5" and plain.image_limit_month == 30 and plain.google_api_key == "" and plain.memory_enabled
+
+    for name in ("chat", "images", "voice"):
+        with pytest.raises(ConfigError, match="Gruppe"):
+            real({**RAW, name: "nein"}, frozenset())
+    for bad in ({"images": {"limit_month": -1}}, {"images": {"provider": "bing"}}, {"chat": {"github_access_default": "admin"}}, {"chat": {"model": "!"}}):
+        with pytest.raises(ConfigError):
+            real({**RAW, **bad}, frozenset())
+
+
+def test_shipped_defaults_parse_to_the_documented_defaults():
+    import pathlib, yaml
+
+    config = yaml.safe_load((pathlib.Path(__file__).parent.parent / "config.yaml").read_text(encoding="utf-8"))
+    s = parse_settings.__wrapped__({**config["options"], "profiles": RAW["profiles"]}, frozenset())
+    assert s.model == "claude-sonnet-5-5" and s.memory_enabled and s.schedules_enabled and s.files_enabled
+    assert s.image_provider == "auto" and s.image_limit_month == 30 and s.voice_access_default == "off"
+    assert list(config["options"]) == list(config["schema"])  # gleiche Reihenfolge in Optionen und Schema

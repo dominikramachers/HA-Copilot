@@ -222,6 +222,14 @@ def _text(entry: dict[str, Any], key: str) -> str:
     return value.strip()
 
 
+def _group(raw: dict, name: str, fields: str) -> dict:
+    """Eine Gruppe der Add-on-Konfiguration (``chat``, ``images``, ``voice``) als Wörterbuch; fehlt sie, ist sie leer."""
+    group = raw.get(name) or {}
+    if not isinstance(group, dict):
+        raise ConfigError(f"{name} muss eine Gruppe sein ({fields})")
+    return group
+
+
 def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = None) -> Settings:
     entries = raw.get("profiles")
     all_ha_users = bool(raw.get("all_ha_users", False))
@@ -306,21 +314,21 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     ha_access_default = str(raw.get("ha_access_default") or "execute").strip().lower()
     if ha_access_default not in HA_ACCESS_LEVELS:
         raise ConfigError("ha_access_default muss none, read, execute oder write sein")
-    github_access_default = str(raw.get("github_access_default") or "none").strip().lower()
+    chat = _group(raw, "chat", "model, memory_enabled, schedules_enabled, files_enabled, github_access_default, connector_access_default")
+    images = _group(raw, "images", "openai_api_key, google_api_key, provider, limit_month")
+    github_access_default = str(chat.get("github_access_default") or "none").strip().lower()
     if github_access_default not in GITHUB_ACCESS_LEVELS:
-        raise ConfigError("github_access_default muss none, read oder write sein")
-    connector_access_default = str(raw.get("connector_access_default") or "use").strip().lower()
+        raise ConfigError("chat.github_access_default muss none, read oder write sein")
+    connector_access_default = str(chat.get("connector_access_default") or "use").strip().lower()
     if connector_access_default not in CONNECTOR_ACCESS_LEVELS:
-        raise ConfigError("connector_access_default muss none, use, own oder global sein")
+        raise ConfigError("chat.connector_access_default muss none, use, own oder global sein")
     try:
-        image_limit_month = int(raw.get("image_limit_month", 30))
+        image_limit_month = int(images.get("limit_month", 30))
     except (TypeError, ValueError):
-        raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
+        raise ConfigError("images.limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
     if not 0 <= image_limit_month <= 10000:
-        raise ConfigError("image_limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)")
-    voice = raw.get("voice") or {}
-    if not isinstance(voice, dict):
-        raise ConfigError("voice muss eine Gruppe sein (access_default, browser_stt, output, chat_days, openai_api_key)")
+        raise ConfigError("images.limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)")
+    voice = _group(raw, "voice", "access_default, browser_stt, output, chat_days, openai_api_key")
     voice_access_default = str(voice.get("access_default") or "off").strip().lower()
     if voice_access_default not in VOICE_ACCESS_LEVELS:
         raise ConfigError("voice.access_default muss on oder off sein")
@@ -333,10 +341,10 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("voice.chat_days muss eine Zahl von 0 bis 365 sein (0 = behalten)") from None
     if not 0 <= voice_chat_days <= 365:
         raise ConfigError("voice.chat_days muss eine Zahl von 0 bis 365 sein (0 = behalten)")
-    image_provider = str(raw.get("image_provider") or "auto").strip().lower()
+    image_provider = str(images.get("provider") or "auto").strip().lower()
     if image_provider not in ("auto", "openai", "google"):
-        raise ConfigError("image_provider muss auto, openai oder google sein")
-    model = str(raw.get("model") or "claude-sonnet-5-5").strip()
+        raise ConfigError("images.provider muss auto, openai oder google sein")
+    model = str(chat.get("model") or "claude-sonnet-5-5").strip()
     if not re.match(r"^[A-Za-z0-9._-]{3,64}$", model):
         raise ConfigError("Ungültiger Modellname")
     restore = str(raw.get("restore_snapshot") or "").strip()
@@ -413,7 +421,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         claude_oauth_token=claude_token,
         anthropic_api_key=api_key,
         model=model,
-        schedules_enabled=bool(raw.get("schedules_enabled", True)),
+        schedules_enabled=bool(chat.get("schedules_enabled", True)),
         restore_snapshot=restore,
         export_database=bool(raw.get("export_database", False)),
         claude_token_expires=token_expires,
@@ -421,12 +429,12 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         language=language,
         ha_access_default=ha_access_default,
         ha_limit_to_exposed=bool(raw.get("ha_limit_to_exposed", True)),
-        memory_enabled=bool(raw.get("memory_enabled", True)),
+        memory_enabled=bool(chat.get("memory_enabled", True)),
         github_access_default=github_access_default,
         connector_access_default=connector_access_default,
-        files_enabled=bool(raw.get("files_enabled", True)),
-        openai_api_key=str(raw.get("openai_api_key") or "").strip(),
-        google_api_key=str(raw.get("google_api_key") or "").strip(),
+        files_enabled=bool(chat.get("files_enabled", True)),
+        openai_api_key=str(images.get("openai_api_key") or "").strip(),
+        google_api_key=str(images.get("google_api_key") or "").strip(),
         image_provider=image_provider,
         image_limit_month=image_limit_month,
         voice_access_default=voice_access_default,

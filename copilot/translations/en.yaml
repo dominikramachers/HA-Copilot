@@ -51,42 +51,50 @@ configuration:
   claude_token_expires:
     name: Claude token expires on
     description: Date (YYYY-MM-DD) for the reminder in the app.
-  model:
-    name: Default model
-    description: 'Model for new chats, e.g. claude-sonnet-5-5. Users can switch it per chat (Opus and Haiku are offered as well).'
   ha_access_default:
     name: Default Home Assistant access
     description: 'Applies to all users without their own setting: none, read, execute (default) or write. With read and execute the AI only sees and controls entities exposed to Assist in Home Assistant.'
   ha_limit_to_exposed:
     name: Only entities exposed to Assist (read/execute)
     description: 'On (default): users with read or execute only see and control entities that are exposed to Assist in Home Assistant. Users with write are not affected.'
-  memory_enabled:
-    name: AI memory
-    description: 'On (default): the AI remembers facts on its own, for the whole household and separately for each person. Everyone can view, edit and delete entries in the chat under “Memory”. Off: no memory.'
-  schedules_enabled:
-    name: Allow scheduled tasks
-    description: 'On (default): the “Scheduled” menu item, where the AI performs tasks at fixed times (read-only, no questions). Off: no scheduled tasks, existing ones rest. Scheduled runs use your plan’s quota.'
-  files_enabled:
-    name: Create files
-    description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
-  github_access_default:
-    name: Default GitHub access
-    description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub in the settings. Can be overridden per user with github_access.'
-  connector_access_default:
-    name: Default connector access
-    description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'
-  openai_api_key:
-    name: OpenAI API key (images)
-    description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI (and, if no separate key is set under “Talking to the AI”, for speech recognition too); a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
-  google_api_key:
-    name: Google API key (images)
-    description: 'Key for the Gemini API from aistudio.google.com (Get API key) with billing enabled; a Google subscription is not enough. The image request and reference images are sent to Google. Empty: no images from Google.'
-  image_provider:
-    name: Image provider
-    description: 'auto (default): the AI chooses per image, Google for drafts and edits (cheaper), OpenAI for images with text or top quality. openai or google: always this provider. If only one key is entered, that one is used.'
-  image_limit_month:
-    name: Images per person and month
-    description: 'How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.'
+  chat:
+    name: Chat
+    description: 'Settings for the chat: model, memory, scheduled tasks, files, and the default for GitHub and connectors.'
+    fields:
+      model:
+        name: Default model
+        description: 'Model for new chats, e.g. claude-sonnet-5-5. Users can switch it per chat (Opus and Haiku are offered as well).'
+      memory_enabled:
+        name: AI memory
+        description: 'On (default): the AI remembers facts on its own, for the whole household and separately for each person. Everyone can view, edit and delete entries in the chat under “Memory”. Off: no memory.'
+      schedules_enabled:
+        name: Allow scheduled tasks
+        description: 'On (default): the “Scheduled” menu item, where the AI performs tasks at fixed times (read-only, no questions). Off: no scheduled tasks, existing ones rest. Scheduled runs use your plan’s quota.'
+      files_enabled:
+        name: Create files
+        description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
+      github_access_default:
+        name: Default GitHub access
+        description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub in the settings. Can be overridden per user with github_access.'
+      connector_access_default:
+        name: Default connector access
+        description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'
+  images:
+    name: Images
+    description: 'The AI creates images by itself. It draws SVG graphics for free; photos and artwork need a key from OpenAI or Google (both optional).'
+    fields:
+      openai_api_key:
+        name: OpenAI API key (images)
+        description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI (and, if no separate key is set under “Talking to the AI”, for speech recognition too); a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
+      google_api_key:
+        name: Google API key (images)
+        description: 'Key for the Gemini API from aistudio.google.com (Get API key) with billing enabled; a Google subscription is not enough. The image request and reference images are sent to Google. Empty: no images from Google.'
+      provider:
+        name: Image provider
+        description: 'auto (default): the AI chooses per image, Google for drafts and edits (cheaper), OpenAI for images with text or top quality. openai or google: always this provider. If only one key is entered, that one is used.'
+      limit_month:
+        name: Images per person and month
+        description: 'How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.'
   voice:
     name: Talking to the AI
     description: 'Everything about talking to the AI (microphone button in the chat) in one group. Who may talk is set here as the default and per user with “Talking to the AI” (voice_access).'

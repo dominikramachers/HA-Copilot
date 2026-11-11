@@ -5,6 +5,7 @@ from app import i18n
 from app.backend import BackendError
 import dataclasses
 
+import app.config as _config
 from app.config import parse_settings
 from app.db import Store
 from app.main import build_ingress_app
@@ -55,11 +56,54 @@ FIXED_VALUES = frozenset({
 })
 
 
+# Kurzschreibweise der Tests (flacher Name) -> Gruppe und Feld in der Konfiguration (`chat:`, `images:`, `voice:`)
+GROUPED = {
+    "model": ("chat", "model"),
+    "memory_enabled": ("chat", "memory_enabled"),
+    "schedules_enabled": ("chat", "schedules_enabled"),
+    "files_enabled": ("chat", "files_enabled"),
+    "github_access_default": ("chat", "github_access_default"),
+    "connector_access_default": ("chat", "connector_access_default"),
+    "openai_api_key": ("images", "openai_api_key"),
+    "google_api_key": ("images", "google_api_key"),
+    "image_provider": ("images", "provider"),
+    "image_limit_month": ("images", "limit_month"),
+}
+
+
+def nest_options(raw):
+    """Die flachen Kurznamen der Tests in die Gruppen der Add-on-Konfiguration übersetzen (fertige Gruppen bleiben, wie sie sind)."""
+    out = {}
+    for key, value in raw.items():
+        if key in GROUPED:
+            group, field = GROUPED[key]
+            out.setdefault(group, {})
+            if isinstance(out[group], dict):
+                out[group] = {**out[group], field: value}
+        else:
+            out[key] = value if key not in out else out[key]
+    for group in ("chat", "images", "voice"):  # eine fertig angegebene Gruppe ergänzen statt zu überschreiben
+        if isinstance(raw.get(group), dict) and isinstance(out.get(group), dict):
+            out[group] = {**raw[group], **out[group]}
+    return out
+
+
+def _parse_with_shorthand(raw, *args, **kwargs):
+    return _real_parse_settings(nest_options(raw) if isinstance(raw, dict) else raw, *args, **kwargs)
+
+
+# Alle Tests (auch die, die ``parse_settings`` selbst importieren) dürfen die flachen Kurznamen benutzen; die echte
+# Funktion mit dem Format der Konfiguration bleibt über ``parse_settings.__wrapped__`` erreichbar.
+_real_parse_settings = getattr(_config.parse_settings, "__wrapped__", _config.parse_settings)  # nicht doppelt einpacken, falls conftest zweimal geladen wird
+_parse_with_shorthand.__wrapped__ = _real_parse_settings
+_config.parse_settings = parse_settings = _parse_with_shorthand
+
+
 def parse_with_fixed(raw, peers=None):
-    """Wie ``parse_settings``; Schlüssel aus FIXED_VALUES setzen das Feld direkt (die Konfiguration kennt sie nicht mehr)."""
+    """Wie ``parse_settings`` mit den Kurznamen der Tests (``nest_options``); Schlüssel aus FIXED_VALUES setzen das Feld direkt."""
     raw = dict(raw)
     fixed = {k: raw.pop(k) for k in list(raw) if k in FIXED_VALUES}
-    settings = parse_settings(raw, peers)
+    settings = parse_settings(nest_options(raw), peers)
     return dataclasses.replace(settings, **fixed) if fixed else settings
 
 

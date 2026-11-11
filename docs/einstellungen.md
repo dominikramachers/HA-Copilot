@@ -2,7 +2,7 @@
 
 Diese Seite listet **jede** Option des Add-ons mit Standardwert und Bedeutung. Du findest sie in Home Assistant unter **Einstellungen → Apps → HA Copilot → Konfiguration**. Mit ⋮ → „In YAML bearbeiten“ kannst du alles als Text sehen, kopieren und einfügen. Nach jeder Änderung speichern und das Add-on **neu starten**.
 
-Pflichtfelder (immer vorhanden, mit Standardwert voreingestellt): `profiles`, `voice`, `public_trusted_proxies`. Alle anderen Optionen sind optional; fehlt eine, gilt der Standardwert. Bestehende Einstellungen werden bei Updates nie überschrieben.
+Pflichtfelder (immer vorhanden, mit Standardwert voreingestellt): `profiles`, `chat`, `images`, `voice`, `public_trusted_proxies`. Alle anderen Optionen sind optional; fehlt eine, gilt der Standardwert. Bestehende Einstellungen werden bei Updates nie überschrieben.
 
 ## Benutzer
 
@@ -30,16 +30,15 @@ Wer die App nutzen darf. Ausführlich in [Benutzer und Rechte](benutzer.md).
 | `notify_service` | Text | **Benachrichtigungsdienst (optional).** Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Vorgabe für die Geräte dieser Person (jede Person wählt ihre Geräte selbst unter Einstellungen → Benachrichtigungen; ohne Auswahl gelten die Geräte ihrer Person in Home Assistant). Leer: keine Vorgabe. |
 | `id` | a–z, 0–9, `-`, `_` (2 bis 32 Zeichen) | **Kurzname (optional).** Interne Kennung, a–z, 0–9, Bindestrich. Leer lassen: wird aus dem Anzeigenamen gebildet. Nachträglich nicht mehr ändern, die Chats hängen daran. |
 
-## Claude (Antworten)
+## Claude (Zugang)
 
-Zugang zu Claude und Modell. Ausführlich in [Installation](installation.md#4-zugang-zu-claude).
+Zugang zu Claude. Ausführlich in [Installation](installation.md#4-zugang-zu-claude). Das Modell steht in der Gruppe „Chat“.
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
 | `anthropic_api_key` | Text (geheim) | leer | **Anthropic-API-Schlüssel.** Alternative zum Abo-Token (Abrechnung nach Verbrauch über die Claude-Konsole). Hat Vorrang, wenn beides eingetragen ist. |
 | `claude_oauth_token` | Text (geheim) | leer | **Claude-Zugangstoken (Abo).** Langzeit-Token aus „claude setup-token“ (Claude-Abo). NUR für den eigenen, persönlichen Gebrauch. Mehrere Benutzer oder die Domain-Seite brauchen einen API-Schlüssel (Anthropic-Nutzungsbedingungen beachten). Ohne Token und ohne API-Schlüssel läuft nur der Testmodus. |
 | `claude_token_expires` | Text | leer | **Claude-Token läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. |
-| `model` | Text | `claude-sonnet-5-5` | **Standard-Modell.** Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln (Opus und Haiku stehen zusätzlich zur Wahl). |
 
 ## Zugriff auf Home Assistant
 
@@ -50,31 +49,26 @@ Was die KI in Home Assistant sehen und tun darf.
 | `ha_access_default` | `none` \| `read` \| `execute` \| `write` | `execute` | **Standard-Zugriff auf Home Assistant.** Gilt für alle Benutzer ohne eigene Angabe: none, read, execute (Standard) oder write. Bei read und execute sieht und steuert die KI nur Entitäten, die in Home Assistant für Assist freigegeben sind (siehe unten). |
 | `ha_limit_to_exposed` | an/aus | an | **Nur für Assist freigegebene Entitäten (lesen/ausführen).** An (Standard): Benutzer mit read oder execute sehen und steuern nur Entitäten, die in Home Assistant unter Einstellungen → Sprachassistenten → Freigeben für Assist freigegeben sind. Benutzer mit write sind davon nicht betroffen. |
 
-## Funktionen
+## Chat
 
-Gedächtnis, geplante Aufgaben und Dateien.
-
-| Option | Werte | Standard | Bedeutung |
-|---|---|---|---|
-| `memory_enabled` | an/aus | an | **Gedächtnis der KI.** An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis. |
-| `schedules_enabled` | an/aus | an | **Geplante Aufgaben erlauben.** An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos. |
-| `files_enabled` | an/aus | an | **Dateien erzeugen.** An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke. |
-
-## GitHub
-
-Optional: die KI arbeitet mit deinen Repositories. Jede Person verbindet ihr eigenes GitHub in den Einstellungen; hier steht nur, wer lesen oder schreiben darf.
+Modell, Gedächtnis, geplante Aufgaben, Dateien und der Standard für GitHub und Konnektoren. Eine eingeklappte Gruppe; GitHub und Konnektoren sind ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410) beschrieben.
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `github_access_default` | `none` \| `read` \| `write` | `none` | **Standard-Zugriff auf GitHub.** Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub in den Einstellungen verbunden hat. Je Benutzer überschreibbar mit github_access. |
+| `chat` | Gruppe (Felder siehe unten) | Standardwerte | **Chat.** Einstellungen für den Chat: Modell, Gedächtnis, geplante Aufgaben, Dateien und der Standard für GitHub und Konnektoren. |
 
-## Konnektoren
+### Felder der Gruppe `chat`
 
-Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (Microsoft 365, Google Workspace, Zabbix …). Ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410).
+In Home Assistant als eingeklappte Gruppe „Chat“. In der Konfigurationsdatei steht es so: `chat:` mit den Feldern darunter.
 
-| Option | Werte | Standard | Bedeutung |
+| Feld | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `connector_access_default` | `none` \| `use` \| `own` \| `global` | `use` | **Standard-Recht für Konnektoren.** Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte. |
+| `chat.model` | Text | `claude-sonnet-5-5` | **Standard-Modell.** Modell für neue Chats, z. B. claude-sonnet-5-5. In der Oberfläche kann man es je Chat wechseln (Opus und Haiku stehen zusätzlich zur Wahl). |
+| `chat.memory_enabled` | an/aus | an | **Gedächtnis der KI.** An (Standard): Die KI merkt sich Fakten selbstständig, für den ganzen Haushalt und getrennt für jede Person. Jeder kann die Einträge im Chat unter „Gedächtnis“ ansehen, ändern und löschen. Aus: kein Gedächtnis. |
+| `chat.schedules_enabled` | an/aus | an | **Geplante Aufgaben erlauben.** An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos. |
+| `chat.files_enabled` | an/aus | an | **Dateien erzeugen.** An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke. |
+| `chat.github_access_default` | `none` \| `read` \| `write` | `none` | **Standard-Zugriff auf GitHub.** Gilt für alle Benutzer ohne eigene Angabe: none (Standard), read oder write. Wirkt, sobald eine Person ihr GitHub in den Einstellungen verbunden hat. Je Benutzer überschreibbar mit github_access. |
+| `chat.connector_access_default` | `none` \| `use` \| `own` \| `global` | `use` | **Standard-Recht für Konnektoren.** Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte. |
 
 ## Bilder
 
@@ -82,10 +76,18 @@ Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI od
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Bilder).** Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprechen mit der KI“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI. |
-| `google_api_key` | Text (geheim) | leer | **Google-API-Schlüssel (Bilder).** Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google. |
-| `image_provider` | `auto` \| `openai` \| `google` | `auto` | **Bildanbieter.** auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen. |
-| `image_limit_month` | Zahl 0 bis 10000 | `30` | **Bilder je Person und Monat.** Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts. |
+| `images` | Gruppe (Felder siehe unten) | Standardwerte | **Bilder.** Die KI erzeugt Bilder von selbst. SVG-Grafiken zeichnet sie kostenlos; für Fotos und Kunstbilder braucht es einen Schlüssel von OpenAI oder Google (beides optional). |
+
+### Felder der Gruppe `images`
+
+In Home Assistant als eingeklappte Gruppe „Bilder“. In der Konfigurationsdatei steht es so: `images:` mit den Feldern darunter.
+
+| Feld | Werte | Standard | Bedeutung |
+|---|---|---|---|
+| `images.openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Bilder).** Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprechen mit der KI“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI. |
+| `images.google_api_key` | Text (geheim) | leer | **Google-API-Schlüssel (Bilder).** Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google. |
+| `images.provider` | `auto` \| `openai` \| `google` | `auto` | **Bildanbieter.** auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen. |
+| `images.limit_month` | Zahl 0 bis 10000 | `30` | **Bilder je Person und Monat.** Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts. |
 
 ## Sprechen mit der KI
 
