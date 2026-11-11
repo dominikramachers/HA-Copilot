@@ -97,7 +97,7 @@ Trage die Ablaufdaten ein, dann erinnert das Add-on im Chat (30 Tage vorher gelb
 | „Gerade zu viele Anfragen“ | Es laufen höchstens zwei Antworten gleichzeitig (alle Benutzer, geplante Aufgaben eingerechnet). Kurz warten. |
 | Die KI sieht keine Entitäten | `ha_access` des Benutzers ist `none`, oder die Entitäten sind nicht für Assist freigegeben (`ha_limit_to_exposed`). |
 | Geplante Aufgabe läuft nicht | Pause, Nutzungslimit erreicht oder Add-on war länger als 2 Stunden aus („Übersprungen“ auf der Aufgabenseite). Uhrzeiten gelten in der Zeitzone von Home Assistant. |
-| Keine Handy-Benachrichtigung | `notify_service` beim Benutzer prüfen (Einrichtungsprüfung zeigt, ob der Dienst existiert). |
+| Keine Handy-Benachrichtigung | Einrichtungsprüfung öffnen: Die Zeile „Benachrichtigungen aufs Handy“ zeigt die Geräte, die Home Assistant der Person zuordnet (sonst: Handy in Home Assistant unter Einstellungen → Personen bei „Geräte verfolgen“ eintragen), und ob die Meldungen unter Einstellungen → Benachrichtigungen an sind. `notify_service` ist nur eine Ausweichlösung. |
 | Rote Meldung zur Datenbank | Schnappschuss wiederherstellen (oben). |
 | Seite bleibt weiß hinter dem Tunnel | Tunnel-Ziel (`http://<Hostname>:8100`) und `public_base_url` prüfen. |
 

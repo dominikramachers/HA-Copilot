@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.53.7",
+    "items": [
+      {
+        "de": {
+          "title": "Einrichtung stimmt wieder",
+          "text": "In der Einrichtungsprüfung zeige ich dir jetzt dein eigenes Handy und dein eigenes GitHub-Konto. Fehlt etwas, sage ich dir genau, was du tun musst."
+        },
+        "en": {
+          "title": "Setup check is up to date",
+          "text": "In the setup check I now show your own phone and your own GitHub account. If something is missing, I tell you exactly what to do."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.6",
     "items": [
       {

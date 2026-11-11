@@ -207,7 +207,7 @@ def test_api_create_list_update_delete(store):
     ({"freq": "stündlich"}, "Häufigkeit"), ({"at": "7 Uhr"}, "Uhrzeit"), ({"freq": "weekly", "days": ""}, "Wochentag"),
     ({"freq": "monthly", "days": "40"}, "Tag im Monat"), ({"freq": "once", "days": "2020-01-01"}, "Vergangenheit"),
     ({"name": "<b>x</b>"}, "Namen"), ({"prompt": "   "}, "beschreiben"), ({"model": "claude-gibtsnicht"}, "Modell"),
-    ({"notify": "sms"}, "Benachrichtigung"), ({"notify": "phone"}, "Benachrichtigungsdienst"),
+    ({"notify": "sms"}, "Benachrichtigung"),
 ])
 def test_api_rejects_bad_input(store, change, fragment):
     _, client = make_app(store)
@@ -234,7 +234,7 @@ def test_api_me_reports_options(store):
     me = client.get("/api/me", headers=as_user(ADM01)).json()
     assert me["schedules"] is True and me["notify_phone"] is True and me["notify_ha"] is True
     other = client.get("/api/me", headers=as_user(DORA)).json()
-    assert other["notify_phone"] is False
+    assert other["notify_phone"] is True  # die Geräte jeder Person ermittelt der Melder aus Home Assistant, nicht ein Eintrag in der Konfiguration
     ok = client.post("/api/schedules", json={**BODY, "notify": "phone"}, headers=as_user(ADM01, True))
     assert ok.status_code == 201 and ok.json()["notify"] == "phone"
 
@@ -500,7 +500,7 @@ def test_only_chat_sends_nothing_and_failures_are_noted(store):
     # Person ohne Dienst: Hinweis statt Absturz
     row2 = make_task(store, next_run=1_000, notify="phone", name="Ohne Dienst")
     run_tick(scheduler)
-    assert "kein Benachrichtigungsdienst" in store.schedule_get("adm01", row2["id"])["last_note"]
+    assert "kein Handy gefunden" in store.schedule_get("adm01", row2["id"])["last_note"]
 
 
 def test_no_notification_when_run_failed(store):
