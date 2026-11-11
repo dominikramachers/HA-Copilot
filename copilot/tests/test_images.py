@@ -192,6 +192,14 @@ def test_provider_errors_are_explained_and_not_counted(store, chat, status, mess
     assert store.image_usage("adm01", "2026-11") == 0 and store.outfile_list("adm01", chat) == []
 
 
+def test_rate_limit_shows_the_providers_own_reason():
+    from app.images import explain_failure
+    text = explain_failure("openai", 429, "Rate limit reached for images per minute (IPM): Limit 5, Used 5", "12")
+    assert "12 Sekunden" in text and "Limit 5, Used 5" in text
+    zero = explain_failure("openai", 429, "Rate limit reached ... Limit: 0, Used: 0")
+    assert "Limit 0" in zero and "verifiziert" in zero
+
+
 def test_unreachable_provider_and_garbage(store, chat):
     def boom(request):
         raise httpx.ConnectError("kein Netz")

@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.53.8
+- **Bilder: Grund bei „OpenAI bremst gerade“ sichtbar.** Bei HTTP 429 zeigte `explain_failure` nur „zu viele Anfragen“ und verschluckte die Begründung des Anbieters. Jetzt hängt die Meldung die Antwort von OpenAI bzw. Google an, nennt `Retry-After` als Wartezeit und erkennt „Limit 0“ (Konto ohne Kontingent für das Bildmodell: Verifizierung bzw. Guthaben prüfen). `ImageService._failure` schreibt Status, Begründung und Wartezeit zusätzlich ins Protokoll. Anlass: Der Chat meldete beim ersten Versuch mit neuem OpenAI-Schlüssel sofort 429.
+- **Ablaufdaten für die Bild-Schlüssel.** Neue Optionen `images.openai_key_expires` und `images.google_key_expires` (JJJJ-MM-TT), analog zu `entra_secret_expires`: 30 Tage vorher Hinweis im Chat und im Protokoll, nach Ablauf rot. Die Hinweise erscheinen nur, wenn der jeweilige Schlüssel eingetragen ist; die Einrichtungsprüfung (Zeile „Erinnerung an Ablaufdaten“) fragt die Daten ebenfalls ab.
+- **Abhängigkeiten aktualisiert** (aus Dependabot-PR #72): `fastapi` ≥ 0.162.2, `claude-agent-sdk` ≥ 0.2.179, `pypdf` ≥ 7.0.0 (neue Hauptversion, enthält Sicherheitshärtungen für PDF-Dateien), `pypdfium2` 5.15.0. Alle Tests mit diesen Versionen grün.
+- Nicht geprüft: Mit dem echten OpenAI-Konto; der genaue Grund des 429 ergibt sich erst aus der neuen Meldung.
+
 ## 0.53.7
 - **Chat nach Vorbild von Claude.** (1) „Antwort neu erzeugen“ (Symbol unter der letzten Antwort, `answer-retry`): schickt die vorherige Nachricht samt Zitat und eingefügten Texten erneut; hatte die Nachricht echte Dateianhänge (nicht nur eingefügten Text), erscheint der Knopf nicht (`group.retry`). (2) Knopf „Nach unten“ (`#to-bottom`): erscheint, wenn mehr als 320 px unter dem Sichtbereich Text liegt, schaltet das Mitlaufen wieder ein. (3) Codeblöcke zeigen ihre Sprache als kleine Marke (`.code-lang`, `has-lang`). (4) Startkarten stehen auf schmalen Handys untereinander statt gequetscht nebeneinander.
 - **Abhängigkeiten aktualisiert** (aus Dependabot-PR #41): `claude-agent-sdk` ≥ 0.2.177, `cryptography` ≥ 50.0.2, `websockets` ≥ 17.4, `fpdf2` 2.9.0, `pypdfium2` 5.14.0. Tests mit diesen Versionen grün; der Dependabot-PR erledigt sich damit.

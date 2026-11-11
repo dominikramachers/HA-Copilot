@@ -89,6 +89,12 @@ configuration:
       google_api_key:
         name: Google API key (images)
         description: 'Key for the Gemini API from aistudio.google.com (Get API key) with billing enabled; a Google subscription is not enough. The image request and reference images are sent to Google. Empty: no images from Google.'
+      openai_key_expires:
+        name: OpenAI key expires on
+        description: 'Date (YYYY-MM-DD) for the reminder in the app. platform.openai.com under “API keys” shows whether and when the key expires; 30 days before, a notice appears in the chat.'
+      google_key_expires:
+        name: Google key expires on
+        description: 'Date (YYYY-MM-DD) for the reminder in the app. aistudio.google.com under “API keys” or the Google Cloud console shows whether and when the key expires; 30 days before, a notice appears in the chat.'
       provider:
         name: Image provider
         description: 'auto (default): the AI chooses per image, Google for drafts and edits (cheaper), OpenAI for images with text or top quality. openai or google: always this provider. If only one key is entered, that one is used.'

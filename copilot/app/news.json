@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.53.8",
+    "items": [
+      {
+        "de": {
+          "title": "Ablauf der Bild-Schlüssel",
+          "text": "Ich erinnere dich jetzt rechtzeitig, wenn ein Schlüssel für Bilder abläuft. Und wenn ein Bildanbieter mich bremst, sage ich dir den genauen Grund."
+        },
+        "en": {
+          "title": "Image key expiry",
+          "text": "I now remind you in time when a key for images expires. And if an image provider slows me down, I tell you the exact reason."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.7",
     "items": [
       {

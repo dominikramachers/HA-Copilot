@@ -89,6 +89,12 @@ configuration:
       google_api_key:
         name: Google-API-Schlüssel (Bilder)
         description: 'Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google.'
+      openai_key_expires:
+        name: OpenAI-Schlüssel läuft ab am
+        description: 'Datum (JJJJ-MM-TT) für die Erinnerung in der App. Bei platform.openai.com unter „API keys“ steht, ob und wann der Schlüssel abläuft; 30 Tage vorher erscheint ein Hinweis im Chat.'
+      google_key_expires:
+        name: Google-Schlüssel läuft ab am
+        description: 'Datum (JJJJ-MM-TT) für die Erinnerung in der App. Bei aistudio.google.com unter „API keys“ bzw. in der Google Cloud Console steht, ob und wann der Schlüssel abläuft; 30 Tage vorher erscheint ein Hinweis im Chat.'
       provider:
         name: Bildanbieter
         description: 'auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen.'

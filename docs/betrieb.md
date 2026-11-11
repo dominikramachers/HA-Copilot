@@ -86,6 +86,7 @@ Trage die Ablaufdaten ein, dann erinnert das Add-on im Chat (30 Tage vorher gelb
 
 - `claude_token_expires`: ein Abo-Token gilt ein Jahr ab dem Tag von `claude setup-token`.
 - `entra_secret_expires`: zu sehen in Entra unter „Zertifikate & Geheimnisse“.
+- `images.openai_key_expires` und `images.google_key_expires` (ab 0.53.8): nur nötig, wenn der Schlüssel abläuft; das Datum steht bei platform.openai.com unter „API keys“ bzw. bei aistudio.google.com.
 
 ## Fehlerbehebung
 
