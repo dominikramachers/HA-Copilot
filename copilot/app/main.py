@@ -242,6 +242,17 @@ class VoiceTextBody(BaseModel):
     text: str = Field(min_length=1, max_length=voicelib.MAX_SPEAK_CHARS)
 
 
+class VoiceTimingBody(BaseModel):
+    """Zeiten einer Sprachrunde in Millisekunden, wie die Oberfläche sie gemessen hat (nur zum Protokollieren)."""
+
+    path: str = Field(pattern=r"^(quick|ai)$")
+    stt_ms: int | None = Field(default=None, ge=0, le=600_000)    # Aufnahme hochladen bis Text da
+    answer_ms: int | None = Field(default=None, ge=0, le=600_000)  # Text da bis erster Antworttext (Schnellpfad: bis Antwort)
+    first_sound_ms: int | None = Field(default=None, ge=0, le=600_000)  # Antworttext bis erster Ton
+    total_ms: int | None = Field(default=None, ge=0, le=600_000)   # Text da bis Ende der Antwort
+    sentences: int | None = Field(default=None, ge=0, le=500)
+
+
 class PresenceBody(BaseModel):
     """Meldung der Oberfläche: dieses Gerät (``client``) sieht gerade diesen Chat an (``chat_id``) oder keinen (``null``)."""
 
@@ -1150,21 +1161,36 @@ def register_chat_routes(
         audio = await request.body()
         if not audio or len(audio) > voicelib.MAX_AUDIO_BYTES:
             raise HTTPException(status_code=422, detail=tr("Die Aufnahme konnte nicht gelesen werden."))
+        started = time.monotonic()
         try:
             text = await voice.transcribe(audio)
         except VoiceError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
+        log.info("Sprache: Erkennung über %s dauerte %.2f s (%.1f KB Aufnahme)", await voice.provider(), time.monotonic() - started, len(audio) / 1024)
         return {"text": text, "command": voicelib.strip_wake(text, settings.app_name)}
 
     @app.post("/api/voice/speak", dependencies=[Depends(write_guard)])
     async def voice_speak(body: VoiceTextBody, profile: Profile = Depends(current_profile)) -> Response:
         """Ein Stück Antwort vorlesen lassen (nur wenn die Stimme nicht vom Gerät kommt)."""
         need_voice(profile)
+        started = time.monotonic()
         try:
             audio, mime = await voice.speak(body.text)
         except VoiceError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
+        log.info("Sprache: Stimme (%s) für %d Zeichen dauerte %.2f s", await voice.speech(), len(body.text), time.monotonic() - started)
         return Response(audio, media_type=mime, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+    @app.post("/api/voice/timing", dependencies=[Depends(write_guard)])
+    async def voice_timing(body: VoiceTimingBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Die Oberfläche meldet die Zeiten einer Sprachrunde; sie landen als eine Zeile im Protokoll (keine Inhalte, nur Zahlen)."""
+        need_voice(profile)
+        part = lambda label, ms: f"{label} {ms / 1000:.1f} s" if ms is not None else ""  # noqa: E731
+        parts = [part("Erkennung", body.stt_ms), part("Antwort" if body.path == "quick" else "KI bis erster Text", body.answer_ms),
+                 part("bis erster Ton", body.first_sound_ms), part("Antwort gesamt", body.total_ms)]
+        log.info("Sprache: Runde über %s: %s%s", "Schnellpfad" if body.path == "quick" else "KI", ", ".join(x for x in parts if x),
+                 f", {body.sentences} Sätze" if body.sentences else "")
+        return {"ok": True}
 
     @app.get("/api/voice/chats")
     def voice_chats(profile: Profile = Depends(current_profile)) -> list[dict]:
@@ -1186,7 +1212,9 @@ def register_chat_routes(
         previous = live_run((profile.id, chat_id))
         if previous and not previous.finished:
             raise HTTPException(status_code=409, detail=tr("In diesem Chat läuft bereits eine Antwort"))
+        started = time.monotonic()
         result = await voice.quick_command(text, ha_level(profile))
+        log.info("Sprache: Schnellpfad dauerte %.2f s (%s)", time.monotonic() - started, "ausgeführt" if result else "an die KI übergeben")
         if result is None:
             return {"handled": False}
         first = chat.get("title") in DEFAULT_TITLES | {tr("Sprachgespräch")} and not store.list_messages(profile.id, chat_id)
