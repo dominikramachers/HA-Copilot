@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.53.9",
+    "items": [
+      {
+        "de": {
+          "title": "Ablauf auch beim Sprechen",
+          "text": "Ich erinnere dich jetzt auch rechtzeitig, wenn der Schlüssel für das Sprechen mit mir abläuft."
+        },
+        "en": {
+          "title": "Expiry for talking, too",
+          "text": "I now also remind you in time when the key for talking to me expires."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.53.8",
     "items": [
       {

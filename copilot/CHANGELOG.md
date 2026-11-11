@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.53.9
+- **Ablaufdatum für den OpenAI-Schlüssel des Sprechens.** Neue Option `voice.openai_key_expires` (JJJJ-MM-TT), analog zu `images.openai_key_expires`. Der Hinweis erscheint 30 Tage vorher (rot nach Ablauf), nur wenn bei „Sprechen mit der KI“ ein eigener Schlüssel eingetragen ist; ohne eigenen Schlüssel gilt der Schlüssel der Bilder und damit dessen Datum. Die Einrichtungsprüfung fragt das Datum ebenfalls ab.
+
 ## 0.53.8
 - **Bilder: Grund bei „OpenAI bremst gerade“ sichtbar.** Bei HTTP 429 zeigte `explain_failure` nur „zu viele Anfragen“ und verschluckte die Begründung des Anbieters. Jetzt hängt die Meldung die Antwort von OpenAI bzw. Google an, nennt `Retry-After` als Wartezeit und erkennt „Limit 0“ (Konto ohne Kontingent für das Bildmodell: Verifizierung bzw. Guthaben prüfen). `ImageService._failure` schreibt Status, Begründung und Wartezeit zusätzlich ins Protokoll. Anlass: Der Chat meldete beim ersten Versuch mit neuem OpenAI-Schlüssel sofort 429.
 - **Ablaufdaten für die Bild-Schlüssel.** Neue Optionen `images.openai_key_expires` und `images.google_key_expires` (JJJJ-MM-TT), analog zu `entra_secret_expires`: 30 Tage vorher Hinweis im Chat und im Protokoll, nach Ablauf rot. Die Hinweise erscheinen nur, wenn der jeweilige Schlüssel eingetragen ist; die Einrichtungsprüfung (Zeile „Erinnerung an Ablaufdaten“) fragt die Daten ebenfalls ab.

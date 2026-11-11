@@ -289,6 +289,8 @@ def static_items(
         expiring.append(("claude_token_expires", settings.claude_token_expires is not None))
     if settings.openai_api_key:
         expiring.append(("images.openai_key_expires", settings.openai_key_expires is not None))
+    if settings.voice_openai_api_key:
+        expiring.append(("voice.openai_key_expires", settings.voice_openai_key_expires is not None))
     if settings.google_api_key:
         expiring.append(("images.google_key_expires", settings.google_key_expires is not None))
     if settings.public_enabled:

@@ -572,5 +572,7 @@
  "Der OpenAI-Schlüssel": "The OpenAI key",
  "Der Google-Schlüssel": "The Google key",
  "Neuen Schlüssel bei platform.openai.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von OpenAI.": "Create a new key at platform.openai.com and enter it in the add-on, otherwise no images are created by OpenAI.",
- "Neuen Schlüssel bei aistudio.google.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von Google.": "Create a new key at aistudio.google.com and enter it in the add-on, otherwise no images are created by Google."
+ "Neuen Schlüssel bei aistudio.google.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von Google.": "Create a new key at aistudio.google.com and enter it in the add-on, otherwise no images are created by Google.",
+ "Der OpenAI-Schlüssel für das Sprechen": "The OpenAI key for talking",
+ "Neuen Schlüssel bei platform.openai.com anlegen und im Add-on eintragen, sonst geht Sprechen mit OpenAI nicht mehr.": "Create a new key at platform.openai.com and enter it in the add-on, otherwise talking via OpenAI stops working."
 }

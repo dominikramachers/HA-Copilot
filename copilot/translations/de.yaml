@@ -123,6 +123,9 @@ configuration:
       openai_api_key:
         name: OpenAI-Schlüssel nur für die Sprache (optional)
         description: 'Schlüssel von platform.openai.com (API keys) für die Spracherkennung (und die Stimme bei output: service); wenige Cent pro Stunde Sprache, das API-Konto braucht eigenes Guthaben. Leer: es gilt der OpenAI-Schlüssel von oben (Bilder), und ist auch der leer, die Spracherkennung des Browsers. Aufnahmen gehen an OpenAI.'
+      openai_key_expires:
+        name: OpenAI-Schlüssel (Sprache) läuft ab am
+        description: 'Datum (JJJJ-MM-TT) für die Erinnerung in der App, nur für den eigenen Schlüssel dieser Gruppe. 30 Tage vorher erscheint ein Hinweis im Chat. Ohne eigenen Schlüssel gilt das Datum bei „Bilder“ (images.openai_key_expires).'
   public_base_url:
     name: Öffentliche Adresse
     description: z. B. https://chat.example.org. Muss zur Redirect-URI der Entra-App passen. Der Domain-Zugang ist an, sobald diese Adresse und eine Anmeldung (Entra oder ha_url) eingetragen sind.
