@@ -19,6 +19,17 @@ from conftest import ADM01, RAW, as_user, parse_with_fixed
 OPENAI = {"openai_api_key": "sk-test", "voice_access_default": "on"}
 
 
+def nest(options: dict) -> dict:
+    """Kurzschreibweise voice_<feld> aus den Tests in die Gruppe `voice:` der Konfiguration übersetzen."""
+    out, voice = {}, {}
+    for key, value in options.items():
+        if key.startswith("voice_") and key != "voice_access":
+            voice[key[len("voice_"):]] = value
+        else:
+            out[key] = value
+    return {**out, "voice": voice} if voice else out
+
+
 def wav(seconds=1.0, rate=16000, channels=1, width=2) -> bytes:
     out = io.BytesIO()
     with wave.open(out, "wb") as w:
@@ -60,7 +71,7 @@ class FakeHa:
 
 
 def service(ha=None, transport=None, **options):
-    settings = parse_with_fixed({**RAW, **options}, frozenset({"testclient"}))
+    settings = parse_with_fixed({**RAW, **nest(options)}, frozenset({"testclient"}))
     return VoiceService(settings, ha, transport)
 
 
@@ -196,7 +207,7 @@ def test_voice_is_off_by_default_and_per_user_overridable():
     off = parse_settings(RAW, frozenset())
     assert off.voice_access_default == "off" and off.voice_chat_days == 30 and off.voice_output == "device"
     assert all(off.voice_level(p) == "off" for p in off.profiles)
-    raw = {**RAW, "voice_access_default": "on", "profiles": [{**RAW["profiles"][0], "voice_access": "off"}, RAW["profiles"][1]]}
+    raw = {**RAW, "voice": {"access_default": "on"}, "profiles": [{**RAW["profiles"][0], "voice_access": "off"}, RAW["profiles"][1]]}
     on = parse_settings(raw, frozenset())
     assert [on.voice_level(p) for p in on.profiles] == ["off", "on"]
     raw = {**RAW, "profiles": [{**RAW["profiles"][0], "voice_access": "on"}, RAW["profiles"][1]]}
@@ -204,10 +215,10 @@ def test_voice_is_off_by_default_and_per_user_overridable():
     assert [one.voice_level(p) for p in one.profiles] == ["on", "off"]
 
 
-@pytest.mark.parametrize("option,value", [("voice_access_default", "maybe"), ("voice_output", "radio"), ("voice_chat_days", 400), ("voice_chat_days", "x")])
+@pytest.mark.parametrize("option,value", [("access_default", "maybe"), ("output", "radio"), ("chat_days", 400), ("chat_days", "x")])
 def test_invalid_voice_options_are_rejected(option, value):
     with pytest.raises(ConfigError):
-        parse_settings({**RAW, option: value}, frozenset())
+        parse_settings({**RAW, "voice": {option: value}}, frozenset())
 
 
 # ------------------------------------------------------------------ Web-Schnittstelle
@@ -222,7 +233,7 @@ class RecordingBackend:
 
 
 def app_client(store, ha=None, backend=None, transport=None, **options):
-    settings = parse_with_fixed({**RAW, **options}, frozenset({"testclient"}))
+    settings = parse_with_fixed({**RAW, **nest(options)}, frozenset({"testclient"}))
     app = build_ingress_app(settings, store, backend or RecordingBackend(), ha=ha, voice=VoiceService(settings, ha, transport))
     return TestClient(app)
 
@@ -351,3 +362,47 @@ def test_security_headers_allow_the_microphone_and_blob_audio(store):
     client = app_client(store)
     headers = client.get("/api/me", headers=HEAD).headers
     assert "microphone=(self)" in headers["permissions-policy"] and "media-src 'self' blob:" in headers["content-security-policy"]
+
+
+# ------------------------------------------------------------------ Spracherkennung des Browsers (Rückfall)
+
+def test_browser_recognition_is_the_default_when_no_service_is_set(store):
+    client = app_client(store, voice_access_default="on")
+    info = client.get("/api/voice", headers=HEAD).json()
+    assert info["stt"] == "" and info["browser"] is True  # der Browser springt ein
+
+
+def test_browser_recognition_can_be_switched_off_and_yields_to_a_key(store):
+    off = app_client(store, voice_access_default="on", voice_browser_stt=False).get("/api/voice", headers=HEAD).json()
+    assert off["stt"] == "" and off["browser"] is False
+    keyed = app_client(store, **OPENAI).get("/api/voice", headers=HEAD).json()
+    assert keyed["stt"] == "openai"  # mit Schlüssel läuft die Erkennung über das Add-on
+
+
+def test_voice_browser_stt_option_defaults_to_on():
+    assert parse_settings(RAW, frozenset()).voice_browser_stt is True
+    assert parse_settings({**RAW, "voice": {"browser_stt": False}}, frozenset()).voice_browser_stt is False
+
+
+def test_voice_group_must_be_a_group_and_has_its_own_openai_key():
+    with pytest.raises(ConfigError):
+        parse_settings({**RAW, "voice": "on"}, frozenset())
+    shared = parse_settings({**RAW, "openai_api_key": "sk-bilder"}, frozenset())
+    assert shared.voice_openai_key == "sk-bilder"  # ohne eigenen Schlüssel gilt der gemeinsame
+    own = parse_settings({**RAW, "openai_api_key": "sk-bilder", "voice": {"openai_api_key": "sk-sprache"}}, frozenset())
+    assert own.voice_openai_key == "sk-sprache" and own.openai_api_key == "sk-bilder"
+    assert "sk-sprache" not in repr(own)  # Schlüssel stehen nie im Protokoll
+    assert parse_settings(RAW, frozenset()).voice_openai_key == ""
+
+
+def test_voice_uses_its_own_key_for_recognition():
+    import asyncio
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["auth"] = request.headers["authorization"]
+        return httpx.Response(200, json={"text": "Hallo"})
+
+    voice = service(transport=httpx.MockTransport(handler), openai_api_key="sk-bilder", voice_openai_api_key="sk-sprache", voice_access_default="on")
+    asyncio.run(voice.transcribe(wav()))
+    assert seen["auth"] == "Bearer sk-sprache"

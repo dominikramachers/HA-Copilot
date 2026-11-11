@@ -55,7 +55,7 @@ Nach dem Speichern das Add-on neu starten. Jeder Benutzer meldet sich dabei wie 
 | `ha_access` | nein | Rechte der KI in Home Assistant: `none`, `read`, `execute`, `write` (siehe unten). Leer: `ha_access_default`. |
 | `github_access` | nein | Rechte der KI bei GitHub: `none`, `read`, `write`. Leer: `github_access_default`. |
 | `web_access` | nein | `on` oder `off`: Websuche. Leer: an. |
-| `voice_access` | nein | `on` oder `off`: Sprechen per Mikrofon-Knopf. Leer: `voice_access_default` (Standard aus). |
+| `voice_access` | nein | `on` oder `off`: Sprechen per Mikrofon-Knopf. Leer: der Standard `voice.access_default` (Gruppe „Sprache“, Standard aus). |
 | `notify_service` | nein | Benachrichtigungsdienst fürs Handy, z. B. `notify.mobile_app_pixel`. |
 | `id` | nein | Interner, stabiler Schlüssel. **Die Chats gehören diesem Schlüssel**, nach dem Anlegen nicht mehr ändern. |
 

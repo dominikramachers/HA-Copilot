@@ -96,7 +96,7 @@ def _openai_failure(response: httpx.Response) -> VoiceError:
     status, message = response.status_code, _api_message(response)
     log.warning("OpenAI (Sprache) meldet HTTP %s: %s", status, message)
     if status in (401, 403):
-        return VoiceError(tr("OpenAI hat den Schlüssel abgelehnt. Bitte den Eintrag `openai_api_key` in der Konfiguration prüfen."))
+        return VoiceError(tr("OpenAI hat den Schlüssel abgelehnt. Bitte den OpenAI-Schlüssel in der Konfiguration (Gruppe „Sprache“) prüfen."))
     if status == 402 or (status == 429 and re.search(r"quota|billing|credit|insufficient|exhaust", message, re.I)):
         return VoiceError(tr("Das Guthaben bei OpenAI ist aufgebraucht."))
     if status == 429:
@@ -117,7 +117,7 @@ class VoiceService:
     """Spracherkennung und Sprachausgabe für alle Personen (Schlüssel und Verbindung aus der Konfiguration)."""
 
     def __init__(self, settings: Any, ha: HaApi | None = None, transport: httpx.AsyncBaseTransport | None = None) -> None:
-        self.openai_key = getattr(settings, "openai_api_key", "")
+        self.openai_key = getattr(settings, "voice_openai_key", "")
         self.output = getattr(settings, "voice_output", "device")
         self.language = getattr(settings, "language", "de")
         self.ha = ha if ha is not None and ha.enabled else None
@@ -156,7 +156,7 @@ class VoiceService:
             except HaApiError as exc:
                 log.warning("Spracherkennung über Home Assistant fehlgeschlagen: %s", exc)
                 raise VoiceError(tr("Die Spracherkennung von Home Assistant antwortet nicht.")) from None
-        raise VoiceError(tr("Es ist keine Spracherkennung eingerichtet."))
+        raise VoiceError(tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration unter „Sprache“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein."))
 
     async def _openai_stt(self, wav: bytes) -> str:
         try:

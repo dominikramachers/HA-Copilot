@@ -1226,33 +1226,34 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   .composer-main .send.voice-btn { right: 57px; margin: 0; }
 }
 body.voice-open { overflow: hidden; }
+/* Das Sprachfenster ist wie ein Anruf immer dunkel, damit das Leuchten der Kugel wirkt */
 .voice {
   position: fixed; inset: 0; z-index: 200;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
   padding: max(20px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
-  background: var(--bg);
-  color: var(--text); text-align: center;
+  background: radial-gradient(ellipse at 50% 36%, #10243f 0%, #08111f 55%, #050a14 100%);
+  color: #e8f1ff; text-align: center;
 }
 .voice[hidden] { display: none; }
-.voice-ring { display: block; max-width: 100%; }
-.voice-status { margin: 0; font-size: 18px; font-weight: 600; min-height: 1.4em; }
-.voice[data-state="error"] .voice-status { color: var(--danger); }
-.voice-said { margin: 0; max-width: 34em; font-size: 16px; color: var(--text-2); min-height: 1.4em; }
-.voice-answer { margin: 0; max-width: 34em; max-height: 20vh; overflow: auto; font-size: 16px; line-height: 1.45; }
-.voice-hint { margin: 0; max-width: 30em; font-size: 13px; color: var(--text-2); }
-.voice-bar { display: flex; gap: 18px; align-items: center; margin-top: 6px; }
-.voice-btn-round { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--chip); color: var(--text); transition: transform .15s, background .15s; }
-.voice-btn-round:hover { background: var(--panel-2); }
+.voice-ring { display: block; max-width: 100%; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.voice-status { margin: 0; font-size: 17px; font-weight: 600; min-height: 1.4em; letter-spacing: .01em; }
+.voice[data-state="error"] .voice-status { color: #ff9a8f; font-size: 15px; font-weight: 500; line-height: 1.45; max-width: 30em; }
+.voice-said { margin: 0; max-width: 34em; font-size: 16px; color: #9db4d4; min-height: 1.4em; }
+.voice-answer { margin: 0; max-width: 34em; max-height: 18vh; overflow: auto; font-size: 16px; line-height: 1.45; }
+.voice-hint { margin: 0; max-width: 30em; font-size: 13px; color: #6f86a8; }
+.voice-bar { display: flex; gap: 18px; align-items: center; margin-top: 4px; }
+.voice-btn-round { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,.1); color: #e8f1ff; transition: transform .15s, background .15s; }
+.voice-btn-round:hover { background: rgba(255,255,255,.18); }
 .voice-btn-round:active { transform: scale(.94); }
 .voice-btn-round:disabled { opacity: .4; cursor: default; }
 .voice-btn-round .icon { width: 24px; height: 24px; }
-.voice-btn-round.off { background: var(--danger-soft); color: var(--danger); }
-.voice-talk { background: var(--accent); color: var(--on-accent); width: 68px; height: 68px; }
-.voice-talk:hover { background: var(--accent); filter: brightness(1.08); }
-.voice-close { background: var(--text); color: var(--bg); }
-.voice-close:hover { background: var(--text); filter: brightness(1.15); }
-.voice-keep { min-height: 40px; padding: 0 18px; border-radius: 999px; background: var(--chip); font-size: 14px; font-weight: 600; }
-.voice-keep:hover { background: var(--panel-2); }
-.voice button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.voice-btn-round.off { background: rgba(255,112,100,.2); color: #ff9a8f; }
+.voice-talk { background: #2f7bff; color: #fff; width: 68px; height: 68px; box-shadow: 0 0 24px rgba(47,123,255,.45); }
+.voice-talk:hover { background: #4a8dff; }
+.voice-close { background: #f2f6ff; color: #08111f; }
+.voice-close:hover { background: #fff; }
+.voice-keep { min-height: 40px; padding: 0 18px; border-radius: 999px; background: rgba(255,255,255,.1); color: #e8f1ff; font-size: 14px; font-weight: 600; }
+.voice-keep:hover { background: rgba(255,255,255,.18); }
+.voice button:focus-visible { outline: 2px solid #7fb4ff; outline-offset: 3px; }
 @media (max-height: 560px) { .voice { gap: 6px; } .voice-answer { max-height: 12vh; } .voice-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .voice-btn-round { transition: none; } }

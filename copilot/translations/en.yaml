@@ -113,7 +113,7 @@ configuration:
     description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'
   openai_api_key:
     name: OpenAI API key (images)
-    description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI; a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
+    description: 'Key from platform.openai.com (API keys). Needed for images from OpenAI (and, if no separate key is set under “Voice”, for speech recognition too); a ChatGPT subscription is not enough, the API account needs its own credit. The image request and reference images are sent to OpenAI. Empty: no images from OpenAI.'
   google_api_key:
     name: Google API key (images)
     description: 'Key for the Gemini API from aistudio.google.com (Get API key) with billing enabled; a Google subscription is not enough. The image request and reference images are sent to Google. Empty: no images from Google.'
@@ -123,15 +123,25 @@ configuration:
   image_limit_month:
     name: Images per person and month
     description: 'How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.'
-  voice_access_default:
-    name: 'Talking to the AI: default'
-    description: 'Who may talk to the AI by voice when nothing is set for the user: off (default) = nobody, on = everyone. Recognising speech needs `openai_api_key` or a speech-to-text engine in the Home Assistant voice assistant settings.'
-  voice_output:
-    name: 'Talking to the AI: voice'
-    description: 'device (default) = the device reads the answer aloud, free. service = the same service as speech recognition reads it aloud (OpenAI or Home Assistant), sounds better, costs a few cents at OpenAI.'
-  voice_chat_days:
-    name: Keep voice conversations (days)
-    description: 'Voice conversations not started inside a chat are not listed with your chats and are deleted after this many days (default 30, 0 = keep). Pinned ones stay.'
+  voice:
+    name: Voice (talking to the AI)
+    description: 'Everything about talking to the AI (microphone button in the chat) in one group. Who may talk is set here as the default and per user with “Talking to the AI” (voice_access).'
+    fields:
+      access_default:
+        name: Default – who may talk
+        description: 'Applies to all users without their own setting: off (default) = nobody, on = everyone.'
+      browser_stt:
+        name: Use the browser's speech recognition
+        description: 'On (default): without an OpenAI key and without speech recognition in Home Assistant, the app uses the free speech recognition built into the browser (Chrome, Edge, Safari; missing in Firefox). The audio then goes to Google or Apple, not to this add-on. Off: talking then only works with an OpenAI key or Home Assistant.'
+      output:
+        name: Voice
+        description: 'device (default) = the device reads the answer aloud, free. service = the same service as speech recognition reads it aloud (OpenAI or Home Assistant), sounds better, costs a few cents at OpenAI.'
+      chat_days:
+        name: Keep voice conversations (days)
+        description: 'Voice conversations not started inside a chat are not listed with your chats and are deleted after this many days (default 30, 0 = keep). Pinned ones stay.'
+      openai_api_key:
+        name: OpenAI key for voice only (optional)
+        description: 'Key from platform.openai.com (API keys) for speech recognition (and the voice with output: service); a few cents per hour of speech, the API account needs its own credit. Empty: the OpenAI key above (images) applies, and if that is empty too, the browser''s speech recognition. Recordings are sent to OpenAI.'
   restore_snapshot:
     name: Restore database
     description: 'Emergency only: name of a snapshot to restore at next start. Clear afterwards.'

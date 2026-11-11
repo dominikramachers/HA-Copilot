@@ -29,7 +29,7 @@ def render(root: Path = ROOT) -> str:
      ("Konnektoren", "Optional: die KI nutzt Dienste außerhalb von Home Assistant über MCP-Server (Microsoft 365, Google Workspace, Zabbix …). Ausführlich in der [Dokumentation](../copilot/DOCS.md#konnektoren-ab-0410).", ["connector_access_default"]),
      ("Funktionen", "Gedächtnis, geplante Aufgaben, Dateien und Sprache.", ["language", "memory_enabled", "schedules_enabled", "files_enabled"]),
      ("Bilder", "Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280).", ["openai_api_key", "google_api_key", "image_provider", "image_limit_month"]),
-     ("Sprache", "Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).", ["voice_access_default", "voice_output", "voice_chat_days"]),
+     ("Sprache", "Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).", ["voice"]),
      ("Zugang über eine eigene Domain", "Optional; der Zugang ist an, sobald `public_base_url` und eine Anmeldung eingetragen sind. Ausführlich in [Domain-Zugang](domain-zugang.md).", ["public_base_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "ha_url", "session_days", "public_trusted_proxies"]),
      ("Aussehen und Name", "Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben).", ["app_name", "login_text", "login_placeholder", "logo_tile", "follow_ha_theme", "theme_name"]),
      ("Daten, Sicherung und Erinnerungen", "Normalerweise leer oder aus. Siehe [Betrieb](betrieb.md).", ["restore_snapshot", "export_database", "claude_token_expires", "entra_secret_expires"]),
@@ -69,11 +69,13 @@ def render(root: Path = ROOT) -> str:
             spec = schema[k]
             if k == "profiles":
                 val = "Liste (Felder siehe unten)"
+            elif k == "voice":
+                val = "Gruppe (Felder siehe unten)"
             elif isinstance(spec, list):
                 val = "Liste"
             else:
                 val = typ(spec)
-            d = default(k) if k != "profiles" else "ein Eintrag „Administrator“"
+            d = "ein Eintrag „Administrator“" if k == "profiles" else "Standardwerte" if k == "voice" else default(k)
             desc = desc.strip() or EXTRA.get(k, "")
             out.append(f"| `{k}` | {val} | {d} | **{esc(name.rstrip('.'))}.** {esc(desc)} |".replace("**. ", "** ").rstrip().replace("|  |", "| |"))
         if "profiles" in keys:
@@ -81,6 +83,13 @@ def render(root: Path = ROOT) -> str:
             for f, spec in schema["profiles"][0].items():
                 t = tr["profiles"]["fields"][f]
                 out.append(f"| `{f}` | {typ(spec)} | **{esc(t['name'])}.** {esc(t['description'])} |")
+        if "voice" in keys:
+            out += ["", "### Felder der Gruppe `voice`", "", "In Home Assistant als eingeklappte Gruppe „Sprache“. In der Konfigurationsdatei steht es so: `voice:` mit den Feldern darunter.", "", "| Feld | Werte | Standard | Bedeutung |", "|---|---|---|---|"]
+            for f, spec in schema["voice"].items():
+                t = tr["voice"]["fields"][f]
+                v = opts["voice"].get(f)
+                dv = "leer" if v in ("", None) else "an" if v is True else "aus" if v is False else f"`{v}`"
+                out.append(f"| `voice.{f}` | {typ(spec)} | {dv} | **{esc(t['name'])}.** {esc(t['description'])} |")
         out.append("")
     return "\n".join(out) + "\n"
 

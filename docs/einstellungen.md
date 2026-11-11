@@ -2,7 +2,7 @@
 
 Diese Seite listet **jede** Option des Add-ons mit Standardwert und Bedeutung. Du findest sie in Home Assistant unter **Einstellungen → Apps → HA Copilot → Konfiguration**. Mit ⋮ → „In YAML bearbeiten“ kannst du alles als Text sehen, kopieren und einfügen. Nach jeder Änderung speichern und das Add-on **neu starten**.
 
-Pflichtfelder (immer vorhanden, mit Standardwert voreingestellt): `profiles`, `public_trusted_proxies`. Alle anderen Optionen sind optional; fehlt eine, gilt der Standardwert. Bestehende Einstellungen werden bei Updates nie überschrieben.
+Pflichtfelder (immer vorhanden, mit Standardwert voreingestellt): `profiles`, `public_trusted_proxies`, `voice`. Alle anderen Optionen sind optional; fehlt eine, gilt der Standardwert. Bestehende Einstellungen werden bei Updates nie überschrieben.
 
 ## Benutzer
 
@@ -82,7 +82,7 @@ Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI od
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Bilder).** Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI; ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI. |
+| `openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Bilder).** Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprache“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI. |
 | `google_api_key` | Text (geheim) | leer | **Google-API-Schlüssel (Bilder).** Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google. |
 | `image_provider` | `auto` \| `openai` \| `google` | `auto` | **Bildanbieter.** auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen. |
 | `image_limit_month` | Zahl 0 bis 10000 | `30` | **Bilder je Person und Monat.** Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts. |
@@ -93,9 +93,19 @@ Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dok
 
 | Option | Werte | Standard | Bedeutung |
 |---|---|---|---|
-| `voice_access_default` | `on` \| `off` | `off` | **Sprechen mit der KI: Standard.** Wer per Sprache mit der KI sprechen darf, wenn beim Benutzer nichts eingetragen ist: off (Standard) = niemand, on = alle. Zum Erkennen der Sprache braucht es `openai_api_key` oder eine Spracherkennung in der Home-Assistant-Sprachassistenten-Einstellung. |
-| `voice_output` | `device` \| `service` | `device` | **Sprechen mit der KI: Stimme.** device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent. |
-| `voice_chat_days` | Zahl 0 bis 365 | `30` | **Sprachgespräche aufbewahren (Tage).** Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben. |
+| `voice` | Gruppe (Felder siehe unten) | Standardwerte | **Sprache (Sprechen mit der KI).** Alles zum Sprechen mit der KI (Mikrofon-Knopf im Chat) in einer Gruppe. Wer sprechen darf, steht hier als Standard und je Benutzer bei „Sprechen mit der KI“ (voice_access). |
+
+### Felder der Gruppe `voice`
+
+In Home Assistant als eingeklappte Gruppe „Sprache“. In der Konfigurationsdatei steht es so: `voice:` mit den Feldern darunter.
+
+| Feld | Werte | Standard | Bedeutung |
+|---|---|---|---|
+| `voice.access_default` | `on` \| `off` | `off` | **Standard – wer darf sprechen.** Gilt für alle Benutzer ohne eigene Angabe: off (Standard) = niemand, on = alle. |
+| `voice.browser_stt` | an/aus | an | **Spracherkennung des Browsers nutzen.** An (Standard): Ohne OpenAI-Schlüssel und ohne Spracherkennung in Home Assistant nutzt die App die kostenlose Spracherkennung des Browsers (Chrome, Edge, Safari; fehlt in Firefox). Der Ton geht dabei an Google bzw. Apple, nicht an dieses Add-on. Aus: dann geht Sprechen nur mit OpenAI-Schlüssel oder Home Assistant. |
+| `voice.output` | `device` \| `service` | `device` | **Stimme.** device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent. |
+| `voice.chat_days` | Zahl 0 bis 365 | `30` | **Sprachgespräche aufbewahren (Tage).** Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben. |
+| `voice.openai_api_key` | Text (geheim) | leer | **OpenAI-Schlüssel nur für die Sprache (optional).** Schlüssel von platform.openai.com (API keys) für die Spracherkennung (und die Stimme bei output: service); wenige Cent pro Stunde Sprache, das API-Konto braucht eigenes Guthaben. Leer: es gilt der OpenAI-Schlüssel von oben (Bilder), und ist auch der leer, die Spracherkennung des Browsers. Aufnahmen gehen an OpenAI. |
 
 ## Zugang über eine eigene Domain
 

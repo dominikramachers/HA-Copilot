@@ -113,7 +113,7 @@ configuration:
     description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'
   openai_api_key:
     name: OpenAI-API-Schlüssel (Bilder)
-    description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI; ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI.'
+    description: 'Schlüssel von platform.openai.com (API keys). Nötig für Bilder von OpenAI (und, wenn bei „Sprache“ kein eigener Schlüssel steht, auch für die Spracherkennung); ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Bildwunsch und Referenzbilder werden an OpenAI übertragen. Leer: keine Bilder von OpenAI.'
   google_api_key:
     name: Google-API-Schlüssel (Bilder)
     description: 'Schlüssel für die Gemini-API von aistudio.google.com (Get API key) mit aktivierter Abrechnung; ein Google-Abo reicht dafür nicht. Bildwunsch und Referenzbilder werden an Google übertragen. Leer: keine Bilder von Google.'
@@ -123,15 +123,25 @@ configuration:
   image_limit_month:
     name: Bilder je Person und Monat
     description: 'Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts.'
-  voice_access_default:
-    name: 'Sprechen mit der KI: Standard'
-    description: 'Wer per Sprache mit der KI sprechen darf, wenn beim Benutzer nichts eingetragen ist: off (Standard) = niemand, on = alle. Zum Erkennen der Sprache braucht es `openai_api_key` oder eine Spracherkennung in der Home-Assistant-Sprachassistenten-Einstellung.'
-  voice_output:
-    name: 'Sprechen mit der KI: Stimme'
-    description: 'device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent.'
-  voice_chat_days:
-    name: Sprachgespräche aufbewahren (Tage)
-    description: 'Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben.'
+  voice:
+    name: Sprache (Sprechen mit der KI)
+    description: 'Alles zum Sprechen mit der KI (Mikrofon-Knopf im Chat) in einer Gruppe. Wer sprechen darf, steht hier als Standard und je Benutzer bei „Sprechen mit der KI“ (voice_access).'
+    fields:
+      access_default:
+        name: Standard – wer darf sprechen
+        description: 'Gilt für alle Benutzer ohne eigene Angabe: off (Standard) = niemand, on = alle.'
+      browser_stt:
+        name: Spracherkennung des Browsers nutzen
+        description: 'An (Standard): Ohne OpenAI-Schlüssel und ohne Spracherkennung in Home Assistant nutzt die App die kostenlose Spracherkennung des Browsers (Chrome, Edge, Safari; fehlt in Firefox). Der Ton geht dabei an Google bzw. Apple, nicht an dieses Add-on. Aus: dann geht Sprechen nur mit OpenAI-Schlüssel oder Home Assistant.'
+      output:
+        name: Stimme
+        description: 'device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent.'
+      chat_days:
+        name: Sprachgespräche aufbewahren (Tage)
+        description: 'Sprachgespräche, die nicht in einem Chat begonnen wurden, stehen nicht in der Chatliste und werden nach so vielen Tagen gelöscht (Standard 30, 0 = behalten). Angeheftete bleiben.'
+      openai_api_key:
+        name: OpenAI-Schlüssel nur für die Sprache (optional)
+        description: 'Schlüssel von platform.openai.com (API keys) für die Spracherkennung (und die Stimme bei output: service); wenige Cent pro Stunde Sprache, das API-Konto braucht eigenes Guthaben. Leer: es gilt der OpenAI-Schlüssel von oben (Bilder), und ist auch der leer, die Spracherkennung des Browsers. Aufnahmen gehen an OpenAI.'
   restore_snapshot:
     name: Datenbank wiederherstellen
     description: 'Nur im Notfall: Name eines Snapshots, der beim nächsten Start eingespielt wird. Danach leeren.'

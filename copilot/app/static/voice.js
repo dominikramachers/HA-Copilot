@@ -21,7 +21,7 @@ const VOICE = {
   used: false,
   token: 0,             // erhöht sich bei Schließen/Neustart: alte Schleifen hören dann auf
   stream: null, ctx: null, source: null, proc: null, level: 0, target: 0,
-  audio: null, urls: [],
+  audio: null, urls: [], rec: null, meter: true,
   returnFocus: null,
 };
 
@@ -125,7 +125,7 @@ function setVoiceState(next, detail = "") {
   box.dataset.state = next;
   $("voice-status").textContent = detail || STATUS_TEXT()[next];
   $("voice-talk").disabled = next === "thinking" || next === "muted";
-  if (reducedMotion()) drawRing(performance.now());
+  kickRing();
 }
 
 async function openVoice() {
@@ -156,6 +156,22 @@ async function openVoice() {
   $("voice-close").focus();
   startRing();
   voiceLoop(token);
+}
+
+// Welche Spracherkennung gilt: "server" (OpenAI oder Home Assistant), "browser" (kostenloser Rückfall) oder "" (keine).
+async function recognitionMode() {
+  voiceInfo = null; // jedes Mal frisch fragen, damit eine neue Einstellung gleich greift
+  const info = await voiceSettings();
+  if (info.stt) return "server";
+  if (info.browser && (window.SpeechRecognition || window.webkitSpeechRecognition)) return "browser";
+  return "";
+}
+
+async function missingText() {
+  const info = await voiceSettings();
+  return info.browser
+    ? tr("Dieser Browser hat keine eingebaute Spracherkennung. Trage in der Add-on-Konfiguration unter „Sprache“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.")
+    : tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration unter „Sprache“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein.");
 }
 
 function closeVoice() {
@@ -237,6 +253,8 @@ async function startCapture() {
 }
 
 function stopCapture() {
+  try { VOICE.rec?.abort(); } catch { /* schon beendet */ }
+  VOICE.rec = null;
   try { VOICE.proc?.disconnect(); } catch { /* schon getrennt */ }
   try { VOICE.source?.disconnect(); } catch { /* schon getrennt */ }
   VOICE.stream?.getTracks().forEach((t) => t.stop());
@@ -328,23 +346,14 @@ async function voiceLoop(token) {
   const alive = () => VOICE.open && token === VOICE.token;
   if (VOICE.muted) { setVoiceState("muted"); return; }
   try {
+    const mode = await recognitionMode();
+    if (!mode) { voiceFail(await missingText()); return; }
+    if (!alive()) return;
     setVoiceState("listening");
-    await startCapture();
-    if (!alive()) { stopCapture(); return; }
-    const samples = await recordSentence(token);
-    stopCapture();
-    if (!alive()) return;
-    if (!samples) { setVoiceState("idle"); return; }
+    const heard = mode === "browser" ? await listenBrowser(alive) : await listenServer(token, alive);
+    if (!alive() || heard === null) return;
+    if (!heard) { setVoiceState("idle"); return; }
     setVoiceState("thinking");
-    const response = await fetch("api/voice/transcribe", {
-      method: "POST", credentials: "same-origin",
-      headers: { "X-Requested-With": "ki-chat", "Content-Type": "audio/wav" },
-      body: toWav(samples),
-    });
-    if (response.status === 401) { window.location.assign("login"); return; }
-    if (!response.ok) throw await voiceError(response);
-    const heard = await response.json();
-    if (!alive()) return;
     const sentence = (heard.command || "").trim();
     if (!heard.text?.trim()) { setVoiceState("idle", tr("Ich habe nichts verstanden. Tippe zum Sprechen.")); return; }
     $("voice-said").textContent = heard.text;
@@ -364,6 +373,82 @@ async function voiceLoop(token) {
     else if (err?.name === "NotFoundError") voiceFail(tr("Es wurde kein Mikrofon gefunden."));
     else voiceFail(err?.message || tr("Das hat nicht geklappt"));
   }
+}
+
+// Spracherkennung über das Add-on (OpenAI oder Home Assistant): Aufnahme als WAV hochladen.
+// Gibt {text, command} zurück, "" wenn nichts gesagt wurde, null wenn abgebrochen wurde.
+async function listenServer(token, alive) {
+  await startCapture();
+  if (!alive()) { stopCapture(); return null; }
+  VOICE.meter = true;
+  const samples = await recordSentence(token);
+  stopCapture();
+  if (!alive()) return null;
+  if (!samples) return "";
+  setVoiceState("thinking");
+  const response = await fetch("api/voice/transcribe", {
+    method: "POST", credentials: "same-origin",
+    headers: { "X-Requested-With": "ki-chat", "Content-Type": "audio/wav" },
+    body: toWav(samples),
+  });
+  if (response.status === 401) { window.location.assign("login"); return null; }
+  if (!response.ok) throw await voiceError(response);
+  return await response.json();
+}
+
+// Kostenlose Spracherkennung des Browsers (Rückfall ohne Schlüssel): der Ton geht an Google bzw. Apple, nicht an das Add-on.
+function listenBrowser(alive) {
+  return new Promise((resolve, reject) => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new Recognition();
+    rec.lang = voiceInfo?.language === "en" ? "en-US" : "de-DE";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    VOICE.rec = rec;
+    VOICE.meter = false;
+    let finalText = "", interim = "", done = false;
+    const finish = (value, error) => {
+      if (done) return;
+      done = true;
+      clearInterval(watch);
+      if (VOICE.rec === rec) VOICE.rec = null;
+      if (error) { reject(error); return; }
+      resolve(value);
+    };
+    rec.onresult = (event) => {
+      interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const part = event.results[i];
+        if (part.isFinal) finalText += part[0].transcript; else interim += part[0].transcript;
+      }
+      $("voice-said").textContent = (finalText + interim).trim(); // Zwischenstand sofort zeigen
+      VOICE.target = 0.6;
+    };
+    rec.onerror = (event) => {
+      if (event.error === "no-speech" || event.error === "aborted") finish("");
+      else if (event.error === "not-allowed" || event.error === "service-not-allowed") finish(null, Object.assign(new Error("denied"), { name: "NotAllowedError" }));
+      else if (event.error === "audio-capture") finish(null, Object.assign(new Error("none"), { name: "NotFoundError" }));
+      else if (event.error === "network") finish(null, new Error(tr("Die Spracherkennung des Browsers ist nicht erreichbar. Prüfe die Internetverbindung.")));
+      else finish(null, new Error(tr("Das hat nicht geklappt")));
+    };
+    rec.onend = () => {
+      const text = (finalText || interim).trim();
+      finish(text ? { text, command: stripWake(text, state.me?.voice_wake || "") } : "");
+    };
+    const watch = setInterval(() => { if (!alive()) { try { rec.abort(); } catch { /* schon beendet */ } finish(null); } }, 200);
+    try { rec.start(); } catch (err) { finish(null, err); }
+  });
+}
+
+function stripWake(text, name) {
+  // Gleiche Regel wie auf dem Server: „(Hey|Hallo|Hi|OK) <Name>“ am Satzanfang entfernen.
+  text = text.replace(/\s+/g, " ").trim();
+  name = (name || "").trim();
+  if (!name) return text;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rest = text.replace(new RegExp("^(?:(?:hey|hallo|hi|ok|okay)[\\s,]+)?" + escaped + "(?![\\w-])[\\s,.:;!?-]*", "i"), "");
+  return rest !== text ? rest.trim() : text;
 }
 
 async function voiceError(response) {
@@ -496,59 +581,172 @@ function stopSpeaking() {
   VOICE.level = 0;
 }
 
-// ------------------------------------------------------------- Partikel-Ring
+// ------------------------------------------------------------- Partikel-Kugel mit Ringen
+// Eine leuchtende Kugel aus Partikeln (Fibonacci-Kugel, dreht sich, Tiefe über Größe und Helligkeit) mit leuchtendem Kern
+// und drei gegenläufigen Ringen aus Bögen. Der Pegel lässt die Kugel pulsieren und den Rand sprühen, beim Antworten laufen
+// Wellen über die Oberfläche, beim Nachdenken drehen Kugel und Ringe schneller. Maus (auch Hover) und Finger wischen
+// Teilchen weg; sie schwingen zurück. Nur Partikel, keine Linien.
 
-let ringFrame = 0, ringParticles = [];
+const RING = {
+  p: [], frame: 0, running: false, last: 0, rot: 0, spin: 0.2, w: 0, bound: false,
+  ptr: { x: 0, y: 0, vx: 0, vy: 0, on: false, t: 0 },
+  arcs: [ // Ringe: Radius (Anteil der Breite), Bögen (Länge, Lücke in Grad), Drehrichtung und Tempo
+    { r: 0.335, on: 70, off: 30, dir: 1, speed: 0.30, density: 2.4 },
+    { r: 0.39, on: 40, off: 20, dir: -1, speed: 0.22, density: 2.0 },
+    { r: 0.45, on: 8, off: 10, dir: 1, speed: 0.12, density: 1.6 },
+  ],
+};
 
 function startRing() {
   const canvas = $("voice-ring");
   const scale = Math.min(2, window.devicePixelRatio || 1);
-  const size = Math.min(window.innerWidth, window.innerHeight, 420) * 0.78;
+  const size = Math.round(Math.min(window.innerWidth - 24, window.innerHeight * 0.6, 480));
   canvas.width = canvas.height = Math.round(size * scale);
-  canvas.style.width = canvas.style.height = `${Math.round(size)}px`;
-  ringParticles = Array.from({ length: 150 }, (_, i) => ({
-    angle: (i / 150) * Math.PI * 2, jitter: Math.random(), drift: (Math.random() - 0.5) * 0.4, size: 0.8 + Math.random() * 1.6,
-  }));
-  cancelAnimationFrame(ringFrame);
-  const tick = (now) => { drawRing(now); if (VOICE.open && !reducedMotion()) ringFrame = requestAnimationFrame(tick); };
-  if (reducedMotion()) drawRing(performance.now()); else ringFrame = requestAnimationFrame(tick);
+  canvas.style.width = canvas.style.height = `${size}px`;
+  RING.w = canvas.width;
+  const small = size < 340;
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  const sphere = small ? 900 : 1500;
+  RING.p = [];
+  for (let i = 0; i < sphere; i++) { // Kugel
+    const y = 1 - ((i + 0.5) / sphere) * 2, r = Math.sqrt(1 - y * y), a = i * golden;
+    RING.p.push({ kind: 0, ux: Math.cos(a) * r, uy: y, uz: Math.sin(a) * r, size: (0.55 + Math.random() * 0.6) * scale, phase: Math.random() * 6.28, ox: 0, oy: 0, vx: 0, vy: 0, k: 0.05 + Math.random() * 0.03 });
+  }
+  RING.arcs.forEach((ring, ri) => { // Ringe aus Bögen
+    const arcs = Math.round(360 / (ring.on + ring.off));
+    for (let n = 0; n < arcs; n++) {
+      const start = n * (ring.on + ring.off) + ri * 17;
+      const count = Math.max(3, Math.round(ring.on * ring.density * (small ? 0.6 : 1)));
+      for (let j = 0; j < count; j++) {
+        RING.p.push({ kind: 1, ring: ri, a0: (start + (j / count) * ring.on) * Math.PI / 180, jit: (Math.random() - 0.5) * 0.012, size: (0.6 + Math.random() * 0.7) * scale, phase: Math.random() * 6.28, ox: 0, oy: 0, vx: 0, vy: 0, k: 0.05 + Math.random() * 0.03 });
+      }
+    }
+  });
+  if (!RING.bound) {
+    RING.bound = true;
+    const at = (e) => {
+      const box = canvas.getBoundingClientRect();
+      const x = (e.clientX - box.left) * (canvas.width / box.width), y = (e.clientY - box.top) * (canvas.height / box.height);
+      const q = RING.ptr, dt = Math.max(1, e.timeStamp - q.t);
+      q.vx = q.on ? (x - q.x) / dt * 16 : 0; q.vy = q.on ? (y - q.y) / dt * 16 : 0; // Wischgeschwindigkeit je Bild
+      q.x = x; q.y = y; q.t = e.timeStamp; q.on = true;
+      kickRing();
+    };
+    canvas.addEventListener("pointermove", at);
+    canvas.addEventListener("pointerdown", (e) => { canvas.setPointerCapture?.(e.pointerId); at(e); });
+    for (const name of ["pointerleave", "pointerup", "pointercancel"]) canvas.addEventListener(name, () => { RING.ptr.on = false; kickRing(); });
+  }
+  RING.ptr.on = false;
+  RING.last = 0;
+  kickRing();
 }
 
-function stopRing() { cancelAnimationFrame(ringFrame); }
+function kickRing() {
+  if (RING.running || !VOICE.open) return;
+  RING.running = true;
+  const tick = (now) => {
+    const energy = stepRing(now);
+    if (VOICE.open && (!reducedMotion() || RING.ptr.on || energy > 0.02)) RING.frame = requestAnimationFrame(tick);
+    else RING.running = false;
+  };
+  RING.frame = requestAnimationFrame(tick);
+}
 
-function drawRing(now) {
+function stopRing() { cancelAnimationFrame(RING.frame); RING.running = false; RING.ptr.on = false; }
+function drawRing(now) { stepRing(now); }
+
+function stepRing(now) {
   const canvas = $("voice-ring");
-  if (!canvas || !canvas.width) return;
+  if (!canvas || !canvas.width || !RING.p.length) return 0;
   const g = canvas.getContext("2d");
   const w = canvas.width, c = w / 2;
-  g.clearRect(0, 0, w, w);
-  const t = now / 1000;
-  const st = VOICE.state;
-  // Pegel: beim Zuhören vom Mikrofon, beim Antworten ein ruhiges Wogen, beim Denken ein langsames Kreisen
+  const t = now / 1000, st = VOICE.state, still = reducedMotion();
+  const dt = RING.last ? Math.min(0.05, t - RING.last) : 0.016;
+  RING.last = t;
   let amp;
-  if (st === "listening") amp = VOICE.target;
+  if (st === "listening") amp = VOICE.meter ? VOICE.target : Math.max(VOICE.target, 0.2 + 0.1 * Math.sin(t * 3.1) * Math.sin(t * 1.3)); // Browser-Erkennung liefert keinen Pegel
   else if (st === "speaking") amp = 0.35 + 0.3 * Math.sin(t * 5.1) * Math.sin(t * 2.3);
-  else if (st === "thinking") amp = 0.12;
+  else if (st === "thinking") amp = 0.16;
   else amp = 0.04;
   VOICE.level += (amp - VOICE.level) * 0.18;
   VOICE.target *= 0.9;
-  const style = getComputedStyle(document.documentElement);
-  const color = st === "error" ? (style.getPropertyValue("--danger").trim() || "#d92d20") : (style.getPropertyValue("--accent").trim() || "#3b82f6");
-  const base = w * 0.3;
-  const spin = reducedMotion() ? 0 : st === "thinking" ? t * 0.9 : t * 0.12;
-  g.fillStyle = color;
-  const muted = st === "muted" || st === "idle";
-  for (const p of ringParticles) {
-    const wobble = Math.sin(p.angle * 5 + t * (st === "speaking" ? 4 : 2.4) + p.jitter * 6) * 0.5 + 0.5;
-    const push = reducedMotion() ? 0 : VOICE.level * w * 0.09 * (0.35 + wobble) * (0.6 + p.jitter * 0.8);
-    const radius = base + push + p.drift * w * 0.012;
-    const a = p.angle + spin * (p.drift > 0 ? 1 : 0.7);
-    g.globalAlpha = muted ? 0.35 : 0.45 + 0.55 * wobble;
-    g.beginPath();
-    g.arc(c + Math.cos(a) * radius, c + Math.sin(a) * radius, p.size * (w / 400) * (1 + VOICE.level * 0.9), 0, Math.PI * 2);
-    g.fill();
+  const lvl = still ? 0 : VOICE.level;
+  const wantSpin = st === "thinking" ? 1.6 : st === "speaking" ? 0.55 : st === "listening" ? 0.4 : 0.22;
+  RING.spin += (wantSpin - RING.spin) * 0.05;
+  if (!still) RING.rot += dt * RING.spin;
+  const speed = st === "thinking" ? 4 : 1;
+  const error = st === "error", dim = st === "muted" || st === "idle";
+  const hue = error ? "255,112,100" : "96,196,255", hueRing = error ? "255,150,130" : "120,170,255";
+  const pulse = still ? 1 : 1 + Math.sin(t * 1.4) * 0.015 + lvl * 0.16;
+  const R = w * 0.255 * pulse;
+  const q = RING.ptr, reach = w * 0.1;
+
+  g.globalCompositeOperation = "source-over";
+  g.clearRect(0, 0, w, w);
+  g.globalCompositeOperation = "lighter";
+  // Leuchten: weiter Schein, dichter Kern, heller Punkt in der Mitte
+  const glow = (radius, alpha, rgb) => {
+    const grad = g.createRadialGradient(c, c, 0, c, c, radius);
+    grad.addColorStop(0, `rgba(${rgb},${alpha})`); grad.addColorStop(0.45, `rgba(${rgb},${alpha * 0.35})`); grad.addColorStop(1, `rgba(${rgb},0)`);
+    g.fillStyle = grad; g.beginPath(); g.arc(c, c, radius, 0, Math.PI * 2); g.fill();
+  };
+  const strength = dim ? 0.7 : 1;
+  glow(R * (2.2 + lvl * 1.0), 0.26 * strength, hue);
+  glow(R * (1.3 + lvl * 0.4), 0.38 * strength, hue);
+  glow(R * 0.55, 0.75 * strength, "200,235,255");
+
+  const cy = Math.cos(RING.rot), sy = Math.sin(RING.rot), tilt = 0.32, ct = Math.cos(tilt), stl = Math.sin(tilt);
+  const buckets = [[[], [], [], []], [[], [], [], []]]; // [Kugel, Ringe] x Helligkeitsstufen
+  let energy = 0;
+  for (const p of RING.p) {
+    let sx, sy2, depth = 1, scale = 1, alpha;
+    if (p.kind === 0) {
+      // Oberfläche: Pegel lässt einzelne Teilchen nach außen springen, beim Antworten laufen Wellen über die Kugel
+      const noise = 0.5 + 0.5 * Math.sin(p.phase + t * 6);
+      const wave = st === "speaking" ? Math.sin(p.uy * 7 - t * 5) * 0.07 * Math.min(1, lvl * 2.5) : 0;
+      const rad = 1 + lvl * 0.42 * noise + wave;
+      const x1 = p.ux * cy + p.uz * sy, z1 = -p.ux * sy + p.uz * cy;
+      const y2 = p.uy * ct - z1 * stl, z2 = p.uy * stl + z1 * ct;
+      depth = (z2 + 1) / 2;
+      scale = 1 / (1 - z2 * 0.22);
+      sx = c + x1 * R * rad * scale; sy2 = c + y2 * R * rad * scale;
+      alpha = 0.18 + 0.82 * depth * depth;
+    } else {
+      const ring = RING.arcs[p.ring];
+      const a = p.a0 + (still ? 0 : t * ring.speed * ring.dir * speed);
+      const rr = w * ring.r * (1 + lvl * 0.025 * (p.ring + 1)) * (1 + p.jit);
+      sx = c + Math.cos(a) * rr; sy2 = c + Math.sin(a) * rr;
+      alpha = 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(p.phase + t * 1.6));
+    }
+    // Wischen: Versatz je Teilchen, der zurückfedert
+    p.vx += -p.ox * p.k; p.vy += -p.oy * p.k;
+    if (q.on) {
+      const dx = sx + p.ox - q.x, dy = sy2 + p.oy - q.y, d = Math.hypot(dx, dy);
+      if (d < reach) {
+        const f = (1 - d / reach) ** 2;
+        const nx = d > 0.5 ? dx / d : Math.cos(p.phase), ny = d > 0.5 ? dy / d : Math.sin(p.phase);
+        p.vx += nx * f * w * 0.016 + q.vx * f * 0.35;
+        p.vy += ny * f * w * 0.016 + q.vy * f * 0.35;
+      }
+    }
+    p.vx *= 0.86; p.vy *= 0.86; p.ox += p.vx; p.oy += p.vy;
+    energy += Math.abs(p.vx) + Math.abs(p.vy);
+    p.sx = sx + p.ox; p.sy = sy2 + p.oy; p.sz = p.size * scale * (p.kind === 0 ? 0.8 + depth * 0.9 : 1) * (1 + lvl * 0.5);
+    const a2 = Math.min(1, alpha * (dim ? 0.75 : 1));
+    buckets[p.kind][Math.min(3, Math.floor(a2 * 4))].push(p);
+  }
+  for (let kind = 0; kind < 2; kind++) {
+    g.fillStyle = `rgb(${kind ? hueRing : hue})`;
+    buckets[kind].forEach((list, i) => {
+      g.globalAlpha = (i + 0.6) / 4.2;
+      g.beginPath();
+      for (const p of list) { g.moveTo(p.sx + p.sz, p.sy); g.arc(p.sx, p.sy, p.sz, 0, Math.PI * 2); }
+      g.fill();
+    });
   }
   g.globalAlpha = 1;
+  g.globalCompositeOperation = "source-over";
+  return energy / RING.p.length;
 }
 
 document.addEventListener("visibilitychange", () => { if (document.hidden && VOICE.open && VOICE.state === "listening") talkReset(); });
