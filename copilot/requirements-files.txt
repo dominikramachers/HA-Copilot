@@ -3,4 +3,4 @@ openpyxl==3.1.5
 python-pptx==1.0.2
 fpdf2==2.9.0
 cairosvg==2.9.1
-pypdfium2==5.14.0
+pypdfium2==5.15.0
