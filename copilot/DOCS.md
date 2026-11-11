@@ -483,7 +483,7 @@ Die Option `language` stellt die Sprache des ganzen Add-ons ein: `de` (Standard,
 
 ## Sprechen mit der KI (ab 0.52.0)
 
-Neben dem Senden-Knopf im Chat sitzt ein Mikrofon-Knopf. Er öffnet ein Fenster mit einem runden Partikel-Ring, der beim Zuhören auf die Stimme reagiert, beim Antworten schwingt und beim Nachdenken kreist. Unten stehen **Stumm**, **Sprechen** und **Beenden** (auch `Esc`). Es geht nur „per Knopf“: jede Runde beginnt mit einem Tipp auf **Sprechen** (beim Öffnen läuft die erste Runde sofort), eine Sprechpause beendet die Aufnahme.
+Neben dem Senden-Knopf im Chat sitzt ein Mikrofon-Knopf. Er öffnet ein Fenster mit einer leuchtenden Kugel aus Partikeln mit Ringen darum (dunkler Anruf-Bildschirm). Sie pulsiert beim Zuhören mit deiner Stimme, wellt beim Antworten und dreht beim Nachdenken schneller; die Teilchen lassen sich mit Maus oder Finger wegwischen und federn zurück. Unten stehen **Stumm**, **Sprechen** und **Beenden** (auch `Esc`). Es geht nur „per Knopf“: jede Runde beginnt mit einem Tipp auf **Sprechen** (beim Öffnen läuft die erste Runde sofort), eine Sprechpause beendet die Aufnahme.
 
 - **Aus ist der Standard.** `voice_access_default` (`off`/`on`) gilt für alle, `voice_access` im Benutzer-Eintrag überschreibt es je Person. Ohne Freigabe gibt es keinen Knopf und die Schnittstellen antworten mit 403.
 - **Der Name.** Die KI hört auf `app_name` (zum Beispiel `Aria`): „Aria, mach das Licht aus“ oder „Hey Aria …“. Der Name am Satzanfang wird entfernt; ein Satz ohne Namen wird genauso behandelt, denn das Gespräch läuft ja bewusst per Knopf.

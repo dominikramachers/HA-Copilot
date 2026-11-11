@@ -581,29 +581,46 @@ function stopSpeaking() {
   VOICE.level = 0;
 }
 
-// ------------------------------------------------------------- Partikel-Scheibe
-// Eine mit Partikeln gefüllte Scheibe (Sonnenblumen-Verteilung). Jedes Teilchen hängt an einer Feder an seinem Platz;
-// Maus oder Finger wischen sie weg, danach schwingen sie zurück. Der Pegel lässt die Scheibe atmen und den Rand sprühen.
+// ------------------------------------------------------------- Partikel-Kugel mit Ringen
+// Eine leuchtende Kugel aus Partikeln (Fibonacci-Kugel, dreht sich, Tiefe über Größe und Helligkeit) mit leuchtendem Kern
+// und drei gegenläufigen Ringen aus Bögen. Der Pegel lässt die Kugel pulsieren und den Rand sprühen, beim Antworten laufen
+// Wellen über die Oberfläche, beim Nachdenken drehen Kugel und Ringe schneller. Maus (auch Hover) und Finger wischen
+// Teilchen weg; sie schwingen zurück. Nur Partikel, keine Linien.
 
-const RING = { p: [], frame: 0, running: false, ptr: { x: 0, y: 0, vx: 0, vy: 0, on: false, t: 0 }, R: 0, scale: 1, bound: false };
+const RING = {
+  p: [], frame: 0, running: false, last: 0, rot: 0, spin: 0.2, w: 0, bound: false,
+  ptr: { x: 0, y: 0, vx: 0, vy: 0, on: false, t: 0 },
+  arcs: [ // Ringe: Radius (Anteil der Breite), Bögen (Länge, Lücke in Grad), Drehrichtung und Tempo
+    { r: 0.335, on: 70, off: 30, dir: 1, speed: 0.30, density: 2.4 },
+    { r: 0.39, on: 40, off: 20, dir: -1, speed: 0.22, density: 2.0 },
+    { r: 0.45, on: 8, off: 10, dir: 1, speed: 0.12, density: 1.6 },
+  ],
+};
 
 function startRing() {
   const canvas = $("voice-ring");
   const scale = Math.min(2, window.devicePixelRatio || 1);
-  const size = Math.round(Math.min(window.innerWidth, window.innerHeight * 0.62, 460));
+  const size = Math.round(Math.min(window.innerWidth - 24, window.innerHeight * 0.6, 480));
   canvas.width = canvas.height = Math.round(size * scale);
   canvas.style.width = canvas.style.height = `${size}px`;
-  RING.scale = scale;
-  RING.R = canvas.width * 0.38;
-  const count = size < 340 ? 520 : 820;
+  RING.w = canvas.width;
+  const small = size < 340;
   const golden = Math.PI * (3 - Math.sqrt(5));
-  RING.p = Array.from({ length: count }, (_, i) => {
-    const r = Math.sqrt((i + 0.5) / count), a = i * golden;
-    const hx = Math.cos(a) * r, hy = Math.sin(a) * r;
-    return {
-      hx, hy, r, a, x: canvas.width / 2 + hx * RING.R, y: canvas.height / 2 + hy * RING.R, vx: 0, vy: 0,
-      size: (0.7 + Math.random() * 1.1) * scale, phase: Math.random() * 6.28, k: 0.05 + Math.random() * 0.03,
-    };
+  const sphere = small ? 900 : 1500;
+  RING.p = [];
+  for (let i = 0; i < sphere; i++) { // Kugel
+    const y = 1 - ((i + 0.5) / sphere) * 2, r = Math.sqrt(1 - y * y), a = i * golden;
+    RING.p.push({ kind: 0, ux: Math.cos(a) * r, uy: y, uz: Math.sin(a) * r, size: (0.55 + Math.random() * 0.6) * scale, phase: Math.random() * 6.28, ox: 0, oy: 0, vx: 0, vy: 0, k: 0.05 + Math.random() * 0.03 });
+  }
+  RING.arcs.forEach((ring, ri) => { // Ringe aus Bögen
+    const arcs = Math.round(360 / (ring.on + ring.off));
+    for (let n = 0; n < arcs; n++) {
+      const start = n * (ring.on + ring.off) + ri * 17;
+      const count = Math.max(3, Math.round(ring.on * ring.density * (small ? 0.6 : 1)));
+      for (let j = 0; j < count; j++) {
+        RING.p.push({ kind: 1, ring: ri, a0: (start + (j / count) * ring.on) * Math.PI / 180, jit: (Math.random() - 0.5) * 0.012, size: (0.6 + Math.random() * 0.7) * scale, phase: Math.random() * 6.28, ox: 0, oy: 0, vx: 0, vy: 0, k: 0.05 + Math.random() * 0.03 });
+      }
+    }
   });
   if (!RING.bound) {
     RING.bound = true;
@@ -620,6 +637,7 @@ function startRing() {
     for (const name of ["pointerleave", "pointerup", "pointercancel"]) canvas.addEventListener(name, () => { RING.ptr.on = false; kickRing(); });
   }
   RING.ptr.on = false;
+  RING.last = 0;
   kickRing();
 }
 
@@ -641,58 +659,93 @@ function stepRing(now) {
   const canvas = $("voice-ring");
   if (!canvas || !canvas.width || !RING.p.length) return 0;
   const g = canvas.getContext("2d");
-  const w = canvas.width, c = w / 2, R = RING.R;
+  const w = canvas.width, c = w / 2;
   const t = now / 1000, st = VOICE.state, still = reducedMotion();
+  const dt = RING.last ? Math.min(0.05, t - RING.last) : 0.016;
+  RING.last = t;
   let amp;
   if (st === "listening") amp = VOICE.meter ? VOICE.target : Math.max(VOICE.target, 0.2 + 0.1 * Math.sin(t * 3.1) * Math.sin(t * 1.3)); // Browser-Erkennung liefert keinen Pegel
   else if (st === "speaking") amp = 0.35 + 0.3 * Math.sin(t * 5.1) * Math.sin(t * 2.3);
-  else if (st === "thinking") amp = 0.18;
-  else amp = 0.05;
+  else if (st === "thinking") amp = 0.16;
+  else amp = 0.04;
   VOICE.level += (amp - VOICE.level) * 0.18;
   VOICE.target *= 0.9;
   const lvl = still ? 0 : VOICE.level;
-  const swirl = still ? 0 : st === "thinking" ? t * 1.1 : t * 0.08;
-  const style = getComputedStyle(document.documentElement);
-  const color = st === "error" ? (style.getPropertyValue("--danger").trim() || "#d92d20") : (style.getPropertyValue("--accent").trim() || "#3b82f6");
-  const dim = st === "muted" || st === "idle";
-  const q = RING.ptr, reach = R * 0.34;
-  let energy = 0;
+  const wantSpin = st === "thinking" ? 1.6 : st === "speaking" ? 0.55 : st === "listening" ? 0.4 : 0.22;
+  RING.spin += (wantSpin - RING.spin) * 0.05;
+  if (!still) RING.rot += dt * RING.spin;
+  const speed = st === "thinking" ? 4 : 1;
+  const error = st === "error", dim = st === "muted" || st === "idle";
+  const hue = error ? "255,112,100" : "96,196,255", hueRing = error ? "255,150,130" : "120,170,255";
+  const pulse = still ? 1 : 1 + Math.sin(t * 1.4) * 0.015 + lvl * 0.16;
+  const R = w * 0.255 * pulse;
+  const q = RING.ptr, reach = w * 0.1;
+
+  g.globalCompositeOperation = "source-over";
   g.clearRect(0, 0, w, w);
-  g.fillStyle = color;
-  const buckets = [[], [], [], []];
+  g.globalCompositeOperation = "lighter";
+  // Leuchten: weiter Schein, dichter Kern, heller Punkt in der Mitte
+  const glow = (radius, alpha, rgb) => {
+    const grad = g.createRadialGradient(c, c, 0, c, c, radius);
+    grad.addColorStop(0, `rgba(${rgb},${alpha})`); grad.addColorStop(0.45, `rgba(${rgb},${alpha * 0.35})`); grad.addColorStop(1, `rgba(${rgb},0)`);
+    g.fillStyle = grad; g.beginPath(); g.arc(c, c, radius, 0, Math.PI * 2); g.fill();
+  };
+  const strength = dim ? 0.7 : 1;
+  glow(R * (2.2 + lvl * 1.0), 0.26 * strength, hue);
+  glow(R * (1.3 + lvl * 0.4), 0.38 * strength, hue);
+  glow(R * 0.55, 0.75 * strength, "200,235,255");
+
+  const cy = Math.cos(RING.rot), sy = Math.sin(RING.rot), tilt = 0.32, ct = Math.cos(tilt), stl = Math.sin(tilt);
+  const buckets = [[[], [], [], []], [[], [], [], []]]; // [Kugel, Ringe] x Helligkeitsstufen
+  let energy = 0;
   for (const p of RING.p) {
-    // Zielplatz: Scheibe, die atmet; beim Nachdenken dreht der Kern schneller als der Rand; beim Antworten laufen Wellen nach außen
-    const turn = swirl * (1.15 - p.r);
-    const ca = Math.cos(turn), sa = Math.sin(turn);
-    let tx = p.hx * ca - p.hy * sa, ty = p.hx * sa + p.hy * ca;
-    const wave = st === "speaking" ? Math.sin(p.r * 9 - t * 5) * 0.045 * lvl * 6 : 0;
-    const edge = lvl * (0.1 * (0.25 + 0.75 * p.r * p.r)) * (0.7 + 0.6 * Math.sin(p.phase + t * 7)) + wave;
-    const grow = 1 + edge + (still ? 0 : Math.sin(t * 1.3) * 0.012);
-    tx = c + tx * R * grow; ty = c + ty * R * grow;
-    p.vx += (tx - p.x) * p.k; p.vy += (ty - p.y) * p.k;
-    if (q.on) { // Wischen: Teilchen weichen aus und nehmen etwas von der Wischrichtung mit
-      const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy);
+    let sx, sy2, depth = 1, scale = 1, alpha;
+    if (p.kind === 0) {
+      // Oberfläche: Pegel lässt einzelne Teilchen nach außen springen, beim Antworten laufen Wellen über die Kugel
+      const noise = 0.5 + 0.5 * Math.sin(p.phase + t * 6);
+      const wave = st === "speaking" ? Math.sin(p.uy * 7 - t * 5) * 0.07 * Math.min(1, lvl * 2.5) : 0;
+      const rad = 1 + lvl * 0.42 * noise + wave;
+      const x1 = p.ux * cy + p.uz * sy, z1 = -p.ux * sy + p.uz * cy;
+      const y2 = p.uy * ct - z1 * stl, z2 = p.uy * stl + z1 * ct;
+      depth = (z2 + 1) / 2;
+      scale = 1 / (1 - z2 * 0.22);
+      sx = c + x1 * R * rad * scale; sy2 = c + y2 * R * rad * scale;
+      alpha = 0.18 + 0.82 * depth * depth;
+    } else {
+      const ring = RING.arcs[p.ring];
+      const a = p.a0 + (still ? 0 : t * ring.speed * ring.dir * speed);
+      const rr = w * ring.r * (1 + lvl * 0.025 * (p.ring + 1)) * (1 + p.jit);
+      sx = c + Math.cos(a) * rr; sy2 = c + Math.sin(a) * rr;
+      alpha = 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(p.phase + t * 1.6));
+    }
+    // Wischen: Versatz je Teilchen, der zurückfedert
+    p.vx += -p.ox * p.k; p.vy += -p.oy * p.k;
+    if (q.on) {
+      const dx = sx + p.ox - q.x, dy = sy2 + p.oy - q.y, d = Math.hypot(dx, dy);
       if (d < reach) {
         const f = (1 - d / reach) ** 2;
         const nx = d > 0.5 ? dx / d : Math.cos(p.phase), ny = d > 0.5 ? dy / d : Math.sin(p.phase);
-        p.vx += nx * f * R * 0.07 + q.vx * f * 0.35;
-        p.vy += ny * f * R * 0.07 + q.vy * f * 0.35;
+        p.vx += nx * f * w * 0.016 + q.vx * f * 0.35;
+        p.vy += ny * f * w * 0.016 + q.vy * f * 0.35;
       }
     }
-    p.vx *= 0.86; p.vy *= 0.86;
-    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.86; p.vy *= 0.86; p.ox += p.vx; p.oy += p.vy;
     energy += Math.abs(p.vx) + Math.abs(p.vy);
-    const twinkle = still ? 0.5 : 0.5 + 0.5 * Math.sin(p.phase + t * 1.8);
-    const alpha = (dim ? 0.3 : 0.42) + (dim ? 0.25 : 0.5) * (0.35 * twinkle + 0.65 * p.r * p.r);
-    buckets[Math.min(3, Math.floor(alpha * 4.2))].push(p);
+    p.sx = sx + p.ox; p.sy = sy2 + p.oy; p.sz = p.size * scale * (p.kind === 0 ? 0.8 + depth * 0.9 : 1) * (1 + lvl * 0.5);
+    const a2 = Math.min(1, alpha * (dim ? 0.75 : 1));
+    buckets[p.kind][Math.min(3, Math.floor(a2 * 4))].push(p);
   }
-  buckets.forEach((list, i) => {
-    g.globalAlpha = (i + 0.7) / 4.4;
-    g.beginPath();
-    for (const p of list) { const r = p.size * (1 + lvl * 0.6); g.moveTo(p.x + r, p.y); g.arc(p.x, p.y, r, 0, Math.PI * 2); }
-    g.fill();
-  });
+  for (let kind = 0; kind < 2; kind++) {
+    g.fillStyle = `rgb(${kind ? hueRing : hue})`;
+    buckets[kind].forEach((list, i) => {
+      g.globalAlpha = (i + 0.6) / 4.2;
+      g.beginPath();
+      for (const p of list) { g.moveTo(p.sx + p.sz, p.sy); g.arc(p.sx, p.sy, p.sz, 0, Math.PI * 2); }
+      g.fill();
+    });
+  }
   g.globalAlpha = 1;
+  g.globalCompositeOperation = "source-over";
   return energy / RING.p.length;
 }
 
