@@ -172,21 +172,43 @@ class HaApi:
         return response.content, str(output.get("mime_type") or response.headers.get("content-type") or "audio/mpeg").split(";")[0]
 
     async def pipeline_engines(self) -> dict[str, bool]:
-        """Was die bevorzugte Assist-Pipeline kann: ``{"stt": bool, "tts": bool}`` (kurz zwischengespeichert)."""
+        """Was die bevorzugte Assist-Pipeline wirklich kann (kurz zwischengespeichert).
+
+        ``stt``/``tts``: Engine ist eingetragen und erreichbar. ``stt_down``/``tts_down``: eingetragen, aber der Dienst
+        fehlt oder ist nicht verfügbar (zum Beispiel Add-on „Whisper“ oder „Piper“ gestoppt oder entfernt).
+        """
         now = time.monotonic()
         if self._engines and now - self._engines[0] < THEME_TTL:
             return self._engines[1]
-        value = {"stt": False, "tts": False}
+        value = {"stt": False, "tts": False, "stt_down": False, "tts_down": False}
         try:
             result = await self.call({"type": "assist_pipeline/pipeline/list"}) or {}
             preferred = result.get("preferred_pipeline")
             for pipeline in result.get("pipelines") or []:
                 if pipeline.get("id") == preferred:
-                    value = {"stt": bool(pipeline.get("stt_engine")), "tts": bool(pipeline.get("tts_engine"))}
+                    ids = {"stt": str(pipeline.get("stt_engine") or ""), "tts": str(pipeline.get("tts_engine") or "")}
+                    states = await self._engine_states(ids.values())
+                    for kind, engine in ids.items():
+                        if not engine:
+                            continue
+                        usable = states.get(engine, "") != "unavailable" and (engine in states or not engine.startswith(("stt.", "tts.")))
+                        value[kind], value[kind + "_down"] = usable, not usable
         except HaApiError as exc:
             log.info("Assist-Pipelines nicht abrufbar: %s", exc)
         self._engines = (now, value)
         return value
+
+    async def _engine_states(self, engines) -> dict[str, str]:
+        """Zustand der Engine-Entitäten (``stt.…``, ``tts.…``); leer, wenn es keine gibt oder Home Assistant nicht antwortet."""
+        wanted = {e for e in engines if e.startswith(("stt.", "tts."))}
+        if not wanted:
+            return {}
+        try:
+            states = await self.call({"type": "get_states"}) or []
+        except HaApiError as exc:
+            log.info("Zustände der Sprach-Engines nicht abrufbar: %s", exc)
+            return {engine: "unknown" for engine in wanted}  # ohne Auskunft gilt die Engine als vorhanden
+        return {s["entity_id"]: str(s.get("state")) for s in states if isinstance(s, dict) and s.get("entity_id") in wanted}
 
     async def themes(self) -> dict | None:
         """Themes und Standard-Theme von Home Assistant (kurz zwischengespeichert); ``None``, wenn nicht abrufbar."""

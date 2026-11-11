@@ -169,7 +169,7 @@ class VoiceService:
                 return await self.ha.pipeline_stt(pcm, rate)  # type: ignore[union-attr]
             except HaApiError as exc:
                 log.warning("Spracherkennung über Home Assistant fehlgeschlagen: %s", exc)
-                raise VoiceError(tr("Die Spracherkennung von Home Assistant antwortet nicht.")) from None
+                raise VoiceError(tr("Die Spracherkennung von Home Assistant antwortet nicht. Läuft das Add-on „Whisper“?")) from None
         raise VoiceError(tr("Es ist keine Spracherkennung eingerichtet. Trage in der Add-on-Konfiguration unter „Sprechen mit der KI“ einen OpenAI-Schlüssel ein oder richte in Home Assistant unter Sprachassistenten eine Spracherkennung ein."))
 
     async def _openai_stt(self, wav: bytes) -> str:
@@ -206,7 +206,7 @@ class VoiceService:
                 return await self.ha.pipeline_tts(text)  # type: ignore[union-attr]
             except HaApiError as exc:
                 log.warning("Sprachausgabe über Home Assistant fehlgeschlagen: %s", exc)
-                raise VoiceError(tr("Die Sprachausgabe von Home Assistant antwortet nicht.")) from None
+                raise VoiceError(tr("Die Sprachausgabe von Home Assistant antwortet nicht. Läuft das Add-on „Piper“?")) from None
         raise VoiceError(tr("Die Stimme kommt vom Gerät."))
 
     async def _openai_tts(self, text: str) -> tuple[bytes, str]:

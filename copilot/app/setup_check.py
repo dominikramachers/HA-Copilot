@@ -372,19 +372,30 @@ async def _check_voice(items: list[dict], ha: HaApi | None, settings: Settings) 
     item = _find(items, "voice")
     if item is None or item["status"] != "ok":
         return
-    engines = {"stt": False, "tts": False}
+    engines = {"stt": False, "tts": False, "stt_down": False, "tts_down": False}
     if ha is not None:
         try:
             engines = await ha.pipeline_engines()
         except Exception:  # noqa: BLE001 - die Prüfung darf nie an der Abfrage scheitern
             return
     has_key = bool(settings.voice_openai_key)
+    stt_down = bool(engines.get("stt_down")) and not has_key  # eingetragen, aber der Dienst läuft nicht
+    tts_down = bool(engines.get("tts_down")) and not has_key and settings.voice_output == "service"
+    whisper_steps = [tr("Starte in Home Assistant unter Einstellungen → Apps das Add-on „Whisper“ (oder installiere es neu) und prüfe unter Einstellungen → Sprachassistenten, dass bei Sprache-zu-Text „faster-whisper“ steht.")]
+    piper_steps = [tr("Starte in Home Assistant unter Einstellungen → Apps das Add-on „Piper“ (oder installiere es neu) und prüfe unter Einstellungen → Sprachassistenten, dass bei Text-zu-Sprache „piper“ steht. Oder stelle `voice.output` auf `device`.")]
     if has_key:
         stt = "OpenAI"
     elif engines["stt"]:
         stt = tr("Home Assistant (Sprachassistent)")
     elif settings.voice_browser_stt:
         stt = tr("den Browser (kostenlos, über Google oder Apple)")
+    elif stt_down:
+        item.update(
+            status="warn",
+            detail=tr("Im Sprachassistenten ist eine Spracherkennung eingetragen, sie ist aber nicht verfügbar (Add-on „Whisper“ gestoppt oder entfernt), und weder ein OpenAI-Schlüssel noch der Browser-Rückfall sind eingerichtet."),
+            steps=whisper_steps,
+        )
+        return
     else:
         item.update(
             status="warn",
@@ -402,9 +413,22 @@ async def _check_voice(items: list[dict], ha: HaApi | None, settings: Settings) 
         voice = "OpenAI"
     elif engines["tts"]:
         voice = tr("Home Assistant (Sprachassistent)")
+    elif engines.get("tts_down"):
+        voice = tr("die Stimme des Geräts")
     else:
         voice = tr("die Stimme des Geräts (der Sprachassistent hat keine Sprachausgabe)")
-    item["detail"] = tr("Mikrofon-Knopf im Chat. Spracherkennung über {stt}. Stimme: {voice}.", stt=stt, voice=voice)
+    detail = tr("Mikrofon-Knopf im Chat. Spracherkennung über {stt}. Stimme: {voice}.", stt=stt, voice=voice)
+    warnings, steps = [], []
+    if stt_down and not engines["stt"]:
+        warnings.append(tr("Im Sprachassistenten ist eine Spracherkennung eingetragen, sie ist aber nicht verfügbar (Add-on „Whisper“ gestoppt oder entfernt)."))
+        steps += whisper_steps
+    if tts_down:
+        warnings.append(tr("Die Sprachausgabe im Sprachassistenten ist nicht verfügbar (Add-on „Piper“ gestoppt oder entfernt); es spricht das Gerät."))
+        steps += piper_steps
+    if warnings:
+        item.update(status="warn", detail=detail + " " + " ".join(warnings), steps=steps)
+    else:
+        item["detail"] = detail
 
 
 async def run_live(items: list[dict], ha: HaApi | None, github: GithubApi | None, profile: Profile, settings: Settings | None = None) -> list[dict]:

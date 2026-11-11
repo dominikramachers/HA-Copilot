@@ -225,8 +225,8 @@ def test_live_ha_failure_becomes_a_warning_with_steps():
 class VoiceHa:
     """Nur das, was die Sprach-Zeile abfragt: was die bevorzugte Assist-Pipeline kann."""
 
-    def __init__(self, stt=False, tts=False):
-        self.engines = {"stt": stt, "tts": tts}
+    def __init__(self, stt=False, tts=False, stt_down=False, tts_down=False):
+        self.engines = {"stt": stt, "tts": tts, "stt_down": stt_down, "tts_down": tts_down}
 
     async def pipeline_engines(self):
         return self.engines
@@ -359,3 +359,29 @@ def test_every_option_named_in_the_steps_exists():
                 if name in {"read", "write", "execute", "none", "claude", "echo", "snapshots", "on", "off"}:
                     continue
                 assert name in options, (item["id"], name)
+
+
+def test_voice_row_warns_when_whisper_or_piper_are_entered_but_not_running():
+    on = {"access_default": "on"}
+    # Whisper weg, Browser-Rückfall an (Standard): es läuft über den Browser, die Zeile sagt warum und was zu tun ist
+    browser = voice_row(make(voice=on), VoiceHa(stt_down=True))
+    assert browser["status"] == "warn" and "Browser" in browser["detail"] and "Whisper" in browser["detail"]
+    assert any("Whisper" in step for step in browser["steps"])
+    # Whisper weg und kein Rückfall: nichts bleibt zum Verstehen
+    nothing = voice_row(make(voice={**on, "browser_stt": False}), VoiceHa(stt_down=True))
+    assert nothing["status"] == "warn" and "nicht verfügbar" in nothing["detail"] and any("Whisper" in step for step in nothing["steps"])
+    # Piper weg bei voice.output: service: das Gerät spricht, die Zeile nennt Piper
+    piper = voice_row(make(voice={**on, "output": "service"}), VoiceHa(stt=True, tts_down=True))
+    assert piper["status"] == "warn" and "Piper" in piper["detail"] and "Stimme des Geräts" in piper["detail"]
+    assert any("Piper" in step for step in piper["steps"])
+    # ein OpenAI-Schlüssel ersetzt beides: dann ist nichts zu warnen
+    key = voice_row(make(voice={**on, "output": "service", "openai_api_key": "sk-x"}), VoiceHa(stt_down=True, tts_down=True))
+    assert key["status"] == "ok" and "OpenAI" in key["detail"]
+    # bei voice.output: device spielt Piper keine Rolle
+    device = voice_row(make(voice=on), VoiceHa(stt=True, tts_down=True))
+    assert device["status"] == "ok"
+
+
+def test_voice_row_with_nothing_configured_says_what_to_do():
+    none = voice_row(make(voice={"access_default": "on", "browser_stt": False}), VoiceHa())
+    assert none["status"] == "warn" and len(none["steps"]) == 3 and any("Whisper" in step for step in none["steps"])

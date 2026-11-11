@@ -26,6 +26,7 @@ const VOICE = {
   stream: null, ctx: null, source: null, proc: null, level: 0, target: 0,
   audio: null, player: null, urls: [], rec: null, meter: true, spoke: true,
   returnFocus: null,
+  browserOnly: false,   // die Erkennung im Add-on hat versagt: für den Rest dieses Gesprächs die des Browsers nehmen
 };
 
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -143,6 +144,7 @@ async function openVoice() {
   VOICE.open = true;
   VOICE.used = false;
   VOICE.muted = false;
+  VOICE.browserOnly = false;
   VOICE.chatId = state.activeId || null;
   VOICE.standalone = !state.activeId;
   unlockAudio(); // direkt beim Antippen: Handys erlauben Ton sonst nicht, wenn er erst später startet
@@ -166,9 +168,14 @@ async function openVoice() {
 async function recognitionMode() {
   voiceInfo = null; // jedes Mal frisch fragen, damit eine neue Einstellung gleich greift
   const info = await voiceSettings();
-  if (info.stt) return "server";
-  if (info.browser && (window.SpeechRecognition || window.webkitSpeechRecognition)) return "browser";
-  return "";
+  const browser = !!(info.browser && (window.SpeechRecognition || window.webkitSpeechRecognition));
+  if (info.stt && !(VOICE.browserOnly && browser)) return "server";
+  return browser ? "browser" : "";
+}
+
+async function recognitionFallsBackToBrowser() {
+  const info = await voiceSettings();
+  return !!(info.browser && (window.SpeechRecognition || window.webkitSpeechRecognition));
 }
 
 async function missingText() {
@@ -387,6 +394,12 @@ async function voiceLoop(token) {
     stopCapture();
     speaker?.abort();
     if (!alive()) return;
+    if (err?.recognition && !VOICE.browserOnly && await recognitionFallsBackToBrowser()) {
+      VOICE.browserOnly = true; // nur einmal, danach gilt wieder die Meldung
+      toast(tr("Die Spracherkennung im Add-on antwortet nicht. Ich nutze jetzt die des Browsers."));
+      voiceLoop(token);
+      return;
+    }
     if (err?.name === "NotAllowedError" || err?.name === "SecurityError") voiceFail(tr("Das Mikrofon ist blockiert. Erlaube es in den Einstellungen des Browsers oder der App."));
     else if (err?.name === "NotFoundError") voiceFail(tr("Es wurde kein Mikrofon gefunden."));
     else voiceFail(err?.message || tr("Das hat nicht geklappt"));
@@ -411,7 +424,11 @@ async function listenServer(token, alive) {
     body: toWav(samples),
   });
   if (response.status === 401) { window.location.assign("login"); return null; }
-  if (!response.ok) throw await voiceError(response);
+  if (!response.ok) {
+    const failure = await voiceError(response);
+    failure.recognition = true; // die Erkennung selbst ist ausgefallen: die Oberfläche darf auf den Browser ausweichen
+    throw failure;
+  }
   const result = await response.json();
   result.ms = Date.now() - uploaded; // Hochladen und Erkennen zusammen
   return result;
