@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.52.2",
+    "items": [
+      {
+        "de": {
+          "title": "Schönere Sprach-Kugel",
+          "text": "Die leuchtende Kugel beim Sprechen hat keinen sichtbaren Rand mehr. Das Leuchten läuft sanft in den Hintergrund aus."
+        },
+        "en": {
+          "title": "Nicer voice sphere",
+          "text": "The glowing sphere while you talk no longer has a visible edge. The glow now fades smoothly into the background."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.52.1",
     "items": [
       {
