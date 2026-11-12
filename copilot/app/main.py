@@ -36,6 +36,8 @@ from .backend import (
     EchoBackend,
     scrub_environment,
 )
+from .backend_openai import OpenAIBackend
+from .backend_router import RouterBackend
 from . import attachments as filelib, compact, safety
 from . import news as newslib
 from . import quotes
@@ -50,9 +52,11 @@ from .config import (
     HA_WEBSOCKET_URL,
     SNAPSHOT_DIR,
     SUPERVISOR_TOKEN,
+    AUTO_MODEL,
     Profile,
     Settings,
     load_settings,
+    provider_of,
 )
 from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
@@ -230,6 +234,14 @@ class SendBody(BaseModel):
     quote: str | None = Field(default=None, max_length=quotes.QUOTE_MAX * 2)
     # Gesprochene Nachricht: schnelles Modell, kurze Antwort zum Vorlesen, weniger Werkzeuge, Rückfragen werden abgelehnt
     voice: bool = False
+
+
+class _Declined(Exception):
+    """Die Person hat eine Rückfrage vor dem Start der Antwort abgelehnt (z. B. Monatslimit für ChatGPT)."""
+
+
+class DefaultModelBody(BaseModel):
+    model: str = Field(default="", max_length=64)  # '' oder "auto" = das in der App eingestellte Modell
 
 
 class CreateChatBody(BaseModel):
@@ -783,6 +795,15 @@ def register_chat_routes(
     if scheduler is not None:
         scheduler.phone_services = notifier.selected  # geplante Aufgaben melden an dieselben Geräte
     model_ids = {m["id"] for m in settings.model_choices()}
+
+    def user_default_model(profile_id: str) -> str:
+        """Standardmodell der Person für neue Chats ('' = Auto); ein nicht mehr wählbares Modell zählt als Auto."""
+        wanted = store.profile_default_model(profile_id)
+        return wanted if wanted in model_ids else ""
+
+    def concrete_model(selection: str) -> str:
+        """Auto (oder keine Angabe) = das in der App eingestellte Modell, sonst das gewählte."""
+        return settings.model if selection in ("", AUTO_MODEL) else selection
     accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH))
     images = images or ImageService(settings)
     voice = voice or VoiceService(settings, ha)
@@ -848,6 +869,8 @@ def register_chat_routes(
             "connectors": connectors.level(profile.id) >= 1,
             "models": settings.model_choices(),
             "default_model": settings.model,
+            "user_model": user_default_model(profile.id),
+            "openai": settings.openai_active,
             "limits": limits.current(),
             "schedules": settings.schedules_enabled and scheduler is not None,
             "notify_phone": notifier.available,  # die Geräte der Person ermittelt der Melder beim Senden aus Home Assistant
@@ -871,6 +894,16 @@ def register_chat_routes(
         if not found:
             raise HTTPException(status_code=404, detail="kein Profilbild")
         return Response(found[0], media_type=found[1], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
+    @app.put("/api/me/model", dependencies=[Depends(write_guard)])
+    def save_default_model(body: DefaultModelBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Standardmodell der Person für neue Chats (Einstellungen); Auto = das in der App eingestellte Modell."""
+        wanted = body.model.strip()
+        if wanted == AUTO_MODEL:
+            wanted = ""
+        if wanted and wanted not in model_ids:
+            raise HTTPException(status_code=422, detail=tr("Unbekanntes Modell"))
+        return {"model": store.set_profile_default_model(profile.id, wanted)}
 
     @app.post("/api/presence", status_code=204, dependencies=[Depends(write_guard)])
     def report_presence(body: PresenceBody, profile: Profile = Depends(current_profile)) -> Response:
@@ -1268,6 +1301,11 @@ def register_chat_routes(
             "windows": limits.overview(),
             "subscription": settings.backend == "claude" and bool(settings.claude_oauth_token),
             "images": {"enabled": generate, "month": month, "used": store.image_usage(profile.id, month) if generate else 0, "limit": settings.image_limit_month},
+            "openai": {
+                "enabled": settings.openai_active, "month": month,
+                "used": store.token_usage(profile.id, month, "openai") if settings.openai_active else 0,
+                "limit": settings.openai_limit_month * 1000,
+            },
         }
 
     @app.get("/api/chats")
@@ -2005,9 +2043,13 @@ def register_chat_routes(
         if chat["title"] != provisional or generate is None:
             return chat
         new_title = None
+        # Titel erzeugt der Anbieter, bei dem der Chat läuft (ChatGPT-Chats gehen nie an Claude)
+        wanted = chat.get("model") if chat.get("model") == AUTO_MODEL or chat.get("model") in model_ids else ""
+        title_model = concrete_model(wanted or user_default_model(profile_id))
+        extra_args = {"model": title_model} if provider_of(title_model) == "openai" else {}
         try:
             async with title_lock, asyncio.timeout(TITLE_TIMEOUT):
-                new_title = await generate(_title_source(first, history[0].get("attachments")), answer)
+                new_title = await generate(_title_source(first, history[0].get("attachments")), answer, **extra_args)
         except (TimeoutError, Exception):  # Titel sind Beiwerk: der Vorlauf-Titel bleibt stehen
             log.info("Chat-Titel nicht erzeugt", exc_info=True)
         if new_title and new_title != provisional:
@@ -2060,13 +2102,17 @@ def register_chat_routes(
         effort = "low" if spoken else (body.effort or settings.default_effort)
         chat = store.get_chat(profile.id, chat_id) or {}
         requested_model = (body.model or "").strip()
-        if requested_model and requested_model not in model_ids:
+        if requested_model and requested_model != AUTO_MODEL and requested_model not in model_ids:
             raise HTTPException(status_code=422, detail=tr("Unbekanntes Modell"))
-        chosen_model = requested_model or (chat.get("model") if chat.get("model") in model_ids else "")
-        model = chosen_model if chosen_model and chosen_model != settings.model else None  # None = Standard-Modell
-        if spoken:  # gesprochen: immer das schnelle Modell, die Wahl des Chats bleibt unberührt
+        # Vorrang: Wahl in diesem Chat, dann Standardmodell der Person, dann das in der App eingestellte Modell („Auto“)
+        saved_model = chat.get("model") if chat.get("model") == AUTO_MODEL or chat.get("model") in model_ids else ""
+        chosen_model = concrete_model(requested_model or saved_model or user_default_model(profile.id))
+        model = chosen_model if chosen_model != settings.model else None  # None = Standard-Modell
+        if spoken:  # gesprochen: immer das schnelle Modell (Claude), die Wahl des Chats bleibt unberührt
             requested_model = ""
+            chosen_model = settings.voice_model
             model = settings.voice_model if settings.voice_model != settings.model else None
+        provider = provider_of(chosen_model)
         web_on = settings.web_level(profile) == "on" and body.web is not False
         first_exchange = not history and chat.get("title") in DEFAULT_TITLES
         metas = [f.meta() for f in files]
@@ -2074,6 +2120,10 @@ def register_chat_routes(
         extra: dict = {"on_limit": limits.update}
         if model:
             extra["model"] = model
+        usage_month = datetime.now().strftime("%Y-%m")
+        token_limit = settings.openai_limit_month * 1000
+        if provider == "openai":
+            extra["on_usage"] = lambda tokens: store.token_usage_add(profile.id, usage_month, tokens, "openai")
         if files:
             extra["attachments"] = files
         if instructions:
@@ -2082,6 +2132,8 @@ def register_chat_routes(
         if personal:
             extra["personal_instructions"] = personal
         summarize = getattr(backend, "summarize", None)
+        # Zusammenfassungen erzeugt der Anbieter, bei dem der Chat läuft
+        summary_args = {"model": chosen_model, "on_usage": extra["on_usage"]} if provider == "openai" else {}
         level = ha_level(profile)
         if spoken and level == "write":
             level = "execute"  # per Sprache nur bedienen, nichts umbauen
@@ -2104,7 +2156,9 @@ def register_chat_routes(
         if first_exchange:
             store.rename_chat(profile.id, chat_id, provisional)
         if requested_model:
-            store.set_chat_model(profile.id, chat_id, "" if requested_model == settings.model else requested_model)
+            # Entspricht die Wahl dem, was ohnehin gilt (Standardmodell der Person), wird nichts gemerkt
+            same = concrete_model(requested_model) == concrete_model(user_default_model(profile.id))
+            store.set_chat_model(profile.id, chat_id, "" if same else requested_model)
         asked = text or ONLY_FILES_PROMPT  # was Claude zu sehen bekommt; gespeichert und angezeigt wird der leere Text
         run = Run(key, asked, first_exchange)
         runs[key] = run
@@ -2266,6 +2320,16 @@ def register_chat_routes(
         async def generate() -> None:
             error: str | None = None
             try:
+                if provider == "openai" and token_limit:
+                    used_tokens = store.token_usage(profile.id, usage_month, "openai")
+                    if used_tokens >= token_limit:
+                        decision = await ask_about(
+                            "tokens", tr("Monatslimit für ChatGPT erreicht"),
+                            tr("Du hast diesen Monat {used} von {limit} Token mit ChatGPT verbraucht. Jede weitere Antwort verursacht Kosten bei OpenAI.", used=f"{used_tokens:,}".replace(",", "."), limit=f"{token_limit:,}".replace(",", ".")),
+                            False,
+                        )
+                        if decision == "deny":
+                            raise _Declined(tr("Nicht gesendet: das Monatslimit für ChatGPT ist erreicht."))
                 # Zu langer Verlauf: älteren Teil zusammenfassen, statt ihn stillschweigend abzuschneiden.
                 summary, upto = store.get_summary(profile.id, chat_id)
                 pending = [m for m in history if upto is None or m["id"] > upto]
@@ -2278,7 +2342,7 @@ def register_chat_routes(
 
                         async def work() -> AsyncIterator[str]:
                             async with asyncio.timeout(SUMMARY_TIMEOUT):
-                                produced["text"] = await summarize(summary, older)
+                                produced["text"] = await summarize(summary, older, **summary_args)
                             return
                             yield  # macht daraus einen Generator, damit _pump Lebenszeichen senden kann
 
@@ -2307,9 +2371,11 @@ def register_chat_routes(
                     error = exc.user_message
                     run.error_resets_at = exc.resets_at
                 except TimeoutError:
-                    error = tr("Zeitüberschreitung: Claude hat nicht rechtzeitig geantwortet.")
+                    error = tr("Zeitüberschreitung: ChatGPT hat nicht rechtzeitig geantwortet.") if provider == "openai" else tr("Zeitüberschreitung: Claude hat nicht rechtzeitig geantwortet.")
             except asyncio.CancelledError:
                 pass  # Stopp-Knopf oder Herunterfahren: vorhandene Teilantwort wird unten gespeichert
+            except _Declined as exc:
+                error = str(exc)
             except Exception:
                 log.exception("Antwort fehlgeschlagen")
                 error = tr("Unerwarteter Fehler beim Beantworten.")
@@ -2940,6 +3006,11 @@ def main() -> None:
     else:
         backend = EchoBackend()
         log.warning("KI-Backend: Echo-Testmodus – es wird KEINE echte KI verwendet")
+    if settings.openai_active:
+        backend = RouterBackend(backend, OpenAIBackend(settings.openai_chat_key, settings.openai_models[0]))
+        log.info("KI-Backend: zusätzlich ChatGPT (%s)", ", ".join(settings.openai_models))
+    elif settings.openai_enabled:
+        log.warning("ChatGPT ist eingeschaltet, aber es fehlt der OpenAI-Schlüssel (Gruppe Chat oder Bilder): ChatGPT bleibt aus")
     report = safety.prepare(DB_PATH, SNAPSHOT_DIR, settings.restore_snapshot, BRANDING_DIR)
     for line in report.lines:
         (log.error if line.startswith("DATENBANK-FEHLER") else log.info)("Datensicherheit: %s", line)

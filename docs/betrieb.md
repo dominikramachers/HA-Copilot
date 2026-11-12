@@ -38,7 +38,7 @@ Nach „Nach Updates suchen“ kann ein Dialog „Unknown error, see supervisor 
 
 ## Update auf die Gruppen in der Konfiguration (ab 0.54.0)
 
-Ab 0.54.0 ist die Add-on-Konfiguration in eingeklappte Gruppen gegliedert: **Benutzer**, **Chat und Claude**, **Bilder**, **Sprechen mit der KI**, **Domain-Zugang (Entra)**, **Personalisierung** und **Globale Einstellungen**. Home Assistant verwirft beim Wechsel die alten Einträge, die nicht mehr im Schema stehen. Damit du nichts neu eintragen musst, gilt:
+Ab 0.54.0 ist die Add-on-Konfiguration in eingeklappte Gruppen gegliedert: **Benutzer**, **Chat (Claude & OpenAI)**, **Bilder**, **Sprechen mit der KI**, **Domain-Zugang (Entra)**, **Personalisierung** und **Globale Einstellungen**. Home Assistant verwirft beim Wechsel die alten Einträge, die nicht mehr im Schema stehen. Damit du nichts neu eintragen musst, gilt:
 
 1. **Erst auf 0.53.9 (oder neuer, aber noch vor 0.54.0) aktualisieren und das Add-on einmal starten.** Es legt dabei eine Kopie der Optionen als `options-backup.json` im Datenordner an. Wer direkt von einer älteren Version auf 0.54.0 geht, hat keine Kopie und muss seine Werte nach dem Update neu eintragen (Schlüssel und Benutzerliste vorher notieren, am besten über ⋮ → „In YAML bearbeiten“).
 2. **Auf 0.54.0 aktualisieren.** Die Gruppen stehen zunächst auf Standardwerten. Das Add-on liest die alten Werte aus der Kopie und verwendet sie weiter, solange die Option in der neuen Gruppe noch auf dem Standardwert steht. Oben im Chat erscheint ein Hinweis, welche Werte so übernommen wurden.
@@ -97,6 +97,7 @@ Trage die Ablaufdaten ein, dann erinnert das Add-on im Chat (30 Tage vorher gelb
 - `chat.claude_token_expires`: ein Abo-Token gilt ein Jahr ab dem Tag von `claude setup-token`.
 - `domain.entra_secret_expires`: zu sehen in Entra unter „Zertifikate & Geheimnisse“.
 - `voice.openai_key_expires` (ab 0.53.9): Ablaufdatum des eigenen OpenAI-Schlüssels für das Sprechen; ohne eigenen Schlüssel gilt das Datum bei den Bildern.
+- `chat.openai_key_expires` (ab 0.55.0): Ablaufdatum des OpenAI-Schlüssels für ChatGPT im Chat; ohne eigenen Schlüssel gilt das Datum bei den Bildern.
 - `images.openai_key_expires` und `images.google_key_expires` (ab 0.53.8): nur nötig, wenn der Schlüssel abläuft; das Datum steht bei platform.openai.com unter „API keys“ bzw. bei aistudio.google.com.
 
 ## Fehlerbehebung

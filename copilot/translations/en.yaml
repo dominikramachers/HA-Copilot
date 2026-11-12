@@ -21,19 +21,19 @@ configuration:
             description: Account the person uses to sign in via the public domain with Microsoft Entra.
           ha_access:
             name: Home Assistant access (optional)
-            description: 'What the AI may do in Home Assistant for this user: none, read, execute (read and operate devices) or write (read, execute and change automations, scripts, dashboards, helpers). Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies.'
+            description: 'What the AI may do in Home Assistant for this user: none, read, execute (read and operate devices) or write (read, execute and change automations, scripts, dashboards, helpers). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
           github_access:
             name: GitHub access (optional)
-            description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies. The token belongs to you as the operator: every user with read or write can see your private repositories through it (unless the allow-list restricts it).'
+            description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies. The token belongs to you as the operator: every user with read or write can see your private repositories through it (unless the allow-list restricts it).'
           connector_access:
             name: Connectors (optional)
-            description: 'What the AI may do with connectors (MCP servers such as Microsoft 365, Google Workspace or Zabbix) for this user: none, use (use shared/global connectors), own (also create their own), global (also create and change global connectors for everyone, including home-network addresses). Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies.'
+            description: 'What the AI may do with connectors (MCP servers such as Microsoft 365, Google Workspace or Zabbix) for this user: none, use (use shared/global connectors), own (also create their own), global (also create and change global connectors for everyone, including home-network addresses). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
           web_access:
             name: Web search (optional)
-            description: 'on = the AI may search the web and read pages for this user, off = not. Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies.'
+            description: 'on = the AI may search the web and read pages for this user, off = not. Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
           voice_access:
             name: Talking to the AI (optional)
-            description: 'on = this person may talk to the AI by voice (microphone button in the chat), off = not. Empty: the default of this option in the group “Chat and Claude” or “Talking to the AI” applies.'
+            description: 'on = this person may talk to the AI by voice (microphone button in the chat), off = not. Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
           notify_service:
             name: Notification service (optional)
             description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). Default device of this person (everyone picks their own devices under Settings → Notifications; without a choice the devices of their person in Home Assistant apply). Empty: no default.'
@@ -47,8 +47,8 @@ configuration:
         name: Excluded Home Assistant users (optional)
         description: 'Only with “Allow all Home Assistant users”: usernames, names or IDs, comma separated (e.g. “child1, guest”). These users cannot get in.'
   chat:
-    name: Chat and Claude
-    description: Access to Claude (subscription token or API key), model, memory, scheduled tasks, files, access to Home Assistant and the defaults for GitHub and connectors.
+    name: Chat (Claude & OpenAI)
+    description: Access to Claude (subscription token or API key) and optionally to ChatGPT (OpenAI), model, memory, scheduled tasks, files, access to Home Assistant and the defaults for GitHub and connectors.
     fields:
       anthropic_api_key:
         name: Anthropic API key
@@ -83,6 +83,21 @@ configuration:
       connector_access_default:
         name: Default connector access
         description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'
+      openai_enabled:
+        name: Allow ChatGPT (OpenAI) in the chat
+        description: 'Off (default): Claude only. On (and a key entered): ChatGPT models can be chosen in the chat, with Home Assistant control, memory, files, images, GitHub, connectors, web search and scheduled tasks. What is written in a ChatGPT chat goes to OpenAI (never to Claude), and what is written in a Claude chat never goes to OpenAI. Speaking with the AI always stays on Claude Haiku.'
+      openai_api_key:
+        name: OpenAI API key (chat)
+        description: 'Key from platform.openai.com (API keys) for the ChatGPT models; a ChatGPT subscription is not enough, the API account needs its own credit. Empty: the key from “Images” is used as well.'
+      openai_key_expires:
+        name: OpenAI key (chat) expires on
+        description: Date (YYYY-MM-DD) for the reminder in the app; a notice appears in the chat 30 days before.
+      openai_models:
+        name: ChatGPT models
+        description: 'Models offered in the chat (at most 6), separated by commas. Default: gpt-5.6-terra, gpt-5.6-luna, gpt-5.6-sol. Empty: the default list.'
+      openai_limit_month:
+        name: ChatGPT tokens per person and month (thousands)
+        description: How many tokens (input plus output) each person may use per month with ChatGPT models, in thousands (default 3000 = 3 million, 0 = no limit). Above that the chat asks before every further answer (allow or decline).
   images:
     name: Images
     description: The AI creates images by itself. It draws SVG graphics for free; photos and artwork need a key from OpenAI or Google (both optional).

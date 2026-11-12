@@ -556,3 +556,51 @@ def test_timezone_unavailable_or_unknown_changes_nothing(store, monkeypatch):
     finally:
         monkeypatch.undo()
         _time.tzset()
+
+
+# ------------------------------------------------------------------ ChatGPT in geplanten Aufgaben
+
+def gpt_settings(**extra):
+    return parse_settings({**RAW, "openai_enabled": True, "openai_chat_api_key": "sk-x", **extra}, frozenset({"testclient"}))
+
+
+class UsageBackend(FakeBackend):
+    async def stream(self, history, message, effort, *args, on_usage=None, **kw):
+        if on_usage:
+            on_usage(2500)
+        async for piece in super().stream(history, message, effort, *args, **kw):
+            yield piece
+
+
+def test_scheduled_task_can_use_a_gpt_model_and_counts_its_tokens(store):
+    settings = gpt_settings()
+    month = datetime.now().strftime("%Y-%m")
+    scheduler, backend, _, _, _ = build(store, settings=settings, backend=UsageBackend(("Bericht ",)), now=2_000)
+    make_task(store, next_run=1_000, model="gpt-5.6-terra")
+    run_tick(scheduler)
+    assert store.token_usage("adm01", month, "openai") == 2500
+    assert backend.calls and store.schedule_get("adm01", store.list_chats("adm01")[0]["schedule_id"])["last_status"] == "ok"
+
+
+def test_scheduled_gpt_task_does_not_run_over_the_monthly_limit(store):
+    settings = gpt_settings(openai_limit_month=1)
+    month = datetime.now().strftime("%Y-%m")
+    store.token_usage_add("adm01", month, 1000, "openai")
+    scheduler, backend, _, _, _ = build(store, settings=settings, now=2_000)
+    row = make_task(store, next_run=1_000, model="gpt-5.6-terra")
+    run_tick(scheduler)
+    after = store.schedule_get("adm01", row["id"])
+    assert after["last_status"] == "error" and "Monatslimit" in after["last_note"] and backend.calls == []
+    # dieselbe Aufgabe mit Claude läuft weiter
+    scheduler, backend, _, _, _ = build(store, settings=settings, now=2_000)
+    other = make_task(store, next_run=1_000, name="Claude-Lauf")
+    run_tick(scheduler)
+    assert store.schedule_get("adm01", other["id"])["last_status"] == "ok"
+
+
+def test_gpt_models_are_only_accepted_for_tasks_when_enabled(store):
+    _, client = make_app(store, gpt_settings())
+    h = as_user(ADM01, True)
+    assert client.post("/api/schedules", json={**BODY, "model": "gpt-5.6-luna"}, headers=h).json()["model"] == "gpt-5.6-luna"
+    _, client = make_app(store, parse_settings(RAW, frozenset({"testclient"})))
+    assert client.post("/api/schedules", json={**BODY, "model": "gpt-5.6-luna"}, headers=h).status_code == 422

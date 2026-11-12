@@ -5056,7 +5056,7 @@ function approvalCard(chatId, ev) {
   const card = node("div", "ask-card");
   card.setAttribute("role", "group");
   card.setAttribute("aria-label", tr("Rückfrage"));
-  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
+  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
   card.append(node("div", "ask-title", question), node("div", "ask-what", ev.label));
   if (ev.details) {
     const more = document.createElement("details");
@@ -5459,43 +5459,59 @@ function limitNotices(list) {
 
 async function refreshLimits() {
   if (!state.me) return;
+  // Das Limit gehört dem Claude-Abo: in einem ChatGPT-Chat ist es nicht von Belang
+  if (usesOpenAI()) { renderNotices([], $("limit-notices")); return; }
   renderNotices(limitNotices(await api("api/limits")), $("limit-notices"));
 }
 
-const validModel = (id) => !!id && !!state.me?.models?.some((m) => m.id === id);
-const effectiveModel = () => (validModel(state.model) ? state.model : state.me?.default_model || "");
-const modelLabel = (id) => state.me?.models?.find((m) => m.id === id)?.label || id;
+// Modellwahl: "" = nichts gewählt (es gilt das Standardmodell der Person), "auto" = das in der App eingestellte Modell, sonst die Kennung.
+const AUTO = "auto";
+const validModel = (id) => id === AUTO || (!!id && !!state.me?.models?.some((m) => m.id === id));
+const selectedModel = () => (validModel(state.model) ? state.model : (validModel(state.me?.user_model) && state.me.user_model) || AUTO);
+const concreteModel = (selection) => (selection === AUTO ? state.me?.default_model || "" : selection);
+const modelEntry = (id) => state.me?.models?.find((m) => m.id === id);
+const modelProvider = (id) => modelEntry(id)?.provider || "claude";
+const modelLabel = (id) => (id === AUTO ? tr("Auto") : modelEntry(id)?.label || id);
+const usesOpenAI = () => modelProvider(concreteModel(selectedModel())) === "openai";
 
 function markTools() {
   const me = state.me;
   const hasModels = (me?.models?.length || 0) > 1;
   const btn = $("tools");
-  const model = hasModels ? modelLabel(effectiveModel()) : "";
+  const model = hasModels ? modelLabel(selectedModel()) : "";
   $("tools-name").textContent = model;
   $("tools-effort").textContent = effortLabel(state.effort);
   btn.classList.toggle("web-off", !!me?.web && !state.web);
+  btn.classList.toggle("on-openai", hasModels && usesOpenAI());
+  btn.title = hasModels && usesOpenAI() ? tr("Dieser Chat läuft mit ChatGPT: Nachrichten und Anhänge gehen an OpenAI.") : "";
   btn.setAttribute("aria-label", `${tr("Modell, Aufwand und Websuche")}: ${[model, effortLabel(state.effort)].filter(Boolean).join(", ")}`);
 }
 
-// Modell des geöffneten Chats (gemerkt auf dem Server) oder, bei einem neuen Chat, das zuletzt gewählte.
+// Modell des geöffneten Chats (gemerkt auf dem Server); ein neuer Chat startet ohne eigene Wahl, es gilt dann das Standardmodell der Person.
 function useChatModel(chat) {
-  if (chat) { state.model = validModel(chat.model) ? chat.model : ""; }
-  else {
-    let stored = "";
-    try { stored = localStorage.getItem("ki-model") || ""; } catch { /* optional */ }
-    state.model = validModel(stored) ? stored : "";
-  }
+  state.model = chat && validModel(chat.model) ? chat.model : "";
   markTools();
+  refreshLimits().catch(() => {});
 }
 
 const MODEL_HINTS = { sonnet: tr("Am effizientesten für einfachere Aufgaben"), opus: tr("Für komplexe Arbeit und alltägliche Aufgaben"), haiku: tr("Am schnellsten für schnelle Antworten") };
-const modelHint = (id) => MODEL_HINTS[Object.keys(MODEL_HINTS).find((family) => id.includes(family))] || "";
+const modelHint = (id) => {
+  if (id === AUTO) return tr("Das in der App eingestellte Modell ({0})", modelLabel(concreteModel(AUTO)));
+  if (modelProvider(id) === "openai") return tr("ChatGPT von OpenAI: Der Chat geht an OpenAI");
+  return MODEL_HINTS[Object.keys(MODEL_HINTS).find((family) => id.includes(family))] || "";
+};
+
+// Reihenfolge im Menü: Auto, die Claude-Modelle, danach ChatGPT.
+function modelGroups() {
+  const models = state.me?.models || [];
+  return [models.filter((m) => m.provider !== "openai"), models.filter((m) => m.provider === "openai")];
+}
 
 // Handy: Fenster „Modell auswählen“ wie in Claude (Modelle mit Kurzbeschreibung, „Aufwand“ als zweite Seite, Websuche).
 async function phoneToolsMenu() {
   const me = state.me;
   const models = me.models || [];
-  const current = effectiveModel();
+  const current = selectedModel();
   const button = $("tools");
   button.setAttribute("aria-expanded", "true");
   let choice;
@@ -5515,16 +5531,22 @@ async function phoneToolsMenu() {
           $("sheet-title").textContent = models.length > 1 ? tr("Modell auswählen") : tr("Modell, Aufwand und Websuche");
           body.replaceChildren();
           if (models.length > 1) {
-            const card = node("div", "mm-card");
-            for (const m of models) {
-              const text = node("span", "mm-text");
-              text.append(node("span", "mm-name", m.label));
-              if (modelHint(m.id)) text.append(node("span", "mm-hint", modelHint(m.id)));
-              const r = row("mm-row", text, ...(m.id === current ? [icon("check")] : []));
-              r.addEventListener("click", pick(`model:${m.id}`));
-              card.append(r);
-            }
-            body.append(card);
+            const [claude, openai] = modelGroups();
+            const makeCard = (list, heading) => {
+              const card = node("div", "mm-card");
+              for (const m of list) {
+                const text = node("span", "mm-text");
+                text.append(node("span", "mm-name", modelLabel(m.id)));
+                if (modelHint(m.id)) text.append(node("span", "mm-hint", modelHint(m.id)));
+                const r = row("mm-row", text, ...(m.id === current ? [icon("check")] : []));
+                r.addEventListener("click", pick(`model:${m.id}`));
+                card.append(r);
+              }
+              if (heading) body.append(node("div", "mm-head", heading));
+              body.append(card);
+            };
+            makeCard([{ id: AUTO }, ...claude]);
+            if (openai.length) makeCard(openai, tr("ChatGPT (OpenAI)"));
           }
           const effort = row("mm-link", node("span", "mm-name", tr("Aufwand")), node("span", "mm-detail", effortLabel(state.effort)), icon("chevron"));
           effort.addEventListener("click", effortPage);
@@ -5567,16 +5589,22 @@ async function phoneToolsMenu() {
 async function toolsMenu() {
   const me = state.me;
   const models = me.models || [];
-  const current = effectiveModel();
+  const current = selectedModel();
   const several = models.length > 1;
   let choice;
   if (!wideScreen()) {
     choice = await phoneToolsMenu();
   } else {
     const entries = [];
-    if (several) entries.push({ value: `model:${current}`, label: modelLabel(current), active: true });
+    const modelEntryFor = (id) => ({ value: `model:${id}`, label: modelLabel(id), detail: id === AUTO ? modelLabel(concreteModel(AUTO)) : modelProvider(id) === "openai" ? "OpenAI" : "" });
+    if (several) entries.push({ ...modelEntryFor(current), active: true });
     entries.push({ label: tr("Aufwand"), detail: effortLabel(state.effort), submenu: EFFORTS.map(([value, label]) => ({ value: `effort:${value}`, label, active: value === state.effort })) });
-    if (several) entries.push({ label: tr("Weitere Modelle"), submenu: models.filter((m) => m.id !== current).map((m) => ({ value: `model:${m.id}`, label: m.label })) });
+    if (several) {
+      const [claude, openai] = modelGroups();
+      const others = [{ id: AUTO }, ...claude].filter((m) => m.id !== current).map((m) => modelEntryFor(m.id));
+      const gpt = openai.filter((m) => m.id !== current).map((m) => modelEntryFor(m.id));
+      entries.push({ label: tr("Weitere Modelle"), submenu: [...others, ...(gpt.length ? [{ divider: true }, ...gpt] : [])] });
+    }
     if (me.web) {
       entries.push({ divider: true });
       entries.push({ value: "web", icon: "globe", label: tr("Websuche"), active: state.web, toggle: state.web });
@@ -5591,7 +5619,8 @@ async function toolsMenu() {
   }
   if (typeof choice === "string" && choice.startsWith("model:")) {
     state.model = choice.slice(6);
-    try { localStorage.setItem("ki-model", state.model); } catch { /* optional */ }
+    if (usesOpenAI()) toast(tr("Dieser Chat läuft mit ChatGPT: Nachrichten und Anhänge gehen an OpenAI, nicht an Claude."));
+    refreshLimits().catch(() => {});
   } else if (typeof choice === "string" && choice.startsWith("effort:")) {
     state.effort = choice.slice(7);
     try { localStorage.setItem("ki-effort", state.effort); } catch { /* optional */ }
@@ -6746,6 +6775,45 @@ function themeRow() {
   return row;
 }
 
+// „Standardmodell“: gilt in jedem neuen Chat. Auto = das in der App eingestellte Modell. Im Chat selbst lässt es sich jederzeit ändern.
+function defaultModelRow() {
+  const row = node("div", "set-row");
+  const text = node("div", "set-row-text");
+  const hint = node("span", "", tr("Gilt in jedem neuen Chat; im Chat kannst du es jederzeit wechseln."));
+  text.append(node("b", "", tr("Standardmodell")), hint);
+  const select = node("select", "field");
+  select.setAttribute("aria-label", tr("Standardmodell"));
+  select.append(new Option(`${tr("Auto")} (${modelLabel(concreteModel(AUTO))})`, AUTO));
+  const [claude, openai] = modelGroups();
+  for (const m of claude) select.append(new Option(m.label, m.id));
+  if (openai.length) {
+    const group = document.createElement("optgroup");
+    group.label = tr("ChatGPT (OpenAI)");
+    for (const m of openai) group.append(new Option(m.label, m.id));
+    select.append(group);
+  }
+  select.value = validModel(state.me?.user_model) && state.me.user_model ? state.me.user_model : AUTO;
+  const note = () => { hint.textContent = modelProvider(select.value) === "openai" ? tr("ChatGPT läuft bei OpenAI: Nachrichten und Anhänge neuer Chats gehen dorthin, nicht an Claude.") : tr("Gilt in jedem neuen Chat; im Chat kannst du es jederzeit wechseln."); };
+  note();
+  select.addEventListener("change", async () => {
+    const wanted = select.value;
+    try {
+      const saved = await api("api/me/model", { method: "PUT", body: JSON.stringify({ model: wanted }) });
+      state.me.user_model = saved.model;
+      note();
+      markTools();
+      refreshLimits().catch(() => {});
+      toast(tr("Standardmodell gespeichert."));
+    } catch {
+      toast(tr("Das hat nicht geklappt."));
+      select.value = validModel(state.me?.user_model) && state.me.user_model ? state.me.user_model : AUTO;
+      note();
+    }
+  });
+  row.append(text, select);
+  return row;
+}
+
 function settingsGeneral(body) {
   const list = node("div", "set-rows");
   if (document.documentElement.dataset.themeSource !== "ha") list.append(themeRow());
@@ -6755,6 +6823,7 @@ function settingsGeneral(body) {
   text.append(node("b", "", tr("Sprache")), node("span", "", tr("Der Administrator legt sie in der Add-on-Konfiguration fest (language).")));
   lang.append(text, node("span", "set-value", kiLang === "en" ? "English" : "Deutsch"));
   list.append(lang);
+  if ((state.me?.models?.length || 0) > 1) list.append(defaultModelRow());
   const who = node("div", "set-row");
   const whoText = node("div", "set-row-text");
   whoText.append(node("b", "", tr("Angemeldet als")), node("span", "", state.me?.label || ""));
@@ -6819,6 +6888,17 @@ async function settingsUsage(body, alive) {
   }
   plan.append(node("p", "mem-hint", tr("Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Die Werte meldet Claude mit jeder Antwort der KI; die Seite zeigt den letzten gemeldeten Stand.")));
   parts.push(plan);
+
+  const gpt = data.openai;
+  if (gpt?.enabled) {
+    const box = node("section", "set-block");
+    box.append(node("h4", "", tr("ChatGPT in diesem Monat")));
+    const fmt = (n) => n.toLocaleString(kiLocale);
+    box.append(node("p", "set-lead", gpt.limit ? tr("{0} von {1} Token verbraucht.", fmt(gpt.used), fmt(gpt.limit)) : tr("{0} Token verbraucht (kein Limit).", fmt(gpt.used))));
+    if (gpt.limit) box.append(usageBar(Math.min(1, gpt.used / gpt.limit), gpt.used >= gpt.limit ? "bad" : gpt.used >= gpt.limit * 0.8 ? "warn" : ""));
+    box.append(node("p", "mem-hint", tr("Zählt Eingabe und Ausgabe aller deiner Chats mit ChatGPT-Modellen. Titel und Zusammenfassungen zählen nicht mit. Ist das Limit erreicht, fragt der Chat vor jeder weiteren Antwort nach. Der Zähler beginnt jeden Monat neu.")));
+    parts.push(box);
+  }
 
   const img = data.images;
   const pics = node("section", "set-block");
@@ -6895,7 +6975,7 @@ function settingsGroups() {
   const page = (id, iconName, label, sub, render, extra = {}) => ({ id, icon: iconName, label, sub, render, ...extra });
   const prefs = [
     page("general", "sliders", tr("Allgemein"), "", settingsGeneral),
-    page("usage", "gauge", tr("Nutzung"), tr("Wie viel vom Abo und von den Bildern verbraucht ist."), settingsUsage),
+    page("usage", "gauge", tr("Nutzung"), tr("Wie viel vom Abo, von ChatGPT und von den Bildern verbraucht ist."), settingsUsage),
   ];
   if (me.memory) prefs.push(page("memory", "memory", tr("Gedächtnis"), tr("Die KI merkt sich, was du ihr sagst, und nutzt es in allen Chats. Du kannst jeden Eintrag löschen."), memoryPanel));
   if (me.github_connect) prefs.push(page("github", "github", "GitHub", tr("Verbinde dein GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann."), githubPanel, { solid: true }));

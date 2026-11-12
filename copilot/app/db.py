@@ -166,6 +166,16 @@ CREATE TABLE IF NOT EXISTS image_usage (
 );
 """
 
+TOKEN_USAGE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS token_usage (
+    profile_id  TEXT NOT NULL,
+    month       TEXT NOT NULL,
+    provider    TEXT NOT NULL,
+    tokens      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (profile_id, month, provider)
+);
+"""
+
 CONNECTORS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS connectors (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -300,7 +310,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 21  # 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 22  # 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind"
 
@@ -462,6 +472,8 @@ class Store:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN ha_user_id TEXT")
         if "instructions" not in profile_columns:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")  # „Meine Anweisungen“ für alle Chats der Person
+        if "default_model" not in profile_columns:
+            self._conn.execute("ALTER TABLE profiles ADD COLUMN default_model TEXT NOT NULL DEFAULT ''")  # Standardmodell der Person für neue Chats ('' = Auto)
         project_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(projects)")}
         if "instructions" not in project_columns:
             self._conn.execute("ALTER TABLE projects ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")
@@ -477,6 +489,7 @@ class Store:
         if "origin" not in outfile_columns:
             self._conn.execute("ALTER TABLE outfiles ADD COLUMN origin TEXT NOT NULL DEFAULT 'ai'")  # 'ai' = erzeugt/bearbeitet, 'attached' = von der Person angehängt
         self._conn.executescript(IMAGE_USAGE_SCHEMA)
+        self._conn.executescript(TOKEN_USAGE_SCHEMA)
         self._conn.executescript(SKILLS_SCHEMA)
         self._conn.executescript(CONNECTORS_SCHEMA)
         self._conn.executescript(PLUGINS_SCHEMA)
@@ -1445,6 +1458,20 @@ class Store:
             self._conn.execute("UPDATE profiles SET instructions = ? WHERE id = ?", (text, profile_id))
         return text
 
+    def profile_default_model(self, profile_id: str) -> str:
+        """Standardmodell dieser Person für neue Chats; leer = Auto (das in der App eingestellte Modell)."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT default_model FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+        return (row["default_model"] if row else "") or ""
+
+    def set_profile_default_model(self, profile_id: str, model: str) -> str:
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute("INSERT OR IGNORE INTO profiles (id) VALUES (?)", (profile_id,))
+            self._conn.execute("UPDATE profiles SET default_model = ? WHERE id = ?", (model, profile_id))
+        return model
+
     def memory_has_topic(self, scope: str, profile_id: str, topic: str) -> bool:
         owner = self._memory_owner(scope, profile_id)
         with self._lock:
@@ -1581,6 +1608,29 @@ class Store:
             )
             row = self._conn.execute("SELECT count FROM image_usage WHERE profile_id = ? AND month = ?", (profile_id, month)).fetchone()
         return int(row["count"])
+
+    def token_usage(self, profile_id: str, month: str, provider: str = "openai") -> int:
+        """Wie viele Token (Eingabe plus Ausgabe) diese Person in diesem Monat (``JJJJ-MM``) bei diesem Anbieter verbraucht hat."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT tokens FROM token_usage WHERE profile_id = ? AND month = ? AND provider = ?", (profile_id, month, provider)
+            ).fetchone()
+        return int(row["tokens"]) if row else 0
+
+    def token_usage_add(self, profile_id: str, month: str, tokens: int, provider: str = "openai") -> int:
+        _require(profile_id)
+        tokens = max(0, int(tokens))
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO token_usage (profile_id, month, provider, tokens) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(profile_id, month, provider) DO UPDATE SET tokens = tokens + excluded.tokens",
+                (profile_id, month, provider, tokens),
+            )
+            row = self._conn.execute(
+                "SELECT tokens FROM token_usage WHERE profile_id = ? AND month = ? AND provider = ?", (profile_id, month, provider)
+            ).fetchone()
+        return int(row["tokens"])
 
     def outfile_sweep(self, grace_seconds: int = 900) -> int:
         """Abgelaufene Dateien entfernen sowie Dateien ohne Eintrag (Chat gelöscht); liefert die Anzahl entfernter Dateien."""

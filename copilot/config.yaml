@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.54.2"
+version: "0.55.0"
 slug: copilot
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -52,6 +52,11 @@ options:
     ha_limit_to_exposed: true
     github_access_default: none
     connector_access_default: use
+    openai_enabled: false
+    openai_api_key: ""
+    openai_key_expires: ""
+    openai_models: "gpt-5.6-terra, gpt-5.6-luna, gpt-5.6-sol"
+    openai_limit_month: 3000
   images:
     openai_api_key: ""
     google_api_key: ""
@@ -116,6 +121,11 @@ schema:
     ha_limit_to_exposed: bool?
     github_access_default: list(none|read|write)?
     connector_access_default: list(none|use|own|global)?
+    openai_enabled: bool?
+    openai_api_key: password?
+    openai_key_expires: str?
+    openai_models: str?
+    openai_limit_month: int(0,100000)?
   images:
     openai_api_key: password?
     google_api_key: password?

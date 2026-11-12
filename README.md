@@ -39,7 +39,8 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 - **Dateien erzeugen und bearbeiten:** Word, Excel, PowerPoint, PDF und Skripte (PowerShell, Shell, Python …) zum Herunterladen; angehängte Dateien (PDF-Formulare, Word, Excel, PowerPoint, Text und Code) liest und ändert die KI auf Wunsch, das Original bleibt unverändert
 - **Bilder:** Die KI erkennt Bildwünsche selbst: einfache Grafiken zeichnet sie kostenlos als SVG, Fotos und Kunst lässt sie von OpenAI oder Google erzeugen (eigener Schlüssel, Monatslimit je Person); Änderungen im selben Chat als neue Fassung, Bildvorschau im Chat
 - **GitHub:** Repositories lesen, Code durchsuchen, Issues und Pull Requests ansehen; mit Schreibrecht Commits, Zweige und Pull Requests (jede Änderung wird im Chat bestätigt)
-- **Websuche** und Seiten lesen, wählbare Modelle, Hinweis auf das Nutzungslimit des Abos
+- **Websuche** und Seiten lesen, wählbare Modelle (Auto, Sonnet, Opus, Haiku; persönliches Standardmodell), Hinweis auf das Nutzungslimit des Abos
+- **ChatGPT (OpenAI) neben Claude** (optional, Standard aus): gleiche Fähigkeiten, Monatslimit an Token je Person, klarer Hinweis, dass der Chat zu OpenAI geht ([Einrichtung](docs/chatgpt.md))
 - **Geplante Aufgaben** (lesend, ohne Rückfragen) mit Benachrichtigung im Chat, in Home Assistant oder aufs Handy
 - Dateianhänge bis 50 MB: Bilder, PDF, Word, Excel, PowerPoint, Text und Code (zum Bearbeiten als Kopie im Chat, sonst nur im Arbeitsspeicher)
 - Lange Chats werden automatisch zusammengefasst, statt abgeschnitten zu werden
@@ -69,7 +70,7 @@ Du brauchst eigene Zugangsdaten. Sie werden nur in deiner Add-on-Konfiguration g
 
 ## Datenschutz und Sicherheit
 
-- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil der HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; nur bei Bildern von OpenAI oder Google (eigene Schlüssel nötig) gehen Bildwunsch und Referenzbild an den gewählten Anbieter; sonst an niemanden.
+- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil der HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic, bei einem Chat mit einem ChatGPT-Modell (nur wenn eingeschaltet) an OpenAI, nie an beide; nur bei Bildern von OpenAI oder Google (eigene Schlüssel nötig) gehen Bildwunsch und Referenzbild an den gewählten Anbieter; sonst an niemanden.
 - Dateianhänge: In der Datenbank stehen Name, Art und Größe. Das Add-on legt außer bei Bildern eine Kopie für diesen Chat im Datenordner ab (14 Tage, mit dem Chat gelöscht).
 - Die Domain-Anmeldung prüft die Identität serverseitig (OIDC mit PKCE, serverseitige Sitzungen, Schutz gegen Cross-Site-Anfragen). Das Add-on gibt den Port der Domain-Seite nicht nach außen frei; ein Tunnel (z. B. Cloudflare) ist deine Entscheidung.
 - Das Add-on legt von sich aus keinen Zugang über das Internet an. Wer die Domain-Seite aktiviert, sollte vorher [docs/domain-zugang.md](docs/domain-zugang.md) und [copilot/DOCS.md](copilot/DOCS.md) lesen.

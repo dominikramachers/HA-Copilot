@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.55.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich kann jetzt auch ChatGPT",
+          "text": "Wenn dein Administrator es einschaltet, kann ich auch mit ChatGPT von OpenAI antworten. Dann geht dieser Chat an OpenAI, nicht an Claude. Ich sage es dir im Chat."
+        },
+        "en": {
+          "title": "I can now use ChatGPT too",
+          "text": "If your administrator turns it on, I can also answer with ChatGPT from OpenAI. That chat then goes to OpenAI, not to Claude. I tell you in the chat."
+        }
+      },
+      {
+        "de": {
+          "title": "Dein Standardmodell",
+          "text": "Du kannst jetzt festlegen, mit welchem Modell jeder neue Chat beginnt. Mit „Auto“ nehme ich das Modell, das dein Administrator eingestellt hat."
+        },
+        "en": {
+          "title": "Your default model",
+          "text": "You can now choose which model every new chat starts with. With “Auto” I use the model your administrator has set."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.54.2",
     "items": [
       {

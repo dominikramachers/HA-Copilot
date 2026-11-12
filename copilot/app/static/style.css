@@ -483,6 +483,7 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .tools-btn { position: relative; flex: none; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: var(--r-2); font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; transition: background .15s; }
 .tools-btn:hover, .tools-btn[aria-expanded="true"] { background: var(--chip); }
 .tools-effort { color: var(--text-2); }
+.tools-btn.on-openai #tools-name::after { content: "OpenAI"; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--text-2); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 .tools-btn.web-off::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .has-tip { position: relative; }
 .has-tip::after { content: attr(data-tip); position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 30; padding: 7px 11px; border-radius: var(--r-1); background: var(--text); color: var(--bg); font-size: 12.5px; font-weight: 500; line-height: 1.2; white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity .15s, transform .15s; }
@@ -519,6 +520,9 @@ button.img-card:disabled { opacity: .55; cursor: default; }
 .mm-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .mm-name { font-size: 17px; font-weight: 500; }
 .mm-hint { font-size: 14px; color: var(--text-2); }
+.mm-head { margin: 16px 4px 6px; font-size: 13px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.mm-head + .mm-card { margin-top: 0; }
+.mm-card + .mm-head { margin-top: 16px; }
 .mm-row > .icon { flex: none; width: 22px; height: 22px; color: var(--accent); }
 .mm-link { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 15px 16px; border-radius: var(--r-3); background: var(--panel); border: 1px solid var(--line); text-align: left; }
 .mm-link .mm-name { flex: 1; }

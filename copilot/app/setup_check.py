@@ -196,6 +196,40 @@ def static_items(
         mode = tr("lesen und schreiben") if github_level == "write" else tr("nur lesen")
         items.append(_item("github", "optional", "ok", "GitHub", tr("Eingerichtet, du darfst {mode}.", mode=mode) + tr(" Es ist dein eigenes GitHub-Konto.")))
 
+    # --- ChatGPT (OpenAI) als zweiter Anbieter im Chat
+    if settings.openai_active:
+        limit = tr("{n} Tausend Token je Person und Monat", n=f"{settings.openai_limit_month:,}".replace(",", ".")) if settings.openai_limit_month else tr("kein Monatslimit")
+        own = tr("eigener Schlüssel") if settings.openai_chat_api_key else tr("Schlüssel aus der Gruppe „Bilder“")
+        items.append(_item(
+            "chatgpt", "optional", "ok", tr("ChatGPT (OpenAI)"),
+            tr("Im Modellmenü stehen {models} ({key}, {limit}). Nachrichten und Anhänge eines ChatGPT-Chats gehen an OpenAI, nie an Claude; Sprechen bleibt bei Claude Haiku. "
+               "Die Modellliste steht bei `chat.openai_models`.", models=", ".join(settings.openai_models), key=own, limit=limit),
+        ))
+    elif settings.openai_enabled:
+        items.append(_item(
+            "chatgpt", "optional", "todo", tr("ChatGPT (OpenAI)"),
+            tr("ChatGPT ist eingeschaltet, aber es fehlt der OpenAI-Schlüssel."),
+            [
+                tr("Lege bei platform.openai.com ein API-Konto mit Guthaben an und erzeuge unter „API keys“ einen Schlüssel. Ein ChatGPT-Abo reicht dafür nicht."),
+                tr(CONFIG_STEP),
+                tr("Trage den Schlüssel in der Gruppe „Chat“ bei `openai_api_key` ein (oder in der Gruppe „Bilder“, dann gilt er für beides)."),
+                tr(RESTART_STEP),
+            ],
+        ))
+    else:
+        items.append(_item(
+            "chatgpt", "optional", "off", tr("ChatGPT (OpenAI)"),
+            tr("Aus. Optional kannst du neben Claude auch ChatGPT-Modelle von OpenAI nutzen, mit denselben Fähigkeiten (Home Assistant, Gedächtnis, Dateien, Websuche, geplante Aufgaben). "
+               "Was in einem ChatGPT-Chat geschrieben wird, geht an OpenAI; Claude-Chats bleiben bei Claude."),
+            [
+                tr("Lege bei platform.openai.com ein API-Konto mit Guthaben an und erzeuge unter „API keys“ einen Schlüssel. Ein ChatGPT-Abo reicht dafür nicht."),
+                tr(CONFIG_STEP),
+                tr("Schalte in der Gruppe „Chat“ `openai_enabled` ein und trage den Schlüssel bei `openai_api_key` ein. Mit `openai_limit_month` legst du fest, wie viele Token (in Tausend) jede Person im Monat verbrauchen darf, bevor der Chat nachfragt."),
+                tr(RESTART_STEP),
+                tr("Danach wählst du das Modell im Chat unten rechts oder stellst es in den Einstellungen unter „Standardmodell“ für neue Chats ein."),
+            ],
+        ))
+
     # --- Bilder
     if settings.images_enabled and settings.files_enabled:
         names = [n for n, key in (("OpenAI", settings.openai_api_key), ("Google", settings.google_api_key)) if key]
@@ -289,6 +323,8 @@ def static_items(
         expiring.append(("claude_token_expires", settings.claude_token_expires is not None))
     if settings.openai_api_key:
         expiring.append(("images.openai_key_expires", settings.openai_key_expires is not None))
+    if settings.openai_active and settings.openai_chat_api_key:
+        expiring.append(("chat.openai_key_expires", settings.openai_chat_key_expires is not None))
     if settings.voice_openai_api_key:
         expiring.append(("voice.openai_key_expires", settings.voice_openai_key_expires is not None))
     if settings.google_api_key:
