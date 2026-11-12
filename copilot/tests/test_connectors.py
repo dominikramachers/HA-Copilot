@@ -841,7 +841,7 @@ def test_config_defaults_and_validation():
 
 # ----------------------------------------------------------------------- Programmierschnittstelle und Chat
 
-def app_with(store, servers, tmp_path, *, tools_script=None, levels=None, base_url="", **options):
+def app_with(store, servers, tmp_path, *, tools_script=None, levels=None, base_url="", backend=None, **options):
     settings = parse_settings({**RAW, **options}, frozenset({"testclient"}))
     table = levels if levels is not None else {"adm01": "global", "dora": "own"}
     service = ConnectorService(
@@ -861,7 +861,7 @@ def app_with(store, servers, tmp_path, *, tools_script=None, levels=None, base_u
                     seen.setdefault("results", []).append("FEHLER " + str(exc))
             yield "Fertig."
 
-    return build_ingress_app(settings, store, ToolBackend(), connectors=service), seen, service
+    return build_ingress_app(settings, store, backend or ToolBackend(), connectors=service), seen, service
 
 
 def test_api_lifecycle_and_privacy_between_people(store, servers, tmp_path):
@@ -996,3 +996,33 @@ def test_tokens_never_appear_in_the_personal_data_export_or_api(store, servers, 
     assert "tok-1" not in listing and "client-geheim" not in listing
     # auch in der Datenbankdatei steht nichts im Klartext
     assert b"tok-1" not in (tmp_path / "test.sqlite3").read_bytes() and b"client-geheim" not in (tmp_path / "test.sqlite3").read_bytes()
+
+
+def test_chatgpt_chat_gets_project_knowledge_memory_and_connectors(store, servers, tmp_path):
+    """Mit einem ChatGPT-Modell stehen dieselben Werkzeuge bereit wie bei Claude (Projektwissen, Gedächtnis, Konnektoren) und laufen über die Werkzeugschleife von OpenAI."""
+    from app.backend_router import RouterBackend
+    from conftest import FakeBackend
+    from test_openai_backend import FakeOpenAI, answer, call
+
+    async def scenario():
+        fake = FakeOpenAI(None, call("knowledge_search", {"query": "Heizkurve"}, "c2"), call("memory_list", {}, "c3"), answer("Alles gelesen."))
+        router = RouterBackend(FakeBackend(("von Claude",)), fake.backend())
+        app, _seen, service = app_with(store, servers, tmp_path, backend=router, openai_enabled=True, openai_chat_api_key="sk-test")
+        cid = (await service.create("dora", bearer()))["id"]
+        await service.connect("dora", cid, "tok-1")
+        fake.turns[0] = call(f"conn{cid}_mail_search", {"q": "rechnung"}, "c1")
+        project = store.create_project("dora", "Haus")
+        store.add_knowledge("dora", project["id"], "heizung.md", "Die Heizkurve steht auf 0,8.\nWeiter Text.")
+        chat = store.create_chat("dora", project_id=project["id"])["id"]
+        out = await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi", "model": "gpt-5.6-terra"}, user=DORA)
+        assert out["status"] == 200
+        names = {tool.get("name") for tool in fake.requests[0]["tools"]}
+        assert {"knowledge_search", "knowledge_read", "memory_list", "memory_save", f"conn{cid}_mail_search"} <= names
+        assert f"conn{cid}_mail_send" not in names  # Schreib-Werkzeuge bleiben ohne Freigabe weg
+        outputs = [item for req in fake.requests[1:] for item in req["input"] if item.get("type") == "function_call_output"]
+        by_id = {o["call_id"]: o["output"] for o in outputs}
+        assert "Ergebnis von mail_search" in by_id["c1"]
+        assert "Heizkurve" in by_id["c2"]
+        assert "c3" in by_id
+        assert "Konnektor" in fake.requests[0]["instructions"]  # Hinweis zu Konnektoren im Systemtext
+    run(scenario())
