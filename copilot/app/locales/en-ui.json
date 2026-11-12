@@ -997,5 +997,8 @@
  "Wie viel vom Abo, von ChatGPT und von den Bildern verbraucht ist.": "How much of the plan, of ChatGPT and of the images has been used.",
  "Zählt Eingabe und Ausgabe aller deiner Chats mit ChatGPT-Modellen. Titel und Zusammenfassungen zählen nicht mit. Ist das Limit erreicht, fragt der Chat vor jeder weiteren Antwort nach. Der Zähler beginnt jeden Monat neu.": "Counts input and output of all your chats with ChatGPT models. Titles and summaries are not counted. Once the limit is reached, the chat asks before every further answer. The counter starts over every month.",
  "{0} Token verbraucht (kein Limit).": "{0} tokens used (no limit).",
- "{0} von {1} Token verbraucht.": "{0} of {1} tokens used."
+ "{0} von {1} Token verbraucht.": "{0} of {1} tokens used.",
+ "Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf bleibt erhalten.": "From the next message on, {0} answers. The history so far is kept.",
+ "Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf dieses Chats geht dann auch an OpenAI.": "From the next message on, {0} answers. The history of this chat so far will then also go to OpenAI.",
+ "Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf dieses Chats geht dann an Claude.": "From the next message on, {0} answers. The history of this chat so far will then go to Claude."
 }

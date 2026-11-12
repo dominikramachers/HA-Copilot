@@ -51,6 +51,8 @@ Es gibt drei Stellen, und die jeweils engste gewinnt:
 2. **Standardmodell in deinen Einstellungen** (Einstellungen → Allgemein): gilt für jeden neuen Chat, den du anfängst. Zur Wahl stehen **Auto**, die Claude-Modelle (Sonnet, Opus, Haiku) und, wenn eingeschaltet, die ChatGPT-Modelle. Das ist eine persönliche Einstellung; jede Person stellt ihr eigenes ein.
 3. **Auto** heißt: das Modell, das der Administrator im Add-on eingestellt hat (`chat.model`, Standard `claude-sonnet-5-5`). Im Menü steht **Auto** immer ganz oben.
 
+**Mitten im Chat wechseln (ab 0.55.1):** Das geht jederzeit, auch zwischen Claude und ChatGPT. Das neue Modell bekommt den bisherigen Verlauf (Texte, bei langen Chats die Zusammenfassung) und erfährt, dass der Chat vorher mit einem anderen Modell lief. Gedächtnis, Projektwissen, Skills, Konnektoren, Dateien des Chats und die Rückfrage-Freigaben gelten weiter. Nicht übernommen werden Ergebnisse früherer Werkzeugaufrufe, die Denkschritte und früher hochgeladene Anhänge; das Modell liest bei Bedarf noch einmal nach. **Datenschutz beim Wechsel:** Wechselst du von Claude zu ChatGPT, geht der bisherige Verlauf des Chats ab dann auch an OpenAI (die Oberfläche sagt es dir); beim Wechsel zurück geht er an Claude, bei OpenAI bleibt, was schon gesendet wurde.
+
 Eine Einstellung je Projekt gibt es bewusst nicht. Ein Chat, in dem du selbst ein Modell gewählt hast, behält es. Ein Chat ohne eigene Wahl folgt deinem Standardmodell. Wird ein Modell später aus `openai_models` entfernt oder ChatGPT ausgeschaltet, gilt das Standardmodell der Person wieder als **Auto**.
 
 ## Token-Limit je Person

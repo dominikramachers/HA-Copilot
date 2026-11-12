@@ -607,5 +607,6 @@
  "Schlüssel aus der Gruppe „Bilder“": "key from the “Images” group",
  "Trage den Schlüssel in der Gruppe „Chat“ bei `openai_api_key` ein (oder in der Gruppe „Bilder“, dann gilt er für beides).": "Enter the key in the “Chat” group at `openai_api_key` (or in the “Images” group, then it applies to both).",
  "eigener Schlüssel": "own key",
- "{n} Tausend Token je Person und Monat": "{n} thousand tokens per person and month"
+ "{n} Tausend Token je Person und Monat": "{n} thousand tokens per person and month",
+ "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.": "This chat has so far run on {old}; from this message on you are answering ({new}). The earlier answers in the history came from {old}. Results of tools from earlier answers are no longer available; look things up again if needed."
 }

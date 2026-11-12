@@ -56,6 +56,7 @@ from .config import (
     Profile,
     Settings,
     load_settings,
+    model_label,
     provider_of,
 )
 from .ha_client import HaApi, HaApiError
@@ -2113,6 +2114,9 @@ def register_chat_routes(
             chosen_model = settings.voice_model
             model = settings.voice_model if settings.voice_model != settings.model else None
         provider = provider_of(chosen_model)
+        # Wechsel des Modells mitten im Chat: der Verlauf (nur der Text) geht an das neue Modell, das bekommt einen Hinweis darauf
+        previous_model = concrete_model(saved_model or user_default_model(profile.id))
+        switched_from = previous_model if history and not spoken and requested_model and chosen_model != previous_model else ""
         web_on = settings.web_level(profile) == "on" and body.web is not False
         first_exchange = not history and chat.get("title") in DEFAULT_TITLES
         metas = [f.meta() for f in files]
@@ -2290,6 +2294,11 @@ def register_chat_routes(
         if specs:
             extra["tools"] = specs
         extra["note"] = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
+        if switched_from:
+            extra["note"] += "\n" + tr(
+                "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.",
+                old=model_label(switched_from), new=model_label(chosen_model),
+            )
         if any(s.name == "design_guide" for s in specs):
             extra["note"] += "\n" + DESIGN_NOTE
         if any(s.name == "file_edit" for s in specs):

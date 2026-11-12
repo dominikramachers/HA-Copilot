@@ -1,5 +1,40 @@
 [
   {
+    "version": "0.55.1",
+    "items": [
+      {
+        "de": {
+          "title": "Listen beim Schreiben",
+          "text": "Wenn du „1. “ oder „- “ tippst, rücke ich den Punkt ein. Mit Umschalt+Enter (am Handy Enter) kommt der nächste Punkt, ein leerer Punkt beendet die Liste."
+        },
+        "en": {
+          "title": "Lists while you write",
+          "text": "When you type “1. ” or “- ”, I indent the item. Shift+Enter (Enter on a phone) adds the next item, and an empty item ends the list."
+        }
+      },
+      {
+        "de": {
+          "title": "Modell im Chat wechseln",
+          "text": "Du kannst mitten im Gespräch das Modell wechseln. Das neue Modell kennt alles, was bisher geschrieben wurde. Ich sage dir, wohin der Verlauf dann geht."
+        },
+        "en": {
+          "title": "Switch model in a chat",
+          "text": "You can switch the model in the middle of a conversation. The new model knows everything written so far. I tell you where the history goes then."
+        }
+      },
+      {
+        "de": {
+          "title": "Modellauswahl dezenter",
+          "text": "Die Auswahl in den Einstellungen ist schmaler und steht rechts. Auf dem Handy ist das Fenster für die Modelle kleiner geworden."
+        },
+        "en": {
+          "title": "Quieter model picker",
+          "text": "The picker in the settings is narrower and sits on the right. On the phone, the window for the models has become smaller."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.55.0",
     "items": [
       {

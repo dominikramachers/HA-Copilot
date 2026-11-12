@@ -164,7 +164,7 @@ function toast(text) {
   el.textContent = text;
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, 4000);
+  toastTimer = setTimeout(() => { el.hidden = true; }, Math.max(4000, Math.min(9000, text.length * 60)));
 }
 
 // ------------------------------------------------------- Sheet (Dialog)
@@ -5497,7 +5497,7 @@ function useChatModel(chat) {
 const MODEL_HINTS = { sonnet: tr("Am effizientesten für einfachere Aufgaben"), opus: tr("Für komplexe Arbeit und alltägliche Aufgaben"), haiku: tr("Am schnellsten für schnelle Antworten") };
 const modelHint = (id) => {
   if (id === AUTO) return tr("Das in der App eingestellte Modell ({0})", modelLabel(concreteModel(AUTO)));
-  if (modelProvider(id) === "openai") return tr("ChatGPT von OpenAI: Der Chat geht an OpenAI");
+  if (modelProvider(id) === "openai") return "";
   return MODEL_HINTS[Object.keys(MODEL_HINTS).find((family) => id.includes(family))] || "";
 };
 
@@ -5546,7 +5546,10 @@ async function phoneToolsMenu() {
               body.append(card);
             };
             makeCard([{ id: AUTO }, ...claude]);
-            if (openai.length) makeCard(openai, tr("ChatGPT (OpenAI)"));
+            if (openai.length) {
+              makeCard(openai, tr("ChatGPT (OpenAI)"));
+              body.append(node("div", "mm-note", tr("ChatGPT von OpenAI: Der Chat geht an OpenAI")));
+            }
           }
           const effort = row("mm-link", node("span", "mm-name", tr("Aufwand")), node("span", "mm-detail", effortLabel(state.effort)), icon("chevron"));
           effort.addEventListener("click", effortPage);
@@ -5618,8 +5621,18 @@ async function toolsMenu() {
     }
   }
   if (typeof choice === "string" && choice.startsWith("model:")) {
+    const before = concreteModel(selectedModel());
     state.model = choice.slice(6);
-    if (usesOpenAI()) toast(tr("Dieser Chat läuft mit ChatGPT: Nachrichten und Anhänge gehen an OpenAI, nicht an Claude."));
+    const after = concreteModel(selectedModel());
+    if (before !== after && $("messages").querySelector(".msg-group")) {
+      // Wechsel mitten im Chat: der Verlauf (nur der Text) geht mit, deshalb sagen, wohin er jetzt geht
+      const name = modelLabel(after);
+      toast(modelProvider(after) === modelProvider(before)
+        ? tr("Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf bleibt erhalten.", name)
+        : modelProvider(after) === "openai"
+          ? tr("Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf dieses Chats geht dann auch an OpenAI.", name)
+          : tr("Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf dieses Chats geht dann an Claude.", name));
+    } else if (usesOpenAI()) toast(tr("Dieser Chat läuft mit ChatGPT: Nachrichten und Anhänge gehen an OpenAI, nicht an Claude."));
     refreshLimits().catch(() => {});
   } else if (typeof choice === "string" && choice.startsWith("effort:")) {
     state.effort = choice.slice(7);
@@ -6781,7 +6794,7 @@ function defaultModelRow() {
   const text = node("div", "set-row-text");
   const hint = node("span", "", tr("Gilt in jedem neuen Chat; im Chat kannst du es jederzeit wechseln."));
   text.append(node("b", "", tr("Standardmodell")), hint);
-  const select = node("select", "field");
+  const select = node("select", "field set-select");
   select.setAttribute("aria-label", tr("Standardmodell"));
   select.append(new Option(`${tr("Auto")} (${modelLabel(concreteModel(AUTO))})`, AUTO));
   const [claude, openai] = modelGroups();
@@ -7175,6 +7188,74 @@ async function accountMenu() {
   else if (choice === "logout") await logout();
 }
 
+// Listen im Eingabefeld: „1. “, „- “ oder „* “ am Zeilenanfang wird eingerückt; Umschalt+Enter (am Handy Enter) führt die Liste fort,
+// auf einem leeren Punkt beendet es sie; Tab und Umschalt+Tab rücken einen Punkt ein oder aus.
+const LIST_LINE = /^(\s*)(?:(\d{1,3})([.)])|([-*•]))\s+(.*)$/;
+const LIST_INDENT = "  ";
+const LIST_MAX_INDENT = 6;
+
+// Ersetzt from..to; mit ``caret`` steht der Cursor danach dort (sonst hinter dem eingefügten Text)
+function replaceInField(area, from, to, text, caret) {
+  area.setSelectionRange(from, to);
+  let done = false;
+  try { done = document.execCommand("insertText", false, text); } catch { /* ältere Browser */ }
+  if (!done) {
+    area.setRangeText(text, from, to, "end");
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  if (caret !== undefined) area.setSelectionRange(caret, caret);
+}
+
+function currentLine(area) {
+  const value = area.value;
+  const caret = area.selectionStart;
+  const start = value.lastIndexOf("\n", caret - 1) + 1;
+  let end = value.indexOf("\n", caret);
+  if (end < 0) end = value.length;
+  return { start, end, caret, text: value.slice(start, end) };
+}
+
+// true, wenn die Taste behandelt wurde (dann kein Standardverhalten)
+function listEnter(area) {
+  if (area.selectionStart !== area.selectionEnd) return false;
+  const line = currentLine(area);
+  const m = LIST_LINE.exec(line.text);
+  if (!m || line.caret - line.start < m[0].length - m[5].length) return false; // Cursor steht noch vor dem Aufzählungszeichen
+  const [, indent, number, sep, bullet, content] = m;
+  if (!content.trim()) {
+    replaceInField(area, line.start, line.end, "", line.start); // leerer Punkt: Liste beenden
+    return true;
+  }
+  const marker = number ? `${Number(number) + 1}${sep}` : bullet;
+  replaceInField(area, line.caret, line.caret, `\n${indent}${marker} `);
+  return true;
+}
+
+function listTab(area, outdent) {
+  if (area.selectionStart !== area.selectionEnd) return false;
+  const line = currentLine(area);
+  const m = LIST_LINE.exec(line.text);
+  if (!m) return false;
+  const indent = m[1].length;
+  if (outdent) {
+    if (!indent) return false;
+    const cut = Math.min(indent, LIST_INDENT.length);
+    replaceInField(area, line.start, line.start + cut, "", Math.max(line.start, line.caret - cut));
+    return true;
+  }
+  if (indent >= LIST_MAX_INDENT) return false;
+  replaceInField(area, line.start, line.start, LIST_INDENT, line.caret + LIST_INDENT.length);
+  return true;
+}
+
+// Wer am Zeilenanfang „1. “, „- “ oder „* “ tippt, bekommt den Punkt gleich eingerückt
+function listIndentOnType(area, event) {
+  if (event.inputType !== "insertText" || event.data !== " " || area.selectionStart !== area.selectionEnd) return;
+  const line = currentLine(area);
+  const before = line.text.slice(0, line.caret - line.start);
+  if (/^(?:[-*•]|\d{1,2}[.)]) $/.test(before)) replaceInField(area, line.start, line.start, LIST_INDENT, line.caret + LIST_INDENT.length);
+}
+
 async function init() {
   initSheet();
   initSettingsModal();
@@ -7200,12 +7281,17 @@ async function init() {
     event.preventDefault();
     sendMessage().catch(() => {});
   });
-  $("input").addEventListener("input", autosize);
+  $("input").addEventListener("input", (event) => { listIndentOnType($("input"), event); autosize(); });
   $("input").addEventListener("keydown", (event) => {
+    if (event.isComposing) return;
     const touch = window.matchMedia("(pointer: coarse)").matches;
-    if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !touch) {
+    if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.altKey && (event.shiftKey || touch) && listEnter($("input"))) {
+      event.preventDefault(); // Liste fortführen (Umschalt+Enter; am Handy Enter)
+    } else if (event.key === "Enter" && !event.shiftKey && !touch) {
       event.preventDefault();
       sendMessage().catch(() => {});
+    } else if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey && listTab($("input"), event.shiftKey)) {
+      event.preventDefault();
     }
   });
 

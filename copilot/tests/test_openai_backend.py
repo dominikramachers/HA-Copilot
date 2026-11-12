@@ -441,7 +441,7 @@ class Recorder:
         self.summaries = []
 
     async def stream(self, history, message, effort, attachments=None, instructions=None, tools=None, note="", **kw):
-        self.calls.append({"model": kw.get("model"), "kw": sorted(kw), "history": history})
+        self.calls.append({"model": kw.get("model"), "kw": sorted(kw), "history": history, "note": note})
         if kw.get("on_usage") and self.tokens:
             kw["on_usage"](self.tokens)
         yield "Antwort"
@@ -671,3 +671,31 @@ def test_keys_in_openai_error_texts_are_masked():
     with pytest.raises(BackendError) as info:
         run(collect(fake.backend(), [], "x", "low"))
     assert "sk-svcacct" not in info.value.user_message and "sk-…" in info.value.user_message
+
+
+def test_switching_the_model_in_a_running_chat_keeps_the_history_and_tells_the_new_model(store):
+    async def scenario():
+        app, backend = gpt_app(store)
+        chat = await new_chat(app)
+        # erste Nachricht mit gewähltem Modell: nichts zu übergeben
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Erste Frage", "model": "claude-opus-5-5"})
+        assert "lief bisher" not in backend.calls[-1]["note"]
+        # Wechsel auf ChatGPT: der bisherige Verlauf geht mit, das Modell erfährt vom Wechsel
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Zweite Frage", "model": "gpt-5.6-terra"})
+        call = backend.calls[-1]
+        assert call["model"] == "gpt-5.6-terra" and [m["content"] for m in call["history"]] == ["Erste Frage", "Antwort"]
+        assert "lief bisher mit Opus 5.5" in call["note"] and "GPT-5.6 Terra" in call["note"]
+        # nächste Nachricht ohne neue Wahl: kein weiterer Hinweis, das Modell bleibt
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Dritte Frage"})
+        call = backend.calls[-1]
+        assert call["model"] == "gpt-5.6-terra" and len(call["history"]) == 4 and "lief bisher" not in call["note"]
+        # zurück zu Claude (Auto): wieder Hinweis, Verlauf vollständig
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Vierte Frage", "model": "auto"})
+        call = backend.calls[-1]
+        assert call["model"] is None and len(call["history"]) == 6
+        assert "lief bisher mit GPT-5.6 Terra" in call["note"] and "Sonnet 5.5" in call["note"]
+        # dasselbe Modell erneut gewählt: kein Hinweis
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Fünfte Frage", "model": "auto"})
+        assert "lief bisher" not in backend.calls[-1]["note"]
+
+    run(scenario())
