@@ -133,6 +133,9 @@ configuration:
       output:
         name: Stimme
         description: device (Standard) = die Antwort liest das Gerät vor, kostenlos. service = derselbe Dienst wie die Spracherkennung liest vor (OpenAI oder Home Assistant), klingt besser, kostet bei OpenAI wenige Cent.
+      openai_voice:
+        name: Stimme bei OpenAI
+        description: 'Gilt nur, wenn die Stimme von OpenAI kommt (Stimme: service und OpenAI-Schlüssel). Standard nova (weiblich). Weiblich klingen meist nova, shimmer, coral und sage; männlich echo, onyx und ash; alloy, fable, ballad und verse liegen dazwischen oder wirken je nach Satz anders. Zum Ausprobieren auf platform.openai.com/audio/playground.'
       instructions:
         name: Eigene Wünsche an die gesprochenen Antworten (optional)
         description: 'Ein bis drei Sätze, die die KI bei jeder gesprochenen Antwort zusätzlich beachtet, zum Beispiel „Nenne Räume immer beim Namen“ oder „Antworte in einem Satz“. Höchstens 600 Zeichen. Leer: nur die Grundregeln (kurz, wie man spricht, keine Gerätenamen).'

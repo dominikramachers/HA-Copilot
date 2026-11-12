@@ -28,7 +28,7 @@ log = logging.getLogger("copilot.voice")
 OPENAI_URL = "https://api.openai.com/v1/audio"
 STT_MODEL = "gpt-4o-mini-transcribe"
 TTS_MODEL = "gpt-4o-mini-tts"
-TTS_VOICE = "alloy"
+TTS_FALLBACK_VOICE = "nova"  # weibliche Stimme, wenn nichts anderes eingestellt ist
 REQUEST_TIMEOUT = 40
 MAX_SECONDS = 45  # längste Aufnahme je Satz
 MIN_SECONDS = 0.25
@@ -133,6 +133,7 @@ class VoiceService:
     def __init__(self, settings: Any, ha: HaApi | None = None, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self.openai_key = getattr(settings, "voice_openai_key", "")
         self.output = getattr(settings, "voice_output", "device")
+        self.tts_voice = getattr(settings, "voice_openai_voice", "") or TTS_FALLBACK_VOICE
         self.language = getattr(settings, "language", "de")
         self.ha = ha if ha is not None and ha.enabled else None
         self.transport = transport
@@ -215,7 +216,7 @@ class VoiceService:
                 response = await client.post(
                     f"{OPENAI_URL}/speech",
                     headers={"Authorization": f"Bearer {self.openai_key}"},
-                    json={"model": TTS_MODEL, "voice": TTS_VOICE, "input": text, "response_format": "mp3"},
+                    json={"model": TTS_MODEL, "voice": self.tts_voice, "input": text, "response_format": "mp3"},
                 )
         except (httpx.HTTPError, TimeoutError) as exc:
             log.warning("OpenAI (Sprachausgabe) nicht erreichbar: %s", type(exc).__name__)

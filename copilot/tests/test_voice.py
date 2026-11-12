@@ -603,3 +603,32 @@ def test_the_window_falls_back_to_the_browser_when_the_recognition_fails():
     js = (Path(__file__).resolve().parents[1] / "app" / "static" / "voice.js").read_text(encoding="utf-8")
     assert "failure.recognition = true" in js and "err?.recognition && !VOICE.browserOnly" in js
     assert "VOICE.browserOnly = false" in js and "Die Spracherkennung im Add-on antwortet nicht. Ich nutze jetzt die des Browsers." in js
+
+
+# ------------------------------------------------------------------ Stimme bei OpenAI (0.55.2)
+
+def sent_voice(**options):
+    import asyncio, json
+    seen = {}
+
+    def handler(request):
+        seen.update(json.loads(request.content))
+        return httpx.Response(200, content=b"ID3audio")
+
+    asyncio.run(service(transport=httpx.MockTransport(handler), voice_output="service", **OPENAI, **options).speak("Hallo"))
+    return seen["voice"]
+
+
+def test_openai_voice_is_female_nova_by_default_and_can_be_chosen():
+    assert sent_voice() == "nova"
+    assert sent_voice(voice_openai_voice="onyx") == "onyx"
+
+
+def test_voice_openai_voice_option_default_choices_and_error():
+    from app.config import OPENAI_VOICES
+
+    assert parse_with_fixed(RAW, frozenset()).voice_openai_voice == "nova"
+    assert parse_with_fixed({**RAW, "voice": {"openai_voice": " Shimmer "}}, frozenset()).voice_openai_voice == "shimmer"
+    assert "nova" in OPENAI_VOICES and "alloy" in OPENAI_VOICES
+    with pytest.raises(ConfigError, match="voice.openai_voice"):
+        parse_with_fixed({**RAW, "voice": {"openai_voice": "bariton"}}, frozenset())

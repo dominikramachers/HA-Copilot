@@ -91,6 +91,7 @@ VOICE_MODEL = "claude-haiku-5-5"  # gesprochene Antworten: das schnelle Modell (
 AUTO_MODEL = "auto"  # in der Modellwahl: das in der App eingestellte Standard-Modell
 DEFAULT_OPENAI_MODELS = ("gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6-sol")  # neben den Claude-Modellen wählbar, wenn OpenAI eingeschaltet ist
 OPENAI_LIMIT_MONTH_DEFAULT = 3000  # Tausend Token je Person und Monat (= 3 Mio.), danach fragt der Chat nach (0 = kein Limit)
+OPENAI_VOICES = ("alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse")  # Stimmen von gpt-4o-mini-tts
 VOICE_INSTRUCTIONS_MAX = 600  # Zeichen für eigene Wünsche an die gesprochenen Antworten (voice.instructions)
 IMAGE_MODEL_OPENAI = "gpt-image-2.5-sunburst"
 IMAGE_MODEL_GOOGLE = "gemini-3.1-flash-image-preview"
@@ -162,6 +163,7 @@ class Settings:
     voice_openai_api_key: str = field(default="", repr=False)  # eigener OpenAI-Schlüssel nur für die Sprache; leer = openai_api_key
     voice_browser_stt: bool = True  # kostenlose Spracherkennung des Browsers, wenn es keine andere gibt
     voice_output: str = "device"  # Stimme: device = Stimme des Geräts (kostenlos), service = derselbe Dienst wie die Spracherkennung
+    voice_openai_voice: str = "nova"  # Stimme von OpenAI bei voice.output: service (nova klingt weiblich)
     voice_instructions: str = ""  # eigene Wünsche an die gesprochenen Antworten, werden an den Hinweis für die KI angehängt
     voice_chat_days: int = 30  # Sprachgespräche außerhalb eines Chats nach so vielen Tagen löschen (0 = behalten)
     voice_model: str = VOICE_MODEL  # fest
@@ -484,13 +486,16 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("images.limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)") from None
     if not 0 <= image_limit_month <= 10000:
         raise ConfigError("images.limit_month muss eine Zahl von 0 bis 10000 sein (0 = kein Limit)")
-    voice = _group(raw, "voice", "access_default, browser_stt, output, instructions, chat_days, openai_api_key, openai_key_expires")
+    voice = _group(raw, "voice", "access_default, browser_stt, output, openai_voice, instructions, chat_days, openai_api_key, openai_key_expires")
     voice_access_default = str(voice.get("access_default") or "off").strip().lower()
     if voice_access_default not in VOICE_ACCESS_LEVELS:
         raise ConfigError("voice.access_default muss on oder off sein")
     voice_output = str(voice.get("output") or "device").strip().lower()
     if voice_output not in ("device", "service"):
         raise ConfigError("voice.output muss device oder service sein")
+    voice_openai_voice = str(voice.get("openai_voice") or "nova").strip().lower()
+    if voice_openai_voice not in OPENAI_VOICES:
+        raise ConfigError("voice.openai_voice muss eine der Stimmen " + ", ".join(OPENAI_VOICES) + " sein")
     voice_instructions = " ".join(str(voice.get("instructions") or "").split())
     if len(voice_instructions) > VOICE_INSTRUCTIONS_MAX:
         raise ConfigError(f"voice.instructions darf höchstens {VOICE_INSTRUCTIONS_MAX} Zeichen lang sein")
@@ -612,6 +617,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         voice_openai_key_expires=_parse_date(voice.get("openai_key_expires"), "voice.openai_key_expires"),
         voice_chat_days=voice_chat_days,
         voice_instructions=voice_instructions,
+        voice_openai_voice=voice_openai_voice,
     )
 
 

@@ -30,6 +30,8 @@ Hinterlege unter **Settings → Organization → General** bzw. im Bereich **Bil
 
 Erzeuge den Schlüssel unter [platform.openai.com/api-keys](https://platform.openai.com/api-keys) mit **Create new secret key**. Er wird nur einmal angezeigt, kopiere ihn sofort. Trage ihn im Add-on bei `images.openai_api_key` ein.
 
+**Welcher Schlüsseltyp?** Im Dialog fragt OpenAI bei **Owned by**, ob der Schlüssel dir (**You**) oder einem **Service account** gehört. Beides funktioniert für das Add-on gleich. Der **Service account** gehört einem Bot-Mitglied des Projekts statt deiner Person und läuft weiter, auch wenn jemand das Projekt verlässt; das passt für ein Add-on, das dauerhaft im Hintergrund läuft. Lege am besten ein eigenes **Projekt** (zum Beispiel „HA Copilot“) an und erzeuge den Schlüssel dort; in den Projekteinstellungen kannst du ein monatliches Ausgabenlimit setzen. Bei den Berechtigungen ist **All** am einfachsten. Wer es enger will (**Restricted**), braucht für die Sprache die Audio-Funktionen (Transkription und Sprachausgabe) und für Bilder die Bildfunktion; wie die Punkte im Dialog heißen, ändert OpenAI gelegentlich.
+
 Stolperstein **Verifizierung der Organisation:** Für einige Bildmodelle verlangt OpenAI vorher eine Verifizierung unter **Settings → Organization → Verification**, mit amtlichem Ausweis und Selfie-Video über einen externen Dienst. Ob das für das eingestellte Modell gilt, hängt vom Modell ab; meldet die Schnittstelle einen entsprechenden Fehler, nennt die KI ihn dir wörtlich. Zahle deshalb zuerst wenig ein und prüfe, ob ein Bild entsteht, bevor du mehr auflädst.
 
 ## OpenAI für die Sprache (Spracherkennung und Stimme)
@@ -40,7 +42,7 @@ Derselbe OpenAI-Zugang kann auch das **Sprechen mit der KI** übernehmen: `gpt-4
 2. Trage den Schlüssel im Add-on ein. Es gibt zwei Wege:
    - **Gemeinsam mit den Bildern:** bei `images.openai_api_key` (Gruppe „Bilder“). Der Schlüssel gilt dann auch für die Sprache.
    - **Nur für die Sprache:** bei `voice.openai_api_key` (Gruppe „Sprechen mit der KI“). Er hat Vorrang vor dem gemeinsamen. Nimm diesen Weg, wenn Sprache und Bilder getrennt abgerechnet werden sollen; lege dazu bei OpenAI am besten ein eigenes Projekt mit eigenem Schlüssel an.
-3. Für die **Stimme** stelle zusätzlich `voice.output` auf `service`. Bleibt es bei `device`, liest weiter das Gerät vor (kostenlos); die Erkennung läuft trotzdem über OpenAI, sobald ein Schlüssel eingetragen ist.
+3. Für die **Stimme** stelle zusätzlich `voice.output` auf `service`. Welche Stimme OpenAI nimmt, wählst du bei `voice.openai_voice` (Standard `nova`, weiblich; weiblich klingen meist `nova`, `shimmer`, `coral` und `sage`, männlich `echo`, `onyx` und `ash`). Zum Anhören gibt es auf [platform.openai.com/audio/playground](https://platform.openai.com/audio/playground) einen Spielplatz; eingestellt wird die Stimme nur im Add-on, nicht bei OpenAI. Bleibt es bei `device`, liest weiter das Gerät vor (kostenlos); die Erkennung läuft trotzdem über OpenAI, sobald ein Schlüssel eingetragen ist.
 4. Speichere und starte das Add-on neu. Die Zeile „Mit der KI sprechen“ in der **Einrichtungsprüfung** (Einstellungen) nennt danach die Spracherkennung „OpenAI“ und die Stimme.
 5. Sprich einen Satz. In einem Protokoll-Eintrag des Add-ons steht je Runde, wie lange Erkennung, KI und Stimme gebraucht haben.
 
