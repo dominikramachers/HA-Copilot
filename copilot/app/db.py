@@ -715,6 +715,54 @@ class Store:
             ).fetchone()
         return _chat(row) if row else None
 
+    # ------------------------------------------------- Chatwissen im Projekt
+
+    def project_chats(self, profile_id: str, project_id: str, exclude: str = "", limit: int = 40) -> list[dict[str, Any]]:
+        """Die anderen Chats eines Projekts (neueste zuerst) mit Kurzfassung: Zusammenfassung des Verlaufs, sonst der Anfang der ersten Frage."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT c.id, c.title, c.updated_at, c.summary, "
+                "(SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id AND m.profile_id = c.profile_id) AS messages, "
+                "(SELECT content FROM messages m WHERE m.chat_id = c.id AND m.profile_id = c.profile_id AND m.role = 'user' ORDER BY m.id LIMIT 1) AS first "
+                "FROM chats c WHERE c.profile_id = ? AND c.project_id = ? AND c.kind = '' AND c.id <> ? "
+                "ORDER BY c.updated_at DESC, c.created_at DESC LIMIT ?",
+                (profile_id, project_id, exclude, max(1, min(limit, 200))),
+            ).fetchall()
+        out = []
+        for r in rows:
+            text = " ".join((r["summary"] or r["first"] or "").split())
+            out.append({"id": r["id"], "title": r["title"], "updated_at": r["updated_at"], "messages": r["messages"], "brief": text[:160] + ("…" if len(text) > 160 else "")})
+        return out
+
+    def project_chat_search(self, profile_id: str, project_id: str, query: str, exclude: str = "", limit: int = 8) -> list[dict[str, Any]]:
+        """Suche in den anderen Chats eines Projekts (alle Suchwörter, ohne Groß-/Kleinschreibung und Umlautpunkte)."""
+        found = self.search_chats(profile_id, query, limit=100)
+        return [h for h in found if h.get("project_id") == project_id and h["chat_id"] != exclude][: max(1, min(limit, 20))]
+
+    def project_chat_read(self, profile_id: str, project_id: str, wanted: str, exclude: str = "") -> dict[str, Any] | None:
+        """Ein Chat des Projekts: ``wanted`` ist die ID (ein eindeutiger Anfang genügt) oder ein Stück des Titels. ``None``, wenn es keinen eindeutigen Treffer gibt."""
+        _require(profile_id)
+        key = fold(wanted).strip()
+        if not key:
+            return None
+        with self._lock:
+            chats = self._conn.execute(
+                "SELECT id, title, summary, summary_upto, updated_at FROM chats WHERE profile_id = ? AND project_id = ? AND kind = '' AND id <> ?",
+                (profile_id, project_id, exclude),
+            ).fetchall()
+        exact = [c for c in chats if c["id"] == wanted.strip() or c["id"].startswith(wanted.strip().lower())] if len(wanted.strip()) >= 4 else []
+        hits = exact or [c for c in chats if fold(c["title"]) == key] or [c for c in chats if key in fold(c["title"])]
+        if len(hits) != 1:
+            return {"ambiguous": [{"id": c["id"], "title": c["title"]} for c in hits[:8]]} if hits else None
+        chat = hits[0]
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, role, content, created_at FROM messages WHERE chat_id = ? AND profile_id = ? ORDER BY id", (chat["id"], profile_id)
+            ).fetchall()
+        return {"id": chat["id"], "title": chat["title"], "updated_at": chat["updated_at"], "summary": chat["summary"], "summary_upto": chat["summary_upto"],
+                "messages": [dict(r) for r in rows]}
+
     def set_chat_model(self, profile_id: str, chat_id: str, model: str) -> bool:
         """Gewähltes Modell eines Chats merken ('' = wieder das Standard-Modell). Ändert weder Titel noch Reihenfolge."""
         _require(profile_id)

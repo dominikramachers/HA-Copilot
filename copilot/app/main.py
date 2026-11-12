@@ -2235,6 +2235,7 @@ def register_chat_routes(
         context = ContextToolbox(
             store, profile.id, profile.label,
             project_id=store.chat_project_id(profile.id, chat_id),
+            chat_id=chat_id,
             memory_enabled=settings.memory_enabled,
             household_write=household_writable(profile),
             force_confirm=bool(foreign_files),
