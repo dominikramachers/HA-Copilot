@@ -514,6 +514,10 @@ function renameInline(chat) {
   const title = $("chat-title");
   if (title.querySelector("input")) return;
   const input = node("input", "title-edit");
+  const box = title.getBoundingClientRect();  // das Feld hat genau die Größe des Namens, nichts springt
+  input.style.width = `${Math.ceil(Math.max(box.width, 160))}px`;
+  input.style.height = `${Math.ceil(box.height)}px`;
+  title.classList.add("editing");
   input.type = "text";
   input.maxLength = 120;
   input.value = chat.title;
@@ -529,6 +533,7 @@ function renameInline(chat) {
     if (done) return;
     done = true;
     const value = input.value.trim().slice(0, 120);
+    title.classList.remove("editing");
     title.textContent = chat.title;
     syncCrumbs();
     if (!save || !value || value === chat.title) return;
@@ -6321,14 +6326,14 @@ function shareLevels(data) {
     { value: "private", icon: "lock", label: tr("Nur ich"), hint: tr("Niemand sonst sieht diesen Chat.") },
     { value: "instance", icon: "users", label: tr("Alle in dieser Instanz"), hint: tr("Andere Personen finden den Chat unter „Geteilt“, können ihn lesen und als eigene Kopie weiterführen.") },
   ];
-  if (data.sharing === "public") {
-    levels.push({
-      value: "public", icon: "link", label: tr("Jede Person mit dem Link"), disabled: !linkReady,
-      hint: linkReady
-        ? tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst.")
+  levels.push({
+    value: "public", icon: "link", label: tr("Jede Person mit dem Link"), disabled: !linkReady,
+    hint: linkReady
+      ? tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst.")
+      : data.sharing !== "public"
+        ? tr("Nicht freigeschaltet: Der Admin muss in den Einstellungen bei „Chats teilen“ den Wert „public“ wählen.")
         : tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."),
-    });
-  }
+  });
   return levels;
 }
 
@@ -6341,6 +6346,22 @@ async function drawSharePanel(body, chat, view = { open: false }) {
     try { await action(); if (success) toast(success); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); }
     await load();
   };
+
+  const expiryLabel = (iso) => {
+    if (!iso) return tr("Unbegrenzt");
+    const days = Math.max(1, Math.round((new Date(iso).getTime() - Date.now()) / 86400000));
+    return days <= 7 ? tr("7 Tage") : tr("30 Tage");
+  };
+  async function pickExpiry(anchor, data) {
+    const mark = (n) => (n === 0 ? !data.public.expires_at : !!data.public.expires_at && expiryLabel(data.public.expires_at) === (n === 7 ? tr("7 Tage") : tr("30 Tage")));
+    const choice = await openPopover(anchor, [
+      { heading: tr("Link gültig") },
+      { value: "exp:7", label: tr("7 Tage ab jetzt"), active: mark(7) },
+      { value: "exp:30", label: tr("30 Tage ab jetzt"), active: mark(30) },
+      { value: "exp:0", label: tr("Unbegrenzt"), active: mark(0) },
+    ]);
+    if (typeof choice === "string" && choice.startsWith("exp:")) await run(() => post({ mode: "public", expires_days: Number(choice.slice(4)) }), tr("Gültigkeit geändert."));
+  }
 
   function render(data) {
     const level = data.public ? "public" : data.instance ? "instance" : "private";
@@ -6356,6 +6377,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
       }, next === "private" ? tr("Nicht mehr geteilt.") : tr("Chat geteilt."));
     };
 
+    let urlField = null;
     const nodes = [node("p", "share-h", tr("Wer hat Zugriff"))];
     const access = node("button", "share-access");
     access.type = "button";
@@ -6395,6 +6417,20 @@ async function drawSharePanel(body, chat, view = { open: false }) {
         const until = data.public ? ` · ${data.public.expires_at ? tr("Gültig bis {0}", exactTime(data.public.expires_at)) : tr("Läuft nicht ab")}` : "";
         nodes.push(node("p", "share-state", tr("Stand {0}", exactTime(taken)) + until));
       }
+      if (level === "public") {
+        urlField = node("input", "share-url");
+        urlField.type = "text";
+        urlField.readOnly = true;
+        urlField.value = data.public.url;
+        urlField.setAttribute("aria-label", tr("Öffentlicher Link"));
+        urlField.addEventListener("focus", () => urlField.select());
+        const expiry = node("button", "share-expiry");
+        expiry.type = "button";
+        expiry.setAttribute("aria-haspopup", "menu");
+        expiry.append(icon("clock"), node("span", "", tr("Link gültig: {0}", expiryLabel(data.public.expires_at))), icon("chevron"));
+        expiry.addEventListener("click", () => pickExpiry(expiry, data));
+        nodes.push(urlField, expiry);
+      }
     }
 
     const owner = node("div", "share-owner");
@@ -6412,30 +6448,19 @@ async function drawSharePanel(body, chat, view = { open: false }) {
       gear.append(icon("sliders"));
       gear.addEventListener("click", async () => {
         const entries = [{ value: "refresh", icon: "refresh", label: tr("Stand aktualisieren") }];
-        if (data.public) {
-          entries.push({ divider: true }, { heading: tr("Link gültig") },
-            { value: "exp:7", label: tr("7 Tage ab jetzt") }, { value: "exp:30", label: tr("30 Tage ab jetzt") }, { value: "exp:0", label: tr("Unbegrenzt"), active: !data.public.expires_at });
-        }
+        if (data.public) entries.push({ value: "expiry", icon: "clock", label: tr("Gültigkeit des Links …") });
         const choice = await openPopover(gear, entries);
         if (choice === "refresh") await run(async () => { await post({ mode: "instance" }, "/refresh"); if (data.public) await post({ mode: "public" }, "/refresh"); }, tr("Stand aktualisiert."));
-        else if (typeof choice === "string" && choice.startsWith("exp:")) await run(() => post({ mode: "public", expires_days: Number(choice.slice(4)) }), tr("Gültigkeit geändert."));
+        else if (choice === "expiry") await pickExpiry(gear, data);
       });
       foot.append(gear);
     }
     const main = node("button", "pill primary share-main");
     main.type = "button";
     if (level === "public") {
-      const field = node("input", "share-url");
-      field.type = "text";
-      field.readOnly = true;
-      field.hidden = true;
-      field.value = data.public.url;
-      field.setAttribute("aria-label", tr("Öffentlicher Link"));
-      field.addEventListener("focus", () => field.select());
-      nodes.push(field);
       main.append(icon("link"), node("span", "", tr("Link kopieren")));
       main.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(data.public.url); toast(tr("Kopiert.")); } catch { field.hidden = false; field.select(); toast(tr("Zum Kopieren Strg+C drücken.")); }
+        try { await navigator.clipboard.writeText(data.public.url); toast(tr("Kopiert.")); } catch { urlField?.select(); toast(tr("Zum Kopieren Strg+C drücken.")); }
       });
     } else {
       main.append(node("span", "", tr("Fertig")));

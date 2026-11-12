@@ -1079,5 +1079,10 @@
  "Von {0}": "From {0}",
  "Wer Zugriff hat, sieht den Chat so, wie er jetzt ist. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis.": "Anyone with access sees the chat as it is now. Do not share personal information or other people’s content without permission.",
  "Wer hat Zugriff": "Who has access",
- "Teilen": "Share"
+ "Teilen": "Share",
+ "Link gültig: {0}": "Link valid: {0}",
+ "7 Tage": "7 days",
+ "30 Tage": "30 days",
+ "Gültigkeit des Links …": "Link validity …",
+ "Nicht freigeschaltet: Der Admin muss in den Einstellungen bei „Chats teilen“ den Wert „public“ wählen.": "Not enabled: the admin has to choose the value “public” under “Share chats” in the settings."
 }

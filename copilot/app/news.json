@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.56.1",
+    "items": [
+      {
+        "de": {
+          "title": "Link zum Teilen gleich sichtbar",
+          "text": "Beim Teilen zeige ich dir den Link jetzt direkt im Fenster. Wie lange er gilt, stellst du dort selbst ein: 7 Tage, 30 Tage oder unbegrenzt."
+        },
+        "en": {
+          "title": "Share link right in view",
+          "text": "When you share, I now show the link right in the window. You set how long it stays valid there: 7 days, 30 days or unlimited."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.56.0",
     "items": [
       {
