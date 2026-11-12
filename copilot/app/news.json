@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.54.2",
+    "items": [
+      {
+        "de": {
+          "title": "Wischen klappt leichter",
+          "text": "Das Seitenmenü öffnet sich jetzt auch, wenn du nicht ganz gerade wischst."
+        },
+        "en": {
+          "title": "Swiping is easier",
+          "text": "The side menu now also opens when you don't swipe perfectly straight."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.54.1",
     "items": [
       {

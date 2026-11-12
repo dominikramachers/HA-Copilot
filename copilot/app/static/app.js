@@ -4318,7 +4318,7 @@ function initSideSwipe() {
   let gesture = null;
 
   const scrollsSideways = (el) => {
-    for (let node = el; node && node !== document.body; node = node.parentElement) {
+    for (let node = el; node && node !== document.body && node.id !== "messages"; node = node.parentElement) {
       if (node.scrollWidth <= node.clientWidth + 1) continue;
       const overflow = getComputedStyle(node).overflowX;
       if (overflow === "auto" || overflow === "scroll") return true;
@@ -4360,10 +4360,11 @@ function initSideSwipe() {
     const dx = touch.clientX - gesture.x;
     const dy = touch.clientY - gesture.y;
     if (!gesture.active) {
-      if (Math.abs(dy) > FAR && Math.abs(dy) > Math.abs(dx)) { gesture = null; return; } // senkrecht: ganz normal scrollen
+      // Daumen wischen selten gerade: erst bei deutlich senkrechter Bewegung gilt es als Scrollen.
+      if (Math.abs(dy) > 2 * FAR && Math.abs(dy) > Math.abs(dx) * 1.2) { gesture = null; return; }
       if (Math.abs(dx) < FAR) return;
       const wrongWay = gesture.open ? dx > 0 : dx < 0;
-      if (wrongWay || Math.abs(dx) < Math.abs(dy) * 1.5) { gesture = null; return; }
+      if (wrongWay || Math.abs(dx) < Math.abs(dy) * 0.8) { gesture = null; return; }
       gesture.active = true;
       side.style.transition = "none";
       scrim.style.transition = "none";
