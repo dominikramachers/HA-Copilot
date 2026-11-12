@@ -4293,6 +4293,85 @@ function followAnswer(el) {
   box.scrollTop = Math.min(bottom, Math.max(top, 0));
 }
 
+// Seitenmenü per Wischen (wie in der Claude-App): am Handy im Web von links nach rechts öffnen, nach links schließen.
+// In Home Assistant bleibt die Geste dem Seitenmenü von Home Assistant überlassen (dort gibt es hier kein Seitenmenü zum Öffnen).
+function initSideSwipe() {
+  const app = $("app");
+  const side = $("sidebar");
+  const scrim = $("drawer-scrim");
+  const phone = window.matchMedia("(max-width: 800px)");
+  const EDGE = 16; // ganz am Rand gehört die Geste dem Browser („zurück“)
+  const FAR = 10; // ab so vielen Pixeln gilt es als Wischen
+  let gesture = null;
+
+  const scrollsSideways = (el) => {
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      if (node.scrollWidth <= node.clientWidth + 1) continue;
+      const overflow = getComputedStyle(node).overflowX;
+      if (overflow === "auto" || overflow === "scroll") return true;
+    }
+    return false;
+  };
+  const blocked = (el) =>
+    !!document.querySelector(".sheet.show, .set-modal.show, .imgview, .preview.full")
+    || !!el.closest("input, textarea, select, [contenteditable='true'], .codebox, .tbl")
+    || scrollsSideways(el);
+
+  const setProgress = (progress) => {
+    side.style.transform = `translateX(${-(1 - progress) * 105}%)`;
+    scrim.style.opacity = String(progress);
+    scrim.style.pointerEvents = progress > 0 ? "auto" : "";
+  };
+  const finish = (open) => {
+    side.style.transition = "";
+    scrim.style.transition = "";
+    void side.offsetWidth; // vom aktuellen Stand aus weiter animieren
+    side.style.transform = "";
+    scrim.style.opacity = "";
+    scrim.style.pointerEvents = "";
+    if (open) openMenu(); else closeMenu();
+  };
+
+  document.addEventListener("touchstart", (event) => {
+    gesture = null;
+    if (!isWeb() || !phone.matches || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const open = app.classList.contains("open");
+    if (open ? !(side.contains(event.target) || event.target === scrim) : (touch.clientX < EDGE || blocked(event.target))) return;
+    gesture = { x: touch.clientX, y: touch.clientY, time: Date.now(), open, width: side.offsetWidth || 300, active: false, progress: open ? 1 : 0 };
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (event) => {
+    if (!gesture) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - gesture.x;
+    const dy = touch.clientY - gesture.y;
+    if (!gesture.active) {
+      if (Math.abs(dy) > FAR && Math.abs(dy) > Math.abs(dx)) { gesture = null; return; } // senkrecht: ganz normal scrollen
+      if (Math.abs(dx) < FAR) return;
+      const wrongWay = gesture.open ? dx > 0 : dx < 0;
+      if (wrongWay || Math.abs(dx) < Math.abs(dy) * 1.5) { gesture = null; return; }
+      gesture.active = true;
+      side.style.transition = "none";
+      scrim.style.transition = "none";
+    }
+    gesture.progress = Math.min(1, Math.max(0, gesture.open ? 1 + dx / gesture.width : dx / gesture.width));
+    gesture.dx = dx;
+    setProgress(gesture.progress);
+  }, { passive: true });
+
+  const end = () => {
+    const current = gesture;
+    gesture = null;
+    if (!current || !current.active) return;
+    const speed = (current.dx || 0) / Math.max(1, Date.now() - current.time); // Pixel je Millisekunde, rechts positiv
+    const fast = Math.abs(speed) > 0.5;
+    finish(fast ? speed > 0 : current.progress > 0.5);
+  };
+  document.addEventListener("touchend", end, { passive: true });
+  document.addEventListener("touchcancel", end, { passive: true });
+}
+
 function initFollow() {
   const box = $("messages");
   const leave = () => { follow.on = false; };
@@ -7019,6 +7098,7 @@ async function init() {
   initSideToggle();
   initAttachments();
   initFollow();
+  initSideSwipe();
   initQuotePicker();
   $("composer").addEventListener("submit", (event) => {
     event.preventDefault();
