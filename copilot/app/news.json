@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.57.1",
+    "items": [
+      {
+        "de": {
+          "title": "Teilen-Fenster aufgeräumt",
+          "text": "Den Link kopierst du jetzt mit dem Symbol im Linkfeld. „Teilen beenden“ steht unten im Fenster, und alles hat mehr Platz."
+        },
+        "en": {
+          "title": "Tidier sharing window",
+          "text": "You now copy the link with the icon in the link box. “Stop sharing” is at the bottom of the window, and everything has more room."
+        }
+      },
+      {
+        "de": {
+          "title": "„Geteilt“ ohne Eingabefeld",
+          "text": "Das Feld zum Einfügen eines Links ist weg. Öffne den Link einfach, dann erscheint der Chat unter „Geteilt“."
+        },
+        "en": {
+          "title": "“Shared” without input box",
+          "text": "The box for pasting a link is gone. Just open the link and the chat shows up under “Shared”."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.57.0",
     "items": [
       {

@@ -1056,7 +1056,6 @@
  "30 Tage ab jetzt": "30 days from now",
  "7 Tage ab jetzt": "7 days from now",
  "Besitzer": "Owner",
- "Einstellungen zum Teilen": "Sharing settings",
  "Geteilt": "Shared",
  "Gültig bis {0}": "Valid until {0}",
  "Gültigkeit geändert.": "Validity changed.",
@@ -1077,7 +1076,6 @@
  "Link gültig: {0}": "Link valid: {0}",
  "7 Tage": "7 days",
  "30 Tage": "30 days",
- "Gültigkeit des Links …": "Link validity …",
  "Nicht freigeschaltet: Der Admin muss in den Einstellungen bei „Chats teilen“ den Wert „public“ wählen.": "Not enabled: the admin has to choose the value “public” under “Share chats” in the settings.",
  "Abrufe": "Views",
  "Das ist dein eigener Chat.": "That is your own chat.",
@@ -1087,9 +1085,6 @@
  "Es wurde nichts mit dir geteilt.": "Nothing has been shared with you.",
  "Geöffnet von": "Opened by",
  "Link": "Link",
- "Link einfügen": "Paste link",
- "Link oder Code": "Link or code",
- "Link oder Code hier einfügen": "Paste link or code here",
  "Link wurde kopiert.": "Link copied.",
  "Niemand sonst sieht diesen Chat. Wähle oben, wie du ihn teilen willst.": "Nobody else can see this chat. Choose above how you want to share it.",
  "Noch niemand hat den Link geöffnet.": "Nobody has opened the link yet.",
@@ -1098,5 +1093,7 @@
  "Von {0} · Stand {1}": "From {0} · as of {1}",
  "Wer den Link öffnet, findet den Chat unter „Geteilt“. Er oder sie kann ihn lesen und als eigene Kopie weiterführen.": "Whoever opens the link finds the chat under “Shared”. They can read it and continue it as their own copy.",
  "{0}, {1}×": "{0}, {1}×",
- "„{0}“ steht jetzt unter „Geteilt“.": "“{0}” is now listed under “Shared”."
+ "„{0}“ steht jetzt unter „Geteilt“.": "“{0}” is now listed under “Shared”.",
+ "Aktualisieren": "Update",
+ "Wirklich beenden?": "Really stop?"
 }

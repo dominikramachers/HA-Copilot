@@ -147,8 +147,10 @@ def parse_check(text: str, limit: int = MAX_FOLLOWUPS) -> tuple[str, list[str]]:
 
 # ------------------------------------------------------------------ Quellen
 
-_LINK = re.compile(r"\[([^\]]*)\]\((https?://[^)\s]+)\)")
-_URL = re.compile(r"https?://[^\s)>\]\"'<]+")
+# Mit Obergrenzen, damit lange Wiederholungen im Bericht die Suche nicht quadratisch verlangsamen.
+_LINK = re.compile(r"\[([^\]]{0,300})\]\((https?://[^)\s]{1,2000})\)")
+_URL = re.compile(r"https?://[^\s)>\]\"'<]{1,2000}")
+_BARE = re.compile(r"https?://\S{1,2000}")
 
 
 def normalize_url(url: str) -> str:
@@ -162,6 +164,18 @@ def urls_in(text: str) -> set[str]:
     return {normalize_url(u) for u in _URL.findall(text or "")}
 
 
+def _source_only(line: str) -> str | None:
+    """Die Adresse, wenn der Listenpunkt nur aus einer Quelle besteht (``- [Name](Adresse)`` oder ``- Adresse``), sonst ``None``."""
+    text = line.strip()
+    if not 3 <= len(text) <= 2400 or text[0] not in "-*" or not text[1].isspace():
+        return None
+    rest = text[1:].strip()
+    link = _LINK.fullmatch(rest)
+    if link:
+        return link.group(2)
+    return rest if _BARE.fullmatch(rest) else None
+
+
 def enforce_sources(report: str, known: set[str]) -> tuple[str, int]:
     """Alle Adressen im Bericht, die nicht in den Notizen vorkamen, entfernen (bei Links bleibt der Text). Gibt Bericht und Zahl der Entfernten zurück."""
     removed = 0
@@ -169,8 +183,7 @@ def enforce_sources(report: str, known: set[str]) -> tuple[str, int]:
     # Ein Listenpunkt, der nur aus einer unbelegten Quelle besteht, fällt ganz weg (sonst bliebe ein Name ohne Beleg stehen).
     kept: list[str] = []
     for line in report.splitlines():
-        only = re.fullmatch(r"\s*[-*]\s+(?:\[[^\]]*\]\((https?://[^)\s]+)\)|(https?://\S+))\s*", line)
-        address = (only.group(1) or only.group(2)) if only else None
+        address = _source_only(line)
         if address and normalize_url(address) not in known:
             removed += 1
             continue
@@ -199,8 +212,11 @@ def enforce_sources(report: str, known: set[str]) -> tuple[str, int]:
 
 
 def title_of(report: str, fallback: str) -> str:
-    match = re.search(r"^#\s+(.+?)\s*$", report, flags=re.M)
-    title = match.group(1) if match else fallback
+    title = fallback
+    for line in report.splitlines():  # erste Überschrift der Ebene 1 („# Titel“)
+        if line.startswith("#") and line[1:2] in (" ", "\t") and line[1:].strip():
+            title = line[1:].strip()
+            break
     title = re.sub(r"[`*_#\[\]]", "", title)
     return re.sub(r"\s+", " ", title).strip()[:80] or "Recherche"
 

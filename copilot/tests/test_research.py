@@ -35,6 +35,23 @@ def test_parse_check_text_and_followups():
     assert rs.parse_check("[1,2]") == ("", [])
 
 
+def test_source_cleanup_stays_fast_on_hostile_text():
+    import time
+    start = time.monotonic()
+    rs.enforce_sources("[" * 60000 + "\n" + "[](http://" * 8000 + "\n- " + "[a" * 8000, set())
+    rs.title_of("# " + " " * 60000 + "x", "Recherche")
+    assert time.monotonic() - start < 3
+
+
+def test_source_only_bullets_and_titles():
+    assert rs._source_only("- [Name](https://a.de/x)") == "https://a.de/x"
+    assert rs._source_only("  * https://a.de/x)  ") == "https://a.de/x)"
+    assert rs._source_only("- Text mit [Name](https://a.de/x)") is None
+    assert rs._source_only("-https://a.de") is None
+    assert rs.title_of("Vorwort\n# Mein *Titel*  \n# Zweiter", "x") == "Mein Titel"
+    assert rs.title_of("## nur Unterüberschrift", "Ersatz") == "Ersatz"
+
+
 def test_enforce_sources_removes_unknown_addresses():
     known = rs.urls_in(f"- Fakt ({GOOD}).\n- Anderes ({OTHER})")
     report = (

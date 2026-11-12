@@ -311,9 +311,9 @@ def catalog_entry(skill_id: str) -> dict | None:
 
 def catalog_files(skill_id: str) -> dict[str, str]:
     """Alle Dateien eines mitgelieferten Skills (Pfad -> Text) mit ``SKILL.md``; die Lizenz kommt als ``LICENSE.txt`` dazu."""
-    base = CATALOG_DIR.resolve()
-    root = (CATALOG_DIR / skill_id).resolve()
-    if root.parent != base:  # genau ein Ordner direkt im Katalog; keine Pfadteile, kein leerer Name, kein Katalog selbst
+    # Der Ordner kommt aus dem Katalog selbst (Namen vergleichen), nie aus dem übergebenen Namen: so entsteht kein Pfad aus Eingaben.
+    root = next((d for d in CATALOG_DIR.iterdir() if d.is_dir() and d.name == skill_id and not d.is_symlink()), None)
+    if root is None:  # kein Ordner direkt im Katalog (Pfadteile, leerer Name, Katalog selbst, "licenses" ohne Skill)
         return {}
     files = {p.relative_to(root).as_posix(): p.read_text(encoding="utf-8") for p in sorted(root.rglob("*")) if p.is_file()}
     entry = catalog_entry(skill_id)

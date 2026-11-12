@@ -636,3 +636,4 @@ def test_github_limits_and_redirects(store, api, monkeypatch):
 def test_catalog_files_stay_inside_the_catalog_folder():
     assert sk.catalog_files("") == {} and sk.catalog_files(".") == {} and sk.catalog_files("frontend-design/..") == {} and sk.catalog_files("../") == {} and sk.catalog_files("../../etc") == {} and sk.catalog_files("/etc") == {}
     assert "SKILL.md" in sk.catalog_files("frontend-design")
+    assert sk.catalog_files("licenses/x") == {} and sk.catalog_files("frontend-design/SKILL.md") == {}
