@@ -1,4 +1,4 @@
-"""Bilder zu den Funktionen ab 0.56.0: Sprechen, Inkognito, Kopfzeile und Teilen (Fenster, „Geteilt“, öffentliche Seite), Deep Research, Projektwissen, Gedächtnis.
+"""Bilder zu den Funktionen ab 0.56.0: Sprechen, Inkognito, Kopfzeile und Teilen (Fenster mit Link, „Geteilt“, öffentliche Seite), Deep Research, Projektwissen, Gedächtnis.
 
 Braucht die frisch gestartete Demo-App (``demo_addon.py``, Port 8099, öffentliche Seite auf 8097). Aufruf: ``python capture_neu.py docs/screenshots``.
 Die Demo-App danach neu starten: Das Skript legt Freigaben und einen Recherche-Lauf an.
@@ -66,21 +66,30 @@ with sync_playwright() as p:
     pg.screenshot(path=f"{OUT}/kopfzeile.png", clip={"x": 0, "y": 0, "width": 1280, "height": 460})  # Pfad „Projekt / Chat ▾“ mit geöffnetem Chat-Menü
     pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
     if pg.locator(".popover").count(): pg.mouse.click(700, 700); pg.wait_for_timeout(300)
+    # Teilen in der Instanz: Link für Personen dieser Instanz; die zweite Person öffnet ihn (Adresse mit ?share=…), danach steht sie in „Geöffnet von“
     pg.click("#share-top"); pg.wait_for_selector(".share-access"); pg.wait_for_timeout(300)
-    pg.click(".share-access"); pg.wait_for_selector(".share-opt"); pg.locator(".share-opt").nth(2).click(); pg.wait_for_selector(".share-main:has-text('Link kopieren')"); pg.wait_for_timeout(300)
-    pg.evaluate("document.getElementById('toast').hidden = true"); pg.wait_for_timeout(300)  # ohne das Hinweisfenster „Chat geteilt“
-    url = pg.evaluate("(id) => fetch(`api/chats/${id}/share`).then(r => r.json()).then(d => d.public.url)", pg.evaluate("state.activeId"))
+    pg.click(".share-access"); pg.wait_for_selector(".share-opt"); pg.locator(".share-opt").nth(0).click(); pg.wait_for_selector(".share-url"); pg.wait_for_timeout(300)
+    link = pg.input_value(".share-url").replace("8097", "8099")  # die Demo hat die Oberfläche auf 8099 (die Domain-Seite 8097 zeigt nur öffentliche Links)
+    cs = context(b, SAM); sam = cs.new_page(); sam.goto(link); sam.wait_for_selector(".share-thread .msg"); sam.wait_for_timeout(500)
+    sam.keyboard.press("Escape"); sam.wait_for_timeout(400); calm(sam)
+    sam.click("#nav-shared"); sam.wait_for_selector(".shared-item"); sam.wait_for_timeout(500)
+    sam.hover(".shared-item"); sam.wait_for_timeout(300)
+    sam.evaluate("document.getElementById('toast').hidden = true")
+    sam.screenshot(path=f"{OUT}/geteilte-chats.png")  # „Geteilt“ der anderen Person, Mülleimer beim Darüberfahren
+    cs.close()
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(300)
+    pg.click("#share-top"); pg.wait_for_selector(".share-seen:has-text('Sam')"); pg.wait_for_timeout(300)
+    pg.click(".share-url"); pg.wait_for_timeout(400)  # Klick auf den Link kopiert ihn und meldet es im Feld
+    pg.evaluate("document.getElementById('toast').hidden = true"); pg.wait_for_timeout(200)
     pg.screenshot(path=f"{OUT}/chat-teilen.png")
+    pg.wait_for_timeout(2000)
+    pg.click(".share-access"); pg.locator(".share-opt").nth(1).click(); pg.wait_for_selector(".share-seen:has-text('Abrufe')"); pg.wait_for_timeout(400)
+    url = pg.input_value(".share-url")
     pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
     c.close()
 
     c = context(b, {}, 1280, 800); pp = c.new_page(); pp.goto(url); pp.wait_for_selector(".msg.assistant"); pp.wait_for_timeout(600)
     pp.screenshot(path=f"{OUT}/geteilter-chat-oeffentlich.png")
-    c.close()
-
-    c = context(b, SAM); pg = start(c)
-    pg.wait_for_selector("#nav-shared:not([hidden])"); pg.click("#nav-shared"); pg.wait_for_timeout(1000)
-    pg.screenshot(path=f"{OUT}/geteilte-chats.png")
     c.close()
 
     # --- Deep Research: Menü, Rückfrage, Fortschritt, Bericht

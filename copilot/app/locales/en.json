@@ -651,5 +651,6 @@
  "Schreibe den Bericht …": "Writing the report …",
  "*Hinweis: Quellenangaben, die in den Recherche-Notizen nicht vorkamen, wurden entfernt (Anzahl: {n}).*": "*Note: source references that did not appear in the research notes were removed (count: {n}).*",
  "*Hinweis: Die Recherche wurde wegen der Zeitgrenze vorzeitig beendet; nicht alle Teilfragen sind abgedeckt.*": "*Note: The research was ended early because of the time limit; not all questions are covered.*",
- "*Der Bericht konnte nicht fertig geschrieben werden. Das sind die Notizen der Recherche:*": "*The report could not be finished. These are the notes from the research:*"
+ "*Der Bericht konnte nicht fertig geschrieben werden. Das sind die Notizen der Recherche:*": "*The report could not be finished. These are the notes from the research:*",
+ "Der Link gilt nicht (mehr).": "The link is not valid (any more)."
 }

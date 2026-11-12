@@ -45,24 +45,120 @@ def token_of(url):
     return url.rsplit("/", 1)[1]
 
 
-def test_instance_share_is_listed_for_others_and_readable(apps):
+def open_link(client, view, headers=HA):
+    """Den Link einer Freigabe in der Instanz öffnen (wie die Person, die ihn bekommen hat)."""
+    return client.post("/api/shared/open", json={"token": view["url"] or view["token"]}, headers=headers)
+
+
+def test_instance_share_needs_the_link_and_is_readable_after_opening(apps):
     inner, _ = apps("instance")
     chat = chat_with_text(inner)
     r = share(inner, chat, "instance")
-    assert r.status_code == 200 and "url" not in r.json()
-    assert inner.get("/api/shared", headers=as_user(DORA)).json() == []  # die eigene Freigabe steht nicht in der eigenen Liste
+    view = r.json()
+    assert r.status_code == 200 and len(view["token"]) == 43 and view["viewers"] == [] and view["expires_at"] is None
+    # ohne Link sieht niemand etwas: nicht in der Liste, nicht lesbar, nicht kopierbar
+    assert inner.get("/api/shared", headers=as_user(ADM01)).json() == []
+    assert inner.get("/api/shared", headers=as_user(DORA)).json() == []
+    row = inner.get(f"/api/chats/{chat['id']}/share", headers=H).json()["instance"]
+    sid = None
+    opened = open_link(inner, {"url": "", "token": row["token"]})
+    assert opened.status_code == 200
+    sid = opened.json()["id"]
     listed = inner.get("/api/shared", headers=as_user(ADM01)).json()
-    assert len(listed) == 1 and listed[0]["title"] and "messages" not in listed[0]
-    got = inner.get(f"/api/shared/{listed[0]['id']}", headers=as_user(ADM01)).json()
+    assert len(listed) == 1 and listed[0]["id"] == sid and listed[0]["title"] and listed[0]["opened_at"] and "messages" not in listed[0]
+    got = inner.get(f"/api/shared/{sid}", headers=as_user(ADM01)).json()
     assert [m["role"] for m in got["messages"]] == ["user", "assistant"] and got["mine"] is False
     assert got["messages"][0]["content"] == "Frage eins"
+    assert inner.get("/api/shared", headers=as_user(DORA)).json() == []  # die eigene Freigabe steht nicht in der eigenen Liste
+
+
+def test_instance_share_other_profile_without_link_gets_404(apps, store):
+    inner, _ = apps("instance")
+    chat = chat_with_text(inner)
+    share(inner, chat, "instance")
+    sid = store.share_get(DORA_ID, chat["id"], "instance")["id"]
+    assert inner.get(f"/api/shared/{sid}", headers=as_user(ADM01)).status_code == 404
+    assert inner.post(f"/api/shared/{sid}/copy", headers=HA).status_code == 404
+    assert inner.get(f"/api/shared/{sid}", headers=as_user(DORA)).status_code == 200  # der Besitzer sieht seine Freigabe
+
+
+def test_open_link_accepts_url_or_code_and_rejects_bad(apps):
+    inner, _ = apps("instance")
+    chat = chat_with_text(inner)
+    token = share(inner, chat, "instance").json()["token"]
+    for bad in ("kurz", "A" * 43, "https://x.test/?share=" + "B" * 43):
+        assert inner.post("/api/shared/open", json={"token": bad}, headers=HA).status_code == 404
+    assert inner.post("/api/shared/open", json={"token": f"https://x.test/?share={token}&a=1"}, headers=HA).status_code == 200
+    assert inner.post("/api/shared/open", json={"token": token}, headers=as_user(ADM01)).status_code in (400, 403)  # Schreibkopf fehlt
+    own = inner.post("/api/shared/open", json={"token": token}, headers=H)
+    assert own.status_code == 200 and own.json()["mine"] is True
+    assert inner.get("/api/shared", headers=H).json() == []  # die eigene Freigabe wird nicht in die eigene Liste gelegt
+
+
+def test_owner_sees_who_opened_the_link_and_recipient_can_remove(apps):
+    inner, _ = apps("instance")
+    chat = chat_with_text(inner)
+    view = share(inner, chat, "instance").json()
+    assert open_link(inner, view).status_code == 200
+    assert open_link(inner, view).status_code == 200
+    viewers = inner.get(f"/api/chats/{chat['id']}/share", headers=H).json()["instance"]["viewers"]
+    assert len(viewers) == 1 and viewers[0]["opens"] == 2 and viewers[0]["name"] and viewers[0]["first_at"] <= viewers[0]["last_at"]
+    sid = inner.get("/api/shared", headers=as_user(ADM01)).json()[0]["id"]
+    assert inner.delete(f"/api/shared/{sid}", headers=HA).status_code == 204
+    assert inner.delete(f"/api/shared/{sid}", headers=HA).status_code == 404
+    assert inner.get("/api/shared", headers=as_user(ADM01)).json() == []
+    assert inner.get(f"/api/shared/{sid}", headers=as_user(ADM01)).status_code == 404
+    assert open_link(inner, view).status_code == 200  # der Link holt ihn zurück
+    assert len(inner.get("/api/shared", headers=as_user(ADM01)).json()) == 1
+
+
+def test_refresh_keeps_link_and_viewers_and_end_sharing_removes_access(apps, store):
+    inner, _ = apps("instance")
+    chat = chat_with_text(inner)
+    view = share(inner, chat, "instance").json()
+    open_link(inner, view)
+    inner.post(f"/api/chats/{chat['id']}/send", json={"content": "Spätere Frage"}, headers=H)
+    r = inner.post(f"/api/chats/{chat['id']}/share/refresh", json={"mode": "instance"}, headers=H)
+    assert r.json()["token"] == view["token"] and len(r.json()["viewers"]) == 1
+    sid = inner.get("/api/shared", headers=as_user(ADM01)).json()[0]["id"]
+    assert len(inner.get(f"/api/shared/{sid}", headers=as_user(ADM01)).json()["messages"]) == 4
+    assert inner.delete(f"/api/chats/{chat['id']}/share/instance", headers=H).status_code == 204
+    assert inner.get("/api/shared", headers=as_user(ADM01)).json() == []
+    assert inner.get(f"/api/shared/{sid}", headers=as_user(ADM01)).status_code == 404
+    assert store._conn.execute("SELECT COUNT(*) FROM share_access").fetchone()[0] == 0  # mit der Freigabe weg
+    assert open_link(inner, view).status_code == 404
+
+
+def test_instance_link_expiry(apps, store):
+    inner, _ = apps("instance")
+    chat = chat_with_text(inner)
+    view = share(inner, chat, "instance", expires_days=7).json()
+    assert view["expires_at"]
+    open_link(inner, view)
+    with store._conn:
+        store._conn.execute("UPDATE chat_shares SET expires_at = '2000-01-01T00:00:00+00:00'")
+    assert inner.get("/api/shared", headers=as_user(ADM01)).json() == []
+    assert open_link(inner, view).status_code == 404
+
+
+def test_instance_link_url_uses_domain_and_public_counts_opens(apps):
+    inner, outer = apps("public")
+    chat = chat_with_text(inner)
+    view = share(inner, chat, "instance").json()
+    assert view["url"] == f"{BASE}/?share={view['token']}"
+    pub = share(inner, chat, "public").json()
+    assert pub["opens"] == 0
+    token = token_of(pub["url"])
+    outer.get(f"/s/{token}")  # die Seite selbst zählt nicht, nur das Laden des Inhalts
+    outer.get(f"/s/{token}/data")
+    outer.get(f"/s/{token}/data")
+    assert inner.get(f"/api/chats/{chat['id']}/share", headers=H).json()["public"]["opens"] == 2
 
 
 def test_copy_makes_own_imported_chat(apps, store):
     inner, _ = apps("instance")
     chat = chat_with_text(inner)
-    share(inner, chat, "instance")
-    sid = inner.get("/api/shared", headers=as_user(ADM01)).json()[0]["id"]
+    sid = open_link(inner, share(inner, chat, "instance").json()).json()["id"]
     copy = inner.post(f"/api/shared/{sid}/copy", headers=HA)
     assert copy.status_code == 201
     new = copy.json()

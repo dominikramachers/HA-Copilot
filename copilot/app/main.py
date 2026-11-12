@@ -264,7 +264,11 @@ class CreateChatBody(BaseModel):
 
 class ShareBody(BaseModel):
     mode: Literal["instance", "public"]
-    expires_days: Literal[0, 7, 30] | None = None  # nur für den öffentlichen Link; 0 = läuft nie ab
+    expires_days: Literal[0, 7, 30] | None = None  # Gültigkeit des Links; 0 = läuft nie ab
+
+
+class ShareOpenBody(BaseModel):
+    token: str = Field(min_length=1, max_length=600)  # der Link oder nur sein Code
 
 
 class ShareModeBody(BaseModel):
@@ -1561,7 +1565,7 @@ def register_chat_routes(
 
     # ------------------------------------------------------------ Chats teilen
     # Eine Freigabe ist ein Schnappschuss: Text zum Zeitpunkt des Teilens (ohne Anhänge, Werkzeugprotokolle und Gedächtnis-Hinweise).
-    # „instance“: alle angemeldeten Personen dieser Instanz sehen ihn unter „Geteilt“ und können ihn als Kopie weiterführen.
+    # „instance“: ein Link nur für angemeldete Personen dieser Instanz; wer ihn öffnet, sieht den Chat unter „Geteilt“ und kann ihn als Kopie weiterführen.
     # „public“: ein langer, nicht erratbarer Link ohne Anmeldung, nur lesen (siehe build_public_app).
 
     SHARE_MAX_CHARS = 2_000_000
@@ -1577,9 +1581,16 @@ def register_chat_routes(
     def share_view(row: dict | None) -> dict | None:
         if row is None:
             return None
-        out = {"mode": row["mode"], "taken_at": row["taken_at"], "created_at": row["created_at"], "expires_at": row["expires_at"]}
+        out = {"mode": row["mode"], "taken_at": row["taken_at"], "created_at": row["created_at"], "expires_at": row["expires_at"], "token": row["token"]}
         if row["mode"] == "public":
             out["url"] = f"{settings.public_base_url}/s/{row['token']}"
+            out["opens"] = row.get("opens", 0)
+        else:
+            out["url"] = f"{settings.public_base_url}/?share={row['token']}" if settings.public_base_url else ""
+            out["viewers"] = [
+                {"name": owner_label(v["profile_id"]), "first_at": v["first_at"], "last_at": v["last_at"], "opens": v["opens"]}
+                for v in store.share_viewers(row["id"])
+            ]
         return out
 
     def shared_chat(profile: Profile, chat_id: str) -> dict:
@@ -1620,12 +1631,13 @@ def register_chat_routes(
             raise HTTPException(status_code=422, detail=tr("Der Chat ist noch leer."))
         if sum(len(m["content"]) for m in messages) > SHARE_MAX_CHARS:
             raise HTTPException(status_code=422, detail=tr("Der Chat ist zu lang zum Teilen."))
-        row = store.share_upsert(profile.id, chat_id, mode, title, messages, expires_days if mode == "public" else 0)
+        row = store.share_upsert(profile.id, chat_id, mode, title, messages, expires_days)
         return share_view(row) or {}
 
     @app.post("/api/chats/{chat_id}/share", dependencies=[Depends(write_guard)])
     def create_share(chat_id: str, body: ShareBody, profile: Profile = Depends(current_profile)) -> dict:
-        return take_share(profile, chat_id, body.mode, 30 if body.expires_days is None and not store.share_get(profile.id, chat_id, body.mode) else body.expires_days)
+        fresh = body.expires_days is None and not store.share_get(profile.id, chat_id, body.mode)
+        return take_share(profile, chat_id, body.mode, (30 if body.mode == "public" else 0) if fresh else body.expires_days)
 
     @app.post("/api/chats/{chat_id}/share/refresh", dependencies=[Depends(write_guard)])
     def refresh_share(chat_id: str, body: ShareModeBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -1642,16 +1654,41 @@ def register_chat_routes(
 
     @app.get("/api/shared")
     def list_shared(profile: Profile = Depends(current_profile)) -> list[dict]:
-        """Von anderen in dieser Instanz geteilte Chats (nur Titel, Person und Stand)."""
+        """Chats anderer Personen, deren Link diese Person geöffnet hat (nur Titel, Person und Stand)."""
         sharing_or_404()
-        return [{"id": r["id"], "title": r["title"], "owner": owner_label(r["profile_id"]), "taken_at": r["taken_at"]} for r in store.shares_for_others(profile.id)]
+        return [
+            {"id": r["id"], "title": r["title"], "owner": owner_label(r["profile_id"]), "taken_at": r["taken_at"], "opened_at": r["opened_at"]}
+            for r in store.shares_opened_by(profile.id)
+        ]
+
+    @app.post("/api/shared/open", dependencies=[Depends(write_guard)])
+    def open_shared(body: ShareOpenBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Link (oder nur den Code) einer Freigabe öffnen: der Chat erscheint danach unter „Geteilt“."""
+        sharing_or_404()
+        found = SHARE_TOKEN.search(body.token)
+        row = store.share_open(profile.id, found.group(0)) if found else None
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Der Link gilt nicht (mehr)."))
+        return {"id": row["id"], "title": row["title"], "owner": owner_label(row["profile_id"]), "taken_at": row["taken_at"], "mine": row["own"]}
+
+    @app.delete("/api/shared/{share_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def remove_shared(share_id: str, profile: Profile = Depends(current_profile)) -> Response:
+        """Einen geteilten Chat aus der eigenen Liste „Geteilt“ entfernen (der Link holt ihn jederzeit zurück)."""
+        sharing_or_404()
+        if not store.share_access_remove(profile.id, share_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    def readable_share(profile: Profile, share_id: str) -> dict:
+        row = store.share_read(share_id=share_id)
+        if row is None or (row["profile_id"] != profile.id and not store.share_has_access(profile.id, share_id)):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return row
 
     @app.get("/api/shared/{share_id}")
     def read_shared(share_id: str, profile: Profile = Depends(current_profile)) -> dict:
         sharing_or_404()
-        row = store.share_read(share_id=share_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        row = readable_share(profile, share_id)
         return {"id": row["id"], "title": row["title"], "owner": owner_label(row["profile_id"]), "taken_at": row["taken_at"],
                 "mine": row["profile_id"] == profile.id, "messages": row["messages"]}
 
@@ -1659,8 +1696,8 @@ def register_chat_routes(
     def copy_shared(share_id: str, profile: Profile = Depends(current_profile)) -> dict:
         """Als eigene Kopie weiterführen: ein neuer Chat der Person mit dem geteilten Text. Er läuft mit ihren Rechten und ihrem Gedächtnis."""
         sharing_or_404()
-        row = store.share_read(share_id=share_id)
-        if row is None or not row["messages"]:
+        row = readable_share(profile, share_id)
+        if not row["messages"]:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return store.import_chat(profile.id, _title_from(tr("Kopie: {title}", title=row["title"])), row["messages"])
 
@@ -3225,6 +3262,7 @@ def build_public_app(
     @app.get("/s/{token}/data", include_in_schema=False)
     def shared_data(request: Request, token: str) -> JSONResponse:
         row = public_share(request, token)
+        store.share_count_open(row["id"])
         return JSONResponse(
             {"title": row["title"], "taken_at": row["taken_at"], "expires_at": row["expires_at"], "messages": row["messages"]},
             headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noarchive"},

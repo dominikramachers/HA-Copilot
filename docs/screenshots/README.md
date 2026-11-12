@@ -19,7 +19,7 @@ Alle Bilder zeigen eine Test-Instanz von Home Assistant mit Demo-Geräten und di
 | `sprachchat.png` | Sprechen mit der KI: Fenster mit der Partikel-Kugel, hört zu |
 | `inkognito.png` | Neuer Inkognito-Chat mit den Hinweisen, was (nicht) gespeichert wird |
 | `kopfzeile.png` | Kopfzeile des Chats: Pfad „Projekt / Chatname ▾“ mit geöffnetem Chat-Menü, rechts der Knopf „Teilen“ |
-| `chat-teilen.png`, `geteilter-chat-oeffentlich.png`, `geteilte-chats.png` | Teilen-Fenster mit Link; die öffentliche Seite ohne Anmeldung; „Geteilt“ einer anderen Person (mit Kopfzeile Projekt / Chatname und Teilen-Knopf) |
+| `chat-teilen.png`, `geteilter-chat-oeffentlich.png`, `geteilte-chats.png` | Teilen-Fenster mit Link (kopiert), Ablauf und „Geöffnet von“; die öffentliche Seite ohne Anmeldung; „Geteilt“ einer anderen Person (roter Mülleimer beim Darüberfahren) |
 | `deep-research-menue.png`, `deep-research-rueckfrage.png`, `deep-research-bericht.png` | Schalter im Menü; Rückfrage vor dem Start; Bericht mit Quellenliste und Hinweis, dass eine nicht belegte Quelle entfernt wurde (die nachgebildete KI nennt absichtlich eine erfundene) |
 | `projekt-wissen.png` | Projektwissen mit hochgeladenem Original (Download) und einer Notiz der KI |
 | `gedaechtnis-projekt.png` | Gedächtnis mit Herkunft je Eintrag (gesagt, von der KI abgeleitet, von dir eingetragen) und dem Bereich „Projekt“ |

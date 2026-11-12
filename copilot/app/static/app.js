@@ -921,20 +921,12 @@ async function loadAll() {
   syncBadge();
   syncCrumbs();
   syncSharedNav();
-  refreshShared().catch(() => {});
 }
 
-// „Geteilt“ steht in der Seitenleiste nur, wenn etwas geteilt ist: von dir (Symbol auch in der Chatliste) oder mit dir.
-async function refreshShared() {
-  const button = $("nav-shared");
-  if (!button) return;
-  state.sharedIn = canShare() ? await api("api/shared") : [];
-  syncSharedNav();
-}
-
+// „Geteilt“ steht in der Seitenleiste immer, solange das Teilen erlaubt ist (leer zeigt die Seite einen Hinweis).
 function syncSharedNav() {
   const button = $("nav-shared");
-  if (button) button.hidden = !canShare() || !(state.sharedIn?.length || state.chats.some((c) => c.shared?.length));
+  if (button) button.hidden = !canShare();
 }
 
 // Ein Punkt vor dem Namen im Tab-Titel zeigt ungelesene Chats auch dann, wenn der Tab im Hintergrund liegt.
@@ -6309,33 +6301,34 @@ async function exportChat(chat) {
 
 const canShare = () => !!state.me?.sharing && state.me.sharing !== "off";
 
-// Teilen-Fenster (nach dem Vorbild von Claude): „Wer hat Zugriff“ mit drei Stufen (nur ich, alle in dieser Instanz, jede Person mit dem Link),
-// die Besitzerzeile, Zahnrad für Stand und Gültigkeit und unten „Link kopieren“. Geteilt wird immer ein Stand von jetzt; spätere Nachrichten
-// erscheinen erst nach „Stand aktualisieren“. Anhänge und Gedächtnis-Hinweise werden nie mitgeteilt. Stufe „Link“ schließt „Instanz“ ein.
+// Teilen-Fenster (nach dem Vorbild von Claude): „Wer hat Zugriff“ mit zwei Wegen zu teilen (Link nur für Personen dieser Instanz, Link für jede Person),
+// darunter Link, Gültigkeit und Abrufe, die Besitzerzeile und unten „Link kopieren“ mit Zahnrad und „Teilen beenden“. Geteilt wird immer ein Stand
+// von jetzt; spätere Nachrichten erscheinen erst nach „Stand aktualisieren“. Anhänge und Gedächtnis-Hinweise werden nie mitgeteilt.
 async function shareChat(chat) {
   await openSheet({
     title: tr("Chat teilen"), sub: tr("Nur die bisherigen Nachrichten werden geteilt"), plain: true,
-    panel: (body) => { drawSharePanel(body, chat).catch(() => { body.textContent = tr("Das hat nicht geklappt."); }); },
+    panel: (body) => { body.classList.add("share-panel"); drawSharePanel(body, chat).catch(() => { body.textContent = tr("Das hat nicht geklappt."); }); },
   });
+  $("sheet-panel").classList.remove("share-panel");
   await loadAll().catch(() => {});  // Symbol in der Chatliste
 }
 
 function shareLevels(data) {
   const linkReady = data.sharing === "public" && data.public_available;
-  const levels = [
-    { value: "private", icon: "lock", label: tr("Nur ich"), hint: tr("Niemand sonst sieht diesen Chat.") },
-    { value: "instance", icon: "users", label: tr("Alle in dieser Instanz"), hint: tr("Andere Personen finden den Chat unter „Geteilt“, können ihn lesen und als eigene Kopie weiterführen.") },
+  return [
+    { value: "instance", icon: "users", label: tr("Personen dieser Instanz mit Link"), hint: tr("Wer den Link öffnet, findet den Chat unter „Geteilt“. Er oder sie kann ihn lesen und als eigene Kopie weiterführen.") },
+    {
+      value: "public", icon: "link", label: tr("Jede Person mit dem Link"), disabled: !linkReady,
+      hint: linkReady
+        ? tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst.")
+        : data.sharing !== "public"
+          ? tr("Nicht freigeschaltet: Der Admin muss in den Einstellungen bei „Chats teilen“ den Wert „public“ wählen.")
+          : tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."),
+    },
   ];
-  levels.push({
-    value: "public", icon: "link", label: tr("Jede Person mit dem Link"), disabled: !linkReady,
-    hint: linkReady
-      ? tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst.")
-      : data.sharing !== "public"
-        ? tr("Nicht freigeschaltet: Der Admin muss in den Einstellungen bei „Chats teilen“ den Wert „public“ wählen.")
-        : tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."),
-  });
-  return levels;
 }
+
+const shareLinkOf = (row) => row.url || `${location.origin}${location.pathname}?share=${row.token}`;
 
 async function drawSharePanel(body, chat, view = { open: false }) {
   const base = `api/chats/${encodeURIComponent(chat.id)}/share`;
@@ -6346,47 +6339,43 @@ async function drawSharePanel(body, chat, view = { open: false }) {
     try { await action(); if (success) toast(success); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); }
     await load();
   };
-
   const expiryLabel = (iso) => {
     if (!iso) return tr("Unbegrenzt");
     const days = Math.max(1, Math.round((new Date(iso).getTime() - Date.now()) / 86400000));
     return days <= 7 ? tr("7 Tage") : tr("30 Tage");
   };
   async function pickExpiry(anchor, data) {
-    const mark = (n) => (n === 0 ? !data.public.expires_at : !!data.public.expires_at && expiryLabel(data.public.expires_at) === (n === 7 ? tr("7 Tage") : tr("30 Tage")));
+    const row = data.public || data.instance;
+    const mark = (n) => (n === 0 ? !row.expires_at : !!row.expires_at && expiryLabel(row.expires_at) === (n === 7 ? tr("7 Tage") : tr("30 Tage")));
     const choice = await openPopover(anchor, [
       { heading: tr("Link gültig") },
       { value: "exp:7", label: tr("7 Tage ab jetzt"), active: mark(7) },
       { value: "exp:30", label: tr("30 Tage ab jetzt"), active: mark(30) },
       { value: "exp:0", label: tr("Unbegrenzt"), active: mark(0) },
     ]);
-    if (typeof choice === "string" && choice.startsWith("exp:")) await run(() => post({ mode: "public", expires_days: Number(choice.slice(4)) }), tr("Gültigkeit geändert."));
+    if (typeof choice === "string" && choice.startsWith("exp:")) await run(() => post({ mode: row.mode, expires_days: Number(choice.slice(4)) }), tr("Gültigkeit geändert."));
   }
 
   function render(data) {
+    const shared = data.public || data.instance || null;
     const level = data.public ? "public" : data.instance ? "instance" : "private";
     const levels = shareLevels(data);
-    const current = levels.find((l) => l.value === level) || levels[0];
+    const current = levels.find((l) => l.value === level);
     const choose = async (next) => {
       view.open = false;
       if (next === level) { render(data); return; }
       await run(async () => {
-        if (next === "private") { if (data.public) await del("public"); if (data.instance) await del("instance"); }
-        else if (next === "instance") { if (!data.instance) await post({ mode: "instance" }); if (data.public) await del("public"); }
-        else { if (!data.instance) await post({ mode: "instance" }); if (!data.public) await post({ mode: "public", expires_days: 30 }); }
-      }, next === "private" ? tr("Nicht mehr geteilt.") : tr("Chat geteilt."));
+        if (next === "instance") { await post({ mode: "instance" }); if (data.public) await del("public"); }
+        else { await post({ mode: "public", expires_days: 30 }); if (data.instance) await del("instance"); }
+      }, tr("Chat geteilt."));
     };
 
-    let urlField = null;
+    const scroll = node("div", "share-scroll");
     const nodes = [node("p", "share-h", tr("Wer hat Zugriff"))];
     const access = node("button", "share-access");
     access.type = "button";
     access.setAttribute("aria-expanded", String(view.open));
-    const lead = node("span", "share-lead");
-    lead.append(icon(current.icon));
-    const text = node("span", "share-text");
-    text.append(node("b", "", current.label));
-    access.append(lead, text, icon("chevron"));
+    access.append(icon(current ? current.icon : "lock"), node("b", "", current ? current.label : tr("Nur ich")), icon("chevron"));
     access.addEventListener("click", () => { view.open = !view.open; render(data); });
     nodes.push(access);
 
@@ -6400,37 +6389,63 @@ async function drawSharePanel(body, chat, view = { open: false }) {
         row.setAttribute("role", "radio");
         row.setAttribute("aria-checked", String(l.value === level));
         row.disabled = !!l.disabled;
-        const lead2 = node("span", "share-lead");
-        lead2.append(icon(l.icon));
         const t = node("span", "share-text");
         t.append(node("b", "", l.label), node("span", "share-hint", l.hint));
-        row.append(lead2, t);
+        row.append(icon(l.icon), t);
         if (l.value === level) row.append(icon("check"));
         row.addEventListener("click", () => choose(l.value));
         list.append(row);
       }
       nodes.push(list);
+    } else if (!shared) {
+      nodes.push(node("p", "share-hint", tr("Niemand sonst sieht diesen Chat. Wähle oben, wie du ihn teilen willst.")));
     } else {
       nodes.push(node("p", "share-hint", current.hint));
-      if (level !== "private") {
-        const taken = (data.public || data.instance).taken_at;
-        const until = data.public ? ` · ${data.public.expires_at ? tr("Gültig bis {0}", exactTime(data.public.expires_at)) : tr("Läuft nicht ab")}` : "";
-        nodes.push(node("p", "share-state", tr("Stand {0}", exactTime(taken)) + until));
-      }
+      const until = shared.expires_at ? tr("Gültig bis {0}", exactTime(shared.expires_at)) : tr("Läuft nicht ab");
+      nodes.push(node("p", "share-state", `${tr("Stand {0}", exactTime(shared.taken_at))} · ${until}`));
+      // Link: Ein Klick kopiert ihn und meldet es im Feld.
+      const box = node("div", "share-urlbox");
+      const field = node("input", "share-url");
+      field.type = "text";
+      field.readOnly = true;
+      field.value = shareLinkOf(shared);
+      field.setAttribute("aria-label", tr("Link"));
+      const done = node("span", "share-copied", tr("Link wurde kopiert."));
+      done.setAttribute("role", "status");
+      let hideTimer = 0;
+      const copyLink = async () => {
+        field.select();
+        try { await navigator.clipboard.writeText(field.value); } catch { try { document.execCommand("copy"); } catch { toast(tr("Zum Kopieren Strg+C drücken.")); return; } }
+        field.setSelectionRange(0, 0);
+        field.blur();
+        box.classList.add("copied");
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => box.classList.remove("copied"), 1800);
+      };
+      field.addEventListener("click", copyLink);
+      box.append(field, done);
+      body.copyLink = copyLink;
+      const expiry = node("button", "share-expiry");
+      expiry.type = "button";
+      expiry.setAttribute("aria-haspopup", "menu");
+      expiry.append(icon("clock"), node("span", "", tr("Link gültig: {0}", expiryLabel(shared.expires_at))), icon("chevron"));
+      expiry.addEventListener("click", () => pickExpiry(expiry, data));
+      nodes.push(box, expiry);
+      // Wer hat den Link geöffnet?
+      const seen = node("div", "share-seen");
       if (level === "public") {
-        urlField = node("input", "share-url");
-        urlField.type = "text";
-        urlField.readOnly = true;
-        urlField.value = data.public.url;
-        urlField.setAttribute("aria-label", tr("Öffentlicher Link"));
-        urlField.addEventListener("focus", () => urlField.select());
-        const expiry = node("button", "share-expiry");
-        expiry.type = "button";
-        expiry.setAttribute("aria-haspopup", "menu");
-        expiry.append(icon("clock"), node("span", "", tr("Link gültig: {0}", expiryLabel(data.public.expires_at))), icon("chevron"));
-        expiry.addEventListener("click", () => pickExpiry(expiry, data));
-        nodes.push(urlField, expiry);
+        seen.append(node("p", "share-h", tr("Abrufe")), node("p", "share-hint", shared.opens ? tr("Der Link wurde {0} Mal abgerufen.", shared.opens) : tr("Der Link wurde noch nicht abgerufen.")));
+      } else {
+        seen.append(node("p", "share-h", tr("Geöffnet von")));
+        if (!shared.viewers.length) seen.append(node("p", "share-hint", tr("Noch niemand hat den Link geöffnet.")));
+        for (const v of shared.viewers) {
+          const row = node("div", "share-viewer");
+          row.append(node("span", "share-avatar small", (v.name || "?").slice(0, 1).toUpperCase()), node("span", "share-name", v.name),
+            node("span", "share-role", v.opens > 1 ? tr("{0}, {1}×", exactTime(v.last_at), v.opens) : exactTime(v.last_at)));
+          seen.append(row);
+        }
       }
+      nodes.push(seen);
     }
 
     const owner = node("div", "share-owner");
@@ -6438,78 +6453,159 @@ async function drawSharePanel(body, chat, view = { open: false }) {
     owner.append(node("span", "share-avatar", (name || "?").slice(0, 1).toUpperCase()), node("span", "share-name", `${name} ${tr("(du)")}`.trim()), node("span", "share-role", tr("Besitzer")));
     nodes.push(owner);
     nodes.push(node("p", "share-note", tr("Wer Zugriff hat, sieht den Chat so, wie er jetzt ist. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis.")));
+    scroll.append(...nodes);
 
     const foot = node("div", "share-foot");
-    if (level !== "private") {
+    const row = node("div", "share-foot-row");
+    if (shared) {
       const gear = node("button", "share-gear");
       gear.type = "button";
       gear.setAttribute("aria-label", tr("Einstellungen zum Teilen"));
       gear.title = tr("Einstellungen zum Teilen");
       gear.append(icon("sliders"));
       gear.addEventListener("click", async () => {
-        const entries = [{ value: "refresh", icon: "refresh", label: tr("Stand aktualisieren") }];
-        if (data.public) entries.push({ value: "expiry", icon: "clock", label: tr("Gültigkeit des Links …") });
-        const choice = await openPopover(gear, entries);
-        if (choice === "refresh") await run(async () => { await post({ mode: "instance" }, "/refresh"); if (data.public) await post({ mode: "public" }, "/refresh"); }, tr("Stand aktualisiert."));
+        const choice = await openPopover(gear, [
+          { value: "refresh", icon: "refresh", label: tr("Stand aktualisieren") },
+          { value: "expiry", icon: "clock", label: tr("Gültigkeit des Links …") },
+        ]);
+        if (choice === "refresh") await run(() => post({ mode: shared.mode }, "/refresh"), tr("Stand aktualisiert."));
         else if (choice === "expiry") await pickExpiry(gear, data);
       });
-      foot.append(gear);
+      row.append(gear);
     }
     const main = node("button", "pill primary share-main");
     main.type = "button";
-    if (level === "public") {
+    if (shared) {
       main.append(icon("link"), node("span", "", tr("Link kopieren")));
-      main.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(data.public.url); toast(tr("Kopiert.")); } catch { urlField?.select(); toast(tr("Zum Kopieren Strg+C drücken.")); }
-      });
+      main.addEventListener("click", () => body.copyLink?.());
     } else {
       main.append(node("span", "", tr("Fertig")));
       main.addEventListener("click", () => closeSheet(true));
     }
-    foot.append(main);
-    nodes.push(foot);
-    body.replaceChildren(...nodes);
+    row.append(main);
+    foot.append(row);
+    if (shared) {
+      const end = node("button", "share-end");
+      end.type = "button";
+      end.append(icon("trash"), node("span", "", tr("Teilen beenden")));
+      end.addEventListener("click", () => run(async () => { if (data.public) await del("public"); if (data.instance) await del("instance"); }, tr("Nicht mehr geteilt.")));
+      foot.append(end);
+    }
+    body.replaceChildren(scroll, foot);
   }
   await load();
 }
 
-// „Geteilt“: alles, was geteilt ist. Von dir (mit Projekt und Stufe) und mit dir (von wem). Gedacht auch für künftig teilbare Dinge.
+// „Geteilt“: alles, was geteilt ist. Mit dir (Personen, deren Link du geöffnet hast; mit Entfernen) und von dir (mit Projekt und Weg).
+// Gedacht auch für künftig teilbare Dinge. Steht nichts darin, zeigt die Seite nur den Hinweis.
 async function openSharedChats() {
-  let incoming = [];
-  try { incoming = canShare() ? await api("api/shared") : []; } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); return; }
-  state.sharedIn = incoming;
-  syncSharedNav();
-  const mine = state.chats.filter((c) => c.shared?.length);
-  if (!incoming.length && !mine.length) { toast(tr("Noch nichts geteilt.")); return; }
   let picked = null;
   await openSheet({
     title: tr("Geteilt"), plain: true,
     panel: (body) => {
-      const group = (heading, rows) => {
-        if (!rows.length) return;
-        body.append(node("p", "share-h", heading));
-        const list = node("div", "shared-list");
-        for (const r of rows) {
-          const row = node("button", "sheet-item shared-item");
-          row.type = "button";
-          row.append(icon("chat"));
-          const t = node("span", "share-text");
-          t.append(node("b", "", r.title), node("span", "share-hint", r.sub));
-          row.append(t);
-          row.addEventListener("click", () => { picked = r.open; closeSheet(true); });
-          list.append(row);
+      body.classList.add("shared-panel");
+      const draw = async () => {
+        let incoming = [];
+        try { incoming = await api("api/shared"); } catch (err) { body.textContent = errorText(err, tr("Das hat nicht geklappt.")); return; }
+        const mine = state.chats.filter((c) => c.shared?.length);
+        const nodes = [];
+        const group = (heading, rows) => {
+          nodes.push(node("p", "share-h", heading));
+          const list = node("div", "shared-list");
+          for (const r of rows) {
+            const item = node("div", "shared-item");
+            const open = node("button", "shared-open");
+            open.type = "button";
+            const t = node("span", "share-text");
+            t.append(node("b", "", r.title), node("span", "share-hint", r.sub));
+            open.append(icon("chat"), t);
+            open.addEventListener("click", () => { picked = r.open; closeSheet(true); });
+            item.append(open);
+            if (r.remove) {
+              const rm = node("button", "shared-remove");
+              rm.type = "button";
+              rm.setAttribute("aria-label", tr("Entfernen"));
+              rm.title = tr("Entfernen");
+              rm.append(icon("trash"));
+              rm.addEventListener("click", async () => {
+                try { await api(`api/shared/${encodeURIComponent(r.id)}`, { method: "DELETE" }); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); }
+                draw();
+              });
+              item.append(rm);
+            }
+            list.append(item);
+          }
+          nodes.push(list);
+        };
+        if (incoming.length) {
+          group(tr("Mit mir geteilt"), incoming.map((c) => ({
+            id: c.id, title: c.title, sub: tr("Von {0} · Stand {1}", c.owner, exactTime(c.taken_at)), open: () => openSharedChat(c.id), remove: true,
+          })));
         }
-        body.append(list);
+        if (mine.length) {
+          group(tr("Von mir geteilt"), mine.map((c) => {
+            const project = c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name : "";
+            const how = c.shared.includes("public") ? tr("Jede Person mit dem Link") : tr("Personen dieser Instanz mit Link");
+            return { id: c.id, title: c.title, sub: project ? `${project} · ${how}` : how, open: () => selectChat(c.id) };
+          }));
+        }
+        if (!incoming.length) {
+          const empty = node("div", "shared-empty");
+          empty.append(icon("share"), node("p", "", tr("Es wurde nichts mit dir geteilt.")));
+          nodes.unshift(empty);
+        }
+        const paste = node("button", "shared-paste");
+        paste.type = "button";
+        paste.append(icon("link"), node("span", "", tr("Link einfügen")));
+        paste.addEventListener("click", async () => {
+          let text = "";
+          try { text = await navigator.clipboard.readText(); } catch { /* ohne Zugriff auf die Zwischenablage: Feld unten */ }
+          if (SHARE_CODE.test(text)) { await takeSharedLink(text); draw(); return; }
+          const field = node("input", "share-url shared-paste-field");
+          field.type = "text";
+          field.placeholder = tr("Link oder Code hier einfügen");
+          field.setAttribute("aria-label", tr("Link oder Code"));
+          paste.replaceWith(field);
+          field.focus();
+          field.addEventListener("keydown", async (event) => { if (event.key === "Enter") { event.preventDefault(); await takeSharedLink(field.value); draw(); } });
+          field.addEventListener("paste", () => setTimeout(async () => { if (SHARE_CODE.test(field.value)) { await takeSharedLink(field.value); draw(); } }, 0));
+        });
+        nodes.push(paste);
+        body.replaceChildren(...nodes);
       };
-      group(tr("Von mir geteilt"), mine.map((c) => {
-        const project = c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name : "";
-        const how = c.shared.includes("public") ? tr("Jede Person mit dem Link") : tr("Alle in dieser Instanz");
-        return { title: c.title, sub: project ? `${project} · ${how}` : how, open: () => selectChat(c.id) };
-      }));
-      group(tr("Mit mir geteilt"), incoming.map((c) => ({ title: c.title, sub: tr("Von {0}", c.owner), open: () => openSharedChat(c.id) })));
+      draw();
     },
   });
+  $("sheet-panel").classList.remove("shared-panel");
   if (picked) await picked();
+}
+
+const SHARE_CODE = /[A-Za-z0-9_-]{43}/;
+
+// Einen Link (oder nur den Code) öffnen: Der Chat erscheint danach unter „Geteilt“.
+async function takeSharedLink(text) {
+  try {
+    const found = await api("api/shared/open", { method: "POST", body: JSON.stringify({ token: text.trim().slice(0, 600) }) });
+    if (found.mine) toast(tr("Das ist dein eigener Chat."));
+    else toast(tr("„{0}“ steht jetzt unter „Geteilt“.", found.title));
+    return found;
+  } catch (err) {
+    toast(errorText(err, tr("Das hat nicht geklappt.")));
+    return null;
+  }
+}
+
+// Adresse mit ?share=…: Link geöffnet, den eine Person geteilt hat. Der Chat landet unter „Geteilt“ und öffnet sich zum Lesen.
+async function openSharedFromAddress() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get("share");
+  if (!code) return;
+  params.delete("share");
+  const rest = params.toString();
+  history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+  if (!canShare()) return;
+  const found = await takeSharedLink(code);
+  if (found && !found.mine) await openSharedChat(found.id);
 }
 
 async function openSharedChat(id) {
@@ -7894,6 +7990,7 @@ async function init() {
     else if (view === "skills") await openSkills(["connectors", "plugins"].includes(detail) ? detail : "skills");
     else if (view === "schedules" && state.me.schedules) await openSchedules();
     else if (again && state.chats.some((c) => c.id === again)) await selectChat(again);
+    openSharedFromAddress().catch(() => {});
     showWelcome().catch(() => {});
   } catch {
     $("who").textContent = tr("Nicht angemeldet");
