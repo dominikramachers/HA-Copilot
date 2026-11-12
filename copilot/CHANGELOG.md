@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.56.1
+Nachbesserungen am Teilen und an der Kopfzeile.
+- **Umbenennen in der Kopfzeile:** Das Eingabefeld hat jetzt genau die Größe des Namens; die Kopfzeile und der Chat darunter springen nicht mehr (`.title.editing`, Breite und Höhe aus `getBoundingClientRect()`).
+- **Teilen-Fenster:** Die Stufe **Jede Person mit dem Link** steht immer in der Auswahl. Ist sie nicht freigeschaltet (`chat.sharing` nicht `public`) oder fehlt `domain.public_base_url`, ist die Zeile ausgegraut und nennt den Grund, statt zu fehlen. Bei dieser Stufe sieht man den **Link** (Feld zum Markieren) und die Zeile **Link gültig: 30 Tage** (Klick: 7 Tage, 30 Tage, unbegrenzt) gleich im Fenster; das Zahnrad bietet **Stand aktualisieren** und **Gültigkeit des Links …**. Neue Texte in `en-ui.json`. Docs (DOCS.md) und ein Screenshot nachgezogen.
+
 ## 0.56.0
 Sammelversion mit sechs neuen Funktionen (Chatwissen, Dateien im Projekt, Gedächtnis ausgebaut, Inkognito-Chat, Chats teilen, Deep Research). Datenbankschema 23 (nur Ergänzungen, alte Daten bleiben unverändert).
 - **Chatwissen im Projekt.** In einem Projekt-Chat kennt die KI die anderen Chats desselben Projekts: Der Kontext enthält die Liste (bis zu 25 Chats mit Titel, Datum und Kurzfassung; `CHAT_INLINE`), als Referenz gekennzeichnet (`CHAT_NOTE`), nicht als Anweisung. Neue Werkzeuge (nur wenn das Projekt weitere Chats hat): `project_chats` (Liste), `chat_search` (Suche nur in diesem Projekt) und `chat_read` (ein Chat nach Kennung, Kennungsanfang oder Titel; lange Chats abschnittsweise, höchstens 40 000 Zeichen je Aufruf). Alles bleibt im Projekt und bei der Person; Inkognito-Chats, Sprachgespräche und Chats anderer Projekte sind nie sichtbar. Tests: `tests/test_project_chats.py`.
