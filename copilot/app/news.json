@@ -11,6 +11,16 @@
           "title": "Swipe to open the menu",
           "text": "On your phone you can now open my side menu with a swipe from left to right, and close it again."
         }
+      },
+      {
+        "de": {
+          "title": "Dein Profilbild",
+          "text": "Ich zeige jetzt dein Profilbild aus Home Assistant bei deinem Namen an."
+        },
+        "en": {
+          "title": "Your profile picture",
+          "text": "I now show your profile picture from Home Assistant next to your name."
+        }
       }
     ]
   },

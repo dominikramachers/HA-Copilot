@@ -119,6 +119,19 @@ function tile(iconName, label) {
   return box;
 }
 
+// Rundes Profilbild aus Home Assistant; ohne Bild (oder bei einem Fehler) bleibt der Anfangsbuchstabe
+function fillAvatar(box, label) {
+  const letter = (label || "?").charAt(0).toUpperCase();
+  box.textContent = letter;
+  if (!state.me || !state.me.picture) return;
+  const img = document.createElement("img");
+  img.alt = "";
+  img.className = "avatar-img";
+  img.addEventListener("load", () => { box.classList.add("has-img"); box.replaceChildren(img); });
+  img.addEventListener("error", () => { box.classList.remove("has-img"); box.textContent = letter; });
+  img.src = "api/me/picture";
+}
+
 function initials(label) {
   const words = String(label || "").split(/[\s\-_.]+/).filter(Boolean);
   const letters = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "?").slice(0, 2);
@@ -6932,7 +6945,9 @@ function renderSettings() {
   nav.setAttribute("aria-label", tr("Einstellungen"));
   // Nur am Handy sichtbar: wer eingeloggt ist, wie in der Claude-App.
   const who = node("header", "set-user");
-  who.append(node("span", "avatar", (me.label || "?").charAt(0).toUpperCase()), node("span", "set-user-text", me.label || ""));
+  const whoAvatar = node("span", "avatar", "");
+  fillAvatar(whoAvatar, me.label);
+  who.append(whoAvatar, node("span", "set-user-text", me.label || ""));
   nav.append(who);
   const section = (title, items) => {
     const sec = node("div", title ? "set-sec" : "set-sec set-sec-plain");
@@ -7117,7 +7132,7 @@ async function init() {
     state.me = await api("api/me");
     initVoiceButton();
     $("who").textContent = state.me.label;
-    $("avatar").textContent = state.me.label.charAt(0).toUpperCase();
+    fillAvatar($("avatar"), state.me.label);
     let stored = null;
     try { stored = localStorage.getItem("ki-effort"); } catch { /* optional */ }
     state.effort = ["low", "medium", "high"].includes(stored) ? stored : state.me.default_effort;
