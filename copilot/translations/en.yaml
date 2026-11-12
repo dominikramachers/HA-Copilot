@@ -133,6 +133,9 @@ configuration:
       output:
         name: Voice
         description: device (default) = the device reads the answer aloud, free. service = the same service as speech recognition reads it aloud (OpenAI or Home Assistant), sounds better, costs a few cents at OpenAI.
+      openai_voice:
+        name: Voice at OpenAI
+        description: 'Only applies when the voice comes from OpenAI (Voice: service and an OpenAI key). Default nova (female). Usually female: nova, shimmer, coral and sage; male: echo, onyx and ash; alloy, fable, ballad and verse are in between or sound different per sentence. To try them out: platform.openai.com/audio/playground.'
       instructions:
         name: Your own wishes for spoken answers (optional)
         description: 'One to three sentences the AI also follows for every spoken answer, for example “Always name the rooms” or “Answer in one sentence”. At most 600 characters. Empty: only the basic rules (short, the way people talk, no device names).'

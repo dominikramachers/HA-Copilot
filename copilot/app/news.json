@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.55.2",
+    "items": [
+      {
+        "de": {
+          "title": "Meine Stimme ist jetzt weiblich",
+          "text": "Wenn ich über OpenAI spreche, klinge ich jetzt standardmäßig weiblich, passend zu meinem Namen. Der Admin kann in den Einstellungen eine andere Stimme wählen."
+        },
+        "en": {
+          "title": "My voice is now female",
+          "text": "When I speak through OpenAI, I now sound female by default, to match my name. The admin can pick a different voice in the settings."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.55.1",
     "items": [
       {

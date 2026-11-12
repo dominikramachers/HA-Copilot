@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.55.1.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.55.2.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -525,7 +525,7 @@ Die Option `look.language` stellt die Sprache des ganzen Add-ons ein: `de` (Stan
 
 Neben dem Senden-Knopf im Chat sitzt ein Mikrofon-Knopf. Er öffnet ein Fenster mit einer leuchtenden Kugel aus Partikeln mit Ringen darum (dunkler Anruf-Bildschirm). Sie pulsiert beim Zuhören mit deiner Stimme, wellt beim Antworten und dreht beim Nachdenken schneller; die Teilchen lassen sich mit Maus oder Finger wegwischen und federn zurück. Unten stehen **Stumm**, **Sprechen** und **Beenden** (auch `Esc`). Es geht nur „per Knopf“: jede Runde beginnt mit einem Tipp auf **Sprechen** (beim Öffnen läuft die erste Runde sofort), eine Sprechpause beendet die Aufnahme.
 
-- **Alles in einer Gruppe.** Die Sprach-Optionen stehen in der Add-on-Konfiguration in der eingeklappten Gruppe **Sprechen mit der KI** (`voice:`): `access_default`, `browser_stt`, `output`, `instructions`, `chat_days` und `openai_api_key`.
+- **Alles in einer Gruppe.** Die Sprach-Optionen stehen in der Add-on-Konfiguration in der eingeklappten Gruppe **Sprechen mit der KI** (`voice:`): `access_default`, `browser_stt`, `output`, `openai_voice`, `instructions`, `chat_days` und `openai_api_key`. **Stimme bei OpenAI:** `openai_voice` (Standard `nova`, weiblich; weiblich klingen meist `nova`, `shimmer`, `coral`, `sage`, männlich `echo`, `onyx`, `ash`) gilt nur, wenn `output: service` und ein OpenAI-Schlüssel gesetzt sind. Die Stimme von Piper wählst du dagegen in Home Assistant im Sprachassistenten (Text-zu-Sprache), die des Geräts im Betriebssystem.
 - **Aus ist der Standard.** `voice.access_default` (`off`/`on`) gilt für alle, `voice_access` im Benutzer-Eintrag überschreibt es je Person. Ohne Freigabe gibt es keinen Knopf und die Schnittstellen antworten mit 403.
 - **Der Name.** Die KI hört auf `look.app_name` (zum Beispiel `Aria`): „Aria, mach das Licht aus“ oder „Hey Aria …“. Der Name am Satzanfang wird entfernt; ein Satz ohne Namen wird genauso behandelt, denn das Gespräch läuft ja bewusst per Knopf.
 - **Zwei Wege.** *Schneller Pfad:* Versteht Home Assistant den Satz selbst („Licht im Wohnzimmer aus“, „Wie warm ist es im Bad?“), führt es ihn ohne KI aus – wenige Hundert Millisekunden, kein Verbrauch. Vorher macht das Add-on einen Probelauf und prüft die Zielgeräte. Nur wenn Home Assistant nichts versteht, antwortet die KI: das schnelle Modell (`claude-haiku-5-5`), niedriger Aufwand, kurze Antworten ohne Formatierung, ohne Dateien, Bilder, GitHub und Konnektoren.
