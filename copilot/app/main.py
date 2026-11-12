@@ -41,6 +41,7 @@ from .backend_router import RouterBackend
 from . import attachments as filelib, compact, safety
 from . import news as newslib
 from . import quotes
+from . import research as researchlib
 from . import i18n
 from .i18n import tr
 from .previews import MAX_CHARS as PREVIEW_MAX_CHARS, PREVIEW_HEADERS, PreviewStore
@@ -73,7 +74,7 @@ from .context_tools import (
 )
 from .ha_tools import HaToolbox
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
-from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox
+from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox, clean_name
 from . import exporter
 from . import limits as limitlib
 from . import notifier as notifierlib
@@ -242,6 +243,8 @@ class SendBody(BaseModel):
     quote: str | None = Field(default=None, max_length=quotes.QUOTE_MAX * 2)
     # Gesprochene Nachricht: schnelles Modell, kurze Antwort zum Vorlesen, weniger Werkzeuge, Rückfragen werden abgelehnt
     voice: bool = False
+    # Deep Research für diese Nachricht (mehrstufige Recherche mit Quellenbericht, siehe research.py)
+    research: bool = False
 
 
 class _Declined(Exception):
@@ -887,6 +890,21 @@ def register_chat_routes(
     def scan_status() -> dict:
         return {**scanner.status(), "auto_days": settings.ha_scan_days}
 
+    def research_day() -> str:
+        return datetime.now().strftime("%Y-%m-%d")
+
+    def research_state(profile: Profile) -> dict:
+        used = store.research_used(profile.id, research_day())
+        limit = settings.research_daily_limit
+        return {"limit": limit, "left": max(0, limit - used), "questions": researchlib.MAX_QUESTIONS, "minutes": researchlib.TOTAL_SECONDS // 60}
+
+    @app.get("/api/research")
+    def research_info(profile: Profile = Depends(current_profile)) -> dict:
+        """Stand von Deep Research für die Warnung beim Einschalten: Tageslimit, Rest, Grenzen je Lauf."""
+        if not settings.research_enabled or settings.web_level(profile) != "on":
+            raise HTTPException(status_code=404, detail=tr("Nicht verfügbar"))
+        return research_state(profile)
+
     @app.get("/api/me")
     def me(profile: Profile = Depends(current_profile)) -> dict:
         return {
@@ -917,6 +935,7 @@ def register_chat_routes(
             "incognito": settings.incognito_enabled,
             "sharing": settings.sharing,
             "sharing_public": settings.sharing == "public" and bool(settings.public_base_url),
+            "research": research_state(profile) if settings.research_enabled and settings.web_level(profile) == "on" else None,
             "overview": overview_allowed(profile),
             "setup": channel == "ingress",
             "setup_open": setup_check.banner(settings) if channel == "ingress" else None,
@@ -2386,6 +2405,16 @@ def register_chat_routes(
         previous_model = concrete_model(saved_model or user_default_model(profile.id))
         switched_from = previous_model if history and not spoken and requested_model and chosen_model != previous_model else ""
         web_on = settings.web_level(profile) == "on" and body.web is not False
+        research = body.research
+        if research:
+            if not settings.research_enabled:
+                raise HTTPException(status_code=403, detail=tr("Deep Research ist ausgeschaltet."))
+            if spoken or incognito or files or not text:
+                raise HTTPException(status_code=422, detail=tr("Deep Research braucht eine getippte Frage ohne Anhänge und geht nicht im Inkognito-Chat."))
+            if not web_on:
+                raise HTTPException(status_code=422, detail=tr("Deep Research braucht die Websuche. Schalte sie ein."))
+            if store.research_used(profile.id, research_day()) >= settings.research_daily_limit:
+                raise HTTPException(status_code=429, detail=tr("Das Tageslimit für Deep Research ist erreicht. Morgen geht es wieder."))
         first_exchange = not history and chat.get("title") in DEFAULT_TITLES
         metas = [f.meta() for f in files]
         instructions = store.chat_instructions(profile.id, chat_id)
@@ -2640,13 +2669,85 @@ def register_chat_routes(
                 context = ([{"role": "summary", "content": summary}] if summary else []) + [
                     {"role": m["role"], "content": m["content"]} for m in pending
                 ]
+                async def run_research() -> None:
+                    """Deep Research: Rückfrage, Tageslimit vormerken, Recherche in Schritten, Bericht als Antwort und als Datei."""
+                    day = research_day()
+                    state = research_state(profile)
+                    decision = await ask_about(
+                        "research", tr("Deep Research starten"),
+                        tr(
+                            "Die KI plant die Recherche, sucht in mehreren Runden im Web, liest und gleicht Quellen ab und schreibt einen Bericht mit Quellenliste. "
+                            "Das dauert mehrere Minuten (höchstens {minutes}) und verbraucht deutlich mehr Kontingent als eine normale Antwort. "
+                            "Du kannst den Chat währenddessen verlassen. Heute noch {left} von {limit} Läufen.",
+                            minutes=state["minutes"], left=state["left"], limit=state["limit"],
+                        ),
+                        False,
+                    )
+                    if decision == "deny":
+                        raise _Declined(tr("Nicht gestartet: Deep Research wurde abgelehnt."))
+                    if not store.research_reserve(profile.id, day, settings.research_daily_limit):
+                        raise _Declined(tr("Das Tageslimit für Deep Research ist erreicht. Morgen geht es wieder."))
+                    web_steps = 0
+                    timeouts = {"plan": researchlib.PLAN_SECONDS, "step": researchlib.STEP_SECONDS, "check": researchlib.CHECK_SECONDS, "report": researchlib.REPORT_SECONDS}
+
+                    async def collect(phase: str, prompt: str) -> str:
+                        nonlocal web_steps
+                        opts: dict = {k: v for k, v in extra.items() if k in ("model", "on_usage", "on_limit")}
+                        history_here: list[dict] = []
+                        if phase == "step":
+                            # Nur das Web: nichts in Home Assistant, GitHub, Gedächtnis oder Konnektoren (Webinhalte sind fremde Daten)
+                            opts.update(tools=WebToolbox(run.push, run.next_tool_id).specs(), web=True, record=run.push, next_id=run.next_tool_id,
+                                        note=WEB_NOTE + "\n" + researchlib.STEP_NOTE)
+                        else:
+                            opts["note"] = researchlib.ANALYSIS_NOTE
+                            if phase in ("plan", "report"):
+                                history_here = context
+                            if phase == "report":
+                                for key in ("instructions", "personal_instructions"):
+                                    if key in extra:
+                                        opts[key] = extra[key]
+                        parts: list[str] = []
+                        async with asyncio.timeout(timeouts[phase]):
+                            live = _pump(lambda: backend.stream(history_here, prompt, "low" if phase == "plan" else effort, **opts), KEEPALIVE_SECONDS)
+                            async with contextlib.aclosing(live):
+                                async for piece in live:
+                                    if piece is not None:
+                                        parts.append(piece)
+                        if phase == "step" and any(p.strip() for p in parts):
+                            web_steps += 1  # ein Schritt hat etwas geliefert; ohne das geht der Lauf zurück ans Tageslimit
+                        return "".join(parts)
+
+                    try:
+                        result = await researchlib.run(asked, collect=collect, status=lambda text: run.push({"type": "status", "text": text}))
+                    except BaseException:
+                        if web_steps == 0:
+                            store.research_release(profile.id, day)  # nichts verbraucht: den Lauf zurückgeben
+                        raise
+                    if settings.files_enabled:
+                        try:
+                            name = clean_name(f"Recherche {result.title}.md")
+                            meta = store.outfile_add(profile.id, chat_id, name, "text/markdown", result.report.encode("utf-8"), settings.files_keep_days)
+                            if meta:
+                                run.push({"type": "tool", "id": run.next_tool_id(), "label": tr("Datei erstellt: {name}", name=name), "status": "ok", "kind": "file", "note": "",
+                                          "file": {"id": meta["id"], "name": name, "size": meta["size"]}})
+                        except Exception:
+                            log.warning("Recherchebericht konnte nicht als Datei abgelegt werden", exc_info=True)
+                    for at in range(0, len(result.report), 700):
+                        run.push({"type": "delta", "text": result.report[at:at + 700]})
+                        await asyncio.sleep(0)
+
                 try:
-                    async with asyncio.timeout(REQUEST_TIMEOUT + (TOOL_EXTRA_TIMEOUT if specs else 0)):
-                        live = _pump(lambda: backend.stream(context, asked, effort, **extra), KEEPALIVE_SECONDS)
-                        async with contextlib.aclosing(live):
-                            async for piece in live:
-                                if piece is not None:
-                                    run.push({"type": "delta", "text": piece})
+                    if research:
+                        await run_research()
+                    else:
+                        async with asyncio.timeout(REQUEST_TIMEOUT + (TOOL_EXTRA_TIMEOUT if specs else 0)):
+                            live = _pump(lambda: backend.stream(context, asked, effort, **extra), KEEPALIVE_SECONDS)
+                            async with contextlib.aclosing(live):
+                                async for piece in live:
+                                    if piece is not None:
+                                        run.push({"type": "delta", "text": piece})
+                except researchlib.ResearchError as exc:
+                    error = str(exc)
                 except BackendError as exc:
                     error = exc.user_message
                     run.error_resets_at = exc.resets_at

@@ -49,6 +49,8 @@ options:
     schedules_enabled: true
     incognito_enabled: true
     sharing: instance
+    research_enabled: false
+    research_daily_limit: 3
     files_enabled: true
     ha_access_default: execute
     ha_limit_to_exposed: true
@@ -121,6 +123,8 @@ schema:
     schedules_enabled: bool?
     incognito_enabled: bool?
     sharing: list(off|instance|public)?
+    research_enabled: bool?
+    research_daily_limit: int(1,20)?
     files_enabled: bool?
     ha_access_default: list(none|read|execute|write)?
     ha_limit_to_exposed: bool?

@@ -635,5 +635,21 @@
  "Der Chat ist zu lang zum Teilen.": "The chat is too long to share.",
  "Dieser Chat lässt sich nicht teilen.": "This chat cannot be shared.",
  "Kopie: {title}": "Copy: {title}",
- "Öffentliche Links sind nicht erlaubt.": "Public links are not allowed."
+ "Öffentliche Links sind nicht erlaubt.": "Public links are not allowed.",
+ "Das Tageslimit für Deep Research ist erreicht. Morgen geht es wieder.": "The daily limit for Deep Research has been reached. It works again tomorrow.",
+ "Deep Research braucht die Websuche. Schalte sie ein.": "Deep Research needs web search. Switch it on.",
+ "Deep Research braucht eine getippte Frage ohne Anhänge und geht nicht im Inkognito-Chat.": "Deep Research needs a typed question without attachments and does not work in an incognito chat.",
+ "Deep Research ist ausgeschaltet.": "Deep Research is switched off.",
+ "Deep Research starten": "Start Deep Research",
+ "Die KI plant die Recherche, sucht in mehreren Runden im Web, liest und gleicht Quellen ab und schreibt einen Bericht mit Quellenliste. Das dauert mehrere Minuten (höchstens {minutes}) und verbraucht deutlich mehr Kontingent als eine normale Antwort. Du kannst den Chat währenddessen verlassen. Heute noch {left} von {limit} Läufen.": "The AI plans the research, searches the web in several rounds, reads and cross-checks sources and writes a report with a source list. This takes several minutes (at most {minutes}) and uses much more quota than a normal answer. You can leave the chat in the meantime. {left} of {limit} runs left today.",
+ "Die Recherche hat keine Ergebnisse geliefert. Das Web war nicht erreichbar oder die Suche blieb ohne Treffer.": "The research produced no results. The web was not reachable or the search found nothing.",
+ "Gleiche die Quellen ab …": "Cross-checking the sources …",
+ "Nachrecherche {j} von {n}: {q}": "Follow-up search {j} of {n}: {q}",
+ "Nicht gestartet: Deep Research wurde abgelehnt.": "Not started: Deep Research was declined.",
+ "Plane die Recherche …": "Planning the research …",
+ "Recherche {i} von {n}: {q}": "Research {i} of {n}: {q}",
+ "Schreibe den Bericht …": "Writing the report …",
+ "*Hinweis: {n} Quellenangaben, die in den Recherche-Notizen nicht vorkamen, wurden entfernt.*": "*Note: {n} source references that did not appear in the research notes were removed.*",
+ "*Hinweis: Die Recherche wurde wegen der Zeitgrenze vorzeitig beendet; nicht alle Teilfragen sind abgedeckt.*": "*Note: The research was ended early because of the time limit; not all questions are covered.*",
+ "*Der Bericht konnte nicht fertig geschrieben werden. Das sind die Notizen der Recherche:*": "*The report could not be finished. These are the notes from the research:*"
 }

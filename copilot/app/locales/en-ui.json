@@ -1066,5 +1066,10 @@
  "unbegrenzt": "unlimited",
  "Öffentlicher Link": "Public link",
  "Das ist ein geteilter Chat. Du kannst ihn nur lesen. Er zeigt den Stand vom Zeitpunkt des Teilens.": "This is a shared chat. You can only read it. It shows the chat as it was when it was shared.",
- "Geteilter Chat – __NAME__": "Shared chat – __NAME__"
+ "Geteilter Chat – __NAME__": "Shared chat – __NAME__",
+ "Das Tageslimit für Deep Research ist erreicht. Morgen geht es wieder.": "The daily limit for Deep Research has been reached. It works again tomorrow.",
+ "Deep Research": "Deep Research",
+ "Deep Research ist aus.": "Deep Research is off.",
+ "Soll die Recherche gestartet werden?": "Should the research be started?",
+ "Deep Research ist an, nur für die nächste Nachricht. Heute noch {0} von {1} Läufen.": "Deep Research is on, for the next message only. {0} of {1} runs left today."
 }

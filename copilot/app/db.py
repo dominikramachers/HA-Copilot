@@ -211,6 +211,15 @@ CREATE TABLE IF NOT EXISTS token_usage (
 );
 """
 
+RESEARCH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS research_runs (
+    profile_id  TEXT NOT NULL,
+    day         TEXT NOT NULL,
+    runs        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (profile_id, day)
+);
+"""
+
 CONNECTORS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS connectors (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -541,6 +550,7 @@ class Store:
             self._conn.execute("ALTER TABLE memories ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
         self._conn.executescript(PROJECT_MEMORY_SCHEMA)
         self._conn.executescript(SHARES_SCHEMA)
+        self._conn.executescript(RESEARCH_SCHEMA)
         self._conn.executescript(STATE_SCHEMA)
         self._conn.executescript(OUTFILES_SCHEMA)
         outfile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(outfiles)")}
@@ -1990,6 +2000,34 @@ class Store:
             )
             row = self._conn.execute("SELECT count FROM image_usage WHERE profile_id = ? AND month = ?", (profile_id, month)).fetchone()
         return int(row["count"])
+
+    def research_used(self, profile_id: str, day: str) -> int:
+        """Deep-Research-Läufe, die diese Person an diesem Tag (``JJJJ-MM-TT``) schon gestartet hat."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT runs FROM research_runs WHERE profile_id = ? AND day = ?", (profile_id, day)).fetchone()
+        return int(row["runs"]) if row else 0
+
+    def research_reserve(self, profile_id: str, day: str, limit: int) -> bool:
+        """Einen Lauf vormerken, solange das Tageslimit nicht erreicht ist (atomar). ``False``: Limit erreicht."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            row = self._conn.execute("SELECT runs FROM research_runs WHERE profile_id = ? AND day = ?", (profile_id, day)).fetchone()
+            used = int(row["runs"]) if row else 0
+            if used >= limit:
+                return False
+            self._conn.execute(
+                "INSERT INTO research_runs (profile_id, day, runs) VALUES (?, ?, 1) "
+                "ON CONFLICT(profile_id, day) DO UPDATE SET runs = runs + 1", (profile_id, day),
+            )
+            self._conn.execute("DELETE FROM research_runs WHERE day < date(?, '-30 day')", (day,))
+        return True
+
+    def research_release(self, profile_id: str, day: str) -> None:
+        """Vorgemerkten Lauf zurückgeben (er hat nichts verbraucht, z. B. Fehler vor der ersten Suche)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute("UPDATE research_runs SET runs = MAX(0, runs - 1) WHERE profile_id = ? AND day = ?", (profile_id, day))
 
     def token_usage(self, profile_id: str, month: str, provider: str = "openai") -> int:
         """Wie viele Token (Eingabe plus Ausgabe) diese Person in diesem Monat (``JJJJ-MM``) bei diesem Anbieter verbraucht hat."""

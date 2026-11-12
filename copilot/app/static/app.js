@@ -2,7 +2,7 @@
 
 // Alle Pfade sind relativ, damit die Seite unter dem Ingress-Pfad von Home Assistant funktioniert.
 const $ = (id) => document.getElementById(id);
-const state = { incognito: false, incognitoId: null, view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
+const state = { research: false, incognito: false, incognitoId: null, view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
 const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
 
 // ---------------------------------------------------------------- Hilfen
@@ -5218,11 +5218,12 @@ function approvalCard(chatId, ev) {
   const card = node("div", "ask-card");
   card.setAttribute("role", "group");
   card.setAttribute("aria-label", tr("Rückfrage"));
-  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
+  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), research: tr("Soll die Recherche gestartet werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
   card.append(node("div", "ask-title", question), node("div", "ask-what", ev.label));
   if (ev.details) {
     const more = document.createElement("details");
     more.className = "ask-details";
+    more.open = ev.topic === "research"; // Zeit und Kosten stehen dort: bei Deep Research gleich sichtbar
     more.append(node("summary", "", tr("Einzelheiten")), node("pre", "", ev.details));
     card.append(more);
   }
@@ -5540,10 +5541,12 @@ async function sendMessage(edit = null, spoken = null) {
         ...(spoken ? { voice: true } : {}),
         ...((state.me?.models?.length || 0) > 1 && validModel(state.model) ? { model: state.model } : {}),
         ...(state.me?.web && !state.web ? { web: false } : {}),
+        ...(researchOn() ? { research: true } : {}),
       }),
     });
     if (!response.ok) throw await sendFailure(response);
     run.accepted = true; // ab hier gehört die Antwort dem Server
+    if (researchOn()) { state.research = false; $("toast").hidden = true; markTools(); refreshResearch().catch(() => {}); } // gilt nur für diese eine Nachricht
     loadAll().catch(() => {}); // Kreisel und Titel in der Liste sofort anzeigen
     if (run.detached) run.controller.abort(); // Chat wurde schon während des Hochladens verlassen
     out = await consume(response, run, bubble);
@@ -5643,7 +5646,8 @@ function markTools() {
   const btn = $("tools");
   const model = hasModels ? modelLabel(selectedModel()) : "";
   $("tools-name").textContent = model;
-  $("tools-effort").textContent = effortLabel(state.effort);
+  $("tools-effort").textContent = researchOn() ? tr("Deep Research") : effortLabel(state.effort);
+  btn.classList.toggle("research", researchOn());
   btn.classList.toggle("web-off", !!me?.web && !state.web);
   btn.classList.toggle("on-openai", hasModels && usesOpenAI());
   btn.title = hasModels && usesOpenAI() ? tr("Dieser Chat läuft mit ChatGPT: Nachrichten und Anhänge gehen an OpenAI.") : "";
@@ -5726,6 +5730,15 @@ async function phoneToolsMenu() {
             web.addEventListener("click", pick("web"));
             body.append(web);
           }
+          if (researchAvailable()) {
+            const rs = node("span", "pop-switch" + (state.research ? " on" : ""));
+            rs.setAttribute("aria-hidden", "true");
+            const research = row("mm-link", node("span", "mm-name", tr("Deep Research")), rs);
+            research.setAttribute("role", "menuitemcheckbox");
+            research.setAttribute("aria-checked", String(state.research));
+            research.addEventListener("click", pick("research"));
+            body.append(research);
+          }
         };
         const effortPage = () => {
           $("sheet-title").textContent = tr("Aufwand");
@@ -5775,6 +5788,10 @@ async function toolsMenu() {
       entries.push({ divider: true });
       entries.push({ value: "web", icon: "globe", label: tr("Websuche"), active: state.web, toggle: state.web });
     }
+    if (researchAvailable()) {
+      if (!me.web) entries.push({ divider: true });
+      entries.push({ value: "research", icon: "search", label: tr("Deep Research"), active: state.research, toggle: state.research });
+    }
     const button = $("tools");
     button.setAttribute("aria-expanded", "true");
     try {
@@ -5804,8 +5821,29 @@ async function toolsMenu() {
     state.web = !state.web;
     try { localStorage.setItem("ki-web", state.web ? "on" : "off"); } catch { /* optional */ }
     toast(state.web ? tr("Websuche ist an.") : tr("Websuche ist aus."));
+    if (!state.web) state.research = false;
+  } else if (choice === "research") {
+    await toggleResearch();
   }
   markTools();
+}
+
+// Deep Research: mehrstufige Recherche mit Quellenbericht. Gilt nur für die nächste Nachricht und braucht die Websuche.
+const researchAvailable = () => !!state.me?.research && !!state.me?.web && state.web;
+const researchOn = () => state.research && researchAvailable();
+
+async function refreshResearch() {
+  try { state.me.research = await api("api/research"); } catch { /* Stand bleibt */ }
+}
+
+async function toggleResearch() {
+  if (state.research) { state.research = false; toast(tr("Deep Research ist aus.")); return; }
+  await refreshResearch();
+  const info = state.me?.research;
+  if (!info) return;
+  if (info.left <= 0) { toast(tr("Das Tageslimit für Deep Research ist erreicht. Morgen geht es wieder.")); return; }
+  state.research = true;
+  toast(tr("Deep Research ist an, nur für die nächste Nachricht. Heute noch {0} von {1} Läufen.", info.left, info.limit));
 }
 
 // Seitenleiste einklappen: nur im Web am Computer. In Home Assistant gibt es schon die Seitenleiste von HA.
