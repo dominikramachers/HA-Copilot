@@ -244,6 +244,10 @@
 .out-card:active:not(:disabled) { transform: scale(.985); }
 .out-card:disabled { opacity: .55; cursor: default; }
 .out-card.busy-dl { opacity: .6; }
+.out-wrap { display: flex; align-items: center; gap: 6px; max-width: 100%; }
+.out-wrap .out-card { flex: 1; min-width: 0; }
+.out-save { flex: none; }
+.out-save.done { color: var(--accent); }
 .out-tile { flex: none; width: 42px; height: 42px; border-radius: var(--r-1); display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
 .out-tile .icon { width: 22px; height: 22px; }
 .out-card.tone-sheet .out-tile { background: color-mix(in srgb, #1f9d55 16%, transparent); color: #1f9d55; }

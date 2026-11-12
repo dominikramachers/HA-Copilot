@@ -61,6 +61,7 @@ from .config import (
 )
 from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
+from . import projectfiles as pfiles
 from . import skills as skilllib
 from . import skills_github
 from . import plugins as pluginlib
@@ -1502,16 +1503,36 @@ def register_chat_routes(
     async def add_knowledge(project_id: str, body: KnowledgeBody, profile: Profile = Depends(current_profile)) -> dict:
         if store.get_project(profile.id, project_id) is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        no_text: list[str] = []
         try:
             data = knowlib.decode_upload(body.data)
             body.data = ""
-            items, skipped = await asyncio.to_thread(knowlib.expand, body.name, data)
+            try:
+                items, skipped = await asyncio.to_thread(knowlib.expand, body.name, data)
+            except knowlib.KnowledgeError as exc:
+                # Bilder, Scans und andere Dateien ohne Text bleiben als Original im Projekt (Platzhalter im Inhaltsverzeichnis)
+                if data.startswith(b"PK\x03\x04") or not data or len(data) > pfiles.FILE_MAX_BYTES:  # ZIP und kaputte Office-Dateien: Meldung wie bisher
+                    raise
+                try:
+                    saved = pfiles.save(store, profile.id, project_id, body.name, data, origin="upload", text="")
+                except pfiles.ProjectFileError as inner:
+                    raise knowlib.KnowledgeError(str(inner)) from None
+                return {"added": [saved.name], "skipped": [], "no_text": [saved.name]}
         except knowlib.KnowledgeError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
         existing = {f["name"].lower(): f["size"] for f in store.list_knowledge(profile.id, project_id) or []}
         count, chars = len(existing), sum(existing.values())
         added: list[str] = []
+        single = len(items) == 1 and not knowlib._is_zip_archive(data) and len(data) <= pfiles.FILE_MAX_BYTES
         for name, text in items:
+            if single:  # eine einzelne Datei (Word, Excel, PDF, Text): das Original bleibt zusätzlich erhalten
+                try:
+                    saved = pfiles.save(store, profile.id, project_id, name, data, origin="upload", text=text)
+                except pfiles.ProjectFileError as exc:
+                    skipped.append({"name": name, "reason": str(exc)})
+                else:
+                    added.append(saved.name)
+                continue
             old = existing.get(name.lower())
             if old is None and count >= knowlib.MAX_FILES:
                 skipped.append({"name": name, "reason": tr("Dateilimit erreicht ({max})", max=knowlib.MAX_FILES)})
@@ -1528,7 +1549,39 @@ def register_chat_routes(
             added.append(name)
         if not added and not skipped:
             raise HTTPException(status_code=422, detail=tr("Nichts übernommen"))
-        return {"added": added, "skipped": skipped[:50]}
+        return {"added": added, "skipped": skipped[:50], "no_text": no_text}
+
+    @app.get("/api/projects/{project_id}/knowledge/{knowledge_id}/file")
+    def download_project_file(project_id: str, knowledge_id: int, profile: Profile = Depends(current_profile)) -> FileResponse:
+        """Das Original einer Projektdatei herunterladen (nur der Besitzer des Projekts)."""
+        found = store.knowledge_file_open(profile.id, project_id, knowledge_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        meta, path = found
+        return FileResponse(
+            path, media_type=meta["mime"] or "application/octet-stream", filename=meta["name"].rsplit("/", 1)[-1], content_disposition_type="attachment",
+            headers={"Content-Security-Policy": "sandbox; default-src 'none'", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+        )
+
+    @app.post("/api/chats/{chat_id}/files/{file_id}/to-project", dependencies=[Depends(write_guard)])
+    async def file_to_project(chat_id: str, file_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Eine Datei aus diesem Chat im Projekt des Chats ablegen (Knopf an der Dateikarte)."""
+        if store.get_chat(profile.id, chat_id) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        project_id = store.chat_project_id(profile.id, chat_id)
+        if project_id is None:
+            raise HTTPException(status_code=422, detail=tr("Dieser Chat gehört zu keinem Projekt."))
+        found = store.outfile_open(profile.id, file_id)
+        if found is None or not any(f["id"] == file_id for f in store.outfile_list(profile.id, chat_id)):
+            raise HTTPException(status_code=404, detail=tr("Die Datei ist abgelaufen oder gehört nicht zu diesem Chat."))
+        meta, path = found
+        try:
+            saved = await asyncio.to_thread(
+                lambda: pfiles.save(store, profile.id, project_id, meta["name"], path.read_bytes(), origin="ai")
+            )
+        except pfiles.ProjectFileError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return {"name": saved.name, "replaced": saved.replaced, "has_text": saved.has_text}
 
     @app.delete("/api/projects/{project_id}/knowledge/{knowledge_id}", status_code=204, dependencies=[Depends(write_guard)])
     def delete_knowledge(project_id: str, knowledge_id: int, profile: Profile = Depends(current_profile)) -> Response:

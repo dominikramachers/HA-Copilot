@@ -128,7 +128,6 @@
  "1 Datei übernommen": "1 file added",
  "{0} Dateien übernommen": "{0} files added",
  "{0}, {1} übersprungen.": "{0}, {1} skipped.",
- "Text, Markdown, YAML, Word, Excel, PDF oder ein ZIP davon. Die KI durchsucht das Wissen bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts.": "Text, Markdown, YAML, Word, Excel, PDF or a ZIP of these. The AI searches the knowledge when needed and reads into it selectively, only in the chats of this project.",
  "Noch keine Dateien. Importiere zum Beispiel Notizen, Anleitungen oder Konfigurationen.": "No files yet. Import notes, manuals or configurations, for example.",
  "{0} Text": "{0} of text",
  "{0} entfernen": "Remove {0}",
@@ -1000,5 +999,13 @@
  "{0} von {1} Token verbraucht.": "{0} of {1} tokens used.",
  "Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf bleibt erhalten.": "From the next message on, {0} answers. The history so far is kept.",
  "Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf dieses Chats geht dann auch an OpenAI.": "From the next message on, {0} answers. The history of this chat so far will then also go to OpenAI.",
- "Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf dieses Chats geht dann an Claude.": "From the next message on, {0} answers. The history of this chat so far will then go to Claude."
+ "Ab der nächsten Nachricht antwortet {0}. Der bisherige Verlauf dieses Chats geht dann an Claude.": "From the next message on, {0} answers. The history of this chat so far will then go to Claude.",
+ "Ablegen hat nicht geklappt.": "Saving did not work.",
+ "Im Projekt abgelegt: {0}": "Saved in the project: {0}",
+ "Im Projekt ablegen": "Save in project",
+ "Im Projekt ersetzt: {0}": "Replaced in the project: {0}",
+ "Ohne durchsuchbaren Text, das Original ist gespeichert: {0}.": "No searchable text, the original is stored: {0}.",
+ "Text, Markdown, YAML, Word, Excel, PDF, Bilder oder ein ZIP davon. Das Original bleibt erhalten. Die KI durchsucht das Wissen bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts, und legt auf Wunsch eigene Dateien hier ab.": "Text, Markdown, YAML, Word, Excel, PDF, images or a ZIP of them. The original is kept. The AI searches the knowledge when needed and reads into it, only in the chats of this project, and saves its own files here on request.",
+ "{0} im Projekt ablegen": "Save {0} in the project",
+ "{0} · Original": "{0} · original"
 }

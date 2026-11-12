@@ -1529,7 +1529,7 @@ async function openMemory() {
   });
 }
 
-const KNOWLEDGE_ACCEPT = ".zip,.pdf,.docx,.xlsx,text/*,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.log,.py,.js,.ts,.sh,.ps1,.ini,.conf,.cfg,.toml,.sql,.html,.css,.jinja,.j2";
+const KNOWLEDGE_ACCEPT = ".zip,.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,text/*,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.log,.py,.js,.ts,.sh,.ps1,.ini,.conf,.cfg,.toml,.sql,.html,.css,.jinja,.j2";
 const KNOWLEDGE_MAX = 8 * 1024 * 1024;
 
 function knowledgePanel(project) {
@@ -1557,7 +1557,7 @@ function knowledgePanel(project) {
         if (!files.length || state2.busy) return;
         state2.busy = true;
         add.disabled = true;
-        const report = { added: 0, skipped: [] };
+        const report = { added: 0, skipped: [], noText: [] };
         for (const [i, file] of files.entries()) {
           status.textContent = tr("Lade {0} ({1} von {2}) …", file.name, i + 1, files.length);
           if (file.size > KNOWLEDGE_MAX) { report.skipped.push({ name: file.name, reason: tr("zu groß (höchstens {0} MB je Datei oder ZIP)", KNOWLEDGE_MAX / 1024 / 1024) }); continue; }
@@ -1565,6 +1565,7 @@ function knowledgePanel(project) {
             const answer = await api(`api/projects/${encodeURIComponent(project.id)}/knowledge`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) });
             report.added += answer.added.length;
             report.skipped.push(...answer.skipped);
+            report.noText.push(...(answer.no_text || []));
           } catch (err) {
             report.skipped.push({ name: file.name, reason: errorText(err, tr("Hochladen fehlgeschlagen")) });
           }
@@ -1575,6 +1576,7 @@ function knowledgePanel(project) {
         if (note) {
           const added = trn(report.added, "1 Datei übernommen", "{0} Dateien übernommen");
           note.textContent = report.skipped.length ? tr("{0}, {1} übersprungen.", added, report.skipped.length) : `${added}.`;
+          if (report.noText.length) note.textContent += " " + tr("Ohne durchsuchbaren Text, das Original ist gespeichert: {0}.", report.noText.join(", "));
           if (report.skipped.length) {
             const list = node("ul", "know-skipped");
             for (const sk of report.skipped.slice(0, 12)) list.append(node("li", "", `${sk.name}: ${sk.reason}`));
@@ -1583,14 +1585,23 @@ function knowledgePanel(project) {
         }
         loadAll().catch(() => {});
       });
-      parts.push(node("p", "mem-hint", tr("Text, Markdown, YAML, Word, Excel, PDF oder ein ZIP davon. Die KI durchsucht das Wissen bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts.")), add, picker, status);
+      parts.push(node("p", "mem-hint", tr("Text, Markdown, YAML, Word, Excel, PDF, Bilder oder ein ZIP davon. Das Original bleibt erhalten. Die KI durchsucht das Wissen bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts, und legt auf Wunsch eigene Dateien hier ab.")), add, picker, status);
       const list = node("div", "know-list");
       if (data.files.length === 0) list.append(node("p", "mem-empty", tr("Noch keine Dateien. Importiere zum Beispiel Notizen, Anleitungen oder Konfigurationen.")));
       for (const f of data.files) {
         const row = node("div", "know-file");
         const name = node("span", "know-name", f.name);
         name.title = f.name;
-        row.append(icon("file"), name, node("small", "mem-meta", tr("{0} Text", formatSize(f.size))));
+        row.append(icon("file"), name, node("small", "mem-meta", f.has_file && !(f.mime || "").startsWith("text/") ? tr("{0} · Original", formatSize(f.file_size)) : tr("{0} Text", formatSize(f.size))));
+        if (f.has_file) {
+          const get = node("button", "icon-btn");
+          get.type = "button";
+          get.title = tr("{0} herunterladen", f.name);
+          get.setAttribute("aria-label", tr("{0} herunterladen", f.name));
+          get.append(icon("download"));
+          get.addEventListener("click", () => downloadProjectFile(project, f));
+          row.append(get);
+        }
         row.append(confirmButton(tr("{0} entfernen", f.name), async () => {
           try {
             await api(`api/projects/${encodeURIComponent(project.id)}/knowledge/${f.id}`, { method: "DELETE" });
@@ -1606,6 +1617,17 @@ function knowledgePanel(project) {
     };
     draw();
   };
+}
+
+async function downloadProjectFile(project, entry) {
+  try {
+    const response = await fetch(`api/projects/${encodeURIComponent(project.id)}/knowledge/${entry.id}/file`, { credentials: "same-origin", headers: { "X-Requested-With": "ki-chat" } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    await saveFile(entry.name.split("/").pop(), blob, blob.type || "application/octet-stream");
+  } catch {
+    toast(tr("Der Download hat nicht geklappt."));
+  }
 }
 
 async function openKnowledge(project) {
@@ -3888,6 +3910,33 @@ function fileCard(file) {
   return card;
 }
 
+// In einem Projekt-Chat steht neben der Dateikarte ein Knopf, der die Datei im Projekt ablegt (dann bleibt sie, statt nach einigen Tagen abzulaufen).
+function fileCardWithSave(file) {
+  const card = fileCard(file);
+  const chat = state.chats.find((c) => c.id === state.activeId);
+  if (!chat || !chat.project_id || file.gone || file.image) return card;
+  const wrap = node("div", "out-wrap");
+  const save = node("button", "icon-btn out-save");
+  save.type = "button";
+  save.title = tr("Im Projekt ablegen");
+  save.setAttribute("aria-label", tr("{0} im Projekt ablegen", file.name));
+  save.append(icon("stack"));
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      const answer = await api(`api/chats/${encodeURIComponent(chat.id)}/files/${encodeURIComponent(file.id)}/to-project`, { method: "POST" });
+      save.classList.add("done");
+      toast(answer.replaced ? tr("Im Projekt ersetzt: {0}", answer.name) : tr("Im Projekt abgelegt: {0}", answer.name));
+      loadAll().catch(() => {});
+    } catch (err) {
+      save.disabled = false;
+      toast(errorText(err, tr("Ablegen hat nicht geklappt.")));
+    }
+  });
+  wrap.append(card, save);
+  return wrap;
+}
+
 // ------------------------------------------------- Bilder
 // Bilder (von OpenAI, Google oder als SVG gezeichnet) erscheinen als Vorschaukarte; ein Klick öffnet die Bildvorschau.
 const imageUrls = new Map(); // Datei-ID -> Promise mit der Blob-Adresse (die Anfrage braucht den Header, ein <img src> kann ihn nicht senden)
@@ -4056,7 +4105,7 @@ function fileCardsEl(actions) {
       return made.get(f.id);
     });
     box.hidden = files.length === 0 && pending.length === 0;
-    box.replaceChildren(...cards, ...pending.map(imagePending), ...files.filter((f) => !f.image).map(fileCard));
+    box.replaceChildren(...cards, ...pending.map(imagePending), ...files.filter((f) => !f.image).map(fileCardWithSave));
   };
   box.update(actions);
   return box;

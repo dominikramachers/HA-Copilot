@@ -608,5 +608,17 @@
  "Trage den Schlüssel in der Gruppe „Chat“ bei `openai_api_key` ein (oder in der Gruppe „Bilder“, dann gilt er für beides).": "Enter the key in the “Chat” group at `openai_api_key` (or in the “Images” group, then it applies to both).",
  "eigener Schlüssel": "own key",
  "{n} Tausend Token je Person und Monat": "{n} thousand tokens per person and month",
- "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.": "This chat has so far run on {old}; from this message on you are answering ({new}). The earlier answers in the history came from {old}. Results of tools from earlier answers are no longer available; look things up again if needed."
+ "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.": "This chat has so far run on {old}; from this message on you are answering ({new}). The earlier answers in the history came from {old}. Results of tools from earlier answers are no longer available; look things up again if needed.",
+ "Chat lesen: {name}": "Read chat: {name}",
+ "Chats des Projekts ansehen": "View the project's chats",
+ "Chats durchsuchen: {query}": "Search chats: {query}",
+ "Das Projekt gibt es nicht mehr.": "The project no longer exists.",
+ "Dateilimit erreicht ({max}). Zuerst Dateien löschen.": "File limit reached ({max}). Delete some files first.",
+ "Der Dateiname ist ungültig.": "The file name is not valid.",
+ "Der Speicher des Projekts ist voll ({mb} MB). Zuerst Dateien löschen.": "The project's storage is full ({mb} MB). Delete some files first.",
+ "Die Datei ist abgelaufen oder gehört nicht zu diesem Chat.": "The file has expired or does not belong to this chat.",
+ "Die Textgrenze des Projekts ist erreicht. Zuerst Dateien löschen.": "The project's text limit has been reached. Delete some files first.",
+ "Dieser Chat gehört zu keinem Projekt.": "This chat does not belong to a project.",
+ "Im Projekt abgelegt: {name}": "Saved in the project: {name}",
+ "„{name}“ hat die Person selbst hochgeladen und wird nicht überschrieben. Wähle einen anderen Namen.": "“{name}” was uploaded by the person themselves and will not be overwritten. Choose another name."
 }

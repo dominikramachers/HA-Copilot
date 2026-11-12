@@ -310,7 +310,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 22  # 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 23  # 23: Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind"
 
@@ -436,6 +436,7 @@ def _require(profile_id: str) -> str:
 class Store:
     def __init__(self, path: Path | str) -> None:
         self._lock = threading.RLock()
+        self.pfiles_dir = Path(path).parent / "project_files"  # Originale der Projektdateien; die Angaben stehen in der Tabelle knowledge
         self.files_dir = Path(path).parent / "outfiles"  # erzeugte Dateien (Inhalt); die Angaben dazu stehen in der Tabelle outfiles
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
@@ -483,6 +484,12 @@ class Store:
         if "tools" not in message_columns:
             self._conn.execute("ALTER TABLE messages ADD COLUMN tools TEXT")  # JSON: Aktionen in Home Assistant (Beschriftung, Art, Ergebnis)
         self._conn.executescript(KNOWLEDGE_SCHEMA)
+        knowledge_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(knowledge)")}
+        if "file_id" not in knowledge_columns:  # Original der Datei auf der Platte (Ordner project_files), Text steht weiter in content
+            self._conn.execute("ALTER TABLE knowledge ADD COLUMN file_id TEXT")
+            self._conn.execute("ALTER TABLE knowledge ADD COLUMN file_size INTEGER NOT NULL DEFAULT 0")
+            self._conn.execute("ALTER TABLE knowledge ADD COLUMN mime TEXT NOT NULL DEFAULT ''")
+            self._conn.execute("ALTER TABLE knowledge ADD COLUMN origin TEXT NOT NULL DEFAULT 'upload'")  # upload = von der Person, ai = von der KI abgelegt
         self._conn.executescript(STATE_SCHEMA)
         self._conn.executescript(OUTFILES_SCHEMA)
         outfile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(outfiles)")}
@@ -1023,39 +1030,110 @@ class Store:
     def delete_project(self, profile_id: str, project_id: str) -> bool:
         """Projekt löschen. Die Chats bleiben erhalten und liegen danach ohne Projekt in der Liste."""
         _require(profile_id)
-        with self._lock, self._conn:
-            self._conn.execute(
-                "UPDATE chats SET project_id = NULL WHERE project_id = ? AND profile_id = ?",
-                (project_id, profile_id),
-            )
-            cur = self._conn.execute(
-                "DELETE FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
-            )
+        with self._lock:
+            files = [r["file_id"] for r in self._conn.execute(
+                "SELECT file_id FROM knowledge WHERE project_id = ? AND profile_id = ? AND file_id IS NOT NULL", (project_id, profile_id))]
+            with self._conn:
+                self._conn.execute(
+                    "UPDATE chats SET project_id = NULL WHERE project_id = ? AND profile_id = ?",
+                    (project_id, profile_id),
+                )
+                cur = self._conn.execute(
+                    "DELETE FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
+                )
+        if cur.rowcount == 1:
+            for file_id in files:
+                self._pfile_path(file_id).unlink(missing_ok=True)
         return cur.rowcount == 1
 
     # ------------------------------------------------------------ Projektwissen
 
-    def add_knowledge(self, profile_id: str, project_id: str, name: str, content: str) -> dict[str, Any] | None:
-        """Datei zum Wissen eines Projekts hinzufügen; gleicher Name ersetzt die alte Fassung."""
+    def add_knowledge(
+        self, profile_id: str, project_id: str, name: str, content: str, *, data: bytes | None = None, mime: str = "", origin: str = "upload"
+    ) -> dict[str, Any] | None:
+        """Datei zum Wissen eines Projekts hinzufügen; gleicher Name ersetzt die alte Fassung.
+
+        Mit ``data`` bleibt das Original erhalten (``content`` ist dann der durchsuchbare Text oder ein Platzhalter).
+        """
         _require(profile_id)
         now = _now()
-        with self._lock, self._conn:
-            owned = self._conn.execute(
-                "SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
-            ).fetchone()
-            if not owned:
-                return None
-            self._conn.execute(
-                "INSERT INTO knowledge (profile_id, project_id, name, content, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?) "
-                "ON CONFLICT(project_id, name) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at",
-                (profile_id, project_id, name, content, now, now),
-            )
+        file_id = uuid.uuid4().hex if data is not None else None
+        old_file = None
+        with self._lock:
+            with self._conn:
+                owned = self._conn.execute(
+                    "SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
+                ).fetchone()
+                if not owned:
+                    return None
+                previous = self._conn.execute("SELECT file_id FROM knowledge WHERE project_id = ? AND name = ?", (project_id, name)).fetchone()
+                old_file = previous["file_id"] if previous else None
+                if data is not None:
+                    self.pfiles_dir.mkdir(parents=True, exist_ok=True)
+                    target = self._pfile_path(file_id)
+                    partial = target.with_name(file_id + ".part")
+                    partial.write_bytes(data)
+                    os.replace(partial, target)
+                try:
+                    self._conn.execute(
+                        "INSERT INTO knowledge (profile_id, project_id, name, content, created_at, updated_at, file_id, file_size, mime, origin) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                        "ON CONFLICT(project_id, name) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at, "
+                        "file_id = excluded.file_id, file_size = excluded.file_size, mime = excluded.mime, origin = excluded.origin",
+                        (profile_id, project_id, name, content, now, now, file_id, len(data) if data is not None else 0, mime, origin if data is not None else "upload"),
+                    )
+                except sqlite3.Error:
+                    if file_id:
+                        self._pfile_path(file_id).unlink(missing_ok=True)
+                    raise
             row = self._conn.execute(
                 "SELECT id, name, length(content) AS size, updated_at FROM knowledge WHERE project_id = ? AND name = ?",
                 (project_id, name),
             ).fetchone()
+        if old_file:
+            self._pfile_path(old_file).unlink(missing_ok=True)
         return dict(row)
+
+    def _pfile_path(self, file_id: str) -> Path:
+        if not _FILE_ID.fullmatch(file_id or ""):
+            raise ValueError("ungültige Dateikennung")
+        root = os.path.normpath(str(self.pfiles_dir))
+        full = os.path.normpath(os.path.join(root, file_id))
+        if not full.startswith(root + os.sep):
+            raise ValueError("ungültige Dateikennung")
+        return Path(full)
+
+    def knowledge_entry(self, profile_id: str, project_id: str, name: str) -> dict[str, Any] | None:
+        """Angaben zu einer Datei des Projektwissens (ohne Text), ohne Beachtung der Groß-/Kleinschreibung."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, name, length(content) AS size, file_id, file_size, mime, origin FROM knowledge "
+                "WHERE project_id = ? AND profile_id = ? AND name = ? COLLATE NOCASE",
+                (project_id, profile_id, name),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def project_file_bytes_total(self, profile_id: str, project_id: str) -> int:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COALESCE(SUM(file_size), 0) AS n FROM knowledge WHERE project_id = ? AND profile_id = ?", (project_id, profile_id)
+            ).fetchone()
+        return int(row["n"])
+
+    def knowledge_file_open(self, profile_id: str, project_id: str, knowledge_id: int) -> tuple[dict[str, Any], Path] | None:
+        """Original einer Projektdatei zum Herunterladen (nur für den Besitzer des Projekts)."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT name, mime, file_id FROM knowledge WHERE id = ? AND project_id = ? AND profile_id = ? AND file_id IS NOT NULL",
+                (knowledge_id, project_id, profile_id),
+            ).fetchone()
+        if not row:
+            return None
+        path = self._pfile_path(row["file_id"])
+        return (dict(row), path) if path.is_file() else None
 
     def list_knowledge(self, profile_id: str, project_id: str) -> list[dict[str, Any]] | None:
         """Dateien des Projektwissens (ohne Inhalt); ``None``, wenn das Projekt nicht dem Profil gehört."""
@@ -1067,11 +1145,11 @@ class Store:
             if not owned:
                 return None
             rows = self._conn.execute(
-                "SELECT id, name, length(content) AS size, updated_at FROM knowledge "
+                "SELECT id, name, length(content) AS size, updated_at, file_id IS NOT NULL AS has_file, file_size, mime, origin FROM knowledge "
                 "WHERE project_id = ? AND profile_id = ? ORDER BY name COLLATE NOCASE",
                 (project_id, profile_id),
             ).fetchall()
-        return [dict(r) for r in rows]
+        return [{**dict(r), "has_file": bool(r["has_file"])} for r in rows]
 
     def knowledge_totals(self, profile_id: str, project_id: str) -> tuple[int, int]:
         """(Anzahl Dateien, Zeichen insgesamt) des Projektwissens."""
@@ -1104,11 +1182,17 @@ class Store:
 
     def delete_knowledge(self, profile_id: str, project_id: str, knowledge_id: int) -> bool:
         _require(profile_id)
-        with self._lock, self._conn:
-            cur = self._conn.execute(
-                "DELETE FROM knowledge WHERE id = ? AND project_id = ? AND profile_id = ?",
-                (knowledge_id, project_id, profile_id),
-            )
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT file_id FROM knowledge WHERE id = ? AND project_id = ? AND profile_id = ?", (knowledge_id, project_id, profile_id)
+            ).fetchone()
+            with self._conn:
+                cur = self._conn.execute(
+                    "DELETE FROM knowledge WHERE id = ? AND project_id = ? AND profile_id = ?",
+                    (knowledge_id, project_id, profile_id),
+                )
+        if cur.rowcount == 1 and row and row["file_id"]:
+            self._pfile_path(row["file_id"]).unlink(missing_ok=True)
         return cur.rowcount == 1
 
     # ------------------------------------------------------------------ Konnektoren
