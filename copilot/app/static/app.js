@@ -6558,23 +6558,6 @@ async function openSharedChats() {
           empty.append(icon("share"), node("p", "", tr("Es wurde nichts mit dir geteilt.")));
           nodes.unshift(empty);
         }
-        const paste = node("button", "shared-paste");
-        paste.type = "button";
-        paste.append(icon("link"), node("span", "", tr("Link einfügen")));
-        paste.addEventListener("click", async () => {
-          let text = "";
-          try { text = await navigator.clipboard.readText(); } catch { /* ohne Zugriff auf die Zwischenablage: Feld unten */ }
-          if (SHARE_CODE.test(text)) { await takeSharedLink(text); draw(); return; }
-          const field = node("input", "share-url shared-paste-field");
-          field.type = "text";
-          field.placeholder = tr("Link oder Code hier einfügen");
-          field.setAttribute("aria-label", tr("Link oder Code"));
-          paste.replaceWith(field);
-          field.focus();
-          field.addEventListener("keydown", async (event) => { if (event.key === "Enter") { event.preventDefault(); await takeSharedLink(field.value); draw(); } });
-          field.addEventListener("paste", () => setTimeout(async () => { if (SHARE_CODE.test(field.value)) { await takeSharedLink(field.value); draw(); } }, 0));
-        });
-        nodes.push(paste);
         body.replaceChildren(...nodes);
       };
       draw();
@@ -6583,8 +6566,6 @@ async function openSharedChats() {
   $("sheet-panel").classList.remove("shared-panel");
   if (picked) await picked();
 }
-
-const SHARE_CODE = /[A-Za-z0-9_-]{43}/;
 
 // Einen Link (oder nur den Code) öffnen: Der Chat erscheint danach unter „Geteilt“.
 async function takeSharedLink(text) {

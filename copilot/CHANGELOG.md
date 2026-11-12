@@ -5,9 +5,11 @@ Teilen-Fenster: unterer Bereich aufgeräumt. Keine Änderung an Daten oder Schni
 - **Kopieren im Linkfeld.** Der Knopf **Link kopieren** und das Zahnrad entfallen. Rechts im Linkfeld sitzt ein Zwischenablage-Symbol (`.share-copy`, wird kurz zum Haken); ein Klick auf den Link kopiert weiterhin, beides meldet „Link wurde kopiert.“ im Feld. Die Auswahl im Feld wird danach aufgehoben, damit der Text nicht durch die grüne Meldung scheint.
 - **Aktualisieren** steht als eigener Knopf neben der Zeile „Stand …“ (`POST /api/chats/{id}/share/refresh`, wie bisher), nicht mehr im Zahnrad-Menü.
 - **Teilen beenden** ist der feste, rote Knopf unten im Fenster (ersetzt „Link kopieren“). Er fragt einmal nach („Wirklich beenden?“, fällt nach 4 Sekunden zurück). Ist nichts geteilt, steht dort **Fertig**.
+- **„Link einfügen“ entfällt.** In **Geteilt** gibt es weder den Knopf noch das Eingabefeld für Link oder Code mehr: Wer einen Link bekommt, öffnet ihn (Klick oder Adresszeile), der Chat erscheint dann unter **Geteilt**. Die Schnittstelle `POST /api/shared/open` bleibt (sie nimmt den Code aus `?share=`).
 - **Mehr Abstand** zwischen Gültigkeit und **Abrufe** beziehungsweise **Geöffnet von** (`.share-sec`, 20 px), ebenso vor der Zeile des Besitzers.
 - **Kein seitliches Scrollen** im scrollenden Mittelteil (`.share-refresh` ragte 4 px über den Rand).
-- **Texte:** neu „Aktualisieren“ und „Wirklich beenden?“ (`en-ui.json`); „Einstellungen zum Teilen“ und „Gültigkeit des Links …“ entfallen.
+- **Sicherheit (CodeQL-Meldungen).** `catalog_files` (`skills.py`) bildet den Ordner eines mitgelieferten Skills nur noch aus dem Katalog selbst (Namensvergleich über die Ordner, keine Symlinks) statt aus dem übergebenen Namen. Die Muster zum Prüfen der Quellen im Recherchebericht (`research.py`: `_LINK`, `_URL`, Listenpunkte nur mit Quelle, Titel) haben Obergrenzen beziehungsweise laufen ohne Rückverfolgung (`_source_only`, `title_of`), damit sehr lange, absichtlich verschachtelte Texte sie nicht quadratisch verlangsamen. Ohne Verhaltensänderung bei normalen Berichten. Neu: `test_source_cleanup_stays_fast_on_hostile_text`, `test_source_only_bullets_and_titles`.
+- **Texte:** neu „Aktualisieren“ und „Wirklich beenden?“ (`en-ui.json`); „Einstellungen zum Teilen“, „Gültigkeit des Links …“, „Link einfügen“, „Link oder Code“ und „Link oder Code hier einfügen“ entfallen.
 - **Prüfung:** Browserprüfung (Playwright) auf Computer und Handy, hell und dunkel: Kopieren, Gültigkeit, Aktualisieren, Beenden mit Rückfrage, kein Überlauf. Screenshot `chat-teilen.png` neu.
 
 ## 0.57.0
