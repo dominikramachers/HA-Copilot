@@ -37,7 +37,7 @@ Die Begriffe in Home Assistant wechseln je nach Version („Add-ons“ oder „A
 
 ## 3. Benutzer eintragen
 
-Die Konfiguration ist in eingeklappte Gruppen gegliedert (Benutzer, Chat und Claude, Bilder, Sprechen mit der KI, Domain-Zugang, Personalisierung, Globale Einstellungen). Auf dem Reiter **Konfiguration** klappst du **Benutzer** auf: Unter **Benutzer (Profile)** steht schon ein Eintrag „Administrator“, der auf niemanden passt. Ersetze ihn durch deinen eigenen Benutzer:
+Die Konfiguration ist in eingeklappte Gruppen gegliedert (Benutzer, Chat (Claude & OpenAI), Bilder, Sprechen mit der KI, Domain-Zugang, Personalisierung, Globale Einstellungen). Auf dem Reiter **Konfiguration** klappst du **Benutzer** auf: Unter **Benutzer (Profile)** steht schon ein Eintrag „Administrator“, der auf niemanden passt. Ersetze ihn durch deinen eigenen Benutzer:
 
 ```yaml
 users:
@@ -52,7 +52,7 @@ Weißt du den Namen nicht? Starte das Add-on trotzdem, öffne die App und lies i
 
 ## 4. Zugang zu Claude
 
-Trage **eines** von beidem in der Gruppe **Chat und Claude** ein:
+Trage **eines** von beidem in der Gruppe **Chat (Claude & OpenAI)** ein (die Gruppe hieß bis 0.54.2 „Chat und Claude“; die Namen der Optionen sind gleich geblieben):
 
 ```yaml
 chat:
@@ -103,6 +103,7 @@ Unten links im Konto-Menü des Chats führt **Einstellungen → Einrichtungsprü
 | KI arbeitet mit deinen GitHub-Repositories | [Funktionen: GitHub](funktionen.md#github) |
 | Chat auch außerhalb von Home Assistant, mit Microsoft- oder HA-Anmeldung | [Domain-Zugang](domain-zugang.md) |
 | Mit der KI sprechen (Mikrofon; kostenlos mit Whisper und Piper in Home Assistant, oder mit OpenAI-Schlüssel) | [Funktionen: Sprechen mit der KI](funktionen.md#sprechen-mit-der-ki), [OpenAI für die Sprache](bilder-konten.md#openai-für-die-sprache-spracherkennung-und-stimme) |
+| ChatGPT (OpenAI) neben Claude nutzen (optional) | [ChatGPT (OpenAI) einrichten](chatgpt.md) |
 | Name, Logo, Farben, Sprache | [Funktionen: Aussehen und Sprache](funktionen.md#aussehen-und-sprache) |
 | Benachrichtigung aufs Handy bei fertigen Antworten | [Funktionen: Geplante Aufgaben](funktionen.md#geplante-aufgaben-und-benachrichtigungen) |
 | Sicherung, Wiederherstellung, Umzug | [Betrieb](betrieb.md) |

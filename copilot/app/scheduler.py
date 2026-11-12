@@ -28,7 +28,7 @@ from zoneinfo import ZoneInfo
 from . import schedule as sched
 from .i18n import tr
 from .backend import BackendError
-from .config import Profile, Settings
+from .config import Profile, Settings, provider_of
 from .context_tools import ContextToolbox
 from .github_api import GithubApi
 from .connectors import ConnectorToolbox
@@ -316,6 +316,13 @@ class Scheduler:
             model = self.model_for(row)
             if model:
                 extra["model"] = model
+            if provider_of(model or "") == "openai":
+                month = datetime.now().strftime("%Y-%m")
+                limit = self.settings.openai_limit_month * 1000
+                if limit and store.token_usage(profile.id, month, "openai") >= limit:
+                    # Geplant kann niemand gefragt werden: bei erreichtem Monatslimit läuft die Aufgabe nicht mit ChatGPT
+                    raise BackendError(tr("Das Monatslimit für ChatGPT ist erreicht. Die Aufgabe läuft erst im nächsten Monat wieder oder mit einem Claude-Modell."))
+                extra["on_usage"] = lambda tokens: store.token_usage_add(profile.id, month, tokens, "openai")
             specs = self._specs(row, profile, run, chat_id, extra)
             if specs:
                 extra["tools"] = specs
@@ -333,6 +340,8 @@ class Scheduler:
                 error = tr("Zeitüberschreitung: Die Aufgabe hat zu lange gedauert.")
         except asyncio.CancelledError:
             cancelled = True
+        except BackendError as exc:  # vor dem Start abgelehnt (z. B. Monatslimit für ChatGPT)
+            error = exc.user_message
         except Exception:
             log.exception("Geplante Aufgabe fehlgeschlagen")
             error = tr("Unerwarteter Fehler bei der Ausführung.")

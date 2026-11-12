@@ -115,7 +115,8 @@ Mit dem Mikrofon-Knopf neben **Senden** sprichst du mit der KI („Aria, mach da
 ## Websuche und Modelle
 
 - Die KI sucht im Web und liest Seiten, wenn es nötig ist oder du darum bittest. Pro Benutzer steuerbar (`web_access`). Seiten aus dem Heimnetz und interne Adressen werden nie geladen.
-- `chat.model` ist das Standardmodell; Opus und Haiku sind im Chat zusätzlich wählbar.
+- **Auto** im Modellmenü nimmt das Modell des Administrators (`chat.model`); Opus und Haiku sind im Chat zusätzlich wählbar. Jede Person kann unter Einstellungen → Allgemein ein **Standardmodell** für neue Chats festlegen.
+- **ChatGPT (OpenAI) neben Claude** (optional, Standard aus): Mit `chat.openai_enabled` und einem OpenAI-Schlüssel stehen ChatGPT-Modelle zur Wahl, mit denselben Fähigkeiten (Home Assistant, Gedächtnis, Dateien, Bilder, GitHub, Konnektoren, Websuche, geplante Aufgaben). Ein ChatGPT-Chat geht an OpenAI, nie an Claude; das Sprechen bleibt bei Claude Haiku. Monatslimit je Person (Standard 3 Millionen Token), danach fragt der Chat nach. Einrichtung und Grenzen: [ChatGPT (OpenAI) einrichten](chatgpt.md).
 - Ist ein Limit deines Abos fast erreicht, erscheint oben im Chat ein Hinweis mit der Zeit der Rücksetzung.
 
 Mehr: [Web, Modell und Nutzungslimit](../copilot/DOCS.md#web-modell-und-nutzungslimit-ab-0200).
@@ -184,11 +185,11 @@ Die Oberfläche passt sich dem Gerät an: Die Chat-Liste öffnet als Fenster von
 
 ## Einrichtungsprüfung
 
-In den **Einstellungen** zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Schritten, und prüft Home Assistant, GitHub, den Benachrichtigungsdienst und die Sprach-Pipeline (welche Spracherkennung und Stimme gelten) live. Siehe [Installation](installation.md#6-einrichtungsprüfung).
+In den **Einstellungen** zeigt die **Einrichtungsprüfung**, was fehlt, mit den genauen Schritten, und prüft Home Assistant, GitHub, den Benachrichtigungsdienst, die Sprach-Pipeline (welche Spracherkennung und Stimme gelten) und, wenn eingeschaltet, den ChatGPT-Zugang live. Siehe [Installation](installation.md#6-einrichtungsprüfung).
 
 ## Sicherheit und Datenschutz
 
-- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic; nur wenn du Bilder von OpenAI oder Google erzeugen lässt (eigene Schlüssel nötig), gehen der Bildwunsch und ein Referenzbild an den gewählten Anbieter, sonst an niemanden. Kopien von Anhängen (für das Bearbeiten) liegen für 14 Tage im Datenordner des Add-ons und verschwinden mit dem Chat.
+- Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic, in einem Chat mit einem ChatGPT-Modell (nur wenn der Administrator ChatGPT eingeschaltet hat) stattdessen an OpenAI, nie an beide; nur wenn du Bilder von OpenAI oder Google erzeugen lässt (eigene Schlüssel nötig), gehen der Bildwunsch und ein Referenzbild an den gewählten Anbieter, sonst an niemanden. Kopien von Anhängen (für das Bearbeiten) liegen für 14 Tage im Datenordner des Add-ons und verschwinden mit dem Chat.
 - Jede Abfrage ist auf das Profil gefiltert; Benutzer sehen nie die Chats anderer.
 - Rechte setzt der Server durch, nicht die KI. Alles, was von außen kommt (Home Assistant, Web, GitHub, Konnektoren, Dateien), gilt für die KI als Information und nicht als Anweisung; nach dem Lesen fremder Inhalte fragt jede Änderung im Chat nach.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OpenID Connect mit PKCE), Sitzungen liegen serverseitig, Cookies sind `Secure` und `HttpOnly`.

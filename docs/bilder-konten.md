@@ -2,7 +2,7 @@
 
 HA Copilot kann Fotos, Kunst und Bilder mit Schrift von **Google (Gemini)** oder **OpenAI** erzeugen lassen. Dafür brauchst du bei mindestens einem der beiden ein eigenes **API-Konto mit Guthaben** und einen Schlüssel. Ein ChatGPT-Plus- oder Google-One-Abo bezahlt diese Schnittstelle nicht, beide rechnen sie getrennt ab. Ohne Schlüssel funktionieren weiterhin SVG-Zeichnungen (Diagramme, Pläne, Logos), die Claude selbst schreibt und die nichts kosten.
 
-Der OpenAI-Schlüssel kann außerdem das **Sprechen mit der KI** übernehmen (Spracherkennung und Stimme); das steht im Abschnitt „OpenAI für die Sprache“ weiter unten.
+Der OpenAI-Schlüssel kann außerdem das **Sprechen mit der KI** übernehmen (Spracherkennung und Stimme); das steht im Abschnitt „OpenAI für die Sprache“ weiter unten. Und er kann **ChatGPT-Modelle im Chat** freischalten (ab 0.55.0): [ChatGPT (OpenAI) einrichten](chatgpt.md). Ein Konto, ein Schlüssel für alles ist möglich: Ist `chat.openai_api_key` leer, gilt `images.openai_api_key` auch für den Chat.
 
 Stand: November 2026. Die Anbieter ändern Menüs und Bedingungen oft. Weichen die Namen unten ab, hilft die Hilfeseite des Anbieters; am Vorgehen ändert das selten etwas.
 
@@ -60,6 +60,7 @@ Wichtig: Bei OpenAI gehen deine **Aufnahmen** an OpenAI (bei der Stimme auch die
 - Das Add-on führt die **Anzahl** der Bilder je Person und Monat (`images.limit_month`, Standard 30, 0 = unbegrenzt). Erst darüber fragt der Chat vor jedem weiteren Bild nach. Preise kennt das Add-on nicht.
 - Setze zusätzlich beim Anbieter ein **Ausgabenlimit** (Google: *Spend*, OpenAI: Limits bzw. Billing) und lade lieber kleine Beträge auf, statt automatisches Aufladen mit hohem Betrag zu nutzen.
 - Die Kosten siehst du im jeweiligen Konto. Jede neue Fassung eines Bildes ist ein weiteres bezahltes Bild.
+- ChatGPT im Chat zählt das Add-on in Token je Person und Monat (`chat.openai_limit_month`, Standard 3000 = 3 Millionen, 0 = unbegrenzt); die Kosten stehen im selben OpenAI-Konto unter Usage ([Details](chatgpt.md#token-limit-je-person)).
 - Die Sprache zählt das Add-on nicht mit; sie läuft bei OpenAI über denselben Schlüssel (oder `voice.openai_api_key`) und erscheint im OpenAI-Konto unter Usage.
 
 Einzelheiten zu Limit, Rückfragen und Datenschutz: [Bilder in der Referenz](../copilot/DOCS.md#bilder-ab-0280). Zurück zur [Übersicht](README.md).

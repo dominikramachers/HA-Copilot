@@ -67,6 +67,14 @@ class Health:
                     tr("Neuen Schlüssel bei platform.openai.com anlegen und im Add-on eintragen, sonst entstehen keine Bilder von OpenAI."),
                 )
             )
+        if s.openai_active and s.openai_chat_api_key:
+            found.append(
+                _expiry(
+                    "chat-openai", s.openai_chat_key_expires, today,
+                    tr("Der OpenAI-Schlüssel für ChatGPT"),
+                    tr("Neuen Schlüssel bei platform.openai.com anlegen und im Add-on eintragen, sonst antworten die ChatGPT-Modelle nicht mehr."),
+                )
+            )
         if s.voice_openai_api_key:
             found.append(
                 _expiry(

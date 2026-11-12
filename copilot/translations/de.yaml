@@ -21,19 +21,19 @@ configuration:
             description: Konto, mit dem sich die Person über die öffentliche Domain per Microsoft Entra anmeldet.
           ha_access:
             name: Zugriff auf Home Assistant (optional)
-            description: 'Was die KI für diesen Benutzer in Home Assistant darf: none = nichts, read = lesen, execute = lesen und ausführen (Geräte schalten), write = lesen, ausführen und ändern (Automationen, Skripte, Dashboards, Helfer). Leer: es gilt der Standard dieser Option in der Gruppe „Chat und Claude“ bzw. „Sprechen mit der KI“.'
+            description: 'Was die KI für diesen Benutzer in Home Assistant darf: none = nichts, read = lesen, execute = lesen und ausführen (Geräte schalten), write = lesen, ausführen und ändern (Automationen, Skripte, Dashboards, Helfer). Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“.'
           github_access:
             name: GitHub-Zugriff (optional)
-            description: 'Was die KI für diesen Benutzer bei GitHub darf: none = nichts, read = Repositories lesen, write = lesen und ändern (Dateien einchecken, Pull Requests, Issues, Repositories anlegen). Leer: es gilt der Standard dieser Option in der Gruppe „Chat und Claude“ bzw. „Sprechen mit der KI“. Das Token gehört dir als Betreiber: jeder Benutzer mit read oder write sieht damit auch deine privaten Repositories (außer die Freigabeliste schränkt es ein).'
+            description: 'Was die KI für diesen Benutzer bei GitHub darf: none = nichts, read = Repositories lesen, write = lesen und ändern (Dateien einchecken, Pull Requests, Issues, Repositories anlegen). Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“. Das Token gehört dir als Betreiber: jeder Benutzer mit read oder write sieht damit auch deine privaten Repositories (außer die Freigabeliste schränkt es ein).'
           connector_access:
             name: Konnektoren (optional)
-            description: 'Was die KI für diesen Benutzer bei Konnektoren (MCP-Server wie Microsoft 365, Google Workspace oder Zabbix) darf: none = keine, use = freigegebene (globale) Konnektoren nutzen, own = zusätzlich eigene anlegen, global = zusätzlich globale Konnektoren für alle anlegen und ändern (auch Adressen im Heimnetz). Leer: es gilt der Standard dieser Option in der Gruppe „Chat und Claude“ bzw. „Sprechen mit der KI“.'
+            description: 'Was die KI für diesen Benutzer bei Konnektoren (MCP-Server wie Microsoft 365, Google Workspace oder Zabbix) darf: none = keine, use = freigegebene (globale) Konnektoren nutzen, own = zusätzlich eigene anlegen, global = zusätzlich globale Konnektoren für alle anlegen und ändern (auch Adressen im Heimnetz). Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“.'
           web_access:
             name: Websuche (optional)
-            description: 'on = die KI darf für diesen Benutzer im Web suchen und Seiten lesen, off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat und Claude“ bzw. „Sprechen mit der KI“.'
+            description: 'on = die KI darf für diesen Benutzer im Web suchen und Seiten lesen, off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“.'
           voice_access:
             name: Sprechen mit der KI (optional)
-            description: 'on = diese Person darf per Sprache mit der KI sprechen (Mikrofon-Knopf im Chat), off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat und Claude“ bzw. „Sprechen mit der KI“.'
+            description: 'on = diese Person darf per Sprache mit der KI sprechen (Mikrofon-Knopf im Chat), off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“.'
           notify_service:
             name: Benachrichtigungsdienst (optional)
             description: 'Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Vorgabe für die Geräte dieser Person (jede Person wählt ihre Geräte selbst unter Einstellungen → Benachrichtigungen; ohne Auswahl gelten die Geräte ihrer Person in Home Assistant). Leer: keine Vorgabe.'
@@ -47,8 +47,8 @@ configuration:
         name: Ausgeschlossene Home-Assistant-Benutzer (optional)
         description: 'Nur mit „Alle Home-Assistant-Benutzer zulassen“: Benutzernamen, Namen oder IDs, durch Komma getrennt (z. B. „kind1, gast“). Diese Benutzer kommen nicht herein.'
   chat:
-    name: Chat und Claude
-    description: Zugang zu Claude (Abo-Token oder API-Schlüssel), Modell, Gedächtnis, geplante Aufgaben, Dateien, der Zugriff auf Home Assistant und die Standards für GitHub und Konnektoren.
+    name: Chat (Claude & OpenAI)
+    description: Zugang zu Claude (Abo-Token oder API-Schlüssel) und optional zu ChatGPT (OpenAI), Modell, Gedächtnis, geplante Aufgaben, Dateien, der Zugriff auf Home Assistant und die Standards für GitHub und Konnektoren.
     fields:
       anthropic_api_key:
         name: Anthropic-API-Schlüssel
@@ -83,6 +83,21 @@ configuration:
       connector_access_default:
         name: Standard-Recht für Konnektoren
         description: 'Gilt für alle Benutzer ohne eigene Angabe: none, use (Standard: globale Konnektoren nutzen), own (zusätzlich eigene anlegen) oder global (zusätzlich globale verwalten). Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant; was sie darüber liest, behandelt sie wie fremde Inhalte.'
+      openai_enabled:
+        name: ChatGPT (OpenAI) im Chat erlauben
+        description: 'Aus (Standard): nur Claude. An (und Schlüssel eingetragen): ChatGPT-Modelle stehen im Chat zur Wahl, mit Home-Assistant-Steuerung, Gedächtnis, Dateien, Bildern, GitHub, Konnektoren, Websuche und geplanten Aufgaben. Was in einem ChatGPT-Chat geschrieben wird, geht an OpenAI (nie an Claude), in einem Claude-Chat nie an OpenAI. Sprechen mit der KI bleibt immer bei Claude Haiku.'
+      openai_api_key:
+        name: OpenAI-API-Schlüssel (Chat)
+        description: 'Schlüssel von platform.openai.com (API keys) für die ChatGPT-Modelle; ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Leer: der Schlüssel aus „Bilder“ wird mitbenutzt.'
+      openai_key_expires:
+        name: OpenAI-Schlüssel (Chat) läuft ab am
+        description: Datum (JJJJ-MM-TT) für die Erinnerung in der App; 30 Tage vorher erscheint ein Hinweis im Chat.
+      openai_models:
+        name: ChatGPT-Modelle
+        description: 'Modelle, die im Chat zur Wahl stehen (höchstens 6), durch Komma getrennt. Standard: gpt-5.6-terra, gpt-5.6-luna, gpt-5.6-sol. Der erste Eintrag ist die erste Wahl der Liste. Leer: Standardliste.'
+      openai_limit_month:
+        name: ChatGPT-Token je Person und Monat (in Tausend)
+        description: Wie viele Token (Eingabe plus Ausgabe) jede Person im Monat mit ChatGPT-Modellen verbrauchen darf, in Tausend (Standard 3000 = 3 Millionen, 0 = kein Limit). Darüber fragt der Chat vor jeder weiteren Antwort nach (Zulassen oder Ablehnen).
   images:
     name: Bilder
     description: Die KI erzeugt Bilder von selbst. SVG-Grafiken zeichnet sie kostenlos; für Fotos und Kunstbilder braucht es einen Schlüssel von OpenAI oder Google (beides optional).

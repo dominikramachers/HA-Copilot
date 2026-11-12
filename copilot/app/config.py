@@ -42,8 +42,21 @@ _ORIGIN_RE = re.compile(r"^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$")
 _FAMILY_NAMES = {"sonnet": "Sonnet", "opus": "Opus", "haiku": "Haiku", "fable": "Fable", "mythos": "Mythos"}
 
 
+_OPENAI_MODEL = re.compile(r"^(?:gpt-|chatgpt-|o\d)", re.IGNORECASE)
+
+
+def provider_of(model: str) -> str:
+    """Anbieter einer Modellkennung: ``openai`` für GPT-Modelle (gpt-…, o3, o4-mini …), sonst ``claude``."""
+    return "openai" if _OPENAI_MODEL.match(model or "") else "claude"
+
+
 def model_label(model: str) -> str:
-    """Lesbarer Name zu einer Modellkennung: ``claude-sonnet-5-5`` → ``Sonnet 5.5``; Unbekanntes bleibt wie eingetragen."""
+    """Lesbarer Name zu einer Modellkennung: ``claude-sonnet-5-5`` → ``Sonnet 5.5``, ``gpt-5.6-terra`` → ``GPT-5.6 Terra``; Unbekanntes bleibt wie eingetragen."""
+    if provider_of(model) == "openai":
+        parts = [p for p in model.split("-") if p]
+        if parts and parts[0].lower() in ("gpt", "chatgpt") and len(parts) > 1:
+            return f"{'GPT' if parts[0].lower() == 'gpt' else 'ChatGPT'}-{parts[1]}" + "".join(f" {p[:1].upper()}{p[1:]}" for p in parts[2:])
+        return model
     match = re.match(r"^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$", model)
     if match and match.group(1) in _FAMILY_NAMES:
         version = match.group(2) + (f".{match.group(3)}" if match.group(3) else "")
@@ -74,7 +87,10 @@ class Profile:
 
 DEFAULT_MODELS = ("claude-opus-5-5", "claude-haiku-5-5")  # neben ``model`` wählbar
 TITLE_MODEL = "claude-haiku-5-5"
-VOICE_MODEL = "claude-haiku-5-5"  # gesprochene Antworten: das schnelle Modell
+VOICE_MODEL = "claude-haiku-5-5"  # gesprochene Antworten: das schnelle Modell (bleibt immer Claude)
+AUTO_MODEL = "auto"  # in der Modellwahl: das in der App eingestellte Standard-Modell
+DEFAULT_OPENAI_MODELS = ("gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6-sol")  # neben den Claude-Modellen wählbar, wenn OpenAI eingeschaltet ist
+OPENAI_LIMIT_MONTH_DEFAULT = 3000  # Tausend Token je Person und Monat (= 3 Mio.), danach fragt der Chat nach (0 = kein Limit)
 VOICE_INSTRUCTIONS_MAX = 600  # Zeichen für eigene Wünsche an die gesprochenen Antworten (voice.instructions)
 IMAGE_MODEL_OPENAI = "gpt-image-2.5-sunburst"
 IMAGE_MODEL_GOOGLE = "gemini-3.1-flash-image-preview"
@@ -95,6 +111,12 @@ class Settings:
     # Seit 0.45.0 nicht mehr einstellbar (feste Werte, ``parse_settings`` liest die alten Optionen nicht mehr):
     title_model: str = TITLE_MODEL
     models: tuple[str, ...] = DEFAULT_MODELS  # zusätzlich wählbare Modelle (Standard ist ``model``)
+    # ChatGPT / OpenAI als zweiter Anbieter für den Chat (global ein-/ausschaltbar, standardmäßig aus)
+    openai_enabled: bool = False
+    openai_chat_api_key: str = field(default="", repr=False)  # eigener Schlüssel für den Chat; leer = der Schlüssel aus „Bilder“
+    openai_chat_key_expires: date | None = None
+    openai_models: tuple[str, ...] = DEFAULT_OPENAI_MODELS
+    openai_limit_month: int = OPENAI_LIMIT_MONTH_DEFAULT  # Tausend Token je Person und Monat (0 = kein Limit)
     web_access_default: str = "on"  # Websuche und Seiten lesen (on | off), pro Benutzer überschreibbar (web_access)
     schedules_enabled: bool = True  # geplante Aufgaben (Menüpunkt „Geplant“)
     restore_snapshot: str = ""
@@ -170,11 +192,23 @@ class Settings:
     def ha_login_enabled(self) -> bool:
         return bool(self.ha_url)
 
+    @property
+    def openai_chat_key(self) -> str:
+        """OpenAI-Schlüssel für den Chat: der eigene, sonst der gemeinsame (Bilder)."""
+        return self.openai_chat_api_key or self.openai_api_key
+
+    @property
+    def openai_active(self) -> bool:
+        """Ist ChatGPT im Chat nutzbar? Eingeschaltet, mit Schlüssel und mindestens einem Modell."""
+        return self.openai_enabled and bool(self.openai_chat_key) and bool(self.openai_models)
+
     def model_choices(self) -> list[dict[str, str]]:
-        """Wählbare Modelle (Standard zuerst); nur eines = nichts zu wählen."""
-        if not self.models:
-            return []
-        return [{"id": m, "label": model_label(m)} for m in dict.fromkeys((self.model, *self.models))]
+        """Wählbare Modelle (Standard zuerst, dann Claude, dann OpenAI); ein einziges Modell = nichts zu wählen."""
+        claude = list(dict.fromkeys((self.model, *self.models))) if self.models else []
+        openai = list(self.openai_models) if self.openai_active else []
+        if openai and not claude:
+            claude = [self.model]
+        return [{"id": m, "label": model_label(m), "provider": provider_of(m)} for m in dict.fromkeys(claude + openai)]
 
     def connector_level(self, profile: Profile) -> str:
         """Was darf diese Person bei Konnektoren? (none | use | own | global)"""
@@ -412,7 +446,31 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     ha_access_default = str(raw.get("ha_access_default") or "execute").strip().lower()
     if ha_access_default not in HA_ACCESS_LEVELS:
         raise ConfigError("ha_access_default muss none, read, execute oder write sein")
-    chat = _group(raw, "chat", "model, memory_enabled, schedules_enabled, files_enabled, github_access_default, connector_access_default")
+    chat = _group(
+        raw, "chat",
+        "model, memory_enabled, schedules_enabled, files_enabled, github_access_default, connector_access_default, "
+        "openai_enabled, openai_api_key, openai_key_expires, openai_models, openai_limit_month",
+    )
+    openai_models_raw = chat.get("openai_models")
+    if openai_models_raw is None or (isinstance(openai_models_raw, str) and not openai_models_raw.strip()):
+        openai_models = DEFAULT_OPENAI_MODELS
+    else:
+        if isinstance(openai_models_raw, str):
+            openai_models_raw = re.split(r"[,;\s]+", openai_models_raw)
+        if not isinstance(openai_models_raw, list):
+            raise ConfigError("chat.openai_models muss eine Liste von Modellnamen sein (durch Komma getrennt)")
+        openai_models = tuple(dict.fromkeys(str(m).strip() for m in openai_models_raw if str(m).strip()))
+        for name in openai_models:
+            if not re.match(r"^[A-Za-z0-9._-]{3,64}$", name) or provider_of(name) != "openai":
+                raise ConfigError(f"chat.openai_models: {name!r} ist kein OpenAI-Modellname (z. B. gpt-5.6-terra)")
+        if len(openai_models) > 6:
+            raise ConfigError("chat.openai_models: höchstens 6 Modelle")
+    try:
+        openai_limit_month = int(chat.get("openai_limit_month", OPENAI_LIMIT_MONTH_DEFAULT))
+    except (TypeError, ValueError):
+        raise ConfigError("chat.openai_limit_month muss eine Zahl von 0 bis 100000 sein (Tausend Token, 0 = kein Limit)") from None
+    if not 0 <= openai_limit_month <= 100000:
+        raise ConfigError("chat.openai_limit_month muss eine Zahl von 0 bis 100000 sein (Tausend Token, 0 = kein Limit)")
     images = _group(raw, "images", "openai_api_key, google_api_key, openai_key_expires, google_key_expires, provider, limit_month")
     github_access_default = str(chat.get("github_access_default") or "none").strip().lower()
     if github_access_default not in GITHUB_ACCESS_LEVELS:
@@ -524,6 +582,11 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         claude_oauth_token=claude_token,
         anthropic_api_key=api_key,
         model=model,
+        openai_enabled=bool(chat.get("openai_enabled", False)),
+        openai_chat_api_key=str(chat.get("openai_api_key") or "").strip(),
+        openai_chat_key_expires=_parse_date(chat.get("openai_key_expires"), "chat.openai_key_expires"),
+        openai_models=openai_models,
+        openai_limit_month=openai_limit_month,
         schedules_enabled=bool(chat.get("schedules_enabled", True)),
         restore_snapshot=restore,
         export_database=bool(raw.get("export_database", False)),

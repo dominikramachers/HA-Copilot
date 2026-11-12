@@ -128,7 +128,11 @@ def test_me_lists_models_and_web(store):
         app, _ = model_app(store)
         me = jget(await asgi(app, "GET", "/api/me"))
         assert me["default_model"] == "claude-sonnet-5-5" and me["web"] is True and me["limits"] == []
-        assert me["models"] == [{"id": "claude-sonnet-5-5", "label": "Sonnet 5.5"}, {"id": "claude-opus-5-5", "label": "Opus 5.5"}, {"id": "claude-haiku-5-5", "label": "Haiku 5.5"}]
+        assert me["models"] == [
+            {"id": "claude-sonnet-5-5", "label": "Sonnet 5.5", "provider": "claude"},
+            {"id": "claude-opus-5-5", "label": "Opus 5.5", "provider": "claude"},
+            {"id": "claude-haiku-5-5", "label": "Haiku 5.5", "provider": "claude"},
+        ]
         app, _ = model_app(store, models="none", web_access_default="off")
         me = jget(await asgi(app, "GET", "/api/me"))
         assert me["models"] == [] and me["web"] is False
