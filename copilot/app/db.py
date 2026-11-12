@@ -128,8 +128,18 @@ CREATE TABLE IF NOT EXISTS chat_shares (
     taken_at    TEXT NOT NULL,
     created_at  TEXT NOT NULL,
     expires_at  TEXT,
+    opens       INTEGER NOT NULL DEFAULT 0,
     UNIQUE (chat_id, mode),
     FOREIGN KEY (chat_id, profile_id) REFERENCES chats(id, profile_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS share_access (
+    share_id    TEXT NOT NULL,
+    profile_id  TEXT NOT NULL,
+    first_at    TEXT NOT NULL,
+    last_at     TEXT NOT NULL,
+    opens       INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (share_id, profile_id),
+    FOREIGN KEY (share_id) REFERENCES chat_shares(id) ON DELETE CASCADE
 );
 """
 
@@ -354,7 +364,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 23  # 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 24  # 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind, imported"
 
@@ -550,6 +560,9 @@ class Store:
             self._conn.execute("ALTER TABLE memories ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
         self._conn.executescript(PROJECT_MEMORY_SCHEMA)
         self._conn.executescript(SHARES_SCHEMA)
+        share_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(chat_shares)")}
+        if "opens" not in share_columns:  # Abrufe des öffentlichen Links (ältere Freigaben ab 0.56.0)
+            self._conn.execute("ALTER TABLE chat_shares ADD COLUMN opens INTEGER NOT NULL DEFAULT 0")
         self._conn.executescript(RESEARCH_SCHEMA)
         self._conn.executescript(STATE_SCHEMA)
         self._conn.executescript(OUTFILES_SCHEMA)
@@ -1697,7 +1710,7 @@ class Store:
 
     @staticmethod
     def _share(row: sqlite3.Row, with_messages: bool = False) -> dict[str, Any]:
-        data = {k: row[k] for k in ("id", "chat_id", "profile_id", "mode", "token", "title", "taken_at", "created_at", "expires_at")}
+        data = {k: row[k] for k in ("id", "chat_id", "profile_id", "mode", "token", "title", "taken_at", "created_at", "expires_at", "opens")}
         if with_messages:
             try:
                 data["messages"] = json.loads(row["snapshot"])
@@ -1733,15 +1746,65 @@ class Store:
                 return None
         return self._share(row, with_messages=True)
 
-    def shares_for_others(self, profile_id: str) -> list[dict[str, Any]]:
-        """Innerhalb der Instanz geteilte Chats anderer Personen (neueste zuerst), ohne Text."""
+    def share_open(self, profile_id: str, token: str) -> dict[str, Any] | None:
+        """Link zu einer Freigabe in der Instanz öffnen: merkt sich, wer ihn geöffnet hat (erscheint unter „Geteilt“).
+        Gibt die Freigabe (ohne Text) zurück, ``own`` = die eigene. Unbekannte und abgelaufene Links geben ``None``."""
+        _require(profile_id)
+        row = self.share_read(token=token, mode="instance")
+        if row is None:
+            return None
+        row.pop("messages", None)
+        row["own"] = row["profile_id"] == profile_id
+        if not row["own"]:
+            now = _now()
+            with self._lock, self._conn:
+                self._conn.execute(
+                    "INSERT INTO share_access (share_id, profile_id, first_at, last_at, opens) VALUES (?, ?, ?, ?, 1) "
+                    "ON CONFLICT (share_id, profile_id) DO UPDATE SET last_at = excluded.last_at, opens = opens + 1",
+                    (row["id"], profile_id, now, now),
+                )
+        return row
+
+    def share_has_access(self, profile_id: str, share_id: str) -> bool:
+        _require(profile_id)
+        with self._lock:
+            return self._conn.execute("SELECT 1 FROM share_access WHERE share_id = ? AND profile_id = ?", (share_id, profile_id)).fetchone() is not None
+
+    def shares_opened_by(self, profile_id: str) -> list[dict[str, Any]]:
+        """Freigaben anderer Personen, deren Link diese Person geöffnet hat (zuletzt geöffnete zuerst), ohne Text."""
         _require(profile_id)
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM chat_shares WHERE mode = 'instance' AND profile_id <> ? AND (expires_at IS NULL OR expires_at > ?) "
-                "ORDER BY taken_at DESC", (profile_id, _now()),
+                "SELECT s.*, a.first_at AS opened_at FROM share_access a JOIN chat_shares s ON s.id = a.share_id "
+                "WHERE a.profile_id = ? AND s.mode = 'instance' AND (s.expires_at IS NULL OR s.expires_at > ?) ORDER BY a.last_at DESC",
+                (profile_id, _now()),
             ).fetchall()
-        return [self._share(r) for r in rows]
+        out = []
+        for r in rows:
+            item = self._share(r)
+            item["opened_at"] = r["opened_at"]
+            out.append(item)
+        return out
+
+    def share_access_remove(self, profile_id: str, share_id: str) -> bool:
+        """Eine Freigabe aus der eigenen Liste „Geteilt“ entfernen (der Link kann sie jederzeit wieder holen)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM share_access WHERE share_id = ? AND profile_id = ?", (share_id, profile_id))
+        return cur.rowcount == 1
+
+    def share_viewers(self, share_id: str) -> list[dict[str, Any]]:
+        """Wer den Link einer Freigabe in der Instanz geöffnet hat (zuletzt geöffnete zuerst)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT profile_id, first_at, last_at, opens FROM share_access WHERE share_id = ? ORDER BY last_at DESC", (share_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def share_count_open(self, share_id: str) -> None:
+        """Einen Abruf des öffentlichen Links zählen."""
+        with self._lock, self._conn:
+            self._conn.execute("UPDATE chat_shares SET opens = opens + 1 WHERE id = ?", (share_id,))
 
     def share_modes(self, profile_id: str) -> dict[str, list[str]]:
         """Welche Chats der Person gerade geteilt sind: ``{chat_id: ['instance', 'public']}`` (abgelaufene Freigaben zählen nicht)."""

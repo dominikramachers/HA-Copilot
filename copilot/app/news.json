@@ -1,5 +1,40 @@
 [
   {
+    "version": "0.57.0",
+    "items": [
+      {
+        "de": {
+          "title": "Teilen nur mit Link",
+          "text": "Wenn du einen Chat in der Instanz teilst, sieht ihn nur, wer deinen Link öffnet. Du siehst, wer das war. Wer einen Link bekommt, findet den Chat unter „Geteilt“."
+        },
+        "en": {
+          "title": "Sharing only with a link",
+          "text": "When you share a chat in the instance, only people who open your link can see it. You see who did. Anyone who gets a link finds the chat under “Shared”."
+        }
+      },
+      {
+        "de": {
+          "title": "Teilen-Fenster übersichtlicher",
+          "text": "Ein Klick auf den Link kopiert ihn. Wie lange er gilt, stellst du direkt ein. Mit „Teilen beenden“ ist der Chat wieder nur für dich."
+        },
+        "en": {
+          "title": "Clearer sharing window",
+          "text": "One click on the link copies it. You set how long it stays valid right there. With “Stop sharing” the chat is only yours again."
+        }
+      },
+      {
+        "de": {
+          "title": "„Geteilt“ immer da",
+          "text": "Den Eintrag „Geteilt“ findest du jetzt immer in der Seitenleiste. Mit dem Mülleimer entfernst du einen geteilten Chat wieder aus deiner Liste."
+        },
+        "en": {
+          "title": "“Shared” is always there",
+          "text": "You always find “Shared” in the sidebar now. Use the trash can to remove a shared chat from your list."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.56.1",
     "items": [
       {

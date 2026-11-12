@@ -105,6 +105,6 @@ Wer nicht in Home Assistant, sondern über eine eigene Adresse arbeitet, meldet 
 ## Datenschutz zwischen Benutzern
 
 - Jede Abfrage nach Chats filtert auf das Profil; zusätzlich verhindert die Datenbank selbst, dass eine Nachricht einem anderen Profil gehört als ihr Chat.
-- Das **Haushalts-Gedächtnis** ist die einzige gemeinsame Ablage. Alle Personen dürfen ihn ergänzen. Das **persönliche Gedächtnis**, Projekte (mit Projektgedächtnis, Projektdateien und den Chats darin), geplante Aufgaben und erzeugte Dateien sind privat. Ein Chat wird nur sichtbar, wenn die Person ihn selbst **teilt** (in der Instanz oder über einen öffentlichen Link, falls `chat.sharing` das erlaubt); Inkognito-Chats lassen sich nie teilen.
+- Das **Haushalts-Gedächtnis** ist die einzige gemeinsame Ablage. Alle Personen dürfen ihn ergänzen. Das **persönliche Gedächtnis**, Projekte (mit Projektgedächtnis, Projektdateien und den Chats darin), geplante Aufgaben und erzeugte Dateien sind privat. Ein Chat wird nur sichtbar, wenn die Person ihn selbst **teilt** (als Link für Personen der Instanz oder als öffentlicher Link, falls `chat.sharing` das erlaubt; sie sieht, wer den Link geöffnet hat); Inkognito-Chats lassen sich nie teilen.
 - Jeder Benutzer kann in der App unter **Einstellungen → Meine Daten** alle eigenen Chats als ZIP exportieren oder löschen.
 - Wer Zugriff auf die Add-on-Konfiguration oder den Konfigurationsordner hat, ist Administrator und kann technisch alles lesen. Die Trennung gilt für die Oberfläche und die Programmierschnittstelle.

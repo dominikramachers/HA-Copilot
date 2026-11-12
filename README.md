@@ -45,7 +45,7 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 - **Antworten laufen auf dem Server weiter:** Chat wechseln, Seite neu laden oder Tab schließen verliert nichts; fertige Antworten erscheinen als ungelesen
 - **Sprechen mit der KI** (optional): Mikrofon-Knopf, Antwort wird vorgelesen, Home Assistant versteht einfache Befehle selbst
 - **Inkognito-Chat:** nichts bleibt zurück (kein Gedächtnis, nicht in Liste, Suche, Export oder Sicherung), beim Verlassen gelöscht
-- **Chats teilen:** Knopf **Teilen** in der Kopfzeile (Projekt / Chatname ▾), Schnappschuss für andere Personen der Instanz (lesen oder als Kopie weiterführen) und optional als öffentlicher Link ohne Anmeldung, mit Ablauf und widerrufbar; alles Geteilte unter **Geteilt**
+- **Chats teilen:** Knopf **Teilen** in der Kopfzeile (Projekt / Chatname ▾), Link nur für Personen der Instanz (lesen oder als Kopie weiterführen; du siehst, wer ihn geöffnet hat) und optional ein öffentlicher Link ohne Anmeldung, mit Ablauf und beendbar; alles Geteilte unter **Geteilt**
 - **Deep Research** (optional): mehrstufige Recherche im Web mit Bericht und geprüfter Quellenliste, mit Rückfrage und Tageslimit
 - **Projekte mit Wissen:** Dateien bleiben als Original erhalten, die KI kennt die anderen Chats des Projekts, legt Dateien und Artefakte auf Wunsch im Projekt ab; **Gedächtnis** mit Projektbereich, Herkunft je Eintrag und „Rückgängig“
 - **Zugriff auf Home Assistant** mit Rechtestufen je Benutzer (nichts, lesen, ausführen, ändern), Rückfrage im Chat vor Änderungen und Sperrliste für gefährliche Befehle
