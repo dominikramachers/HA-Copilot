@@ -1,5 +1,15 @@
 # Änderungen
 
+## 0.57.1
+Teilen-Fenster: unterer Bereich aufgeräumt. Keine Änderung an Daten oder Schnittstellen.
+- **Kopieren im Linkfeld.** Der Knopf **Link kopieren** und das Zahnrad entfallen. Rechts im Linkfeld sitzt ein Zwischenablage-Symbol (`.share-copy`, wird kurz zum Haken); ein Klick auf den Link kopiert weiterhin, beides meldet „Link wurde kopiert.“ im Feld. Die Auswahl im Feld wird danach aufgehoben, damit der Text nicht durch die grüne Meldung scheint.
+- **Aktualisieren** steht als eigener Knopf neben der Zeile „Stand …“ (`POST /api/chats/{id}/share/refresh`, wie bisher), nicht mehr im Zahnrad-Menü.
+- **Teilen beenden** ist der feste, rote Knopf unten im Fenster (ersetzt „Link kopieren“). Er fragt einmal nach („Wirklich beenden?“, fällt nach 4 Sekunden zurück). Ist nichts geteilt, steht dort **Fertig**.
+- **Mehr Abstand** zwischen Gültigkeit und **Abrufe** beziehungsweise **Geöffnet von** (`.share-sec`, 20 px), ebenso vor der Zeile des Besitzers.
+- **Kein seitliches Scrollen** im scrollenden Mittelteil (`.share-refresh` ragte 4 px über den Rand).
+- **Texte:** neu „Aktualisieren“ und „Wirklich beenden?“ (`en-ui.json`); „Einstellungen zum Teilen“ und „Gültigkeit des Links …“ entfallen.
+- **Prüfung:** Browserprüfung (Playwright) auf Computer und Handy, hell und dunkel: Kopieren, Gültigkeit, Aktualisieren, Beenden mit Rückfrage, kein Überlauf. Screenshot `chat-teilen.png` neu.
+
 ## 0.57.0
 Teilen überarbeitet: Freigaben in der Instanz gibt es nur noch mit Link, der Besitzer sieht, wer ihn geöffnet hat, und das Fenster ist kompakter. Datenbankschema 24 (nur Ergänzungen).
 - **Freigabe in der Instanz nur mit Link.** Bisher sah jede angemeldete Person einen in der Instanz geteilten Chat. Jetzt gibt es einen Link (`<public_base_url>/?share=<Code>`, ohne Domain die Adresse der Oberfläche; der Code ist der 43 Zeichen lange Wert `chat_shares.token`). **Wer ihn öffnet** (Adresse mit `?share=`, wird danach aus der Adresszeile entfernt), bekommt den Chat unter **Geteilt** (Tabelle `share_access`: `share_id`, `profile_id`, `first_at`, `last_at`, `opens`), mit „Stand vom …“ und einem roten **Mülleimer** zum Entfernen (`DELETE /api/shared/{id}`; der Link holt ihn zurück). Lesen (`GET /api/shared/{id}`) und Kopieren (`…/copy`) gehen nur mit geöffnetem Link oder als Besitzer. `POST /api/shared/open` nimmt Link oder Code. In **Geteilt** gibt es **Link einfügen** für Fälle, in denen die Adresse nicht greift (zum Beispiel Home Assistant). Nach dem Update gilt ein früher in der Instanz geteilter Chat nur noch für Personen, die seinen Link öffnen (Link im Teilen-Fenster ansehen und weitergeben).

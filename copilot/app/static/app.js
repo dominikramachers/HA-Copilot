@@ -6401,15 +6401,20 @@ async function drawSharePanel(body, chat, view = { open: false }) {
       nodes.push(node("p", "share-hint", tr("Niemand sonst sieht diesen Chat. Wähle oben, wie du ihn teilen willst.")));
     } else {
       nodes.push(node("p", "share-hint", current.hint));
-      const until = shared.expires_at ? tr("Gültig bis {0}", exactTime(shared.expires_at)) : tr("Läuft nicht ab");
-      nodes.push(node("p", "share-state", `${tr("Stand {0}", exactTime(shared.taken_at))} · ${until}`));
-      // Link: Ein Klick kopiert ihn und meldet es im Feld.
+      // Link: Ein Klick auf das Feld oder das Symbol kopiert ihn und meldet es im Feld.
+      const link = node("section", "share-sec");
+      link.append(node("p", "share-h", tr("Link")));
       const box = node("div", "share-urlbox");
       const field = node("input", "share-url");
       field.type = "text";
       field.readOnly = true;
       field.value = shareLinkOf(shared);
       field.setAttribute("aria-label", tr("Link"));
+      const copy = node("button", "share-copy");
+      copy.type = "button";
+      copy.setAttribute("aria-label", tr("Link kopieren"));
+      copy.title = tr("Link kopieren");
+      copy.append(icon("copy"), icon("check"));
       const done = node("span", "share-copied", tr("Link wurde kopiert."));
       done.setAttribute("role", "status");
       let hideTimer = 0;
@@ -6423,16 +6428,25 @@ async function drawSharePanel(body, chat, view = { open: false }) {
         hideTimer = setTimeout(() => box.classList.remove("copied"), 1800);
       };
       field.addEventListener("click", copyLink);
-      box.append(field, done);
-      body.copyLink = copyLink;
+      copy.addEventListener("click", copyLink);
+      box.append(field, copy, done);
       const expiry = node("button", "share-expiry");
       expiry.type = "button";
       expiry.setAttribute("aria-haspopup", "menu");
       expiry.append(icon("clock"), node("span", "", tr("Link gültig: {0}", expiryLabel(shared.expires_at))), icon("chevron"));
       expiry.addEventListener("click", () => pickExpiry(expiry, data));
-      nodes.push(box, expiry);
+      const until = shared.expires_at ? tr("Gültig bis {0}", exactTime(shared.expires_at)) : tr("Läuft nicht ab");
+      const stand = node("div", "share-stand");
+      const refresh = node("button", "share-refresh");
+      refresh.type = "button";
+      refresh.append(icon("refresh"), node("span", "", tr("Aktualisieren")));
+      refresh.title = tr("Stand aktualisieren");
+      refresh.addEventListener("click", () => run(() => post({ mode: shared.mode }, "/refresh"), tr("Stand aktualisiert.")));
+      stand.append(node("span", "", `${tr("Stand {0}", exactTime(shared.taken_at))} · ${until}`), refresh);
+      link.append(box, expiry, stand);
+      nodes.push(link);
       // Wer hat den Link geöffnet?
-      const seen = node("div", "share-seen");
+      const seen = node("section", "share-sec share-seen");
       if (level === "public") {
         seen.append(node("p", "share-h", tr("Abrufe")), node("p", "share-hint", shared.opens ? tr("Der Link wurde {0} Mal abgerufen.", shared.opens) : tr("Der Link wurde noch nicht abgerufen.")));
       } else {
@@ -6456,40 +6470,30 @@ async function drawSharePanel(body, chat, view = { open: false }) {
     scroll.append(...nodes);
 
     const foot = node("div", "share-foot");
-    const row = node("div", "share-foot-row");
     if (shared) {
-      const gear = node("button", "share-gear");
-      gear.type = "button";
-      gear.setAttribute("aria-label", tr("Einstellungen zum Teilen"));
-      gear.title = tr("Einstellungen zum Teilen");
-      gear.append(icon("sliders"));
-      gear.addEventListener("click", async () => {
-        const choice = await openPopover(gear, [
-          { value: "refresh", icon: "refresh", label: tr("Stand aktualisieren") },
-          { value: "expiry", icon: "clock", label: tr("Gültigkeit des Links …") },
-        ]);
-        if (choice === "refresh") await run(() => post({ mode: shared.mode }, "/refresh"), tr("Stand aktualisiert."));
-        else if (choice === "expiry") await pickExpiry(gear, data);
-      });
-      row.append(gear);
-    }
-    const main = node("button", "pill primary share-main");
-    main.type = "button";
-    if (shared) {
-      main.append(icon("link"), node("span", "", tr("Link kopieren")));
-      main.addEventListener("click", () => body.copyLink?.());
-    } else {
-      main.append(node("span", "", tr("Fertig")));
-      main.addEventListener("click", () => closeSheet(true));
-    }
-    row.append(main);
-    foot.append(row);
-    if (shared) {
+      // Teilen beenden: Beim ersten Klick fragt der Knopf nach, beim zweiten (innerhalb von 4 Sekunden) beendet er.
       const end = node("button", "share-end");
       end.type = "button";
-      end.append(icon("trash"), node("span", "", tr("Teilen beenden")));
-      end.addEventListener("click", () => run(async () => { if (data.public) await del("public"); if (data.instance) await del("instance"); }, tr("Nicht mehr geteilt.")));
+      const label = node("span", "", tr("Teilen beenden"));
+      end.append(icon("trash"), label);
+      let armed = 0;
+      end.addEventListener("click", () => {
+        if (!armed) {
+          end.classList.add("armed");
+          label.textContent = tr("Wirklich beenden?");
+          armed = setTimeout(() => { armed = 0; end.classList.remove("armed"); label.textContent = tr("Teilen beenden"); }, 4000);
+          return;
+        }
+        clearTimeout(armed);
+        run(async () => { if (data.public) await del("public"); if (data.instance) await del("instance"); }, tr("Nicht mehr geteilt."));
+      });
       foot.append(end);
+    } else {
+      const main = node("button", "pill primary share-main");
+      main.type = "button";
+      main.append(node("span", "", tr("Fertig")));
+      main.addEventListener("click", () => closeSheet(true));
+      foot.append(main);
     }
     body.replaceChildren(scroll, foot);
   }
