@@ -629,5 +629,11 @@
  "Inkognito-Chats sind ausgeschaltet.": "Incognito chats are turned off.",
  "Ein Inkognito-Chat gehört in kein Projekt.": "An incognito chat can't belong to a project.",
  "Ein Inkognito-Chat lässt sich nicht ändern.": "An incognito chat can't be changed.",
- "Ein Inkognito-Chat lässt sich nicht exportieren.": "An incognito chat can't be exported."
+ "Ein Inkognito-Chat lässt sich nicht exportieren.": "An incognito chat can't be exported.",
+ "Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet.": "This needs domain access, which is not set up.",
+ "Der Chat ist noch leer.": "The chat is still empty.",
+ "Der Chat ist zu lang zum Teilen.": "The chat is too long to share.",
+ "Dieser Chat lässt sich nicht teilen.": "This chat cannot be shared.",
+ "Kopie: {title}": "Copy: {title}",
+ "Öffentliche Links sind nicht erlaubt.": "Public links are not allowed."
 }

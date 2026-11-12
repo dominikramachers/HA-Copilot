@@ -48,6 +48,7 @@ options:
     memory_enabled: true
     schedules_enabled: true
     incognito_enabled: true
+    sharing: instance
     files_enabled: true
     ha_access_default: execute
     ha_limit_to_exposed: true
@@ -119,6 +120,7 @@ schema:
     memory_enabled: bool?
     schedules_enabled: bool?
     incognito_enabled: bool?
+    sharing: list(off|instance|public)?
     files_enabled: bool?
     ha_access_default: list(none|read|execute|write)?
     ha_limit_to_exposed: bool?

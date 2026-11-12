@@ -144,6 +144,7 @@ class Settings:
     github_write_confirm: str = "ask"  # fest: jede Änderung wird im Chat bestätigt
     # Konnektoren (MCP-Server): wer sie nutzen, selbst anlegen oder für alle verwalten darf, steht je Profil bzw. hier
     connector_access_default: str = "use"
+    sharing: str = "instance"  # Chats teilen: off | instance (nur in dieser Instanz) | public (zusätzlich Link ohne Anmeldung über die Domain)
     connector_write_confirm: str = "ask"  # fest: jede Änderung über einen Konnektor wird im Chat bestätigt
     connector_allow_private: bool = True  # fest: wer Konnektoren anlegen darf, darf auch Adressen im Heimnetz und mit http eintragen (Gesperrtes bleibt gesperrt)
     # Dateien, die die KI erzeugt (Word, Excel, PDF, PowerPoint, Skripte …)
@@ -232,6 +233,7 @@ class Settings:
 
 
 HA_ACCESS_LEVELS = ("none", "read", "execute", "write")
+SHARING_MODES = ("off", "instance", "public")
 WEB_ACCESS_LEVELS = ("on", "off")
 VOICE_ACCESS_LEVELS = ("on", "off")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
@@ -451,7 +453,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("ha_access_default muss none, read, execute oder write sein")
     chat = _group(
         raw, "chat",
-        "model, memory_enabled, schedules_enabled, incognito_enabled, files_enabled, github_access_default, connector_access_default, "
+        "model, memory_enabled, schedules_enabled, incognito_enabled, sharing, files_enabled, github_access_default, connector_access_default, "
         "openai_enabled, openai_api_key, openai_key_expires, openai_models, openai_limit_month",
     )
     openai_models_raw = chat.get("openai_models")
@@ -478,6 +480,9 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     github_access_default = str(chat.get("github_access_default") or "none").strip().lower()
     if github_access_default not in GITHUB_ACCESS_LEVELS:
         raise ConfigError("chat.github_access_default muss none, read oder write sein")
+    sharing = str(chat.get("sharing") or "instance").strip().lower()
+    if sharing not in SHARING_MODES:
+        raise ConfigError("chat.sharing muss off, instance oder public sein")
     connector_access_default = str(chat.get("connector_access_default") or "use").strip().lower()
     if connector_access_default not in CONNECTOR_ACCESS_LEVELS:
         raise ConfigError("chat.connector_access_default muss none, use, own oder global sein")
@@ -595,6 +600,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         openai_limit_month=openai_limit_month,
         schedules_enabled=bool(chat.get("schedules_enabled", True)),
         incognito_enabled=bool(chat.get("incognito_enabled", True)),
+        sharing=sharing,
         restore_snapshot=restore,
         export_database=bool(raw.get("export_database", False)),
         claude_token_expires=token_expires,

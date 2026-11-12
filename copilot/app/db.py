@@ -116,6 +116,23 @@ CREATE TABLE IF NOT EXISTS memories (
 
 MEMORY_ORIGINS = ('said', 'inferred', 'manual', 'import')  # Herkunft eines Eintrags; '' = unbekannt (ältere Einträge)
 
+SHARES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS chat_shares (
+    id          TEXT PRIMARY KEY,
+    chat_id     TEXT NOT NULL,
+    profile_id  TEXT NOT NULL,
+    mode        TEXT NOT NULL CHECK (mode IN ('instance', 'public')),
+    token       TEXT NOT NULL UNIQUE,
+    title       TEXT NOT NULL,
+    snapshot    TEXT NOT NULL,
+    taken_at    TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT,
+    UNIQUE (chat_id, mode),
+    FOREIGN KEY (chat_id, profile_id) REFERENCES chats(id, profile_id) ON DELETE CASCADE
+);
+"""
+
 PROJECT_MEMORY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS project_memories (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -328,15 +345,16 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 23  # 23: Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 23  # 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
-CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind"
+CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind, imported"
 
 
 def _chat(row: sqlite3.Row) -> dict[str, Any]:
     data = dict(row)
     data["pinned"] = data.pop("pinned_at") is not None
     data["unread"] = bool(data.get("unread"))
+    data["imported"] = bool(data.get("imported"))
     return data
 
 
@@ -490,6 +508,8 @@ class Store:
             self._conn.execute("ALTER TABLE chats ADD COLUMN schedule_id TEXT NOT NULL DEFAULT ''")  # Chat entstand durch eine geplante Aufgabe
         if "summary_upto" not in columns:
             self._conn.execute("ALTER TABLE chats ADD COLUMN summary_upto INTEGER")
+        if "imported" not in columns:  # Verlauf aus einem geteilten Chat übernommen: fremder Inhalt, Änderungen fragen immer nach
+            self._conn.execute("ALTER TABLE chats ADD COLUMN imported INTEGER NOT NULL DEFAULT 0")
         if "kind" not in columns:
             self._conn.execute("ALTER TABLE chats ADD COLUMN kind TEXT NOT NULL DEFAULT ''")  # 'voice' = Sprachgespräch außerhalb eines Chats (nicht in der Liste)
         profile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(profiles)")}
@@ -520,6 +540,7 @@ class Store:
         if "origin" not in memory_columns:  # Herkunft: '' unbekannt, said = von der Person gesagt, inferred = von der KI abgeleitet, manual = selbst eingetragen, import
             self._conn.execute("ALTER TABLE memories ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
         self._conn.executescript(PROJECT_MEMORY_SCHEMA)
+        self._conn.executescript(SHARES_SCHEMA)
         self._conn.executescript(STATE_SCHEMA)
         self._conn.executescript(OUTFILES_SCHEMA)
         outfile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(outfiles)")}
@@ -672,7 +693,7 @@ class Store:
             )
         return {
             "id": chat_id, "title": title, "created_at": now, "updated_at": now,
-            "pinned": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind,
+            "pinned": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind, "imported": False,
         }
 
     def list_chats(self, profile_id: str, kind: str = "") -> list[dict[str, Any]]:
@@ -1614,6 +1635,119 @@ class Store:
                 (scope, owner, topic),
             ).fetchone()
         return dict(row)
+
+    # ------------------------------------------------------------ Chats teilen
+
+    def share_snapshot(self, profile_id: str, chat_id: str) -> tuple[str, list[dict[str, str]]] | None:
+        """Titel und Text des Chats für eine Freigabe: nur Rolle, Text und Zeit; keine Anhänge, keine Werkzeugprotokolle (Gedächtnis-Hinweise u. a.)."""
+        chat = self.get_chat(profile_id, chat_id)
+        found = self.list_messages(profile_id, chat_id) if chat else None
+        if chat is None or found is None:
+            return None
+        out = []
+        for m in found:
+            text = m["content"] or ""
+            if not text.strip() and m.get("attachments"):
+                text = "_(Anhang, wird nicht mitgeteilt)_"
+            if text.strip():
+                out.append({"role": m["role"], "content": text, "at": m["created_at"]})
+        return chat["title"], out
+
+    def share_upsert(
+        self, profile_id: str, chat_id: str, mode: str, title: str, messages: list[dict[str, str]], expires_days: int | None = None
+    ) -> dict[str, Any] | None:
+        """Freigabe anlegen oder aktualisieren (Stand neu). ``expires_days``: 0 = nie, ``None`` = bei bestehender Freigabe unverändert."""
+        _require(profile_id)
+        if mode not in ("instance", "public"):
+            raise ValueError("mode muss instance oder public sein")
+        now = _now()
+        snapshot = json.dumps(messages, ensure_ascii=False)
+        with self._lock, self._conn:
+            if self._conn.execute("SELECT 1 FROM chats WHERE id = ? AND profile_id = ?", (chat_id, profile_id)).fetchone() is None:
+                return None
+            old = self._conn.execute("SELECT id, expires_at FROM chat_shares WHERE chat_id = ? AND mode = ?", (chat_id, mode)).fetchone()
+            if expires_days is None and old is not None:
+                expires = old["expires_at"]
+            elif expires_days:
+                expires = (datetime.now(timezone.utc) + timedelta(days=expires_days)).isoformat(timespec="seconds")
+            else:
+                expires = None
+            if old is None:
+                self._conn.execute(
+                    "INSERT INTO chat_shares (id, chat_id, profile_id, mode, token, title, snapshot, taken_at, created_at, expires_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (uuid.uuid4().hex, chat_id, profile_id, mode, secrets.token_urlsafe(32), title, snapshot, now, now, expires),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE chat_shares SET title = ?, snapshot = ?, taken_at = ?, expires_at = ? WHERE chat_id = ? AND mode = ?",
+                    (title, snapshot, now, expires, chat_id, mode),
+                )
+        return self.share_get(profile_id, chat_id, mode)
+
+    @staticmethod
+    def _share(row: sqlite3.Row, with_messages: bool = False) -> dict[str, Any]:
+        data = {k: row[k] for k in ("id", "chat_id", "profile_id", "mode", "token", "title", "taken_at", "created_at", "expires_at")}
+        if with_messages:
+            try:
+                data["messages"] = json.loads(row["snapshot"])
+            except ValueError:
+                data["messages"] = []
+        return data
+
+    def share_get(self, profile_id: str, chat_id: str, mode: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM chat_shares WHERE chat_id = ? AND profile_id = ? AND mode = ?", (chat_id, profile_id, mode)
+            ).fetchone()
+        return self._share(row) if row else None
+
+    def share_delete(self, profile_id: str, chat_id: str, mode: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM chat_shares WHERE chat_id = ? AND profile_id = ? AND mode = ?", (chat_id, profile_id, mode))
+        return cur.rowcount == 1
+
+    def share_read(self, share_id: str = "", token: str = "", mode: str = "instance") -> dict[str, Any] | None:
+        """Freigabe samt Text lesen, über ihre Kennung (``instance``) oder das Zeichen der Adresse (``public``). Abgelaufene gibt es nicht mehr."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM chat_shares WHERE mode = ? AND " + ("id = ?" if share_id else "token = ?"), (mode, share_id or token)
+            ).fetchone()
+            if row is None:
+                return None
+            if row["expires_at"] and row["expires_at"] <= _now():
+                with self._conn:
+                    self._conn.execute("DELETE FROM chat_shares WHERE id = ?", (row["id"],))
+                return None
+        return self._share(row, with_messages=True)
+
+    def shares_for_others(self, profile_id: str) -> list[dict[str, Any]]:
+        """Innerhalb der Instanz geteilte Chats anderer Personen (neueste zuerst), ohne Text."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM chat_shares WHERE mode = 'instance' AND profile_id <> ? AND (expires_at IS NULL OR expires_at > ?) "
+                "ORDER BY taken_at DESC", (profile_id, _now()),
+            ).fetchall()
+        return [self._share(r) for r in rows]
+
+    def share_sweep(self) -> int:
+        with self._lock, self._conn:
+            return self._conn.execute("DELETE FROM chat_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (_now(),)).rowcount
+
+    def import_chat(self, profile_id: str, title: str, messages: list[dict[str, str]]) -> dict[str, Any]:
+        """Verlauf einer geteilten Unterhaltung als eigenen Chat anlegen (``imported``: Inhalt ist fremd, Änderungen fragen immer nach)."""
+        chat = self.create_chat(profile_id, title)
+        assert chat is not None
+        with self._lock, self._conn:
+            self._conn.execute("UPDATE chats SET imported = 1 WHERE id = ? AND profile_id = ?", (chat["id"], profile_id))
+        for m in messages:
+            self.add_message(profile_id, chat["id"], m["role"] if m["role"] in ("user", "assistant") else "user", m["content"])
+        self.set_chat_unread(profile_id, chat["id"], False)
+        chat["imported"] = True
+        return self.get_chat(profile_id, chat["id"]) or chat
 
     # ------------------------------------------------- Gedächtnis des Projekts
 

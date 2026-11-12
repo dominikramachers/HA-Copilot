@@ -259,6 +259,15 @@ class CreateChatBody(BaseModel):
     incognito: bool = False  # Inkognito-Chat: nichts bleibt zurück (kein Gedächtnis, keine Liste, wird beim Schließen gelöscht)
 
 
+class ShareBody(BaseModel):
+    mode: Literal["instance", "public"]
+    expires_days: Literal[0, 7, 30] | None = None  # nur für den öffentlichen Link; 0 = läuft nie ab
+
+
+class ShareModeBody(BaseModel):
+    mode: Literal["instance", "public"]
+
+
 class VoiceTextBody(BaseModel):
     text: str = Field(min_length=1, max_length=voicelib.MAX_SPEAK_CHARS)
 
@@ -453,6 +462,8 @@ class SecurityHeaders:
 
         await self.app(scope, receive, wrapped)
 
+
+SHARE_TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")  # secrets.token_urlsafe(32)
 
 PUBLIC_SECURITY_HEADERS = {
     **SECURITY_HEADERS,
@@ -695,6 +706,11 @@ def _login_page(branding: Branding, version: str) -> HTMLResponse:
     return HTMLResponse(branding.render(page, version), headers={"Cache-Control": "no-store"})
 
 
+def _shared_page(branding: Branding, version: str) -> HTMLResponse:
+    page = i18n.translate_html((STATIC_DIR / "shared.html").read_text(encoding="utf-8"))
+    return HTMLResponse(branding.render(page, version), headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noarchive", "Referrer-Policy": "no-referrer"})
+
+
 def _index_page(branding: Branding, version: str, embed: str) -> HTMLResponse:
     page = i18n.translate_html((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
     return HTMLResponse(branding.render(page, version, embed), headers={"Cache-Control": "no-store"})
@@ -899,6 +915,8 @@ def register_chat_routes(
             "notify_ha": ha is not None and ha.enabled,
             "memory": settings.memory_enabled,
             "incognito": settings.incognito_enabled,
+            "sharing": settings.sharing,
+            "sharing_public": settings.sharing == "public" and bool(settings.public_base_url),
             "overview": overview_allowed(profile),
             "setup": channel == "ingress",
             "setup_open": setup_check.banner(settings) if channel == "ingress" else None,
@@ -1519,6 +1537,111 @@ def register_chat_routes(
             for key in [k for k in allowed if k[0] == profile.id]:
                 allowed.discard(key)
         return {"deleted": count}
+
+    # ------------------------------------------------------------ Chats teilen
+    # Eine Freigabe ist ein Schnappschuss: Text zum Zeitpunkt des Teilens (ohne Anhänge, Werkzeugprotokolle und Gedächtnis-Hinweise).
+    # „instance“: alle angemeldeten Personen dieser Instanz sehen ihn unter „Geteilt“ und können ihn als Kopie weiterführen.
+    # „public“: ein langer, nicht erratbarer Link ohne Anmeldung, nur lesen (siehe build_public_app).
+
+    SHARE_MAX_CHARS = 2_000_000
+
+    def sharing_or_404() -> str:
+        if settings.sharing == "off":
+            raise HTTPException(status_code=404, detail=tr("Nicht verfügbar"))
+        return settings.sharing
+
+    def public_ready() -> bool:
+        return settings.sharing == "public" and bool(settings.public_base_url)
+
+    def share_view(row: dict | None) -> dict | None:
+        if row is None:
+            return None
+        out = {"mode": row["mode"], "taken_at": row["taken_at"], "created_at": row["created_at"], "expires_at": row["expires_at"]}
+        if row["mode"] == "public":
+            out["url"] = f"{settings.public_base_url}/s/{row['token']}"
+        return out
+
+    def shared_chat(profile: Profile, chat_id: str) -> dict:
+        chat = store.get_chat(profile.id, chat_id)
+        if chat is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if chat.get("kind"):
+            raise HTTPException(status_code=409, detail=tr("Dieser Chat lässt sich nicht teilen."))
+        return chat
+
+    def owner_label(profile_id: str) -> str:
+        known = registry.by_id(profile_id) if registry is not None else None
+        return (known.label or known.id) if known else profile_id
+
+    @app.get("/api/chats/{chat_id}/share")
+    def get_share(chat_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        shared_chat(profile, chat_id)
+        return {
+            "sharing": settings.sharing, "public_available": public_ready(),
+            "instance": share_view(store.share_get(profile.id, chat_id, "instance")),
+            "public": share_view(store.share_get(profile.id, chat_id, "public")),
+        }
+
+    def take_share(profile: Profile, chat_id: str, mode: str, expires_days: int | None) -> dict:
+        sharing_or_404()
+        shared_chat(profile, chat_id)
+        if mode == "public":
+            if settings.sharing != "public":
+                raise HTTPException(status_code=403, detail=tr("Öffentliche Links sind nicht erlaubt."))
+            if not settings.public_base_url:
+                raise HTTPException(status_code=409, detail=tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."))
+        snap = store.share_snapshot(profile.id, chat_id)
+        if snap is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        title, messages = snap
+        if not messages:
+            raise HTTPException(status_code=422, detail=tr("Der Chat ist noch leer."))
+        if sum(len(m["content"]) for m in messages) > SHARE_MAX_CHARS:
+            raise HTTPException(status_code=422, detail=tr("Der Chat ist zu lang zum Teilen."))
+        row = store.share_upsert(profile.id, chat_id, mode, title, messages, expires_days if mode == "public" else 0)
+        return share_view(row) or {}
+
+    @app.post("/api/chats/{chat_id}/share", dependencies=[Depends(write_guard)])
+    def create_share(chat_id: str, body: ShareBody, profile: Profile = Depends(current_profile)) -> dict:
+        return take_share(profile, chat_id, body.mode, 30 if body.expires_days is None and not store.share_get(profile.id, chat_id, body.mode) else body.expires_days)
+
+    @app.post("/api/chats/{chat_id}/share/refresh", dependencies=[Depends(write_guard)])
+    def refresh_share(chat_id: str, body: ShareModeBody, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        if store.share_get(profile.id, chat_id, body.mode) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return take_share(profile, chat_id, body.mode, None)
+
+    @app.delete("/api/chats/{chat_id}/share/{mode}", status_code=204, dependencies=[Depends(write_guard)])
+    def revoke_share(chat_id: str, mode: Literal["instance", "public"], profile: Profile = Depends(current_profile)) -> Response:
+        if not store.share_delete(profile.id, chat_id, mode):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.get("/api/shared")
+    def list_shared(profile: Profile = Depends(current_profile)) -> list[dict]:
+        """Von anderen in dieser Instanz geteilte Chats (nur Titel, Person und Stand)."""
+        sharing_or_404()
+        return [{"id": r["id"], "title": r["title"], "owner": owner_label(r["profile_id"]), "taken_at": r["taken_at"]} for r in store.shares_for_others(profile.id)]
+
+    @app.get("/api/shared/{share_id}")
+    def read_shared(share_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        row = store.share_read(share_id=share_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"id": row["id"], "title": row["title"], "owner": owner_label(row["profile_id"]), "taken_at": row["taken_at"],
+                "mine": row["profile_id"] == profile.id, "messages": row["messages"]}
+
+    @app.post("/api/shared/{share_id}/copy", status_code=201, dependencies=[Depends(write_guard)])
+    def copy_shared(share_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Als eigene Kopie weiterführen: ein neuer Chat der Person mit dem geteilten Text. Er läuft mit ihren Rechten und ihrem Gedächtnis."""
+        sharing_or_404()
+        row = store.share_read(share_id=share_id)
+        if row is None or not row["messages"]:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return store.import_chat(profile.id, _title_from(tr("Kopie: {title}", title=row["title"])), row["messages"])
 
     # ------------------------------------------------------------ Projektwissen
 
@@ -2236,6 +2359,7 @@ def register_chat_routes(
         # Eingefügter Text stammt von der Person selbst (wie getippter Text) und gilt nicht als fremder Inhalt.
         foreign_files = [f for f in files if not f.pasted]
         key = (profile.id, chat_id)
+        imported = bool((store.get_chat(profile.id, chat_id) or {}).get("imported"))  # Verlauf aus einem geteilten Chat: fremder Inhalt
         previous = live_run(key)
         if previous and not previous.finished:
             raise HTTPException(status_code=409, detail=tr("In diesem Chat läuft bereits eine Antwort"))
@@ -2367,7 +2491,7 @@ def register_chat_routes(
                 limit_to_exposed=settings.ha_limit_to_exposed,
                 confirm_writes=settings.ha_write_confirm == "ask",
                 # Dateien können eingeschleuste Anweisungen enthalten: dann nichts ohne ausdrückliches Zulassen
-                force_confirm=lambda: bool(files) or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or imported or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write") for a in run.actions.values()),
                 ask=ask,
                 record=run.push,
                 chat_allowed=lambda: key in chat_allow,
@@ -2382,7 +2506,7 @@ def register_chat_routes(
             chat_id=chat_id,
             memory_enabled=settings.memory_enabled and not incognito,  # Inkognito: weder lesen noch schreiben, auch nicht Haushalt und Projekt
             household_write=household_writable(profile),
-            force_confirm=bool(foreign_files),
+            force_confirm=bool(foreign_files) or imported,
             ask=ask_memory, record=run.push, next_id=run.next_tool_id,
             tainted=lambda: any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             overview=overview_allowed(profile),
@@ -2400,7 +2524,7 @@ def register_chat_routes(
                 store, profile.id, chat_id, images, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, limit_month=settings.image_limit_month, ask=ask_image,
                 # Gelesene Web- oder Dateiinhalte (und angehängte Dokumente) können Anweisungen enthalten: dann vor jedem Bild nachfragen
-                tainted=lambda: any(f.kind != "image" for f in foreign_files) or any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
+                tainted=lambda: imported or any(f.kind != "image" for f in foreign_files) or any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             )
             specs += image_box.specs()
         gh_level = "none" if spoken else github_level(profile)
@@ -2418,14 +2542,14 @@ def register_chat_routes(
                 gh_api, gh_level,
                 policy=gh_policy,
                 confirm_writes=settings.github_write_confirm == "ask",
-                force_confirm=lambda: bool(foreign_files) or any(a["kind"] in TAINTING_KINDS - {"gh-write"} for a in run.actions.values()),
+                force_confirm=lambda: bool(foreign_files) or imported or any(a["kind"] in TAINTING_KINDS - {"gh-write"} for a in run.actions.values()),
                 ask=ask_github, record=run.push, chat_allowed=lambda: key in github_allow, allow_chat=lambda: github_allow.add(key),
                 next_id=run.next_tool_id, file_bytes=attachment_bytes,
             ).specs()
         connector_box = ConnectorToolbox(
             connectors, profile.id,
             confirm_writes=settings.connector_write_confirm == "ask",
-            force_confirm=lambda: bool(foreign_files) or any(a["kind"] in TAINTING_KINDS - {"mcp-write"} for a in run.actions.values()),
+            force_confirm=lambda: bool(foreign_files) or imported or any(a["kind"] in TAINTING_KINDS - {"mcp-write"} for a in run.actions.values()),
             ask=ask_connector, record=run.push,
             chat_allowed=lambda cid: (profile.id, chat_id, cid) in connector_allow,
             allow_chat=lambda cid: connector_allow.add((profile.id, chat_id, cid)),
@@ -2968,6 +3092,41 @@ def build_public_app(
         response.delete_cookie(SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
         return response
 
+    # Öffentlicher Link zu einem geteilten Chat: ohne Anmeldung, nur lesen. Der Link besteht aus 43 zufälligen Zeichen
+    # (256 Bit); wer ihn nicht kennt, kann ihn nicht erraten. Je Gegenstelle begrenzt, nie für Suchmaschinen, nie gemerkt.
+    share_limit = RateLimiter(60, 600)
+
+    def public_share(request: Request, token: str) -> dict:
+        ip = client_ip(request)
+        if not share_limit.allow(ip):
+            raise HTTPException(status_code=429, detail=tr("Zu viele Versuche"))
+        if settings.sharing != "public" or not SHARE_TOKEN.fullmatch(token):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        row = store.share_read(token=token, mode="public")
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return row
+
+    @app.get("/s/{token}", response_class=HTMLResponse, include_in_schema=False)
+    def shared_page(request: Request, token: str) -> Response:
+        # Dieselbe Seite auch bei ungültigem Link (Status 404): sie holt die Daten und zeigt dann die Meldung in der Seitensprache.
+        try:
+            public_share(request, token)
+            status = 200
+        except HTTPException as exc:
+            status = exc.status_code
+        page = _shared_page(branding, version)
+        page.status_code = status
+        return page
+
+    @app.get("/s/{token}/data", include_in_schema=False)
+    def shared_data(request: Request, token: str) -> JSONResponse:
+        row = public_share(request, token)
+        return JSONResponse(
+            {"title": row["title"], "taken_at": row["taken_at"], "expires_at": row["expires_at"], "messages": row["messages"]},
+            headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noarchive"},
+        )
+
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "domain", "can_logout": True},
@@ -3010,6 +3169,12 @@ async def _sweep_loop(backend: ChatBackend, store: Store | None = None, voice_da
                     log.info("%d abgelaufene erzeugte Dateien entfernt", removed)
             except Exception:
                 log.warning("Aufräumen der erzeugten Dateien fehlgeschlagen", exc_info=True)
+            try:
+                expired = await asyncio.to_thread(store.share_sweep)
+                if expired:
+                    log.info("%d abgelaufene Chat-Freigaben entfernt", expired)
+            except Exception:
+                log.warning("Aufräumen der Chat-Freigaben fehlgeschlagen", exc_info=True)
             try:
                 left = await asyncio.to_thread(store.incognito_sweep, INCOGNITO_IDLE_MINUTES)
                 if left:

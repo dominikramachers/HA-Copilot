@@ -71,6 +71,9 @@ configuration:
       incognito_enabled:
         name: Inkognito-Chat erlauben
         description: 'An (Standard): Neben „Neuer Chat“ gibt es das Gespenster-Symbol für einen Inkognito-Chat. Er steht in keiner Liste und Suche, nutzt und ändert kein Gedächtnis, wird nicht exportiert und beim Schließen gelöscht. Aus: kein Inkognito-Chat.'
+      sharing:
+        name: Chats teilen
+        description: 'instance (Standard): Chats lassen sich mit allen Personen in dieser Instanz teilen (lesen oder als Kopie weiterführen). public: zusätzlich ein öffentlicher Link ohne Anmeldung (nur lesen, nur über den Domain-Zugang, mit Ablauf und jederzeit widerrufbar). off: kein Teilen. Inkognito-Chats lassen sich nie teilen.'
       files_enabled:
         name: Dateien erzeugen
         description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'

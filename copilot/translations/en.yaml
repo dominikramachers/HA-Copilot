@@ -71,6 +71,9 @@ configuration:
       incognito_enabled:
         name: Allow incognito chat
         description: 'On (default): the ghost icon next to “New chat” starts an incognito chat. It appears in no list or search, neither reads nor changes memory, is not exported and is deleted when closed. Off: no incognito chat.'
+      sharing:
+        name: Share chats
+        description: 'instance (default): chats can be shared with everyone in this instance (read or continue as a copy). public: additionally a public link without sign-in (read-only, only via the domain access, with expiry and revocable at any time). off: no sharing. Incognito chats can never be shared.'
       files_enabled:
         name: Create files
         description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'

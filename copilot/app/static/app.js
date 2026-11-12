@@ -12,6 +12,7 @@ const ICONS = {
   sliders: ["M4 7h9M17 7h3M4 17h3M11 17h9", "M15 5v4M9 15v4"],
   gauge: ["M4.5 17.5a8.5 8.5 0 1 1 15 0", "M12 13.5l3.2-4.2", "M12 13.5h.01"],
   github: ["M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"],
+  share: ["M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"],
   link: ["M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1", "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"],
   download: ["M12 4v11M7 11l5 5 5-5M5 20h14"],
   attach: ["M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"],
@@ -942,6 +943,7 @@ async function chatMenu(chat, anchor) {
   const pin = { value: "pin", icon: "pin", label: chat.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" };
   const rename = { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" };
   const exportMd = { value: "export", icon: "download", label: tr("Als Markdown exportieren") };
+  const share = canShare() && !chat.kind ? [{ value: "share", icon: "share", label: tr("Teilen …") }] : [];
   const remove = { value: "delete", icon: "trash", label: tr("Löschen"), danger: true, key: "D" };
   let choice;
   if (anchor && wideScreen()) {
@@ -958,6 +960,7 @@ async function chatMenu(chat, anchor) {
       { icon: "stack", label: tr("Projekt wechseln"), submenu: projects, search: tr("Projekt suchen") },
       ...(chat.project_id ? [{ value: "unproject", icon: "folderX", label: tr("Aus Projekt entfernen") }] : []),
       exportMd,
+      ...share,
       { divider: true },
       remove,
     ]);
@@ -968,6 +971,7 @@ async function chatMenu(chat, anchor) {
         unread, pin, rename,
         { value: "move", icon: "folder", label: chat.project_id ? tr("Projekt ändern") : tr("In Projekt verschieben") },
         exportMd,
+        ...share,
         remove,
       ],
     });
@@ -978,6 +982,7 @@ async function chatMenu(chat, anchor) {
   else if (choice === "move") await moveChat(chat);
   else if (choice === "unproject") await moveChatTo(chat, "");
   else if (choice === "export") await exportChat(chat);
+  else if (choice === "share") await shareChat(chat);
   else if (typeof choice === "string" && choice.startsWith("move:")) await moveChatTo(chat, choice.slice(5));
   else if (choice === "delete") await deleteChat(chat);
 }
@@ -6147,6 +6152,145 @@ async function exportChat(chat) {
   }
 }
 
+// ------------------------------------------------- Chats teilen
+
+const canShare = () => !!state.me?.sharing && state.me.sharing !== "off";
+
+// Teilen-Fenster: je ein Block für „in dieser Instanz“ und (wenn erlaubt) für den öffentlichen Link. Geteilt wird immer ein Stand
+// von jetzt; spätere Nachrichten erscheinen erst nach „Stand aktualisieren“. Anhänge und Gedächtnis-Hinweise werden nie mitgeteilt.
+async function shareChat(chat) {
+  await openSheet({
+    title: tr("Chat teilen"), sub: chat.title, ok: tr("Fertig"),
+    panel: (body) => { drawSharePanel(body, chat).catch(() => { body.textContent = tr("Das hat nicht geklappt."); }); },
+  });
+}
+
+async function drawSharePanel(body, chat) {
+  const base = `api/chats/${encodeURIComponent(chat.id)}/share`;
+  const data = await api(base);
+  const draw = (next) => { body.replaceChildren(...next); };
+  const act = async (button, run, success) => {
+    button.disabled = true;
+    try {
+      await run();
+      if (success) toast(success);
+      await drawSharePanel(body, chat);
+    } catch (err) {
+      button.disabled = false;
+      toast(errorText(err, tr("Das hat nicht geklappt.")));
+    }
+  };
+  const button = (label, iconName, cls, run, success) => {
+    const b = node("button", `pill ${cls}`);
+    b.type = "button";
+    if (iconName) b.append(icon(iconName));
+    b.append(node("span", "", label));
+    b.addEventListener("click", () => act(b, run, success));
+    return b;
+  };
+  const post = (path, payload) => () => api(`${base}${path}`, { method: "POST", body: JSON.stringify(payload) });
+
+  const local = node("div", "data-block share-block");
+  local.append(node("b", "", tr("In dieser Instanz")));
+  local.append(node("p", "mem-hint", tr("Andere Personen dieser Instanz finden den Chat unter „Geteilte Chats“, können ihn lesen und als eigene Kopie weiterführen. Sie sehen den Stand von jetzt.")));
+  if (data.instance) {
+    local.append(node("p", "share-state", tr("Geteilt, Stand {0}.", exactTime(data.instance.taken_at))));
+    const row = node("div", "share-actions");
+    row.append(
+      button(tr("Stand aktualisieren"), "refresh", "ghost", post("/refresh", { mode: "instance" }), tr("Stand aktualisiert.")),
+      button(tr("Nicht mehr teilen"), "close", "ghost data-danger", () => api(`${base}/instance`, { method: "DELETE" }), tr("Nicht mehr geteilt.")),
+    );
+    local.append(row);
+  } else {
+    local.append(button(tr("In der Instanz teilen"), "share", "primary", post("", { mode: "instance" }), tr("Chat geteilt.")));
+  }
+  const blocks = [local];
+
+  if (data.sharing === "public") {
+    const pub = node("div", "data-block share-block");
+    pub.append(node("b", "", tr("Öffentlicher Link")));
+    pub.append(node("p", "mem-hint", tr("Jede Person mit dem Link kann den Chat lesen, ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Inhalt zeigen willst.")));
+    if (!data.public_available) {
+      pub.append(node("p", "share-state", tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet.")));
+    } else if (data.public) {
+      const field = node("input", "share-url");
+      field.type = "text";
+      field.readOnly = true;
+      field.value = data.public.url;
+      field.setAttribute("aria-label", tr("Öffentlicher Link"));
+      field.addEventListener("focus", () => field.select());
+      pub.append(field);
+      const until = data.public.expires_at ? tr("Gültig bis {0}.", exactTime(data.public.expires_at)) : tr("Läuft nicht ab.");
+      pub.append(node("p", "share-state", `${tr("Stand {0}.", exactTime(data.public.taken_at))} ${until}`));
+      const row = node("div", "share-actions");
+      const copy = node("button", "pill primary");
+      copy.type = "button";
+      copy.append(icon("copy"), node("span", "", tr("Link kopieren")));
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(data.public.url); toast(tr("Kopiert.")); } catch { field.select(); toast(tr("Zum Kopieren Strg+C drücken.")); }
+      });
+      row.append(
+        copy,
+        button(tr("Stand aktualisieren"), "refresh", "ghost", post("/refresh", { mode: "public" }), tr("Stand aktualisiert.")),
+        button(tr("Link widerrufen"), "close", "ghost data-danger", () => api(`${base}/public`, { method: "DELETE" }), tr("Link widerrufen.")),
+      );
+      pub.append(row);
+    } else {
+      const label = node("label", "share-expiry");
+      label.append(node("span", "", tr("Gültig für")));
+      const select = node("select");
+      for (const [value, text] of [["30", tr("30 Tage")], ["7", tr("7 Tage")], ["0", tr("unbegrenzt")]]) select.append(new Option(text, value));
+      label.append(select);
+      pub.append(label);
+      const create = button(tr("Link erstellen"), "link", "primary", () => post("", { mode: "public", expires_days: Number(select.value) })(), tr("Link erstellt."));
+      pub.append(create);
+    }
+    blocks.push(pub);
+  }
+  draw(blocks);
+}
+
+// Geteilte Chats anderer Personen: Liste, Lesen und „Als Kopie weiterführen“.
+async function openSharedChats() {
+  let list;
+  try { list = await api("api/shared"); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); return; }
+  if (!list.length) { toast(tr("Niemand hat bisher einen Chat mit dir geteilt.")); return; }
+  const id = await openSheet({
+    title: tr("Geteilte Chats"), sub: tr("Von anderen Personen in dieser Instanz"),
+    items: list.map((c) => ({ value: c.id, icon: "chat", label: `${c.title} · ${c.owner}` })),
+  });
+  if (id) await openSharedChat(id);
+}
+
+async function openSharedChat(id) {
+  let chat;
+  try { chat = await api(`api/shared/${encodeURIComponent(id)}`); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); return; }
+  let copied = null;
+  await openSheet({
+    title: chat.title, sub: tr("Geteilt von {0}, Stand {1}. Du kannst nur lesen.", chat.owner, exactTime(chat.taken_at)),
+    ok: tr("Als Kopie weiterführen"),
+    panel: (body) => {
+      const thread = node("div", "share-thread");
+      for (const m of chat.messages) {
+        const el = node("div", `msg ${m.role === "user" ? "user" : "assistant"}`);
+        if (m.role === "user") el.textContent = m.content; else el.append(window.renderMarkdown(m.content));
+        thread.append(el);
+      }
+      body.append(thread, node("p", "mem-hint", tr("Die Kopie ist ein eigener Chat von dir. Aktionen darin fragen immer erst nach, weil der Inhalt von jemand anderem stammt.")));
+    },
+    onOk: async () => {
+      try {
+        copied = await api(`api/shared/${encodeURIComponent(id)}/copy`, { method: "POST" });
+        return true;
+      } catch (err) {
+        toast(errorText(err, tr("Das hat nicht geklappt.")));
+        return false;
+      }
+    },
+  });
+  if (copied) { await loadAll(); await selectChat(copied.id); }
+}
+
 // Ausschnitt mit hervorgehobenen Fundstellen (nur Textknoten, kein HTML)
 function highlighted(text, spans) {
   const out = node("span", "srch-snip");
@@ -6177,6 +6321,7 @@ function searchActions() {
   ];
   if (state.me?.schedules) list.push({ icon: "clock", label: tr("Geplant"), run: () => openSchedules() });
   if (state.me?.memory) list.push({ icon: "memory", label: tr("Gedächtnis"), run: () => openMemory() });
+  if (canShare()) list.push({ icon: "share", label: tr("Geteilte Chats"), run: () => openSharedChats() });
   list.push({ icon: "download", label: tr("Meine Daten"), run: () => openMyData() });
   return list.map((a) => ({ ...a, id: `a-${a.label}`, title: a.label, meta: "", marks: [] }));
 }

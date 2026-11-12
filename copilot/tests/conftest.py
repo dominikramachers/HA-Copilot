@@ -62,6 +62,7 @@ GROUPED = {
     "memory_enabled": ("chat", "memory_enabled"),
     "schedules_enabled": ("chat", "schedules_enabled"),
     "incognito_enabled": ("chat", "incognito_enabled"),
+    "sharing": ("chat", "sharing"),
     "files_enabled": ("chat", "files_enabled"),
     "github_access_default": ("chat", "github_access_default"),
     "connector_access_default": ("chat", "connector_access_default"),
