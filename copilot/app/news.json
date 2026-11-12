@@ -1,5 +1,70 @@
 [
   {
+    "version": "0.56.0",
+    "items": [
+      {
+        "de": {
+          "title": "Inkognito-Chat",
+          "text": "Mit dem Gespenster-Symbol öffnest du einen Chat, in dem ich nichts speichere. Er steht in keiner Liste und wird gelöscht, sobald du ihn verlässt."
+        },
+        "en": {
+          "title": "Incognito chat",
+          "text": "The ghost icon opens a chat where I save nothing. It appears in no list and is deleted as soon as you leave it."
+        }
+      },
+      {
+        "de": {
+          "title": "Chats teilen",
+          "text": "Du kannst einen Chat mit anderen teilen. Sie lesen ihn oder führen ihn als eigene Kopie weiter. Wenn der Admin es erlaubt, gibt es auch einen Link ohne Anmeldung."
+        },
+        "en": {
+          "title": "Share chats",
+          "text": "You can share a chat with others. They read it or continue it as their own copy. If the admin allows it, there is also a link that needs no sign-in."
+        }
+      },
+      {
+        "de": {
+          "title": "Gründlich recherchieren",
+          "text": "Wenn der Admin es erlaubt, recherchiere ich auf Wunsch in mehreren Runden im Web und schreibe einen Bericht. Quellen, die ich nicht belegen kann, lasse ich weg."
+        },
+        "en": {
+          "title": "Research in depth",
+          "text": "If the admin allows it, I can research the web in several rounds on request and write a report. I leave out sources I cannot back up."
+        }
+      },
+      {
+        "de": {
+          "title": "Ich kenne die Chats im Projekt",
+          "text": "In einem Projekt kann ich in den anderen Chats desselben Projekts nachlesen, wenn du dich auf früher beziehst."
+        },
+        "en": {
+          "title": "I know the chats in a project",
+          "text": "In a project I can look through the other chats of the same project when you refer to something from before."
+        }
+      },
+      {
+        "de": {
+          "title": "Dateien im Projekt ablegen",
+          "text": "Hochgeladene Dateien bleiben im Original erhalten. Meine Ergebnisse legst du mit einem Knopf im Projekt ab, auf Wunsch tue ich das auch selbst."
+        },
+        "en": {
+          "title": "Keep files in a project",
+          "text": "Uploaded files are kept as the original. You can save my results in the project with one button, or I do it for you on request."
+        }
+      },
+      {
+        "de": {
+          "title": "Mein Gedächtnis ist übersichtlicher",
+          "text": "Ich merke mir auch Dinge nur für ein Projekt. Du siehst, woher ein Eintrag stammt, und kannst eine Änderung mit „Rückgängig“ zurücknehmen."
+        },
+        "en": {
+          "title": "My memory is clearer",
+          "text": "I can also remember things for one project only. You can see where an entry comes from and undo a change with “Undo”."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.55.2",
     "items": [
       {

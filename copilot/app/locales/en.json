@@ -649,7 +649,7 @@
  "Plane die Recherche …": "Planning the research …",
  "Recherche {i} von {n}: {q}": "Research {i} of {n}: {q}",
  "Schreibe den Bericht …": "Writing the report …",
- "*Hinweis: {n} Quellenangaben, die in den Recherche-Notizen nicht vorkamen, wurden entfernt.*": "*Note: {n} source references that did not appear in the research notes were removed.*",
+ "*Hinweis: Quellenangaben, die in den Recherche-Notizen nicht vorkamen, wurden entfernt (Anzahl: {n}).*": "*Note: source references that did not appear in the research notes were removed (count: {n}).*",
  "*Hinweis: Die Recherche wurde wegen der Zeitgrenze vorzeitig beendet; nicht alle Teilfragen sind abgedeckt.*": "*Note: The research was ended early because of the time limit; not all questions are covered.*",
  "*Der Bericht konnte nicht fertig geschrieben werden. Das sind die Notizen der Recherche:*": "*The report could not be finished. These are the notes from the research:*"
 }

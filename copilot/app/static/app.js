@@ -820,6 +820,16 @@ async function loadAll() {
   state.projects = projects;
   renderSide();
   syncBadge();
+  refreshShared().catch(() => {});
+}
+
+// „Geteilte Chats“ steht in der Seitenleiste nur, wenn jemand etwas mit dir geteilt hat.
+async function refreshShared() {
+  const button = $("nav-shared");
+  if (!button) return;
+  let count = 0;
+  if (canShare()) count = (await api("api/shared")).length;
+  button.hidden = count === 0;
 }
 
 // Ein Punkt vor dem Namen im Tab-Titel zeigt ungelesene Chats auch dann, wenn der Tab im Hintergrund liegt.
@@ -7611,6 +7621,7 @@ async function init() {
   $("nav-schedules").addEventListener("click", () => { openSchedules().catch(() => {}); });
   $("nav-search").addEventListener("click", () => { openSearch().catch(() => {}); });
   $("nav-skills").addEventListener("click", () => { openSkills().catch(() => {}); });
+  $("nav-shared").addEventListener("click", () => { openSharedChats().catch(() => {}); });
   initShortcuts();
   $("account").addEventListener("click", () => { accountMenu().catch(() => {}); });
   $("new-chat-top").addEventListener("click", () => startNew());

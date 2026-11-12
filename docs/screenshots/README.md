@@ -16,5 +16,11 @@ Alle Bilder zeigen eine Test-Instanz von Home Assistant mit Demo-Geräten und di
 | `menue.png` | Menü eines Chats |
 | `chat-hell.png`, `chat-dunkel.png`, `chat-handy.png` | Die App allein (z. B. über die Domain), hell, dunkel, auf dem Handy |
 | `chat-en.png` | Englische Oberfläche (`language: en`) |
+| `sprachchat.png` | Sprechen mit der KI: Fenster mit der Partikel-Kugel, hört zu |
+| `inkognito.png` | Neuer Inkognito-Chat mit den Hinweisen, was (nicht) gespeichert wird |
+| `chat-teilen.png`, `geteilter-chat-oeffentlich.png`, `geteilte-chats.png` | Teilen-Fenster mit Link; die öffentliche Seite ohne Anmeldung; „Geteilte Chats“ einer anderen Person |
+| `deep-research-menue.png`, `deep-research-rueckfrage.png`, `deep-research-bericht.png` | Schalter im Menü; Rückfrage vor dem Start; Bericht mit Quellenliste und Hinweis, dass eine nicht belegte Quelle entfernt wurde (die nachgebildete KI nennt absichtlich eine erfundene) |
+| `projekt-wissen.png` | Projektwissen mit hochgeladenem Original (Download) und einer Notiz der KI |
+| `gedaechtnis-projekt.png` | Gedächtnis mit Herkunft je Eintrag (gesagt, von der KI abgeleitet, von dir eingetragen) und dem Bereich „Projekt“ |
 
 Nicht abgebildet, weil nur ein echter Supervisor sie liefert: der Add-on-Store und die Konfigurationsseite des Add-ons in Home Assistant. Die Schritte dort beschreibt [docs/installation.md](../installation.md) im Text.

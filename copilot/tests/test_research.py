@@ -125,7 +125,7 @@ def test_run_caps_questions_and_falls_back_to_the_question():
 def test_run_removes_invented_sources_and_says_so():
     script = Script(report=f"# T\n\n[Echt]({GOOD}) und [Falsch](https://erfunden.example/q).\n\nQuellen:\n- https://erfunden.example/r\n")
     result, _ = go(script)
-    assert result.removed == 2 and "erfunden.example" not in result.report and "2 Quellenangaben" in result.report
+    assert result.removed == 2 and "erfunden.example" not in result.report and "Anzahl: 2" in result.report
 
 
 def test_run_survives_a_failed_step_but_not_without_any_notes():

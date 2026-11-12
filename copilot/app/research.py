@@ -289,7 +289,7 @@ async def run(question: str, *, collect: Collect, status: Status, max_questions:
     known = urls_in("\n".join(text for _, text in notes))
     report, removed = enforce_sources(report[:REPORT_MAX], known)
     if removed:
-        report += "\n\n" + tr("*Hinweis: {n} Quellenangaben, die in den Recherche-Notizen nicht vorkamen, wurden entfernt.*", n=removed)
+        report += "\n\n" + tr("*Hinweis: Quellenangaben, die in den Recherche-Notizen nicht vorkamen, wurden entfernt (Anzahl: {n}).*", n=removed)
     if stopped:
         report += "\n\n" + tr("*Hinweis: Die Recherche wurde wegen der Zeitgrenze vorzeitig beendet; nicht alle Teilfragen sind abgedeckt.*")
     return Result(report=report, title=title_of(report, question), steps=steps, failed=failed, removed=removed, stopped_early=stopped, notes=notes)
