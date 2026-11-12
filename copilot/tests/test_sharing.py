@@ -226,3 +226,23 @@ def test_me_reports_sharing(apps):
     assert me["sharing"] == "public" and me["sharing_public"] is True
     inner, _ = apps("off")
     assert inner.get("/api/me", headers=as_user(DORA)).json()["sharing"] == "off"
+
+
+def test_chat_list_marks_shared_chats(apps):
+    inner, _ = apps("public")
+    shared, plain = chat_with_text(inner), chat_with_text(inner, text="Frage zwei")
+
+    def marks():
+        return {c["id"]: c["shared"] for c in inner.get("/api/chats", headers=H).json()}
+
+    assert marks() == {shared["id"]: [], plain["id"]: []}
+    share(inner, shared, "instance")
+    assert marks()[shared["id"]] == ["instance"] and marks()[plain["id"]] == []
+    share(inner, shared, "public")
+    assert marks()[shared["id"]] == ["instance", "public"]
+    inner.delete(f"/api/chats/{shared['id']}/share/instance", headers=H)
+    assert marks()[shared["id"]] == ["public"]
+    inner.delete(f"/api/chats/{shared['id']}/share/public", headers=H)
+    assert marks()[shared["id"]] == []
+    off, _ = apps("off")
+    assert all(c["shared"] == [] for c in off.get("/api/chats", headers=H).json())

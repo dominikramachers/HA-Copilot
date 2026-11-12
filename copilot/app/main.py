@@ -1369,10 +1369,12 @@ def register_chat_routes(
 
     @app.get("/api/chats")
     def list_chats(profile: Profile = Depends(current_profile)) -> list[dict]:
-        # "running": Antwort wird gerade erzeugt (auch wenn der Browser nicht mehr zuhört)
+        # "running": Antwort wird gerade erzeugt (auch wenn der Browser nicht mehr zuhört); "shared": Freigaben des Chats (instance, public)
+        shares = store.share_modes(profile.id) if settings.sharing != "off" else {}
         return [
             {
                 **chat,
+                "shared": shares.get(chat["id"], []),
                 "running": bool((run := runs.get((profile.id, chat["id"]))) and not run.finished),
                 "needs_approval": bool(run and not run.finished and run.pending),
             }

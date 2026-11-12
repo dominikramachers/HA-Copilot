@@ -1,4 +1,4 @@
-"""Bilder zu den Funktionen ab 0.56.0: Sprechen, Inkognito, Teilen (Fenster, Liste, öffentliche Seite), Deep Research, Projektwissen, Gedächtnis.
+"""Bilder zu den Funktionen ab 0.56.0: Sprechen, Inkognito, Kopfzeile und Teilen (Fenster, „Geteilt“, öffentliche Seite), Deep Research, Projektwissen, Gedächtnis.
 
 Braucht die frisch gestartete Demo-App (``demo_addon.py``, Port 8099, öffentliche Seite auf 8097). Aufruf: ``python capture_neu.py docs/screenshots``.
 Die Demo-App danach neu starten: Das Skript legt Freigaben und einen Recherche-Lauf an.
@@ -62,14 +62,16 @@ with sync_playwright() as p:
     # --- Chat teilen: Fenster, Link, Liste der anderen Person, öffentliche Seite
     c = context(b, ME, 1280, 900); pg = start(c)
     open_chat(pg, "Haus", "Lichter")
-    row = pg.locator(".row.chat-item", has_text="Lichter").first
-    row.hover(); row.locator(".more").click(); pg.wait_for_timeout(400)
-    pg.locator("button:visible", has_text="Teilen").first.click(); pg.wait_for_selector("#sheet-panel .share-block"); pg.wait_for_timeout(400)
-    pg.click("text=In der Instanz teilen"); pg.wait_for_selector("text=Nicht mehr teilen"); pg.wait_for_timeout(300)
-    pg.click("text=Link erstellen"); pg.wait_for_selector(".share-url"); pg.evaluate("document.getElementById('toast').hidden = true"); pg.wait_for_timeout(300)  # ohne das Hinweisfenster „Link erstellt“
-    url = pg.input_value(".share-url")
+    pg.click("#crumb-menu"); pg.wait_for_selector(".popover"); pg.wait_for_timeout(300)
+    pg.screenshot(path=f"{OUT}/kopfzeile.png", clip={"x": 0, "y": 0, "width": 1280, "height": 460})  # Pfad „Projekt / Chat ▾“ mit geöffnetem Chat-Menü
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
+    if pg.locator(".popover").count(): pg.mouse.click(700, 700); pg.wait_for_timeout(300)
+    pg.click("#share-top"); pg.wait_for_selector(".share-access"); pg.wait_for_timeout(300)
+    pg.click(".share-access"); pg.wait_for_selector(".share-opt"); pg.locator(".share-opt").nth(2).click(); pg.wait_for_selector(".share-main:has-text('Link kopieren')"); pg.wait_for_timeout(300)
+    pg.evaluate("document.getElementById('toast').hidden = true"); pg.wait_for_timeout(300)  # ohne das Hinweisfenster „Chat geteilt“
+    url = pg.evaluate("(id) => fetch(`api/chats/${id}/share`).then(r => r.json()).then(d => d.public.url)", pg.evaluate("state.activeId"))
     pg.screenshot(path=f"{OUT}/chat-teilen.png")
-    pg.keyboard.press("Escape"); pg.wait_for_timeout(300)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
     c.close()
 
     c = context(b, {}, 1280, 800); pp = c.new_page(); pp.goto(url); pp.wait_for_selector(".msg.assistant"); pp.wait_for_timeout(600)

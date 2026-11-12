@@ -15,11 +15,21 @@
       {
         "de": {
           "title": "Chats teilen",
-          "text": "Du kannst einen Chat mit anderen teilen. Sie lesen ihn oder führen ihn als eigene Kopie weiter. Wenn der Admin es erlaubt, gibt es auch einen Link ohne Anmeldung."
+          "text": "Über „Teilen“ oben rechts teilst du einen Chat mit anderen. Sie lesen ihn oder führen ihn als eigene Kopie weiter. Alles Geteilte findest du unter „Geteilt“."
         },
         "en": {
           "title": "Share chats",
-          "text": "You can share a chat with others. They read it or continue it as their own copy. If the admin allows it, there is also a link that needs no sign-in."
+          "text": "With “Share” at the top right you share a chat with others. They read it or continue it as their own copy. Everything shared is listed under “Shared”."
+        }
+      },
+      {
+        "de": {
+          "title": "Pfad und Name oben im Chat",
+          "text": "Oben siehst du Projekt und Chatname. Ein Klick auf den Namen benennt den Chat um, der Pfeil daneben öffnet seine Aktionen."
+        },
+        "en": {
+          "title": "Path and name at the top",
+          "text": "At the top you see the project and chat name. Click the name to rename the chat; the arrow next to it opens its actions."
         }
       },
       {

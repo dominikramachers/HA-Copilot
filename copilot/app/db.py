@@ -1743,6 +1743,19 @@ class Store:
             ).fetchall()
         return [self._share(r) for r in rows]
 
+    def share_modes(self, profile_id: str) -> dict[str, list[str]]:
+        """Welche Chats der Person gerade geteilt sind: ``{chat_id: ['instance', 'public']}`` (abgelaufene Freigaben zählen nicht)."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT chat_id, mode FROM chat_shares WHERE profile_id = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY mode",
+                (profile_id, _now()),
+            ).fetchall()
+        out: dict[str, list[str]] = {}
+        for row in rows:
+            out.setdefault(row["chat_id"], []).append(row["mode"])
+        return out
+
     def share_sweep(self) -> int:
         with self._lock, self._conn:
             return self._conn.execute("DELETE FROM chat_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (_now(),)).rowcount

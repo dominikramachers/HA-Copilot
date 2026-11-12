@@ -14,11 +14,14 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 - **Inkognito-Chat:** Das Gespenster-Symbol neben „Neuer Chat“ öffnet einen Chat, in dem nichts zurückbleibt: kein Gedächtnis, nicht in der Liste oder Suche, kein Export, keine Sicherung. Beim Verlassen wird er samt Dateien gelöscht. Die KI sagt, wenn du sie bittest, sich etwas zu merken, dass das hier nicht geht.
 ![Inkognito-Chat](screenshots/inkognito.png)
 
-- **Chats teilen:** Im Chat-Menü (⋯) gibt es **Teilen …**: Alle Personen der Instanz sehen den Stand unter **Geteilte Chats** (Seitenleiste, sobald dir jemand etwas geteilt hat) und können ihn als eigene Kopie weiterführen. Optional gibt es einen **öffentlichen Link** ohne Anmeldung (nur lesen, mit Ablauf, jederzeit widerrufbar; `chat.sharing: public`). Geteilt wird ein Schnappschuss ohne Anhänge und Protokoll.
+- **Kopfzeile wie in Claude:** Über dem Chat steht **Projekt / Chatname ▾**: Klick auf den Namen = umbenennen, Pfeil = Chat-Menü, rechts der Knopf **Teilen**.
+- **Chats teilen:** Im Fenster **Chat teilen** wählst du unter **Wer hat Zugriff**: nur ich, alle in der Instanz oder jede Person mit dem Link (ohne Anmeldung, nur lesen, mit Ablauf; `chat.sharing: public`). Geteilte Chats tragen in der Liste ein kleines Symbol, alles Geteilte steht unter **Geteilt** in der Seitenleiste (von dir und mit dir), andere lesen den Stand oder führen ihn als eigene Kopie weiter. Geteilt wird ein Schnappschuss ohne Anhänge und Protokoll.
 - **Deep Research** (optional, Standard aus): Im Menü unter dem Eingabefeld lässt sich für die nächste Nachricht eine **Tiefenrecherche** einschalten: Die KI plant, sucht in mehreren Runden im Web, gleicht die Funde ab und schreibt einen Bericht mit geprüfter Quellenliste. Vorher fragt der Chat nach, weil ein Lauf mehrere Minuten dauert und viel Kontingent braucht (`chat.research_enabled`, `chat.research_daily_limit`).
-| Teilen-Fenster | Öffentliche Seite | Geteilte Chats einer anderen Person |
+| Teilen-Fenster | Öffentliche Seite | „Geteilt“ einer anderen Person |
 |---|---|---|
 | ![Teilen-Fenster mit Link](screenshots/chat-teilen.png) | ![Öffentliche Seite eines geteilten Chats](screenshots/geteilter-chat-oeffentlich.png) | ![Liste der geteilten Chats](screenshots/geteilte-chats.png) |
+
+![Kopfzeile des Chats: Projekt / Chatname mit Chat-Menü und Knopf Teilen](screenshots/kopfzeile.png)
 
 | Deep Research einschalten | Rückfrage vor dem Start | Bericht mit Quellen |
 |---|---|---|
