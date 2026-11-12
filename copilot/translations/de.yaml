@@ -68,6 +68,9 @@ configuration:
       schedules_enabled:
         name: Geplante Aufgaben erlauben
         description: 'An (Standard): Menüpunkt „Geplant“, in dem die KI zu festen Zeiten Aufgaben erledigt (nur lesend, ohne Rückfragen). Aus: keine geplanten Aufgaben, bestehende ruhen. Geplante Läufe verbrauchen Kontingent deines Abos.'
+      incognito_enabled:
+        name: Inkognito-Chat erlauben
+        description: 'An (Standard): Neben „Neuer Chat“ gibt es das Gespenster-Symbol für einen Inkognito-Chat. Er steht in keiner Liste und Suche, nutzt und ändert kein Gedächtnis, wird nicht exportiert und beim Schließen gelöscht. Aus: kein Inkognito-Chat.'
       files_enabled:
         name: Dateien erzeugen
         description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'

@@ -1308,3 +1308,13 @@ body.voice-open { overflow: hidden; }
 .mem-undone { color: var(--text-2); font-style: normal; }
 .mem-undo { font-weight: 600; }
 .mem-undo:disabled { opacity: .5; cursor: default; }
+
+/* ---------- Inkognito-Chat ---------- */
+#incognito-top { display: grid; }
+#incognito-top[hidden] { display: none; }
+#incognito-top[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+#incognito-top[aria-pressed="true"]:hover { background: var(--text); }
+:root.incognito .composer-box { border-style: dashed; }
+.hello .hello-ghost { width: 44px; height: 44px; margin-bottom: 12px; color: var(--text-2); }
+.incognito-facts { margin: 14px 0 0; padding: 0 0 0 20px; font-size: 15px; line-height: 1.5; color: var(--text-2); }
+.incognito-facts li + li { margin-top: 6px; }

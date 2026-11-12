@@ -120,6 +120,7 @@ class Settings:
     openai_limit_month: int = OPENAI_LIMIT_MONTH_DEFAULT  # Tausend Token je Person und Monat (0 = kein Limit)
     web_access_default: str = "on"  # Websuche und Seiten lesen (on | off), pro Benutzer überschreibbar (web_access)
     schedules_enabled: bool = True  # geplante Aufgaben (Menüpunkt „Geplant“)
+    incognito_enabled: bool = True  # Inkognito-Chat (nichts wird gespeichert)
     restore_snapshot: str = ""
     export_database: bool = False  # Datenbank beim Start in den Config-Ordner kopieren (Umzug in ein anderes Add-on)
     claude_token_expires: date | None = None
@@ -450,7 +451,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("ha_access_default muss none, read, execute oder write sein")
     chat = _group(
         raw, "chat",
-        "model, memory_enabled, schedules_enabled, files_enabled, github_access_default, connector_access_default, "
+        "model, memory_enabled, schedules_enabled, incognito_enabled, files_enabled, github_access_default, connector_access_default, "
         "openai_enabled, openai_api_key, openai_key_expires, openai_models, openai_limit_month",
     )
     openai_models_raw = chat.get("openai_models")
@@ -593,6 +594,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         openai_models=openai_models,
         openai_limit_month=openai_limit_month,
         schedules_enabled=bool(chat.get("schedules_enabled", True)),
+        incognito_enabled=bool(chat.get("incognito_enabled", True)),
         restore_snapshot=restore,
         export_database=bool(raw.get("export_database", False)),
         claude_token_expires=token_expires,

@@ -1017,5 +1017,15 @@
  "gesagt": "said",
  "von der KI abgeleitet": "inferred by the AI",
  "von dir eingetragen": "entered by you",
- "von dir gesagt": "said by you"
+ "von dir gesagt": "said by you",
+ "Beenden und löschen": "End and delete",
+ "Der Chat steht in keiner Liste und keiner Suche und wird nicht exportiert.": "The chat appears in no list or search and is not exported.",
+ "Der Chat und alles, was darin entstanden ist, wird gelöscht. Das lässt sich nicht rückgängig machen.": "The chat and everything created in it will be deleted. This can't be undone.",
+ "Er wird gelöscht, sobald du ihn verlässt oder die Seite schließt. Dateien, die ich erstelle, verschwinden mit ihm.": "It is deleted as soon as you leave it or close the page. Files I create disappear with it.",
+ "Hier bleibt nichts zurück.": "Nothing is left behind here.",
+ "Ich lese und ändere kein Gedächtnis: weder deins noch das des Haushalts oder eines Projekts.": "I neither read nor change any memory: not yours, nor the household's or a project's.",
+ "Inkognito-Chat": "Incognito chat",
+ "Inkognito-Chat beenden?": "End incognito chat?",
+ "Inkognito-Nachricht schreiben": "Write an incognito message",
+ "Zum Antworten verarbeitet der KI-Anbieter deine Nachrichten trotzdem. Was ich in Home Assistant oder anderen Diensten ausführe, steht dort weiterhin im Protokoll.": "To answer, the AI provider still processes your messages. What I do in Home Assistant or other services remains in their logs."
 }

@@ -2,7 +2,7 @@
 
 // Alle Pfade sind relativ, damit die Seite unter dem Ingress-Pfad von Home Assistant funktioniert.
 const $ = (id) => document.getElementById(id);
-const state = { view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
+const state = { incognito: false, incognitoId: null, view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
 const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
 
 // ---------------------------------------------------------------- Hilfen
@@ -49,6 +49,7 @@ const ICONS = {
   stack: ["M7 5h10M5 9h14M4 13h16l-1.5 6h-13z"],
   skill: ["M6 4h11a2 2 0 0 1 2 2v13H8a2 2 0 0 1-2-2z", "M6 17a2 2 0 0 1 2-2h11", "M10 8h5"],
   memory: ["M12 3a5 5 0 0 0-5 5c0 2 1 3 2 4v2h6v-2c1-1 2-2 2-4a5 5 0 0 0-5-5z", "M10 18h4M10.5 21h3"],
+  ghost: ["M5 21V11a7 7 0 0 1 14 0v10l-2.33-2-2.34 2-2.33-2-2.33 2-2.34-2z", "M9.5 11h.01M14.5 11h.01"],
   sun: ["M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z", "M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"],
   logout: ["M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h11"],
   upload: ["M12 16V5M7 9l5-5 5 5M5 20h14"],
@@ -478,8 +479,62 @@ function focusInput() {
 
 // Kopfzeile ohne Inhalt (Ruhezustand, kein Testmodus-Hinweis) blendet sich auf dem Handy in HA aus.
 function syncTopbar() {
-  $("topbar").classList.toggle("empty", !$("chat-title").textContent && $("test-badge").hidden);
+  syncIncognito();
+  $("topbar").classList.toggle("empty", !$("chat-title").textContent && $("test-badge").hidden && $("incognito-top").hidden);
 }
+
+// ---------------------------------------------------------------- Inkognito-Chat
+// Das Gespenster-Symbol oben rechts gibt es auf dem Startbild eines neuen Chats und in einem Inkognito-Chat. Der Chat entsteht erst
+// mit der ersten Nachricht auf dem Server (Art „incognito“) und wird gelöscht, sobald man ihn verlässt, die Seite schließt oder neu lädt.
+
+function syncIncognito() {
+  const button = $("incognito-top");
+  const here = state.view === "chat" && !!state.me?.incognito && (state.activeId === null || state.activeId === state.incognitoId);
+  button.hidden = !here;
+  button.setAttribute("aria-pressed", state.incognito ? "true" : "false");
+  document.documentElement.classList.toggle("incognito", here && state.incognito);
+  $("input").placeholder = composerPlaceholder();
+}
+
+function composerPlaceholder() {
+  if (state.files.length) return tr("Frage zu den Dateien stellen");
+  return document.documentElement.classList.contains("incognito") ? tr("Inkognito-Nachricht schreiben") : tr("Nachricht schreiben");
+}
+
+function endIncognito() {
+  const id = state.incognitoId;
+  state.incognitoId = null;
+  state.incognito = false;
+  if (id) api(`api/chats/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
+  syncIncognito();
+}
+
+async function toggleIncognito() {
+  if (state.activeId === null) {  // Startbild: Modus an oder aus
+    state.incognito = !state.incognito;
+    if (state.incognito) state.newProject = null;  // Inkognito gehört in kein Projekt
+    setTitle(state.incognito ? tr("Inkognito-Chat") : idleTitle());
+    showHello();
+    focusInput();
+    return;
+  }
+  if (state.activeId !== state.incognitoId) return;
+  const ok = await openSheet({
+    title: tr("Inkognito-Chat beenden?"),
+    sub: tr("Der Chat und alles, was darin entstanden ist, wird gelöscht. Das lässt sich nicht rückgängig machen."),
+    ok: tr("Beenden und löschen"),
+    danger: true,
+  });
+  if (ok) startNew();
+}
+
+// Schließt man die Seite oder lädt sie neu, geht die Löschung noch hinaus; was dabei liegen bleibt (Handy beendet den Tab), räumt der Server nach drei Stunden auf.
+window.addEventListener("pagehide", () => {
+  if (!state.incognitoId) return;
+  try {
+    fetch(`api/chats/${encodeURIComponent(state.incognitoId)}`, { method: "DELETE", keepalive: true, credentials: "same-origin", headers: { "X-Requested-With": "ki-chat" } });
+  } catch { /* der Server räumt auf */ }
+});
 
 function setTitle(text) {
   const el = $("chat-title");
@@ -814,8 +869,9 @@ async function refreshWhenSeen() {
 
 // Offener Chat bleibt nach dem Neuladen derselbe (nur in diesem Tab).
 function rememberActive() {
+  if (state.incognitoId && state.activeId !== state.incognitoId) endIncognito();  // den Inkognito-Chat verlassen: er wird gelöscht
   try {
-    if (state.activeId) sessionStorage.setItem("ki-active", state.activeId);
+    if (state.activeId && state.activeId !== state.incognitoId) sessionStorage.setItem("ki-active", state.activeId);
     else sessionStorage.removeItem("ki-active");
   } catch { /* optional */ }
   syncPresence();
@@ -3585,6 +3641,25 @@ function showHello() {
   mark.src = document.querySelector(".brand .mark")?.getAttribute("src") || "";
   mark.alt = "";
   mark.width = mark.height = 44;
+  if (state.incognito) {
+    const ghost = icon("ghost");
+    ghost.setAttribute("class", "icon hello-ghost");
+    const facts = node("ul", "incognito-facts");
+    for (const line of [
+      tr("Der Chat steht in keiner Liste und keiner Suche und wird nicht exportiert."),
+      tr("Ich lese und ändere kein Gedächtnis: weder deins noch das des Haushalts oder eines Projekts."),
+      tr("Er wird gelöscht, sobald du ihn verlässt oder die Seite schließt. Dateien, die ich erstelle, verschwinden mit ihm."),
+    ]) facts.append(node("li", "", line));
+    hello.append(
+      ghost,
+      node("h2", "", tr("Inkognito-Chat")),
+      node("p", "", tr("Hier bleibt nichts zurück.")),
+      facts,
+      node("p", "hello-note", tr("Zum Antworten verarbeitet der KI-Anbieter deine Nachrichten trotzdem. Was ich in Home Assistant oder anderen Diensten ausführe, steht dort weiterhin im Protokoll.")),
+    );
+    thread.append(hello);
+    return;
+  }
   hello.append(
     mark,
     node("h2", "", greeting()),
@@ -4555,6 +4630,7 @@ function startNew(projectId = null) {
   setView("chat");
   detachRun();
   releaseRecent();
+  state.incognito = false;
   state.activeId = null;
   rememberActive();
   state.heldUnread = null;
@@ -4761,7 +4837,7 @@ function renderTray() {
   const tray = $("attach-tray");
   tray.replaceChildren(...state.files.map((f) => fileChip(f, true)));
   tray.hidden = state.files.length === 0;
-  $("input").placeholder = state.files.length ? tr("Frage zu den Dateien stellen") : tr("Nachricht schreiben");
+  $("input").placeholder = composerPlaceholder();
 }
 
 function toBase64(blob) {
@@ -5237,7 +5313,7 @@ async function settleRun(run, bubble, out, view = {}) {
   if (finished && !(out.failure && !follow.anchored)) followAnswer(finished);
   else if (!finished || follow.on) scrollDown(true);
   // Wird die Antwort gerade angesehen, gilt sie als gelesen; liegt das Fenster im Hintergrund, bleibt der Chat ungelesen.
-  if (out.answer && !document.hidden) await patchChat({ id: chatId }, { unread: false }).catch(() => {});
+  if (out.answer && !document.hidden && chatId !== state.incognitoId) await patchChat({ id: chatId }, { unread: false }).catch(() => {});
   await loadAll().catch(() => {});
   if (state.activeId === chatId) state.shownAt = state.chats.find((c) => c.id === chatId)?.updated_at ?? null;
   if (state.activeId === chatId) await stampMessages(chatId);
@@ -5247,7 +5323,7 @@ async function settleRun(run, bubble, out, view = {}) {
   }
   if (out.title && state.activeId === chatId) setTitle(out.title);
   focusInput();
-  if (out.answer && view.first) refreshTitle(chatId);
+  if (out.answer && view.first && chatId !== state.incognitoId) refreshTitle(chatId);
 }
 
 // Wieder an eine laufende Antwort anhängen (Seite neu geladen oder in den Chat zurückgekehrt).
@@ -5404,10 +5480,11 @@ async function sendMessage(edit = null, spoken = null) {
 
   if (!state.activeId) {
     try {
-      const body = state.newProject ? { project_id: state.newProject } : {};
+      const body = state.incognito ? { incognito: true } : state.newProject ? { project_id: state.newProject } : {};
       const chat = await api("api/chats", { method: "POST", body: JSON.stringify(body) });
       if (chat.project_id) { ui.projectsOpen = true; ui.openProjects.add(chat.project_id); saveUi(); }
       state.newProject = null;
+      if (chat.kind === "incognito") state.incognitoId = chat.id;
       state.activeId = chat.id;
       rememberActive();
       await loadAll();
@@ -5761,6 +5838,7 @@ function setView(view) {
   $("skills").hidden = view !== "skills";
   $("settings").hidden = view !== "settings";
   rememberView(view);
+  syncIncognito();
   syncPresence();
   if (view !== "settings") { settingsStop(); settingsStop = () => {}; }
   $("nav-schedules").classList.toggle("active", view === "schedules");
@@ -6690,7 +6768,7 @@ function githubPanel(body, alive) {
   };
   const actions = (...buttons) => { const row = node("div", "gh-actions"); row.append(...buttons); return row; };
   const fail = (error, fallback) => toast(error?.detail || fallback);
-  const refreshMe = async () => { try { state.me = await api("api/me"); } catch { /* beim nächsten Laden */ } };
+  const refreshMe = async () => { try { state.me = await api("api/me"); syncIncognito(); } catch { /* beim nächsten Laden */ } };
 
   const show = (...parts) => { if (alive()) body.replaceChildren(...parts); };
 
@@ -7353,6 +7431,7 @@ async function init() {
   initShortcuts();
   $("account").addEventListener("click", () => { accountMenu().catch(() => {}); });
   $("new-chat-top").addEventListener("click", () => startNew());
+  $("incognito-top").addEventListener("click", () => toggleIncognito());
   initSideToggle();
   initAttachments();
   initFollow();
@@ -7378,6 +7457,7 @@ async function init() {
 
   try {
     state.me = await api("api/me");
+    syncIncognito();
     initVoiceButton();
     $("who").textContent = state.me.label;
     fillAvatar($("avatar"), state.me.label);

@@ -116,6 +116,12 @@ DELETE_WORDS = ("LÖSCHEN", "DELETE")  # eines davon muss zur Sicherheit eingeti
 KEEPALIVE_SECONDS = 15  # Cloudflare trennt Verbindungen, über die ~100 s nichts fließt
 SESSION_COOKIE = "__Host-ki_session"
 LOGIN_COOKIE = "__Host-ki_login"
+INCOGNITO_NOTE = (
+    "Dies ist ein Inkognito-Chat: Du hast hier kein Gedächtnis und kannst nichts dauerhaft merken oder im Projekt ablegen; "
+    "Erinnerungen der Person kennst du in diesem Chat nicht. Bittet die Person, sich etwas zu merken, sag kurz, dass das im Inkognito-Chat nicht geht "
+    "und sie dafür einen normalen Chat öffnen kann. Erwähne den Inkognito-Modus sonst nicht. Aktionen in Home Assistant oder anderen Diensten, die du auf Wunsch ausführst, "
+    "bleiben dort wie immer im Protokoll."
+)
 DEFAULT_TITLES = frozenset({"Neuer Chat", "New chat"})  # Standardtitel aus jeder Sprache gelten als „noch nicht benannt“
 
 
@@ -250,6 +256,7 @@ class CreateChatBody(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
     project_id: str | None = Field(default=None, max_length=64)
     voice: bool = False  # Sprachgespräch außerhalb eines Chats: steht nicht in der Chatliste
+    incognito: bool = False  # Inkognito-Chat: nichts bleibt zurück (kein Gedächtnis, keine Liste, wird beim Schließen gelöscht)
 
 
 class VoiceTextBody(BaseModel):
@@ -891,6 +898,7 @@ def register_chat_routes(
             "notify": notifier.available,
             "notify_ha": ha is not None and ha.enabled,
             "memory": settings.memory_enabled,
+            "incognito": settings.incognito_enabled,
             "overview": overview_allowed(profile),
             "setup": channel == "ingress",
             "setup_open": setup_check.banner(settings) if channel == "ingress" else None,
@@ -1345,6 +1353,12 @@ def register_chat_routes(
             if not voice_allowed(profile):
                 raise HTTPException(status_code=403, detail=tr("Sprache ist für dich nicht freigeschaltet."))
             kind, project_id, title = "voice", None, tr("Sprachgespräch")
+        if body and body.incognito:
+            if not settings.incognito_enabled:
+                raise HTTPException(status_code=403, detail=tr("Inkognito-Chats sind ausgeschaltet."))
+            if kind or project_id:
+                raise HTTPException(status_code=422, detail=tr("Ein Inkognito-Chat gehört in kein Projekt."))
+            kind, title = "incognito", tr("Inkognito-Chat")
         chat = store.create_chat(profile.id, title, project_id, kind=kind)
         if chat is None:
             raise HTTPException(status_code=404, detail=tr("Projekt nicht gefunden"))
@@ -1418,8 +1432,11 @@ def register_chat_routes(
     async def update_chat(
         chat_id: str, body: PatchChatBody, profile: Profile = Depends(current_profile)
     ) -> dict:
-        if store.get_chat(profile.id, chat_id) is None:
+        current = store.get_chat(profile.id, chat_id)
+        if current is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if current.get("kind") == "incognito":  # weder anpinnen noch verschieben noch behalten: er wird beim Schließen gelöscht
+            raise HTTPException(status_code=409, detail=tr("Ein Inkognito-Chat lässt sich nicht ändern."))
         if "project_id" in body.model_fields_set and not store.move_chat(
             profile.id, chat_id, body.project_id
         ):
@@ -1473,6 +1490,8 @@ def register_chat_routes(
         found = store.list_messages(profile.id, chat_id) if chat else None
         if chat is None or found is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if chat.get("kind") == "incognito":
+            raise HTTPException(status_code=409, detail=tr("Ein Inkognito-Chat lässt sich nicht exportieren."))
         project = next((p["name"] for p in store.list_projects(profile.id) if p["id"] == chat["project_id"]), "")
         text = exporter.chat_markdown(chat, found, project, settings.app_name)
         return download(text, exporter.safe_name(chat["title"]) + ".md", "text/markdown; charset=utf-8")
@@ -2158,8 +2177,8 @@ def register_chat_routes(
         history = store.list_messages(profile_id, chat_id)
         if chat is None or history is None:
             return None
-        if len(history) < 2 or history[0]["role"] != "user":
-            return chat
+        if chat.get("kind") == "incognito" or len(history) < 2 or history[0]["role"] != "user":
+            return chat  # Inkognito: kein zusätzlicher Aufruf der KI nur für einen Titel
         first, answer = history[0]["content"], history[1]["content"]
         provisional = _title_from(_title_source(first, history[0].get("attachments")))
         generate = getattr(backend, "title", None)
@@ -2224,6 +2243,9 @@ def register_chat_routes(
             raise HTTPException(status_code=429, detail=tr("Gerade zu viele Anfragen, bitte kurz warten"))
         effort = "low" if spoken else (body.effort or settings.default_effort)
         chat = store.get_chat(profile.id, chat_id) or {}
+        incognito = chat.get("kind") == "incognito"
+        if incognito and not settings.incognito_enabled:
+            raise HTTPException(status_code=403, detail=tr("Inkognito-Chats sind ausgeschaltet."))
         requested_model = (body.model or "").strip()
         if requested_model and requested_model != AUTO_MODEL and requested_model not in model_ids:
             raise HTTPException(status_code=422, detail=tr("Unbekanntes Modell"))
@@ -2358,7 +2380,7 @@ def register_chat_routes(
             store, profile.id, profile.label,
             project_id=store.chat_project_id(profile.id, chat_id),
             chat_id=chat_id,
-            memory_enabled=settings.memory_enabled,
+            memory_enabled=settings.memory_enabled and not incognito,  # Inkognito: weder lesen noch schreiben, auch nicht Haushalt und Projekt
             household_write=household_writable(profile),
             force_confirm=bool(foreign_files),
             ask=ask_memory, record=run.push, next_id=run.next_tool_id,
@@ -2417,6 +2439,8 @@ def register_chat_routes(
         if specs:
             extra["tools"] = specs
         extra["note"] = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
+        if incognito:
+            extra["note"] += "\n" + INCOGNITO_NOTE
         if switched_from:
             extra["note"] += "\n" + tr(
                 "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.",
@@ -2546,8 +2570,8 @@ def register_chat_routes(
                     # Niemand sieht zu (Chat gewechselt, Seite neu geladen): Kurztitel gleich hier erzeugen.
                     with contextlib.suppress(Exception):
                         await make_title(profile.id, chat_id)
-                if run.parts and not run.error and run.followers == 0:
-                    # Antwort fertig und niemand sieht zu: bei ungelesenem Chat nach kurzer Schonfrist aufs Handy melden.
+                if run.parts and not run.error and run.followers == 0 and not incognito:
+                    # Antwort fertig und niemand sieht zu: bei ungelesenem Chat nach kurzer Schonfrist aufs Handy melden (nie bei Inkognito).
                     notifier.spawn(profile, chat_id, plain_excerpt("".join(run.parts), notifierlib.EXCERPT))
 
         run.task = asyncio.create_task(generate())
@@ -2954,6 +2978,7 @@ def build_public_app(
 
 
 SNAPSHOT_CHECK_SECONDS = 1800
+INCOGNITO_IDLE_MINUTES = 180  # Inkognito-Chats, deren Seite ohne Abmelden verschwand (Handy-Tab beendet), werden nach 3 Stunden gelöscht
 
 
 async def _snapshot_loop(store: Store) -> None:
@@ -2985,6 +3010,12 @@ async def _sweep_loop(backend: ChatBackend, store: Store | None = None, voice_da
                     log.info("%d abgelaufene erzeugte Dateien entfernt", removed)
             except Exception:
                 log.warning("Aufräumen der erzeugten Dateien fehlgeschlagen", exc_info=True)
+            try:
+                left = await asyncio.to_thread(store.incognito_sweep, INCOGNITO_IDLE_MINUTES)
+                if left:
+                    log.info("%d liegen gebliebene Inkognito-Chats gelöscht", left)
+            except Exception:
+                log.warning("Aufräumen der Inkognito-Chats fehlgeschlagen", exc_info=True)
             try:
                 gone = await asyncio.to_thread(store.voice_sweep, voice_days)
                 if gone:
@@ -3148,6 +3179,8 @@ def main() -> None:
         (log.error if line.startswith("DATENBANK-FEHLER") else log.info)("Datensicherheit: %s", line)
     store = Store(DB_PATH)
     store.sync_profiles(p.id for p in settings.profiles)
+    if (left := store.incognito_sweep(0)):  # nach einem Absturz liegen gebliebene Inkognito-Chats
+        log.info("%d liegen gebliebene Inkognito-Chats gelöscht", left)
     if settings.export_database:
         try:
             dest = safety.export_database(DB_PATH, BRANDING_DIR)
@@ -3164,6 +3197,8 @@ def main() -> None:
             log.info("Keine Verbindung zu Home Assistant (SUPERVISOR_TOKEN fehlt): Benutzernamen-Auflösung und Theme-Übernahme sind aus")
         asyncio.run(_serve(settings, store, backend, health, ha))
     finally:
+        with contextlib.suppress(Exception):
+            store.incognito_sweep(0)  # beim Beenden (auch vor der Sicherung durch Home Assistant) bleibt nichts zurück
         store.close()
 
 

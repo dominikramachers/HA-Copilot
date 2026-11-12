@@ -47,6 +47,26 @@ def copy_database(source: sqlite3.Connection, dest: Path) -> None:
     tmp.replace(dest)
 
 
+def scrub_incognito(path: Path) -> int:
+    """Inkognito-Chats aus einer Kopie der Datenbank entfernen (Schnappschuss, Export): sie sollen nie in einer Sicherung landen."""
+    conn = sqlite3.connect(path)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA secure_delete = ON")
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chats'").fetchone() is None:
+            return 0
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(chats)")}
+        if "kind" not in columns:
+            return 0
+        with conn:
+            gone = conn.execute("DELETE FROM chats WHERE kind = 'incognito'").rowcount
+        if gone:
+            conn.execute("VACUUM")
+        return gone
+    finally:
+        conn.close()
+
+
 def quick_check(path: Path) -> str:
     """Ergebnis der SQLite-Prüfung („ok“ oder die erste Fehlermeldung)."""
     try:
@@ -84,6 +104,7 @@ def snapshot_live(conn: sqlite3.Connection, snap_dir: Path, prefix: str = DAILY,
     snap_dir.mkdir(parents=True, exist_ok=True)
     dest = snap_dir / f"{prefix}{_stamp(now)}.sqlite3"
     copy_database(conn, dest)
+    scrub_incognito(dest)
     result = quick_check(dest)
     if result != "ok":
         dest.unlink(missing_ok=True)
@@ -103,6 +124,7 @@ def export_database(db_path: Path, dest_dir: Path) -> Path:
         copy_database(conn, dest)
     finally:
         conn.close()
+    scrub_incognito(dest)
     result = quick_check(dest)
     if result != "ok":
         dest.unlink(missing_ok=True)

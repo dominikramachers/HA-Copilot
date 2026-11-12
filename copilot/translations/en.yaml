@@ -68,6 +68,9 @@ configuration:
       schedules_enabled:
         name: Allow scheduled tasks
         description: 'On (default): the “Scheduled” menu item, where the AI performs tasks at fixed times (read-only, no questions). Off: no scheduled tasks, existing ones rest. Scheduled runs use your plan’s quota.'
+      incognito_enabled:
+        name: Allow incognito chat
+        description: 'On (default): the ghost icon next to “New chat” starts an incognito chat. It appears in no list or search, neither reads nor changes memory, is not exported and is deleted when closed. Off: no incognito chat.'
       files_enabled:
         name: Create files
         description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'

@@ -466,6 +466,7 @@ class Store:
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
+        self._conn.execute("PRAGMA secure_delete = ON")  # gelöschte Inhalte (z. B. Inkognito-Chats) werden überschrieben, nicht nur ausgetragen
         self._conn.create_function("fold", 1, fold, deterministic=True)
         self._conn.execute("PRAGMA journal_mode = WAL")
         with self._lock, self._conn:
@@ -691,6 +692,15 @@ class Store:
         with self._lock, self._conn:
             cur = self._conn.execute("UPDATE chats SET kind = ? WHERE id = ? AND profile_id = ?", (kind, chat_id, profile_id))
         return cur.rowcount == 1
+
+    def incognito_sweep(self, idle_minutes: int) -> int:
+        """Inkognito-Chats löschen, die seit ``idle_minutes`` Minuten unberührt sind (0 = alle, z. B. beim Start und Beenden)."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max(0, idle_minutes))).isoformat(timespec="seconds")
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, profile_id FROM chats WHERE kind = 'incognito' AND (? <= 0 OR updated_at < ?)", (idle_minutes, cutoff)
+            ).fetchall()
+        return sum(1 for row in rows if self.delete_chat(row["profile_id"], row["id"]))
 
     def voice_sweep(self, days: int) -> int:
         """Sprachgespräche außerhalb eines Chats löschen, die seit ``days`` Tagen unverändert sind (angepinnte bleiben)."""

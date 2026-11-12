@@ -624,5 +624,10 @@
  "Das Projektgedächtnis ist voll ({n} Einträge).": "The project memory is full ({n} entries).",
  "Der Eintrag wurde inzwischen geändert. Öffne das Gedächtnis, um ihn anzupassen.": "The entry has been changed since. Open the memory to adjust it.",
  "Projekt": "Project",
- "Zugangsdaten, Schlüssel und Kontonummern werden nicht im Gedächtnis gespeichert.": "Credentials, keys and account numbers are not stored in memory."
+ "Zugangsdaten, Schlüssel und Kontonummern werden nicht im Gedächtnis gespeichert.": "Credentials, keys and account numbers are not stored in memory.",
+ "Inkognito-Chat": "Incognito chat",
+ "Inkognito-Chats sind ausgeschaltet.": "Incognito chats are turned off.",
+ "Ein Inkognito-Chat gehört in kein Projekt.": "An incognito chat can't belong to a project.",
+ "Ein Inkognito-Chat lässt sich nicht ändern.": "An incognito chat can't be changed.",
+ "Ein Inkognito-Chat lässt sich nicht exportieren.": "An incognito chat can't be exported."
 }
