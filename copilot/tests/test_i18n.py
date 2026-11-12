@@ -24,8 +24,8 @@ from conftest import ADM01, RAW, WRITE, as_user
 ROOT = Path(__file__).resolve().parent.parent
 APP = ROOT / "app"
 STATIC = APP / "static"
-JS_FILES = ("app.js", "login.js", "markdown.js", "voice.js")
-HTML_FILES = ("index.html", "login.html")
+JS_FILES = ("app.js", "login.js", "markdown.js", "voice.js", "shared.js")
+HTML_FILES = ("index.html", "login.html", "shared.html")
 
 EN = json.loads((APP / "locales" / "en.json").read_text(encoding="utf-8"))
 EN_UI = json.loads((APP / "locales" / "en-ui.json").read_text(encoding="utf-8"))

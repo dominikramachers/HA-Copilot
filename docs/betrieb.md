@@ -18,6 +18,8 @@ HA Copilot ist mit `backup: cold` eingestellt: Home Assistant hält das Add-on b
 
 > Die Add-on-Optionen, und damit Claude-Zugang, Entra-Geheimnis und GitHub-Token, stehen ebenfalls in der Sicherung. Schütze Sicherungen entsprechend.
 
+Inkognito-Chats (ab 0.56.0) sind in keiner Sicherung und keinem Schnappschuss: Sie werden gelöscht, sobald man sie verlässt, beim Beenden des Add-ons (also auch vor einer HA-Sicherung, die das Add-on dafür anhält), nach einem Absturz beim nächsten Start und spätestens nach 3 Stunden Leerlauf. Geteilte Chats und ihre Links sind dagegen Teil der Datenbank; wer eine Sicherung zurückspielt, sollte öffentliche Links, die er nicht mehr möchte, danach widerrufen.
+
 Zusätzlich legt das Add-on etwa einmal am Tag einen geprüften Schnappschuss an und prüft die Datenbank bei jedem Start. Meldet sie einen Fehler, erscheint oben im Chat ein roter Hinweis, und die Datei bleibt unverändert.
 
 ## Wiederherstellen

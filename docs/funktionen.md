@@ -11,6 +11,22 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 - Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** und die **Websuche**. Alles steht in einem Menü (Knopf z. B. „Sonnet 5.5 Mittel“; am Computer rechts unter dem Eingabefeld, am Handy im Eingabefeld neben der Büroklammer), wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs.
 - **Listen schreiben:** `1. ` oder `- ` am Zeilenanfang wird eingerückt, Umschalt+Enter (am Handy Enter) führt die Liste fort, ein leerer Punkt beendet sie, Tab rückt ein. Gesendet erscheint sie als Liste.
 - **Modell im laufenden Chat wechseln:** geht jederzeit, auch zwischen Claude und ChatGPT. Der Verlauf geht mit, Gedächtnis, Projektwissen und Konnektoren bleiben; die Oberfläche sagt, wohin der Verlauf dann geht.
+- **Inkognito-Chat:** Das Gespenster-Symbol neben „Neuer Chat“ öffnet einen Chat, in dem nichts zurückbleibt: kein Gedächtnis, nicht in der Liste oder Suche, kein Export, keine Sicherung. Beim Verlassen wird er samt Dateien gelöscht. Die KI sagt, wenn du sie bittest, sich etwas zu merken, dass das hier nicht geht.
+![Inkognito-Chat](screenshots/inkognito.png)
+
+- **Kopfzeile wie in Claude:** Über dem Chat steht **Projekt / Chatname ▾**: Klick auf den Namen = umbenennen, Pfeil = Chat-Menü, rechts der Knopf **Teilen**.
+- **Chats teilen:** Im Fenster **Chat teilen** wählst du unter **Wer hat Zugriff**: nur ich, alle in der Instanz oder jede Person mit dem Link (ohne Anmeldung, nur lesen, mit Ablauf; `chat.sharing: public`). Geteilte Chats tragen in der Liste ein kleines Symbol, alles Geteilte steht unter **Geteilt** in der Seitenleiste (von dir und mit dir), andere lesen den Stand oder führen ihn als eigene Kopie weiter. Geteilt wird ein Schnappschuss ohne Anhänge und Protokoll.
+- **Deep Research** (optional, Standard aus): Im Menü unter dem Eingabefeld lässt sich für die nächste Nachricht eine **Tiefenrecherche** einschalten: Die KI plant, sucht in mehreren Runden im Web, gleicht die Funde ab und schreibt einen Bericht mit geprüfter Quellenliste. Vorher fragt der Chat nach, weil ein Lauf mehrere Minuten dauert und viel Kontingent braucht (`chat.research_enabled`, `chat.research_daily_limit`).
+| Teilen-Fenster | Öffentliche Seite | „Geteilt“ einer anderen Person |
+|---|---|---|
+| ![Teilen-Fenster mit Link](screenshots/chat-teilen.png) | ![Öffentliche Seite eines geteilten Chats](screenshots/geteilter-chat-oeffentlich.png) | ![Liste der geteilten Chats](screenshots/geteilte-chats.png) |
+
+![Kopfzeile des Chats: Projekt / Chatname mit Chat-Menü und Knopf Teilen](screenshots/kopfzeile.png)
+
+| Deep Research einschalten | Rückfrage vor dem Start | Bericht mit Quellen |
+|---|---|---|
+| ![Schalter Deep Research im Menü](screenshots/deep-research-menue.png) | ![Rückfrage vor dem Start](screenshots/deep-research-rueckfrage.png) | ![Bericht mit Quellenliste](screenshots/deep-research-bericht.png) |
+
 - **Anhänge** (bis zu 5 je Nachricht, zusammen 60 MB): Bilder, PDF, Word, Excel, PowerPoint, Text und Code. Mit der Option „Dateien bearbeiten“ (Standard) bleibt eine Kopie für diesen Chat erhalten, damit die KI die Datei später lesen und **bearbeiten** kann (z. B. PDF-Felder sperren, PDF-Text ersetzen, Word-Text ändern, Excel-Zellen setzen, Code anpassen; Excel-Diagramme und -Bilder bleiben dabei erhalten); die bearbeitete Fassung gibt es als Download, das Original bleibt unverändert. Ohne die Option gibt es die Anhänge nur im Arbeitsspeicher. Einfügen mit Strg/Cmd+V oder Ziehen auf die Seite geht auch. **Langer Text** (ab etwa 1500 Zeichen oder 20 Zeilen), den du einfügst, wird wie in Claude automatisch ein Anhang („Eingefügter Text“) statt Rohtext im Eingabefeld; du kannst ihn im Chat antippen und die KI sieht ihn auch bei Folgefragen.
 - **Auf einen Ausschnitt antworten:** Text in einer Antwort markieren und **Antworten** wählen: der Ausschnitt steht als Zitat über dem Eingabefeld (mit **x** wieder entfernbar) und über deiner Nachricht im Chat. Die KI bekommt das Zitat mit.
 - **Einführung und Neuerungen:** Beim ersten Anmelden erklärt ein Fenster („Hallo, ich bin …“), wofür die KI da ist, was sie kann und wie man sie am Computer oder am Handy bedient; mit **Okay** erscheint es nie wieder. Nach einem Update zeigt ein Fenster einmalig, was neu ist, in einfacher Sprache. Beides lässt sich im Konto-Menü unten links nachlesen (**Kurzanleitung**, **Das ist neu**).
@@ -29,13 +45,15 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 - Lange Chats werden **automatisch zusammengefasst**, statt abgeschnitten zu werden.
 - Ein kurzer **Titel** entsteht automatisch, und jeder Chat lässt sich umbenennen.
 
-Mehr: [Bilder](../copilot/DOCS.md#bilder-ab-0280), [Oberfläche](../copilot/DOCS.md#oberfläche), [So arbeitet die KI](../copilot/DOCS.md#so-arbeitet-die-ki), [Dateien bearbeiten](../copilot/DOCS.md#dateien-bearbeiten-ab-0270), [Anhänge und Speicherplatz](../copilot/DOCS.md#anhänge-und-speicherplatz).
+Mehr: [Inkognito-Chat](../copilot/DOCS.md#inkognito-chat-ab-0560), [Chats teilen](../copilot/DOCS.md#chats-teilen-ab-0560), [Deep Research](../copilot/DOCS.md#deep-research-ab-0560), [Bilder](../copilot/DOCS.md#bilder-ab-0280), [Oberfläche](../copilot/DOCS.md#oberfläche), [So arbeitet die KI](../copilot/DOCS.md#so-arbeitet-die-ki), [Dateien bearbeiten](../copilot/DOCS.md#dateien-bearbeiten-ab-0270), [Anhänge und Speicherplatz](../copilot/DOCS.md#anhänge-und-speicherplatz).
 
 ## Projekte, Suche, Export
 
 ![Suche](screenshots/suche.png)
 
-- **Projekte** ordnen Chats und tragen **Anweisungen** (bis 4000 Zeichen), die in jedem Chat des Projekts mitgehen. Zu einem Projekt kannst du **Wissen** hochladen (Notizen, Word, Excel, PDF, ZIP); die KI liest bei Bedarf nach. Auf Wunsch („speichere das im Projektwissen“) schreibt sie auch selbst Notizen dazu, im Ordner `KI/`; deine hochgeladenen Dateien ändert sie nie.
+- **Projekte** ordnen Chats und tragen **Anweisungen** (bis 4000 Zeichen), die in jedem Chat des Projekts mitgehen. Zu einem Projekt kannst du **Wissen** hochladen (Notizen, Word, Excel, PDF, ZIP); die KI liest bei Bedarf nach. Auf Wunsch („speichere das im Projektwissen“) schreibt sie auch selbst Notizen dazu, im Ordner `KI/`; deine hochgeladenen Dateien ändert sie nie. Hochgeladene Dateien bleiben als **Original** erhalten und lassen sich wieder herunterladen; unter einer erzeugten Datei legt **Im Projekt ablegen** sie im Projekt ab (die KI kann das auch selbst). In einem Projekt kennt die KI außerdem die **anderen Chats dieses Projekts** und liest bei Bedarf in ihnen nach („mach mit dem weiter, was wir letzte Woche besprochen haben“).
+![Projektwissen mit Original und Notiz der KI](screenshots/projekt-wissen.png)
+
 - **Suchen** (Strg/Cmd+Umschalt+F) durchsucht Titel und Nachrichten aller deiner Chats, ohne Rücksicht auf Groß- und Kleinschreibung und Umlaute. Schon vor der ersten Eingabe zeigt das Fenster laufende und zuletzt benutzte Chats; Reiter trennen Chats, Projekte und geplante Aufgaben, Pfeiltasten und Enter genügen zur Bedienung.
 - **Tastenkürzel** am Computer: Strg (Mac: ⌘) + Umschalt + **O** neuer Chat, **F** Suchen, **P** neues Projekt, **G** geplante Aufgaben. Das Kürzel steht in der Seitenleiste erst, wenn du mit der Maus über den Eintrag fährst.
 - **Hinweise über dem Eingabefeld:** Nutzungslimit und Rückfragen der KI (z. B. vor einer Änderung in Home Assistant) erscheinen als Streifen direkt über dem Eingabefeld, wie in Claude selbst, jeweils als eigene schmale Box (nicht am Eingabefeld angebaut).
@@ -66,7 +84,9 @@ Mehr: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant
 
 ![Gedächtnis](screenshots/gedaechtnis.png)
 
-Die KI merkt sich dauerhafte Dinge in kurzen Einträgen und entscheidet selbst, wann das sinnvoll ist (Vorlieben, Entscheidungen, laufende Vorhaben; nicht einmalige Aufträge wie „schreib das kürzer“). Was sie gemerkt hat, steht unter der Antwort. Getrennt wird in **Haushalt** (nur Smarthome-Wissen für alle) und **Person** (alles andere, nur du). Du siehst, ergänzt und löschst Einträge in den **Einstellungen** unter **Gedächtnis**. Alle Personen dürfen den Haushalt ergänzen. Mit `chat.memory_enabled: false` ist die Funktion aus.
+Die KI merkt sich dauerhafte Dinge in kurzen Einträgen und entscheidet selbst, wann das sinnvoll ist (Vorlieben, Entscheidungen, laufende Vorhaben; nicht einmalige Aufträge wie „schreib das kürzer“). Was sie gemerkt hat, steht unter der Antwort. Getrennt wird in **Haushalt** (nur Smarthome-Wissen für alle), **Person** (alles andere, nur du) und, in einem Projekt, **Projekt** (nur in Chats dieses Projekts). Jeder Eintrag zeigt seine **Herkunft** (gesagt, von der KI abgeleitet, von dir eingetragen), und unter der Antwort lässt sich eine Änderung mit **Rückgängig** zurücknehmen. Du siehst, ergänzt und löschst Einträge in den **Einstellungen** unter **Gedächtnis**. Alle Personen dürfen den Haushalt ergänzen. Mit `chat.memory_enabled: false` ist die Funktion aus.
+
+![Gedächtnis mit Projektbereich und Herkunft](screenshots/gedaechtnis-projekt.png)
 
 Im selben Fenster stehen **Meine Anweisungen** (ein Text, der in all deinen Chats mitgeht, etwa „Antworte kurz und duze mich“) und **Aus Claude übernehmen**: Du exportierst dein Gedächtnis bei Claude als ZIP mit Markdown, wählst die Datei hier aus, siehst jeden Fund mit Haken und übernimmst nur, was du willst. Die Vorlieben aus Claude werden zu deinen Anweisungen.
 
@@ -112,7 +132,11 @@ Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 
 ## Sprechen mit der KI
 
-Mit dem Mikrofon-Knopf neben **Senden** sprichst du mit der KI („Aria, mach das Licht im Wohnzimmer aus“; der Name ist `look.app_name`). Ein Fenster mit leuchtender Partikel-Kugel (zum Wegwischen mit Maus oder Finger) zeigt, ob sie zuhört, nachdenkt oder antwortet; Stumm, Sprechen und Beenden liegen darunter. Befehle, die Home Assistant selbst versteht, laufen ohne KI und deshalb sofort. Schlösser, Alarmanlagen, Sirenen, Tore, Garagen und die Haustür bedient die KI per Sprache nie, das geht nur getippt. Aus ist der Standard: `voice.access_default` (Gruppe „Sprechen mit der KI“ in der Add-on-Konfiguration) oder je Person `voice_access`. Ein Gespräch aus der Startseite steht nicht in der Chatliste (löscht sich nach `voice.chat_days` Tagen), ein Gespräch mitten in einem Chat gehört zu diesem Chat. Das Mikrofon braucht `https`. Mit einem OpenAI-Schlüssel (`voice.openai_api_key` oder der gemeinsame `images.openai_api_key`) erkennt und spricht OpenAI statt Whisper und Piper (die Stimme wählst du bei `voice.openai_voice`, Standard weiblich); die Einrichtung steht in [API-Konto für Bilder und Sprache](bilder-konten.md#openai-für-die-sprache-spracherkennung-und-stimme). Fehlen Whisper oder Piper oder laufen sie nicht, weicht das Sprechen auf den Browser bzw. die Gerätestimme aus und die Einrichtungsprüfung sagt, was zu tun ist. Auf dem Handy schaltet schon das Antippen die Sprachausgabe frei; klappt das Vorlesen trotzdem nicht, steht die Antwort als Text im Fenster. Die Stimme fängt schon beim ersten fertigen Satz an; die Antworten sind kurz und ohne Gerätenamen, eigene Wünsche dazu stehen in `voice.instructions`; wie lange Erkennung, KI und Stimme brauchen, steht je Runde im Protokoll. Mehr in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).
+Mit dem Mikrofon-Knopf neben **Senden** sprichst du mit der KI („Aria, mach das Licht im Wohnzimmer aus“; der Name ist `look.app_name`).
+
+![Sprechen mit der KI](screenshots/sprachchat.png)
+
+Ein Fenster mit leuchtender Partikel-Kugel (zum Wegwischen mit Maus oder Finger) zeigt, ob sie zuhört, nachdenkt oder antwortet; Stumm, Sprechen und Beenden liegen darunter. Befehle, die Home Assistant selbst versteht, laufen ohne KI und deshalb sofort. Schlösser, Alarmanlagen, Sirenen, Tore, Garagen und die Haustür bedient die KI per Sprache nie, das geht nur getippt. Aus ist der Standard: `voice.access_default` (Gruppe „Sprechen mit der KI“ in der Add-on-Konfiguration) oder je Person `voice_access`. Ein Gespräch aus der Startseite steht nicht in der Chatliste (löscht sich nach `voice.chat_days` Tagen), ein Gespräch mitten in einem Chat gehört zu diesem Chat. Das Mikrofon braucht `https`. Mit einem OpenAI-Schlüssel (`voice.openai_api_key` oder der gemeinsame `images.openai_api_key`) erkennt und spricht OpenAI statt Whisper und Piper (die Stimme wählst du bei `voice.openai_voice`, Standard weiblich); die Einrichtung steht in [API-Konto für Bilder und Sprache](bilder-konten.md#openai-für-die-sprache-spracherkennung-und-stimme). Fehlen Whisper oder Piper oder laufen sie nicht, weicht das Sprechen auf den Browser bzw. die Gerätestimme aus und die Einrichtungsprüfung sagt, was zu tun ist. Auf dem Handy schaltet schon das Antippen die Sprachausgabe frei; klappt das Vorlesen trotzdem nicht, steht die Antwort als Text im Fenster. Die Stimme fängt schon beim ersten fertigen Satz an; die Antworten sind kurz und ohne Gerätenamen, eigene Wünsche dazu stehen in `voice.instructions`; wie lange Erkennung, KI und Stimme brauchen, steht je Runde im Protokoll. Mehr in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520).
 
 ## Websuche und Modelle
 
@@ -192,7 +216,7 @@ In den **Einstellungen** zeigt die **Einrichtungsprüfung**, was fehlt, mit den 
 ## Sicherheit und Datenschutz
 
 - Chats liegen in einer SQLite-Datenbank im Add-on-Speicher (Teil jeder HA-Sicherung). Texte deiner Nachrichten und Anhänge gehen zur Beantwortung an Anthropic, in einem Chat mit einem ChatGPT-Modell (nur wenn der Administrator ChatGPT eingeschaltet hat) stattdessen an OpenAI, nie an beide; nur wenn du Bilder von OpenAI oder Google erzeugen lässt (eigene Schlüssel nötig), gehen der Bildwunsch und ein Referenzbild an den gewählten Anbieter, sonst an niemanden. Kopien von Anhängen (für das Bearbeiten) liegen für 14 Tage im Datenordner des Add-ons und verschwinden mit dem Chat.
-- Jede Abfrage ist auf das Profil gefiltert; Benutzer sehen nie die Chats anderer.
+- Jede Abfrage ist auf das Profil gefiltert; Benutzer sehen nie die Chats anderer. Ausnahmen gibt es nur, wenn du einen Chat selbst teilst (siehe oben); öffentliche Links sind standardmäßig aus.
 - Rechte setzt der Server durch, nicht die KI. Alles, was von außen kommt (Home Assistant, Web, GitHub, Konnektoren, Dateien), gilt für die KI als Information und nicht als Anweisung; nach dem Lesen fremder Inhalte fragt jede Änderung im Chat nach.
 - Die Domain-Anmeldung prüft die Identität serverseitig (OpenID Connect mit PKCE), Sitzungen liegen serverseitig, Cookies sind `Secure` und `HttpOnly`.
 

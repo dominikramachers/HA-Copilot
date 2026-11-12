@@ -14,6 +14,16 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 |---|---|---|
 | ![Home Assistant mit Dashboard und HA Copilot in der Seitenleiste](docs/screenshots/ha-seitenleiste-dashboard.png) | ![HA Copilot in Home Assistant, dunkel](docs/screenshots/ha-copilot-im-panel-dunkel.png) | ![Chat auf dem Handy](docs/screenshots/chat-handy.png) |
 
+**Neu in 0.56:** Sprechen mit der KI, Deep Research mit geprüften Quellen und Chats teilen.
+
+| Sprechen mit der KI | Deep Research | Chat teilen |
+|---|---|---|
+| ![Sprachgespräch mit der leuchtenden Partikel-Kugel](docs/screenshots/sprachchat.png) | ![Deep-Research-Bericht mit Quellenliste und Hinweis zu entfernten Quellen](docs/screenshots/deep-research-bericht.png) | ![Fenster „Chat teilen“ mit Link](docs/screenshots/chat-teilen.png) |
+
+| Inkognito-Chat | Projektwissen mit Originalen | Gedächtnis mit Herkunft |
+|---|---|---|
+| ![Inkognito-Chat](docs/screenshots/inkognito.png) | ![Projektwissen mit Original und KI-Notiz](docs/screenshots/projekt-wissen.png) | ![Gedächtnis mit Projektbereich und Herkunft der Einträge](docs/screenshots/gedaechtnis-projekt.png) |
+
 *Die Bilder zeigen eine Test-Instanz von Home Assistant mit Demo-Geräten und Beispiel-Chats, keine echten Daten. Wie sie entstanden sind, steht in [docs/screenshots/README.md](docs/screenshots/README.md).*
 
 ## Dokumentation
@@ -33,6 +43,11 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 
 - Antworten als Live-Stream mit Markdown, Tabellen, Codeblöcken (Kopieren, Herunterladen) und HTML-Vorschau; eigene Nachrichten lassen sich bearbeiten und kopieren, mit Zeitangabe
 - **Antworten laufen auf dem Server weiter:** Chat wechseln, Seite neu laden oder Tab schließen verliert nichts; fertige Antworten erscheinen als ungelesen
+- **Sprechen mit der KI** (optional): Mikrofon-Knopf, Antwort wird vorgelesen, Home Assistant versteht einfache Befehle selbst
+- **Inkognito-Chat:** nichts bleibt zurück (kein Gedächtnis, nicht in Liste, Suche, Export oder Sicherung), beim Verlassen gelöscht
+- **Chats teilen:** Knopf **Teilen** in der Kopfzeile (Projekt / Chatname ▾), Schnappschuss für andere Personen der Instanz (lesen oder als Kopie weiterführen) und optional als öffentlicher Link ohne Anmeldung, mit Ablauf und widerrufbar; alles Geteilte unter **Geteilt**
+- **Deep Research** (optional): mehrstufige Recherche im Web mit Bericht und geprüfter Quellenliste, mit Rückfrage und Tageslimit
+- **Projekte mit Wissen:** Dateien bleiben als Original erhalten, die KI kennt die anderen Chats des Projekts, legt Dateien und Artefakte auf Wunsch im Projekt ab; **Gedächtnis** mit Projektbereich, Herkunft je Eintrag und „Rückgängig“
 - **Zugriff auf Home Assistant** mit Rechtestufen je Benutzer (nichts, lesen, ausführen, ändern), Rückfrage im Chat vor Änderungen und Sperrliste für gefährliche Befehle
 - Chats pro Benutzer getrennt, Projekte mit Anweisungen, Anpinnen, Umbenennen, automatische Kurztitel
 - **Suche** in allen eigenen Chats (Strg/Cmd+Umschalt+F), Export als Markdown oder ZIP, eigene Chats gesammelt löschen

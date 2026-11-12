@@ -17,6 +17,8 @@ from test_setup import FakeHa
 DEMO_ID = "0123456789abcdef0123456789abcdef"
 LANG = os.environ.get("KI_LANG", "de")
 PORT = int(os.environ.get("KI_PORT", "8099"))
+PUBLIC_PORT = int(os.environ.get("KI_PUBLIC_PORT", "8097"))  # öffentliche Seite für geteilte Chats (Domain-Zugang), nur lesend
+SAM_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"  # zweite Person, für „Geteilte Chats“
 
 class Ha(FakeHa):
     async def themes(self):
@@ -65,6 +67,20 @@ class Backend:
         handlers = {t.name: t.handler for t in tools or []}
         low = message.lower()
         de = LANG == "de"
+        if message.startswith("Du bereitest"):  # Deep Research: Plan
+            yield json.dumps(["Wie hoch ist der Stromverbrauch von Wärmepumpen im Altbau?", "Welche Förderung gibt es aktuell dafür?", "Welche Nachteile und Alternativen gibt es?"]); return
+        if message.startswith("Recherchiere"):  # Deep Research: eine Teilfrage (die echte KI sucht hier im Web)
+            await asyncio.sleep(float(os.environ.get("KI_RESEARCH_PAUSE", "1.2")))
+            yield "- Typischer Verbrauch 3.500 bis 6.000 kWh im Jahr (https://example.org/waermepumpe-verbrauch).\n- Förderung bis 70 % (https://example.org/foerderung)."; return
+        if message.startswith("Prüfe"):  # Deep Research: Abgleich
+            await asyncio.sleep(0.6)
+            yield json.dumps({"widersprueche": [], "schwach": ["Verbrauch nur aus einer Quelle"], "luecken": [], "nachfragen": []}); return
+        if message.startswith("Schreibe jetzt"):  # Deep Research: Bericht; die letzte Quelle ist erfunden und wird vom Server entfernt
+            await asyncio.sleep(0.8)
+            yield ("# Wärmepumpe im Altbau\n\n## Kurzfassung\nEine Wärmepumpe lohnt sich im Altbau meist, wenn die Vorlauftemperatur unter 55 °C bleibt. "
+                   "Der Verbrauch liegt typischerweise bei 3.500 bis 6.000 kWh im Jahr ([Verbrauch](https://example.org/waermepumpe-verbrauch)). "
+                   "Die Förderung beträgt bis zu 70 % ([Förderung](https://example.org/foerderung)).\n\n## Offene Punkte\n- Der Verbrauch stützt sich auf eine einzige Quelle.\n\n"
+                   "Quellen:\n- [Verbrauch](https://example.org/waermepumpe-verbrauch)\n- [Förderung](https://example.org/foerderung)\n- [Erfunden](https://erfunden.example/x)\n"); return
         if "image_svg" in handlers and ("grundriss" in low or "floor plan" in low):
             await handlers["image_svg"]({"svg": SVG_PLAN, "title": "Grundriss Erdgeschoss" if de else "Floor plan ground floor"})
             yield ("Ich habe den Grundriss als SVG gezeichnet, weil das ein einfacher Plan ist und nichts kostet. Die blauen Punkte sind die Leuchten." if de
@@ -91,13 +107,17 @@ class Backend:
 
 
 raw = {
-    "language": LANG, "anthropic_api_key": "sk-ant-platzhalter",
-    "ha_access_default": "read",
-    "chat": {"github_access_default": "read"},
+    "users": {"profiles": [
+        {"id": "demo", "label": "Demo Nutzer", "ha_user_id": DEMO_ID, "ha_access": "write", "github_access": "read",
+         "notify_service": "notify.mobile_app_handy", "voice_access": "on"},
+        {"id": "sam", "label": "Sam", "ha_user_id": SAM_ID, "ha_access": "read", "github_access": "none"},
+    ]},
+    "chat": {"anthropic_api_key": "sk-ant-platzhalter", "ha_access_default": "read", "github_access_default": "read",
+             "sharing": "public", "research_enabled": True, "research_daily_limit": 3},
     "images": {"google_api_key": "AIza-platzhalter", "limit_month": 2},
-    "app_name": "HA Copilot",
-    "profiles": [{"id": "demo", "label": "Demo Nutzer", "ha_user_id": DEMO_ID, "ha_access": "write", "github_access": "read",
-                  "notify_service": "notify.mobile_app_handy"}],
+    "voice": {"openai_api_key": "sk-platzhalter"},
+    "domain": {"public_base_url": f"http://127.0.0.1:{PUBLIC_PORT}"},
+    "look": {"language": LANG, "app_name": "HA Copilot"},
 }
 settings = parse_settings(raw, frozenset({"127.0.0.1"}))
 d = pathlib.Path(tempfile.mkdtemp()); brand = pathlib.Path(tempfile.mkdtemp())
@@ -121,7 +141,21 @@ c4 = store.create_chat(U, "Flurlicht nachts dimmen" if LANG == "de" else "Dim ha
 store.add_exchange(U, c4["id"], "Licht im Flur nachts nur gedimmt" if LANG == "de" else "Hallway light only dimmed at night", "Gern, dafür legen wir eine Automation an." if LANG == "de" else "Sure, let's create an automation for that.")
 store.create_chat(U, "Heizplan Wochenende" if LANG == "de" else "Weekend heating plan", None)
 store.memory_save("household", "", "Hausregeln" if LANG == "de" else "House rules", "Nachts ab 22 Uhr Licht im Flur nur gedimmt." if LANG == "de" else "After 10 pm hallway lights only dimmed.", U)
-store.memory_save("person", U, "Vorlieben" if LANG == "de" else "Preferences", "Antworten kurz und mit Tabellen." if LANG == "de" else "Short answers, tables welcome.", U)
+
+def _small_png():
+    from PIL import Image
+    buf = io.BytesIO(); Image.open(io.BytesIO(scene((232, 218, 196)))).resize((480, 320)).convert("P", palette=Image.ADAPTIVE, colors=64).save(buf, "PNG", optimize=True); return buf.getvalue()
+
+# Neu in 0.56: Herkunft der Einträge, Projektgedächtnis, Projektdateien (Original bleibt erhalten)
+T = (lambda de, en: de if LANG == "de" else en)
+store.memory_save("person", U, T("Vorlieben", "Preferences"), T("Antworten kurz und mit Tabellen.", "Short answers, tables welcome."), U, "said")
+store.memory_save("person", U, T("Arbeitsweise", "Way of working"), T("Arbeitet meist abends am Smarthome, lieber mit Beispielen als mit Theorie.", "Mostly works on the smart home in the evening, prefers examples over theory."), "ai", "inferred")
+store.memory_save("person", U, T("Heizung", "Heating"), T("Wärmepumpe im Keller, Fußbodenheizung im Erdgeschoss.", "Heat pump in the basement, underfloor heating on the ground floor."), U, "manual")
+store.project_memory_save(U, p["id"], T("Szenen", "Scenes"), T("Szenen heißen „Abend“, „Kino“ und „Weg“; „Weg“ schaltet alles aus.", "Scenes are called “Evening”, “Cinema” and “Away”; “Away” switches everything off."), U, "said")
+store.project_memory_save(U, p["id"], T("Rollläden", "Blinds"), T("Rollläden fahren bei Sonne auf der Südseite herunter, im Winter nicht.", "Blinds on the south side close in sunshine, not in winter."), "ai", "inferred")
+store.add_knowledge(U, p["id"], T("Geräteliste.md", "devices.md"), T("# Geräte\n- Wohnzimmer: Deckenlicht, Steckdose Fernseher\n- Küche: Licht, Rollladen\n", "# Devices\n- Living room: ceiling light, TV socket\n- Kitchen: light, blind\n"))
+store.add_knowledge(U, p["id"], T("Grundriss.png", "floor-plan.png"), T("[Bild: Grundriss.png, 120 KB]", "[Image: floor-plan.png, 120 KB]"), data=_small_png(), mime="image/png", origin="upload")
+store.add_knowledge(U, p["id"], T("KI/Heizplan.md", "KI/heating-plan.md"), T("# Heizplan\nWochentags 6 bis 22 Uhr 21 °C, nachts 18 °C.\n", "# Heating plan\nWeekdays 6 am to 10 pm 21 °C, nights 18 °C.\n"), origin="ai")
 
 def gh(request):
     if request.url.path == "/user":
@@ -132,4 +166,8 @@ store.github_account_save(U, github_accounts.vault.seal("ghp_platzhalter_abcdefg
 ha = Ha({"location_name": "Zuhause", "version": "2026.10.1"}, {"notify": {"mobile_app_handy": {}}})
 app = build_ingress_app(settings, store, Backend(), health=Health(settings), ha=ha, github_accounts=github_accounts, branding=Branding(brand, settings, None),
                         images=ImageService(settings, httpx.MockTransport(fake_image_api)))
+import threading
+from app.main import build_public_app
+public = build_public_app(settings, store, Backend(), None)  # öffentliche Seite für geteilte Chats: nur lesen, ohne Anmeldung
+threading.Thread(target=lambda: uvicorn.run(public, host="127.0.0.1", port=PUBLIC_PORT, log_level="warning"), daemon=True).start()
 uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")

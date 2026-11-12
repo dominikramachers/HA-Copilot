@@ -68,6 +68,18 @@ configuration:
       schedules_enabled:
         name: Allow scheduled tasks
         description: 'On (default): the “Scheduled” menu item, where the AI performs tasks at fixed times (read-only, no questions). Off: no scheduled tasks, existing ones rest. Scheduled runs use your plan’s quota.'
+      incognito_enabled:
+        name: Allow incognito chat
+        description: 'On (default): the ghost icon next to “New chat” starts an incognito chat. It appears in no list or search, neither reads nor changes memory, is not exported and is deleted when closed. Off: no incognito chat.'
+      sharing:
+        name: Share chats
+        description: 'instance (default): chats can be shared with everyone in this instance (read or continue as a copy). public: additionally a public link without sign-in (read-only, only via the domain access, with expiry and revocable at any time). off: no sharing. Incognito chats can never be shared.'
+      research_enabled:
+        name: Allow Deep Research
+        description: 'Off (default): no in-depth research. On: “Deep Research” can be switched on in the chat menu (below the input field). The AI then plans the research, searches the web in several rounds, reads and cross-checks sources and writes a report with a source list that you can save to the project. A run takes several minutes and uses much more quota than a normal answer; there is a confirmation before it starts. Web search must be on for the person.'
+      research_daily_limit:
+        name: Deep Research per person and day
+        description: 'How many Deep Research runs a person may start per day (1 to 20, default 3). Only applies when Deep Research is allowed. Each run is also capped: at most 6 questions plus 2 follow-up searches, at most 12 pages read per question and 30 minutes.'
       files_enabled:
         name: Create files
         description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'

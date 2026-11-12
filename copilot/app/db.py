@@ -114,6 +114,41 @@ CREATE TABLE IF NOT EXISTS memories (
 );
 """
 
+MEMORY_ORIGINS = ('said', 'inferred', 'manual', 'import')  # Herkunft eines Eintrags; '' = unbekannt (ältere Einträge)
+
+SHARES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS chat_shares (
+    id          TEXT PRIMARY KEY,
+    chat_id     TEXT NOT NULL,
+    profile_id  TEXT NOT NULL,
+    mode        TEXT NOT NULL CHECK (mode IN ('instance', 'public')),
+    token       TEXT NOT NULL UNIQUE,
+    title       TEXT NOT NULL,
+    snapshot    TEXT NOT NULL,
+    taken_at    TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT,
+    UNIQUE (chat_id, mode),
+    FOREIGN KEY (chat_id, profile_id) REFERENCES chats(id, profile_id) ON DELETE CASCADE
+);
+"""
+
+PROJECT_MEMORY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS project_memories (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id  TEXT NOT NULL,
+    project_id  TEXT NOT NULL,
+    topic       TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    author      TEXT NOT NULL DEFAULT '',
+    origin      TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    UNIQUE (project_id, topic COLLATE NOCASE),
+    FOREIGN KEY (project_id, profile_id) REFERENCES projects(id, profile_id) ON DELETE CASCADE
+);
+"""
+
 STATE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS app_state (
     key    TEXT PRIMARY KEY,
@@ -173,6 +208,15 @@ CREATE TABLE IF NOT EXISTS token_usage (
     provider    TEXT NOT NULL,
     tokens      INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (profile_id, month, provider)
+);
+"""
+
+RESEARCH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS research_runs (
+    profile_id  TEXT NOT NULL,
+    day         TEXT NOT NULL,
+    runs        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (profile_id, day)
 );
 """
 
@@ -310,15 +354,16 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 22  # 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 23  # 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
-CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind"
+CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind, imported"
 
 
 def _chat(row: sqlite3.Row) -> dict[str, Any]:
     data = dict(row)
     data["pinned"] = data.pop("pinned_at") is not None
     data["unread"] = bool(data.get("unread"))
+    data["imported"] = bool(data.get("imported"))
     return data
 
 
@@ -378,6 +423,13 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
         link = str(i.get("link", ""))
         if link.startswith("https://github.com/") and len(link) < 400:
             entry["link"] = link
+        undo = i.get("undo")
+        if isinstance(undo, dict) and undo.get("scope") in ("household", "person", "project") and isinstance(undo.get("topic"), str):
+            entry["undo"] = {
+                "scope": undo["scope"], "topic": undo["topic"][:60], "project": str(undo.get("project") or "")[:64],
+                "prev": undo["prev"][:800] if isinstance(undo.get("prev"), str) else None,
+                "now": undo["now"][:800] if isinstance(undo.get("now"), str) else None,
+            }
         out.append(entry)
     return out
 
@@ -436,10 +488,12 @@ def _require(profile_id: str) -> str:
 class Store:
     def __init__(self, path: Path | str) -> None:
         self._lock = threading.RLock()
+        self.pfiles_dir = Path(path).parent / "project_files"  # Originale der Projektdateien; die Angaben stehen in der Tabelle knowledge
         self.files_dir = Path(path).parent / "outfiles"  # erzeugte Dateien (Inhalt); die Angaben dazu stehen in der Tabelle outfiles
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
+        self._conn.execute("PRAGMA secure_delete = ON")  # gelöschte Inhalte (z. B. Inkognito-Chats) werden überschrieben, nicht nur ausgetragen
         self._conn.create_function("fold", 1, fold, deterministic=True)
         self._conn.execute("PRAGMA journal_mode = WAL")
         with self._lock, self._conn:
@@ -463,6 +517,8 @@ class Store:
             self._conn.execute("ALTER TABLE chats ADD COLUMN schedule_id TEXT NOT NULL DEFAULT ''")  # Chat entstand durch eine geplante Aufgabe
         if "summary_upto" not in columns:
             self._conn.execute("ALTER TABLE chats ADD COLUMN summary_upto INTEGER")
+        if "imported" not in columns:  # Verlauf aus einem geteilten Chat übernommen: fremder Inhalt, Änderungen fragen immer nach
+            self._conn.execute("ALTER TABLE chats ADD COLUMN imported INTEGER NOT NULL DEFAULT 0")
         if "kind" not in columns:
             self._conn.execute("ALTER TABLE chats ADD COLUMN kind TEXT NOT NULL DEFAULT ''")  # 'voice' = Sprachgespräch außerhalb eines Chats (nicht in der Liste)
         profile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(profiles)")}
@@ -483,6 +539,18 @@ class Store:
         if "tools" not in message_columns:
             self._conn.execute("ALTER TABLE messages ADD COLUMN tools TEXT")  # JSON: Aktionen in Home Assistant (Beschriftung, Art, Ergebnis)
         self._conn.executescript(KNOWLEDGE_SCHEMA)
+        knowledge_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(knowledge)")}
+        if "file_id" not in knowledge_columns:  # Original der Datei auf der Platte (Ordner project_files), Text steht weiter in content
+            self._conn.execute("ALTER TABLE knowledge ADD COLUMN file_id TEXT")
+            self._conn.execute("ALTER TABLE knowledge ADD COLUMN file_size INTEGER NOT NULL DEFAULT 0")
+            self._conn.execute("ALTER TABLE knowledge ADD COLUMN mime TEXT NOT NULL DEFAULT ''")
+            self._conn.execute("ALTER TABLE knowledge ADD COLUMN origin TEXT NOT NULL DEFAULT 'upload'")  # upload = von der Person, ai = von der KI abgelegt
+        memory_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(memories)")}
+        if "origin" not in memory_columns:  # Herkunft: '' unbekannt, said = von der Person gesagt, inferred = von der KI abgeleitet, manual = selbst eingetragen, import
+            self._conn.execute("ALTER TABLE memories ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
+        self._conn.executescript(PROJECT_MEMORY_SCHEMA)
+        self._conn.executescript(SHARES_SCHEMA)
+        self._conn.executescript(RESEARCH_SCHEMA)
         self._conn.executescript(STATE_SCHEMA)
         self._conn.executescript(OUTFILES_SCHEMA)
         outfile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(outfiles)")}
@@ -635,7 +703,7 @@ class Store:
             )
         return {
             "id": chat_id, "title": title, "created_at": now, "updated_at": now,
-            "pinned": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind,
+            "pinned": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind, "imported": False,
         }
 
     def list_chats(self, profile_id: str, kind: str = "") -> list[dict[str, Any]]:
@@ -655,6 +723,15 @@ class Store:
         with self._lock, self._conn:
             cur = self._conn.execute("UPDATE chats SET kind = ? WHERE id = ? AND profile_id = ?", (kind, chat_id, profile_id))
         return cur.rowcount == 1
+
+    def incognito_sweep(self, idle_minutes: int) -> int:
+        """Inkognito-Chats löschen, die seit ``idle_minutes`` Minuten unberührt sind (0 = alle, z. B. beim Start und Beenden)."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max(0, idle_minutes))).isoformat(timespec="seconds")
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, profile_id FROM chats WHERE kind = 'incognito' AND (? <= 0 OR updated_at < ?)", (idle_minutes, cutoff)
+            ).fetchall()
+        return sum(1 for row in rows if self.delete_chat(row["profile_id"], row["id"]))
 
     def voice_sweep(self, days: int) -> int:
         """Sprachgespräche außerhalb eines Chats löschen, die seit ``days`` Tagen unverändert sind (angepinnte bleiben)."""
@@ -714,6 +791,54 @@ class Store:
                 (chat_id, profile_id),
             ).fetchone()
         return _chat(row) if row else None
+
+    # ------------------------------------------------- Chatwissen im Projekt
+
+    def project_chats(self, profile_id: str, project_id: str, exclude: str = "", limit: int = 40) -> list[dict[str, Any]]:
+        """Die anderen Chats eines Projekts (neueste zuerst) mit Kurzfassung: Zusammenfassung des Verlaufs, sonst der Anfang der ersten Frage."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT c.id, c.title, c.updated_at, c.summary, "
+                "(SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id AND m.profile_id = c.profile_id) AS messages, "
+                "(SELECT content FROM messages m WHERE m.chat_id = c.id AND m.profile_id = c.profile_id AND m.role = 'user' ORDER BY m.id LIMIT 1) AS first "
+                "FROM chats c WHERE c.profile_id = ? AND c.project_id = ? AND c.kind = '' AND c.id <> ? "
+                "ORDER BY c.updated_at DESC, c.created_at DESC LIMIT ?",
+                (profile_id, project_id, exclude, max(1, min(limit, 200))),
+            ).fetchall()
+        out = []
+        for r in rows:
+            text = " ".join((r["summary"] or r["first"] or "").split())
+            out.append({"id": r["id"], "title": r["title"], "updated_at": r["updated_at"], "messages": r["messages"], "brief": text[:160] + ("…" if len(text) > 160 else "")})
+        return out
+
+    def project_chat_search(self, profile_id: str, project_id: str, query: str, exclude: str = "", limit: int = 8) -> list[dict[str, Any]]:
+        """Suche in den anderen Chats eines Projekts (alle Suchwörter, ohne Groß-/Kleinschreibung und Umlautpunkte)."""
+        found = self.search_chats(profile_id, query, limit=100)
+        return [h for h in found if h.get("project_id") == project_id and h["chat_id"] != exclude][: max(1, min(limit, 20))]
+
+    def project_chat_read(self, profile_id: str, project_id: str, wanted: str, exclude: str = "") -> dict[str, Any] | None:
+        """Ein Chat des Projekts: ``wanted`` ist die ID (ein eindeutiger Anfang genügt) oder ein Stück des Titels. ``None``, wenn es keinen eindeutigen Treffer gibt."""
+        _require(profile_id)
+        key = fold(wanted).strip()
+        if not key:
+            return None
+        with self._lock:
+            chats = self._conn.execute(
+                "SELECT id, title, summary, summary_upto, updated_at FROM chats WHERE profile_id = ? AND project_id = ? AND kind = '' AND id <> ?",
+                (profile_id, project_id, exclude),
+            ).fetchall()
+        exact = [c for c in chats if c["id"] == wanted.strip() or c["id"].startswith(wanted.strip().lower())] if len(wanted.strip()) >= 4 else []
+        hits = exact or [c for c in chats if fold(c["title"]) == key] or [c for c in chats if key in fold(c["title"])]
+        if len(hits) != 1:
+            return {"ambiguous": [{"id": c["id"], "title": c["title"]} for c in hits[:8]]} if hits else None
+        chat = hits[0]
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, role, content, created_at FROM messages WHERE chat_id = ? AND profile_id = ? ORDER BY id", (chat["id"], profile_id)
+            ).fetchall()
+        return {"id": chat["id"], "title": chat["title"], "updated_at": chat["updated_at"], "summary": chat["summary"], "summary_upto": chat["summary_upto"],
+                "messages": [dict(r) for r in rows]}
 
     def set_chat_model(self, profile_id: str, chat_id: str, model: str) -> bool:
         """Gewähltes Modell eines Chats merken ('' = wieder das Standard-Modell). Ändert weder Titel noch Reihenfolge."""
@@ -975,39 +1100,110 @@ class Store:
     def delete_project(self, profile_id: str, project_id: str) -> bool:
         """Projekt löschen. Die Chats bleiben erhalten und liegen danach ohne Projekt in der Liste."""
         _require(profile_id)
-        with self._lock, self._conn:
-            self._conn.execute(
-                "UPDATE chats SET project_id = NULL WHERE project_id = ? AND profile_id = ?",
-                (project_id, profile_id),
-            )
-            cur = self._conn.execute(
-                "DELETE FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
-            )
+        with self._lock:
+            files = [r["file_id"] for r in self._conn.execute(
+                "SELECT file_id FROM knowledge WHERE project_id = ? AND profile_id = ? AND file_id IS NOT NULL", (project_id, profile_id))]
+            with self._conn:
+                self._conn.execute(
+                    "UPDATE chats SET project_id = NULL WHERE project_id = ? AND profile_id = ?",
+                    (project_id, profile_id),
+                )
+                cur = self._conn.execute(
+                    "DELETE FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
+                )
+        if cur.rowcount == 1:
+            for file_id in files:
+                self._pfile_path(file_id).unlink(missing_ok=True)
         return cur.rowcount == 1
 
     # ------------------------------------------------------------ Projektwissen
 
-    def add_knowledge(self, profile_id: str, project_id: str, name: str, content: str) -> dict[str, Any] | None:
-        """Datei zum Wissen eines Projekts hinzufügen; gleicher Name ersetzt die alte Fassung."""
+    def add_knowledge(
+        self, profile_id: str, project_id: str, name: str, content: str, *, data: bytes | None = None, mime: str = "", origin: str = "upload"
+    ) -> dict[str, Any] | None:
+        """Datei zum Wissen eines Projekts hinzufügen; gleicher Name ersetzt die alte Fassung.
+
+        Mit ``data`` bleibt das Original erhalten (``content`` ist dann der durchsuchbare Text oder ein Platzhalter).
+        """
         _require(profile_id)
         now = _now()
-        with self._lock, self._conn:
-            owned = self._conn.execute(
-                "SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
-            ).fetchone()
-            if not owned:
-                return None
-            self._conn.execute(
-                "INSERT INTO knowledge (profile_id, project_id, name, content, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?) "
-                "ON CONFLICT(project_id, name) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at",
-                (profile_id, project_id, name, content, now, now),
-            )
+        file_id = uuid.uuid4().hex if data is not None else None
+        old_file = None
+        with self._lock:
+            with self._conn:
+                owned = self._conn.execute(
+                    "SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)
+                ).fetchone()
+                if not owned:
+                    return None
+                previous = self._conn.execute("SELECT file_id FROM knowledge WHERE project_id = ? AND name = ?", (project_id, name)).fetchone()
+                old_file = previous["file_id"] if previous else None
+                if data is not None:
+                    self.pfiles_dir.mkdir(parents=True, exist_ok=True)
+                    target = self._pfile_path(file_id)
+                    partial = target.with_name(file_id + ".part")
+                    partial.write_bytes(data)
+                    os.replace(partial, target)
+                try:
+                    self._conn.execute(
+                        "INSERT INTO knowledge (profile_id, project_id, name, content, created_at, updated_at, file_id, file_size, mime, origin) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                        "ON CONFLICT(project_id, name) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at, "
+                        "file_id = excluded.file_id, file_size = excluded.file_size, mime = excluded.mime, origin = excluded.origin",
+                        (profile_id, project_id, name, content, now, now, file_id, len(data) if data is not None else 0, mime, origin if data is not None else "upload"),
+                    )
+                except sqlite3.Error:
+                    if file_id:
+                        self._pfile_path(file_id).unlink(missing_ok=True)
+                    raise
             row = self._conn.execute(
                 "SELECT id, name, length(content) AS size, updated_at FROM knowledge WHERE project_id = ? AND name = ?",
                 (project_id, name),
             ).fetchone()
+        if old_file:
+            self._pfile_path(old_file).unlink(missing_ok=True)
         return dict(row)
+
+    def _pfile_path(self, file_id: str) -> Path:
+        if not _FILE_ID.fullmatch(file_id or ""):
+            raise ValueError("ungültige Dateikennung")
+        root = os.path.normpath(str(self.pfiles_dir))
+        full = os.path.normpath(os.path.join(root, file_id))
+        if not full.startswith(root + os.sep):
+            raise ValueError("ungültige Dateikennung")
+        return Path(full)
+
+    def knowledge_entry(self, profile_id: str, project_id: str, name: str) -> dict[str, Any] | None:
+        """Angaben zu einer Datei des Projektwissens (ohne Text), ohne Beachtung der Groß-/Kleinschreibung."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, name, length(content) AS size, file_id, file_size, mime, origin FROM knowledge "
+                "WHERE project_id = ? AND profile_id = ? AND name = ? COLLATE NOCASE",
+                (project_id, profile_id, name),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def project_file_bytes_total(self, profile_id: str, project_id: str) -> int:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COALESCE(SUM(file_size), 0) AS n FROM knowledge WHERE project_id = ? AND profile_id = ?", (project_id, profile_id)
+            ).fetchone()
+        return int(row["n"])
+
+    def knowledge_file_open(self, profile_id: str, project_id: str, knowledge_id: int) -> tuple[dict[str, Any], Path] | None:
+        """Original einer Projektdatei zum Herunterladen (nur für den Besitzer des Projekts)."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT name, mime, file_id FROM knowledge WHERE id = ? AND project_id = ? AND profile_id = ? AND file_id IS NOT NULL",
+                (knowledge_id, project_id, profile_id),
+            ).fetchone()
+        if not row:
+            return None
+        path = self._pfile_path(row["file_id"])
+        return (dict(row), path) if path.is_file() else None
 
     def list_knowledge(self, profile_id: str, project_id: str) -> list[dict[str, Any]] | None:
         """Dateien des Projektwissens (ohne Inhalt); ``None``, wenn das Projekt nicht dem Profil gehört."""
@@ -1019,11 +1215,11 @@ class Store:
             if not owned:
                 return None
             rows = self._conn.execute(
-                "SELECT id, name, length(content) AS size, updated_at FROM knowledge "
+                "SELECT id, name, length(content) AS size, updated_at, file_id IS NOT NULL AS has_file, file_size, mime, origin FROM knowledge "
                 "WHERE project_id = ? AND profile_id = ? ORDER BY name COLLATE NOCASE",
                 (project_id, profile_id),
             ).fetchall()
-        return [dict(r) for r in rows]
+        return [{**dict(r), "has_file": bool(r["has_file"])} for r in rows]
 
     def knowledge_totals(self, profile_id: str, project_id: str) -> tuple[int, int]:
         """(Anzahl Dateien, Zeichen insgesamt) des Projektwissens."""
@@ -1056,11 +1252,17 @@ class Store:
 
     def delete_knowledge(self, profile_id: str, project_id: str, knowledge_id: int) -> bool:
         _require(profile_id)
-        with self._lock, self._conn:
-            cur = self._conn.execute(
-                "DELETE FROM knowledge WHERE id = ? AND project_id = ? AND profile_id = ?",
-                (knowledge_id, project_id, profile_id),
-            )
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT file_id FROM knowledge WHERE id = ? AND project_id = ? AND profile_id = ?", (knowledge_id, project_id, profile_id)
+            ).fetchone()
+            with self._conn:
+                cur = self._conn.execute(
+                    "DELETE FROM knowledge WHERE id = ? AND project_id = ? AND profile_id = ?",
+                    (knowledge_id, project_id, profile_id),
+                )
+        if cur.rowcount == 1 and row and row["file_id"]:
+            self._pfile_path(row["file_id"]).unlink(missing_ok=True)
         return cur.rowcount == 1
 
     # ------------------------------------------------------------------ Konnektoren
@@ -1385,7 +1587,7 @@ class Store:
         params: tuple = (scope, owner) if auto is None else (scope, owner, AUTO_AUTHOR)
         with self._lock:
             rows = self._conn.execute(
-                "SELECT id, topic, content, author, updated_at FROM memories WHERE scope = ? AND owner = ?" + extra
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM memories WHERE scope = ? AND owner = ?" + extra
                 + " ORDER BY topic COLLATE NOCASE",
                 params,
             ).fetchall()
@@ -1426,22 +1628,215 @@ class Store:
                 (key, value),
             )
 
-    def memory_save(self, scope: str, profile_id: str, topic: str, content: str, author: str = "") -> dict[str, Any]:
+    def memory_save(self, scope: str, profile_id: str, topic: str, content: str, author: str = "", origin: str = "") -> dict[str, Any]:
         """Eintrag anlegen oder (gleiches Thema, Groß-/Kleinschreibung egal) aktualisieren."""
         owner = self._memory_owner(scope, profile_id)
+        origin = origin if origin in MEMORY_ORIGINS else ""
         now = _now()
         with self._lock, self._conn:
             self._conn.execute(
-                "INSERT INTO memories (scope, owner, topic, content, author, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "INSERT INTO memories (scope, owner, topic, content, author, origin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(scope, owner, topic) DO UPDATE SET content = excluded.content, author = excluded.author, "
-                "updated_at = excluded.updated_at",
-                (scope, owner, topic, content, author, now, now),
+                "origin = excluded.origin, updated_at = excluded.updated_at",
+                (scope, owner, topic, content, author, origin, now, now),
             )
             row = self._conn.execute(
-                "SELECT id, topic, content, author, updated_at FROM memories WHERE scope = ? AND owner = ? AND topic = ? COLLATE NOCASE",
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM memories WHERE scope = ? AND owner = ? AND topic = ? COLLATE NOCASE",
                 (scope, owner, topic),
             ).fetchone()
         return dict(row)
+
+    # ------------------------------------------------------------ Chats teilen
+
+    def share_snapshot(self, profile_id: str, chat_id: str) -> tuple[str, list[dict[str, str]]] | None:
+        """Titel und Text des Chats für eine Freigabe: nur Rolle, Text und Zeit; keine Anhänge, keine Werkzeugprotokolle (Gedächtnis-Hinweise u. a.)."""
+        chat = self.get_chat(profile_id, chat_id)
+        found = self.list_messages(profile_id, chat_id) if chat else None
+        if chat is None or found is None:
+            return None
+        out = []
+        for m in found:
+            text = m["content"] or ""
+            if not text.strip() and m.get("attachments"):
+                text = "_(Anhang, wird nicht mitgeteilt)_"
+            if text.strip():
+                out.append({"role": m["role"], "content": text, "at": m["created_at"]})
+        return chat["title"], out
+
+    def share_upsert(
+        self, profile_id: str, chat_id: str, mode: str, title: str, messages: list[dict[str, str]], expires_days: int | None = None
+    ) -> dict[str, Any] | None:
+        """Freigabe anlegen oder aktualisieren (Stand neu). ``expires_days``: 0 = nie, ``None`` = bei bestehender Freigabe unverändert."""
+        _require(profile_id)
+        if mode not in ("instance", "public"):
+            raise ValueError("mode muss instance oder public sein")
+        now = _now()
+        snapshot = json.dumps(messages, ensure_ascii=False)
+        with self._lock, self._conn:
+            if self._conn.execute("SELECT 1 FROM chats WHERE id = ? AND profile_id = ?", (chat_id, profile_id)).fetchone() is None:
+                return None
+            old = self._conn.execute("SELECT id, expires_at FROM chat_shares WHERE chat_id = ? AND mode = ?", (chat_id, mode)).fetchone()
+            if expires_days is None and old is not None:
+                expires = old["expires_at"]
+            elif expires_days:
+                expires = (datetime.now(timezone.utc) + timedelta(days=expires_days)).isoformat(timespec="seconds")
+            else:
+                expires = None
+            if old is None:
+                self._conn.execute(
+                    "INSERT INTO chat_shares (id, chat_id, profile_id, mode, token, title, snapshot, taken_at, created_at, expires_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (uuid.uuid4().hex, chat_id, profile_id, mode, secrets.token_urlsafe(32), title, snapshot, now, now, expires),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE chat_shares SET title = ?, snapshot = ?, taken_at = ?, expires_at = ? WHERE chat_id = ? AND mode = ?",
+                    (title, snapshot, now, expires, chat_id, mode),
+                )
+        return self.share_get(profile_id, chat_id, mode)
+
+    @staticmethod
+    def _share(row: sqlite3.Row, with_messages: bool = False) -> dict[str, Any]:
+        data = {k: row[k] for k in ("id", "chat_id", "profile_id", "mode", "token", "title", "taken_at", "created_at", "expires_at")}
+        if with_messages:
+            try:
+                data["messages"] = json.loads(row["snapshot"])
+            except ValueError:
+                data["messages"] = []
+        return data
+
+    def share_get(self, profile_id: str, chat_id: str, mode: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM chat_shares WHERE chat_id = ? AND profile_id = ? AND mode = ?", (chat_id, profile_id, mode)
+            ).fetchone()
+        return self._share(row) if row else None
+
+    def share_delete(self, profile_id: str, chat_id: str, mode: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM chat_shares WHERE chat_id = ? AND profile_id = ? AND mode = ?", (chat_id, profile_id, mode))
+        return cur.rowcount == 1
+
+    def share_read(self, share_id: str = "", token: str = "", mode: str = "instance") -> dict[str, Any] | None:
+        """Freigabe samt Text lesen, über ihre Kennung (``instance``) oder das Zeichen der Adresse (``public``). Abgelaufene gibt es nicht mehr."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM chat_shares WHERE mode = ? AND " + ("id = ?" if share_id else "token = ?"), (mode, share_id or token)
+            ).fetchone()
+            if row is None:
+                return None
+            if row["expires_at"] and row["expires_at"] <= _now():
+                with self._conn:
+                    self._conn.execute("DELETE FROM chat_shares WHERE id = ?", (row["id"],))
+                return None
+        return self._share(row, with_messages=True)
+
+    def shares_for_others(self, profile_id: str) -> list[dict[str, Any]]:
+        """Innerhalb der Instanz geteilte Chats anderer Personen (neueste zuerst), ohne Text."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM chat_shares WHERE mode = 'instance' AND profile_id <> ? AND (expires_at IS NULL OR expires_at > ?) "
+                "ORDER BY taken_at DESC", (profile_id, _now()),
+            ).fetchall()
+        return [self._share(r) for r in rows]
+
+    def share_modes(self, profile_id: str) -> dict[str, list[str]]:
+        """Welche Chats der Person gerade geteilt sind: ``{chat_id: ['instance', 'public']}`` (abgelaufene Freigaben zählen nicht)."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT chat_id, mode FROM chat_shares WHERE profile_id = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY mode",
+                (profile_id, _now()),
+            ).fetchall()
+        out: dict[str, list[str]] = {}
+        for row in rows:
+            out.setdefault(row["chat_id"], []).append(row["mode"])
+        return out
+
+    def share_sweep(self) -> int:
+        with self._lock, self._conn:
+            return self._conn.execute("DELETE FROM chat_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (_now(),)).rowcount
+
+    def import_chat(self, profile_id: str, title: str, messages: list[dict[str, str]]) -> dict[str, Any]:
+        """Verlauf einer geteilten Unterhaltung als eigenen Chat anlegen (``imported``: Inhalt ist fremd, Änderungen fragen immer nach)."""
+        chat = self.create_chat(profile_id, title)
+        assert chat is not None
+        with self._lock, self._conn:
+            self._conn.execute("UPDATE chats SET imported = 1 WHERE id = ? AND profile_id = ?", (chat["id"], profile_id))
+        for m in messages:
+            self.add_message(profile_id, chat["id"], m["role"] if m["role"] in ("user", "assistant") else "user", m["content"])
+        self.set_chat_unread(profile_id, chat["id"], False)
+        chat["imported"] = True
+        return self.get_chat(profile_id, chat["id"]) or chat
+
+    # ------------------------------------------------- Gedächtnis des Projekts
+
+    def project_memory_list(self, profile_id: str, project_id: str) -> list[dict[str, Any]] | None:
+        """Einträge des Projektgedächtnisses; ``None``, wenn das Projekt nicht dem Profil gehört."""
+        _require(profile_id)
+        with self._lock:
+            if not self._owns_project_locked(profile_id, project_id):
+                return None
+            rows = self._conn.execute(
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM project_memories WHERE project_id = ? AND profile_id = ? "
+                "ORDER BY topic COLLATE NOCASE", (project_id, profile_id),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _owns_project_locked(self, profile_id: str, project_id: str) -> bool:
+        return self._conn.execute("SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)).fetchone() is not None
+
+    def project_memory_save(
+        self, profile_id: str, project_id: str, topic: str, content: str, author: str = "", origin: str = ""
+    ) -> dict[str, Any] | None:
+        _require(profile_id)
+        origin = origin if origin in MEMORY_ORIGINS else ""
+        now = _now()
+        with self._lock, self._conn:
+            if not self._owns_project_locked(profile_id, project_id):
+                return None
+            self._conn.execute(
+                "INSERT INTO project_memories (profile_id, project_id, topic, content, author, origin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(project_id, topic) DO UPDATE SET content = excluded.content, author = excluded.author, origin = excluded.origin, updated_at = excluded.updated_at",
+                (profile_id, project_id, topic, content, author, origin, now, now),
+            )
+            row = self._conn.execute(
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM project_memories WHERE project_id = ? AND topic = ? COLLATE NOCASE",
+                (project_id, topic),
+            ).fetchone()
+        return dict(row)
+
+    def project_memory_get(self, profile_id: str, project_id: str, topic: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM project_memories "
+                "WHERE project_id = ? AND profile_id = ? AND topic = ? COLLATE NOCASE", (project_id, profile_id, topic),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def project_memory_count(self, profile_id: str, project_id: str) -> int:
+        _require(profile_id)
+        with self._lock:
+            return self._conn.execute(
+                "SELECT COUNT(*) FROM project_memories WHERE project_id = ? AND profile_id = ?", (project_id, profile_id)
+            ).fetchone()[0]
+
+    def project_memory_delete(self, profile_id: str, project_id: str, memory_id: int | None = None, topic: str = "") -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            if memory_id is not None:
+                cur = self._conn.execute(
+                    "DELETE FROM project_memories WHERE id = ? AND project_id = ? AND profile_id = ?", (memory_id, project_id, profile_id)
+                )
+            else:
+                cur = self._conn.execute(
+                    "DELETE FROM project_memories WHERE topic = ? COLLATE NOCASE AND project_id = ? AND profile_id = ?", (topic, project_id, profile_id)
+                )
+        return cur.rowcount == 1
 
     def profile_instructions(self, profile_id: str) -> str:
         """„Meine Anweisungen“ der Person (gelten in allen ihren Chats); leer, wenn keine gesetzt sind."""
@@ -1471,6 +1866,16 @@ class Store:
             self._conn.execute("INSERT OR IGNORE INTO profiles (id) VALUES (?)", (profile_id,))
             self._conn.execute("UPDATE profiles SET default_model = ? WHERE id = ?", (model, profile_id))
         return model
+
+    def memory_get(self, scope: str, profile_id: str, topic: str) -> dict[str, Any] | None:
+        """Ein Eintrag mit Thema (Groß-/Kleinschreibung egal); der automatisch erfasste Überblick zählt nicht."""
+        owner = self._memory_owner(scope, profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM memories "
+                "WHERE scope = ? AND owner = ? AND topic = ? COLLATE NOCASE AND author <> ?", (scope, owner, topic, AUTO_AUTHOR),
+            ).fetchone()
+        return dict(row) if row else None
 
     def memory_has_topic(self, scope: str, profile_id: str, topic: str) -> bool:
         owner = self._memory_owner(scope, profile_id)
@@ -1608,6 +2013,34 @@ class Store:
             )
             row = self._conn.execute("SELECT count FROM image_usage WHERE profile_id = ? AND month = ?", (profile_id, month)).fetchone()
         return int(row["count"])
+
+    def research_used(self, profile_id: str, day: str) -> int:
+        """Deep-Research-Läufe, die diese Person an diesem Tag (``JJJJ-MM-TT``) schon gestartet hat."""
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT runs FROM research_runs WHERE profile_id = ? AND day = ?", (profile_id, day)).fetchone()
+        return int(row["runs"]) if row else 0
+
+    def research_reserve(self, profile_id: str, day: str, limit: int) -> bool:
+        """Einen Lauf vormerken, solange das Tageslimit nicht erreicht ist (atomar). ``False``: Limit erreicht."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            row = self._conn.execute("SELECT runs FROM research_runs WHERE profile_id = ? AND day = ?", (profile_id, day)).fetchone()
+            used = int(row["runs"]) if row else 0
+            if used >= limit:
+                return False
+            self._conn.execute(
+                "INSERT INTO research_runs (profile_id, day, runs) VALUES (?, ?, 1) "
+                "ON CONFLICT(profile_id, day) DO UPDATE SET runs = runs + 1", (profile_id, day),
+            )
+            self._conn.execute("DELETE FROM research_runs WHERE day < date(?, '-30 day')", (day,))
+        return True
+
+    def research_release(self, profile_id: str, day: str) -> None:
+        """Vorgemerkten Lauf zurückgeben (er hat nichts verbraucht, z. B. Fehler vor der ersten Suche)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute("UPDATE research_runs SET runs = MAX(0, runs - 1) WHERE profile_id = ? AND day = ?", (profile_id, day))
 
     def token_usage(self, profile_id: str, month: str, provider: str = "openai") -> int:
         """Wie viele Token (Eingabe plus Ausgabe) diese Person in diesem Monat (``JJJJ-MM``) bei diesem Anbieter verbraucht hat."""

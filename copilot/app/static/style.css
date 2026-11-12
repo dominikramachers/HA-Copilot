@@ -140,7 +140,23 @@
   background: var(--sidebar);       /* eigene Fläche, damit der Chat-Titel als Überschrift erkennbar ist */
   border-bottom: 1px solid var(--line);
 }
-.title { flex: 1; min-width: 0; margin: 0; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs { display: flex; align-items: center; flex: 1; min-width: 0; gap: 4px; }
+.title { flex: 0 1 auto; min-width: 0; margin: 0; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs:not(:has(.crumb-menu:not([hidden]))) .title { flex: 1; }
+.title.renamable { padding: 4px 8px; margin: 0 -2px; border-radius: var(--r-2); cursor: text; }
+.title.renamable:hover { background: var(--chip); }
+.title-edit { width: min(420px, 60vw); box-sizing: border-box; padding: 3px 8px; border: 1px solid var(--accent); border-radius: var(--r-2); background: var(--panel); color: var(--text); font: inherit; outline: none; }
+.crumb-project { flex: 0 1 auto; max-width: 30%; padding: 4px 8px; border-radius: var(--r-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; color: var(--text-2); }
+.crumb-project:hover { background: var(--chip); color: var(--text); }
+.crumb-sep { flex: none; color: var(--muted); font-size: 15px; }
+.crumb-menu { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: var(--r-2); color: var(--text-2); transition: background .15s; }
+.crumb-menu[hidden], .crumb-project[hidden], .crumb-sep[hidden], .share-top[hidden] { display: none; }
+.crumb-menu:hover, .crumb-menu[aria-expanded="true"] { background: var(--chip); color: var(--text); }
+.crumb-menu .icon { width: 16px; height: 16px; }
+.share-top { display: inline-flex; align-items: center; gap: 7px; flex: none; height: 36px; padding: 0 14px 0 11px; border-radius: var(--r-2); border: 1px solid var(--line-2); color: var(--text); font-size: 14px; font-weight: 600; transition: background .15s; }
+.share-top:hover { background: var(--chip); }
+.share-top.on { border-color: var(--accent); color: var(--accent); }
+.share-top .icon { width: 17px; height: 17px; }
 .test-badge { flex: none; padding: 4px 10px; border-radius: var(--r-1); font-size: 12px; font-weight: 600; background: var(--warn-bg); color: var(--warn-fg); }
 /* Runde Symbolknöpfe in der Kopfzeile; welche sichtbar sind, hängt von Zugang und Bildschirmbreite ab (unten). */
 .round-btn { display: none; place-items: center; flex: none; width: 38px; height: 38px; border-radius: var(--r-2); border: 1px solid var(--line-2); color: var(--text); transition: transform .15s, background .15s; }
@@ -244,6 +260,10 @@
 .out-card:active:not(:disabled) { transform: scale(.985); }
 .out-card:disabled { opacity: .55; cursor: default; }
 .out-card.busy-dl { opacity: .6; }
+.out-wrap { display: flex; align-items: center; gap: 6px; max-width: 100%; }
+.out-wrap .out-card { flex: 1; min-width: 0; }
+.out-save { flex: none; }
+.out-save.done { color: var(--accent); }
 .out-tile { flex: none; width: 42px; height: 42px; border-radius: var(--r-1); display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
 .out-tile .icon { width: 22px; height: 22px; }
 .out-card.tone-sheet .out-tile { background: color-mix(in srgb, #1f9d55 16%, transparent); color: #1f9d55; }
@@ -647,6 +667,10 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   #menu, #new-chat-top { display: grid; }
   :root[data-embed="ha"] .topbar.empty { display: none; }
   .topbar { padding: 6px 12px; padding-top: max(6px, env(safe-area-inset-top)); }
+  .crumb-project, .crumb-sep { display: none; }
+  .share-top { width: 38px; height: 38px; padding: 0; justify-content: center; }
+  .share-top span { display: none; }
+  .title-edit { width: 100%; }
   .thread { padding: 8px 16px 20px; }
   .thread.empty { padding-bottom: 4vh; }
   .hello h2 { font-size: 34px; }
@@ -1301,3 +1325,60 @@ body.voice-open { overflow: hidden; }
 .voice button:focus-visible { outline: 2px solid #7fb4ff; outline-offset: 3px; }
 @media (max-height: 560px) { .voice { gap: 6px; } .voice-answer { max-height: 12vh; } .voice-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .voice-btn-round { transition: none; } }
+.mem-undone { color: var(--text-2); font-style: normal; }
+.mem-undo { font-weight: 600; }
+.mem-undo:disabled { opacity: .5; cursor: default; }
+
+/* ---------- Inkognito-Chat ---------- */
+#incognito-top { display: grid; }
+#incognito-top[hidden] { display: none; }
+#incognito-top[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+#incognito-top[aria-pressed="true"]:hover { background: var(--text); }
+:root.incognito .composer-box { border-style: dashed; }
+.hello .hello-ghost { width: 44px; height: 44px; margin-bottom: 12px; color: var(--text-2); }
+.incognito-facts { margin: 14px 0 0; padding: 0 0 0 20px; font-size: 15px; line-height: 1.5; color: var(--text-2); }
+.incognito-facts li + li { margin-top: 6px; }
+
+/* Chats teilen (Fenster nach dem Vorbild von Claude) */
+.share-h { margin: 14px 0 6px; font-size: 13.5px; font-weight: 600; color: var(--text-2); }
+.share-h:first-child { margin-top: 2px; }
+.share-access, .share-opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r-3); background: var(--panel); color: var(--text); text-align: left; transition: background .15s, border-color .15s; }
+.share-access:hover, .share-opt:hover:not(:disabled) { background: var(--chip); }
+.share-access > .icon:last-child { flex: none; width: 18px; height: 18px; color: var(--text-2); transition: transform .2s; }
+.share-access[aria-expanded="true"] > .icon:last-child { transform: rotate(90deg); }
+.share-opt { margin-top: 6px; }
+.share-opt.on { border-color: var(--accent); }
+.share-opt:disabled { opacity: .55; cursor: not-allowed; }
+.share-opt > .icon:last-child { flex: none; width: 18px; height: 18px; color: var(--accent); }
+.share-lead { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--chip); color: var(--text-2); }
+.share-lead .icon { width: 18px; height: 18px; }
+.share-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.share-text b { font-size: 15px; font-weight: 600; }
+.share-hint { margin: 0; font-size: 13.5px; line-height: 1.4; color: var(--text-2); font-weight: 400; white-space: normal; }
+.share-access + .share-hint, .share-hint + .share-state { margin-top: 8px; }
+.share-state { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.share-owner { display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 6px 2px; }
+.share-avatar { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 600; }
+.share-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.share-role { flex: none; font-size: 13.5px; color: var(--text-2); }
+.share-note { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.share-foot { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+.share-gear { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: var(--r-2); border: 1px solid var(--line-2); color: var(--text); transition: background .15s; }
+.share-gear:hover { background: var(--chip); }
+.share-gear .icon { width: 19px; height: 19px; }
+.share-main { flex: 1; justify-content: center; gap: 8px; min-height: 42px; }
+.share-main .icon { width: 18px; height: 18px; }
+.share-url { width: 100%; box-sizing: border-box; margin-top: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--panel-2); color: var(--text); font: 13px/1.3 var(--mono, monospace); }
+.shared-list { display: flex; flex-direction: column; gap: 2px; }
+.shared-item { min-height: 54px; padding-top: 6px; padding-bottom: 6px; }
+.shared-item .share-text { white-space: normal; }
+.shared-item .share-text b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Ein Fenster-Menü (Zahnrad) muss über dem Teilen-Fenster liegen */
+body:has(#sheet.show) .pop-scrim { z-index: 51; }
+body:has(#sheet.show) .popover { z-index: 52; }
+/* Kleines Teilen-Symbol an geteilten Chats in der Liste */
+.share-mark { flex: none; width: 14px; height: 14px; margin-left: 6px; color: var(--muted); opacity: .75; }
+.row.active .share-mark { color: var(--accent); opacity: 1; }
+.share-thread { display: flex; flex-direction: column; gap: 12px; max-height: 52vh; overflow: auto; padding: 4px 2px 10px; }
+.share-thread .msg.user { align-self: flex-end; max-width: 85%; }
+.tools-btn.research #tools-effort { color: var(--accent); font-weight: 600; }

@@ -41,6 +41,7 @@ from .backend_router import RouterBackend
 from . import attachments as filelib, compact, safety
 from . import news as newslib
 from . import quotes
+from . import research as researchlib
 from . import i18n
 from .i18n import tr
 from .previews import MAX_CHARS as PREVIEW_MAX_CHARS, PREVIEW_HEADERS, PreviewStore
@@ -61,6 +62,7 @@ from .config import (
 )
 from .ha_client import HaApi, HaApiError
 from . import knowledge as knowlib
+from . import projectfiles as pfiles
 from . import skills as skilllib
 from . import skills_github
 from . import plugins as pluginlib
@@ -68,11 +70,11 @@ from . import plugins_github
 from . import package_catalog
 from . import memory_import as memlib
 from .context_tools import (
-    CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
+    CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, PROJECT_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
 )
 from .ha_tools import HaToolbox
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
-from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox
+from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox, clean_name
 from . import exporter
 from . import limits as limitlib
 from . import notifier as notifierlib
@@ -115,6 +117,12 @@ DELETE_WORDS = ("LÖSCHEN", "DELETE")  # eines davon muss zur Sicherheit eingeti
 KEEPALIVE_SECONDS = 15  # Cloudflare trennt Verbindungen, über die ~100 s nichts fließt
 SESSION_COOKIE = "__Host-ki_session"
 LOGIN_COOKIE = "__Host-ki_login"
+INCOGNITO_NOTE = (
+    "Dies ist ein Inkognito-Chat: Du hast hier kein Gedächtnis und kannst nichts dauerhaft merken oder im Projekt ablegen; "
+    "Erinnerungen der Person kennst du in diesem Chat nicht. Bittet die Person, sich etwas zu merken, sag kurz, dass das im Inkognito-Chat nicht geht "
+    "und sie dafür einen normalen Chat öffnen kann. Erwähne den Inkognito-Modus sonst nicht. Aktionen in Home Assistant oder anderen Diensten, die du auf Wunsch ausführst, "
+    "bleiben dort wie immer im Protokoll."
+)
 DEFAULT_TITLES = frozenset({"Neuer Chat", "New chat"})  # Standardtitel aus jeder Sprache gelten als „noch nicht benannt“
 
 
@@ -235,6 +243,8 @@ class SendBody(BaseModel):
     quote: str | None = Field(default=None, max_length=quotes.QUOTE_MAX * 2)
     # Gesprochene Nachricht: schnelles Modell, kurze Antwort zum Vorlesen, weniger Werkzeuge, Rückfragen werden abgelehnt
     voice: bool = False
+    # Deep Research für diese Nachricht (mehrstufige Recherche mit Quellenbericht, siehe research.py)
+    research: bool = False
 
 
 class _Declined(Exception):
@@ -249,6 +259,16 @@ class CreateChatBody(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
     project_id: str | None = Field(default=None, max_length=64)
     voice: bool = False  # Sprachgespräch außerhalb eines Chats: steht nicht in der Chatliste
+    incognito: bool = False  # Inkognito-Chat: nichts bleibt zurück (kein Gedächtnis, keine Liste, wird beim Schließen gelöscht)
+
+
+class ShareBody(BaseModel):
+    mode: Literal["instance", "public"]
+    expires_days: Literal[0, 7, 30] | None = None  # nur für den öffentlichen Link; 0 = läuft nie ab
+
+
+class ShareModeBody(BaseModel):
+    mode: Literal["instance", "public"]
 
 
 class VoiceTextBody(BaseModel):
@@ -446,6 +466,8 @@ class SecurityHeaders:
         await self.app(scope, receive, wrapped)
 
 
+SHARE_TOKEN = re.compile(r"[A-Za-z0-9_-]{43}")  # secrets.token_urlsafe(32)
+
 PUBLIC_SECURITY_HEADERS = {
     **SECURITY_HEADERS,
     "Cross-Origin-Opener-Policy": "same-origin",
@@ -570,6 +592,8 @@ class Run:
                 self.actions[event["id"]]["file"] = event["file"]
             if event.get("link"):
                 self.actions[event["id"]]["link"] = event["link"]
+            if event.get("undo"):
+                self.actions[event["id"]]["undo"] = event["undo"]
         self.wake()
 
     def next_tool_id(self) -> int:
@@ -685,6 +709,11 @@ def _login_page(branding: Branding, version: str) -> HTMLResponse:
     return HTMLResponse(branding.render(page, version), headers={"Cache-Control": "no-store"})
 
 
+def _shared_page(branding: Branding, version: str) -> HTMLResponse:
+    page = i18n.translate_html((STATIC_DIR / "shared.html").read_text(encoding="utf-8"))
+    return HTMLResponse(branding.render(page, version), headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noarchive", "Referrer-Policy": "no-referrer"})
+
+
 def _index_page(branding: Branding, version: str, embed: str) -> HTMLResponse:
     page = i18n.translate_html((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
     return HTMLResponse(branding.render(page, version, embed), headers={"Cache-Control": "no-store"})
@@ -727,9 +756,19 @@ class PluginImportBody(BaseModel):
 
 
 class MemoryBody(BaseModel):
-    scope: Literal["household", "person"]
+    scope: Literal["household", "person", "project"]
     topic: str = Field(min_length=2, max_length=60)
     content: str = Field(min_length=3, max_length=800)
+    project_id: str = Field(default="", max_length=64)
+
+
+class MemoryUndoBody(BaseModel):
+    """Eine Gedächtnis-Änderung der KI zurücknehmen: ``prev`` = Text davor (leer: gab es nicht), ``now`` = Text danach (leer: gelöscht)."""
+    scope: Literal["household", "person", "project"]
+    topic: str = Field(min_length=2, max_length=60)
+    prev: str | None = Field(default=None, max_length=800)
+    now: str | None = Field(default=None, max_length=800)
+    project_id: str = Field(default="", max_length=64)
 
 
 class InstructionsBody(BaseModel):
@@ -851,6 +890,21 @@ def register_chat_routes(
     def scan_status() -> dict:
         return {**scanner.status(), "auto_days": settings.ha_scan_days}
 
+    def research_day() -> str:
+        return datetime.now().strftime("%Y-%m-%d")
+
+    def research_state(profile: Profile) -> dict:
+        used = store.research_used(profile.id, research_day())
+        limit = settings.research_daily_limit
+        return {"limit": limit, "left": max(0, limit - used), "questions": researchlib.MAX_QUESTIONS, "minutes": researchlib.TOTAL_SECONDS // 60}
+
+    @app.get("/api/research")
+    def research_info(profile: Profile = Depends(current_profile)) -> dict:
+        """Stand von Deep Research für die Warnung beim Einschalten: Tageslimit, Rest, Grenzen je Lauf."""
+        if not settings.research_enabled or settings.web_level(profile) != "on":
+            raise HTTPException(status_code=404, detail=tr("Nicht verfügbar"))
+        return research_state(profile)
+
     @app.get("/api/me")
     def me(profile: Profile = Depends(current_profile)) -> dict:
         return {
@@ -878,6 +932,10 @@ def register_chat_routes(
             "notify": notifier.available,
             "notify_ha": ha is not None and ha.enabled,
             "memory": settings.memory_enabled,
+            "incognito": settings.incognito_enabled,
+            "sharing": settings.sharing,
+            "sharing_public": settings.sharing == "public" and bool(settings.public_base_url),
+            "research": research_state(profile) if settings.research_enabled and settings.web_level(profile) == "on" else None,
             "overview": overview_allowed(profile),
             "setup": channel == "ingress",
             "setup_open": setup_check.banner(settings) if channel == "ingress" else None,
@@ -1311,10 +1369,12 @@ def register_chat_routes(
 
     @app.get("/api/chats")
     def list_chats(profile: Profile = Depends(current_profile)) -> list[dict]:
-        # "running": Antwort wird gerade erzeugt (auch wenn der Browser nicht mehr zuhört)
+        # "running": Antwort wird gerade erzeugt (auch wenn der Browser nicht mehr zuhört); "shared": Freigaben des Chats (instance, public)
+        shares = store.share_modes(profile.id) if settings.sharing != "off" else {}
         return [
             {
                 **chat,
+                "shared": shares.get(chat["id"], []),
                 "running": bool((run := runs.get((profile.id, chat["id"]))) and not run.finished),
                 "needs_approval": bool(run and not run.finished and run.pending),
             }
@@ -1332,6 +1392,12 @@ def register_chat_routes(
             if not voice_allowed(profile):
                 raise HTTPException(status_code=403, detail=tr("Sprache ist für dich nicht freigeschaltet."))
             kind, project_id, title = "voice", None, tr("Sprachgespräch")
+        if body and body.incognito:
+            if not settings.incognito_enabled:
+                raise HTTPException(status_code=403, detail=tr("Inkognito-Chats sind ausgeschaltet."))
+            if kind or project_id:
+                raise HTTPException(status_code=422, detail=tr("Ein Inkognito-Chat gehört in kein Projekt."))
+            kind, title = "incognito", tr("Inkognito-Chat")
         chat = store.create_chat(profile.id, title, project_id, kind=kind)
         if chat is None:
             raise HTTPException(status_code=404, detail=tr("Projekt nicht gefunden"))
@@ -1405,8 +1471,11 @@ def register_chat_routes(
     async def update_chat(
         chat_id: str, body: PatchChatBody, profile: Profile = Depends(current_profile)
     ) -> dict:
-        if store.get_chat(profile.id, chat_id) is None:
+        current = store.get_chat(profile.id, chat_id)
+        if current is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if current.get("kind") == "incognito":  # weder anpinnen noch verschieben noch behalten: er wird beim Schließen gelöscht
+            raise HTTPException(status_code=409, detail=tr("Ein Inkognito-Chat lässt sich nicht ändern."))
         if "project_id" in body.model_fields_set and not store.move_chat(
             profile.id, chat_id, body.project_id
         ):
@@ -1460,6 +1529,8 @@ def register_chat_routes(
         found = store.list_messages(profile.id, chat_id) if chat else None
         if chat is None or found is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if chat.get("kind") == "incognito":
+            raise HTTPException(status_code=409, detail=tr("Ein Inkognito-Chat lässt sich nicht exportieren."))
         project = next((p["name"] for p in store.list_projects(profile.id) if p["id"] == chat["project_id"]), "")
         text = exporter.chat_markdown(chat, found, project, settings.app_name)
         return download(text, exporter.safe_name(chat["title"]) + ".md", "text/markdown; charset=utf-8")
@@ -1488,6 +1559,111 @@ def register_chat_routes(
                 allowed.discard(key)
         return {"deleted": count}
 
+    # ------------------------------------------------------------ Chats teilen
+    # Eine Freigabe ist ein Schnappschuss: Text zum Zeitpunkt des Teilens (ohne Anhänge, Werkzeugprotokolle und Gedächtnis-Hinweise).
+    # „instance“: alle angemeldeten Personen dieser Instanz sehen ihn unter „Geteilt“ und können ihn als Kopie weiterführen.
+    # „public“: ein langer, nicht erratbarer Link ohne Anmeldung, nur lesen (siehe build_public_app).
+
+    SHARE_MAX_CHARS = 2_000_000
+
+    def sharing_or_404() -> str:
+        if settings.sharing == "off":
+            raise HTTPException(status_code=404, detail=tr("Nicht verfügbar"))
+        return settings.sharing
+
+    def public_ready() -> bool:
+        return settings.sharing == "public" and bool(settings.public_base_url)
+
+    def share_view(row: dict | None) -> dict | None:
+        if row is None:
+            return None
+        out = {"mode": row["mode"], "taken_at": row["taken_at"], "created_at": row["created_at"], "expires_at": row["expires_at"]}
+        if row["mode"] == "public":
+            out["url"] = f"{settings.public_base_url}/s/{row['token']}"
+        return out
+
+    def shared_chat(profile: Profile, chat_id: str) -> dict:
+        chat = store.get_chat(profile.id, chat_id)
+        if chat is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if chat.get("kind"):
+            raise HTTPException(status_code=409, detail=tr("Dieser Chat lässt sich nicht teilen."))
+        return chat
+
+    def owner_label(profile_id: str) -> str:
+        known = registry.by_id(profile_id) if registry is not None else None
+        return (known.label or known.id) if known else profile_id
+
+    @app.get("/api/chats/{chat_id}/share")
+    def get_share(chat_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        shared_chat(profile, chat_id)
+        return {
+            "sharing": settings.sharing, "public_available": public_ready(),
+            "instance": share_view(store.share_get(profile.id, chat_id, "instance")),
+            "public": share_view(store.share_get(profile.id, chat_id, "public")),
+        }
+
+    def take_share(profile: Profile, chat_id: str, mode: str, expires_days: int | None) -> dict:
+        sharing_or_404()
+        shared_chat(profile, chat_id)
+        if mode == "public":
+            if settings.sharing != "public":
+                raise HTTPException(status_code=403, detail=tr("Öffentliche Links sind nicht erlaubt."))
+            if not settings.public_base_url:
+                raise HTTPException(status_code=409, detail=tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."))
+        snap = store.share_snapshot(profile.id, chat_id)
+        if snap is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        title, messages = snap
+        if not messages:
+            raise HTTPException(status_code=422, detail=tr("Der Chat ist noch leer."))
+        if sum(len(m["content"]) for m in messages) > SHARE_MAX_CHARS:
+            raise HTTPException(status_code=422, detail=tr("Der Chat ist zu lang zum Teilen."))
+        row = store.share_upsert(profile.id, chat_id, mode, title, messages, expires_days if mode == "public" else 0)
+        return share_view(row) or {}
+
+    @app.post("/api/chats/{chat_id}/share", dependencies=[Depends(write_guard)])
+    def create_share(chat_id: str, body: ShareBody, profile: Profile = Depends(current_profile)) -> dict:
+        return take_share(profile, chat_id, body.mode, 30 if body.expires_days is None and not store.share_get(profile.id, chat_id, body.mode) else body.expires_days)
+
+    @app.post("/api/chats/{chat_id}/share/refresh", dependencies=[Depends(write_guard)])
+    def refresh_share(chat_id: str, body: ShareModeBody, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        if store.share_get(profile.id, chat_id, body.mode) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return take_share(profile, chat_id, body.mode, None)
+
+    @app.delete("/api/chats/{chat_id}/share/{mode}", status_code=204, dependencies=[Depends(write_guard)])
+    def revoke_share(chat_id: str, mode: Literal["instance", "public"], profile: Profile = Depends(current_profile)) -> Response:
+        if not store.share_delete(profile.id, chat_id, mode):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.get("/api/shared")
+    def list_shared(profile: Profile = Depends(current_profile)) -> list[dict]:
+        """Von anderen in dieser Instanz geteilte Chats (nur Titel, Person und Stand)."""
+        sharing_or_404()
+        return [{"id": r["id"], "title": r["title"], "owner": owner_label(r["profile_id"]), "taken_at": r["taken_at"]} for r in store.shares_for_others(profile.id)]
+
+    @app.get("/api/shared/{share_id}")
+    def read_shared(share_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        row = store.share_read(share_id=share_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"id": row["id"], "title": row["title"], "owner": owner_label(row["profile_id"]), "taken_at": row["taken_at"],
+                "mine": row["profile_id"] == profile.id, "messages": row["messages"]}
+
+    @app.post("/api/shared/{share_id}/copy", status_code=201, dependencies=[Depends(write_guard)])
+    def copy_shared(share_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Als eigene Kopie weiterführen: ein neuer Chat der Person mit dem geteilten Text. Er läuft mit ihren Rechten und ihrem Gedächtnis."""
+        sharing_or_404()
+        row = store.share_read(share_id=share_id)
+        if row is None or not row["messages"]:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return store.import_chat(profile.id, _title_from(tr("Kopie: {title}", title=row["title"])), row["messages"])
+
     # ------------------------------------------------------------ Projektwissen
 
     @app.get("/api/projects/{project_id}/knowledge")
@@ -1502,16 +1678,36 @@ def register_chat_routes(
     async def add_knowledge(project_id: str, body: KnowledgeBody, profile: Profile = Depends(current_profile)) -> dict:
         if store.get_project(profile.id, project_id) is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        no_text: list[str] = []
         try:
             data = knowlib.decode_upload(body.data)
             body.data = ""
-            items, skipped = await asyncio.to_thread(knowlib.expand, body.name, data)
+            try:
+                items, skipped = await asyncio.to_thread(knowlib.expand, body.name, data)
+            except knowlib.KnowledgeError as exc:
+                # Bilder, Scans und andere Dateien ohne Text bleiben als Original im Projekt (Platzhalter im Inhaltsverzeichnis)
+                if data.startswith(b"PK\x03\x04") or not data or len(data) > pfiles.FILE_MAX_BYTES:  # ZIP und kaputte Office-Dateien: Meldung wie bisher
+                    raise
+                try:
+                    saved = pfiles.save(store, profile.id, project_id, body.name, data, origin="upload", text="")
+                except pfiles.ProjectFileError as inner:
+                    raise knowlib.KnowledgeError(str(inner)) from None
+                return {"added": [saved.name], "skipped": [], "no_text": [saved.name]}
         except knowlib.KnowledgeError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
         existing = {f["name"].lower(): f["size"] for f in store.list_knowledge(profile.id, project_id) or []}
         count, chars = len(existing), sum(existing.values())
         added: list[str] = []
+        single = len(items) == 1 and not knowlib._is_zip_archive(data) and len(data) <= pfiles.FILE_MAX_BYTES
         for name, text in items:
+            if single:  # eine einzelne Datei (Word, Excel, PDF, Text): das Original bleibt zusätzlich erhalten
+                try:
+                    saved = pfiles.save(store, profile.id, project_id, name, data, origin="upload", text=text)
+                except pfiles.ProjectFileError as exc:
+                    skipped.append({"name": name, "reason": str(exc)})
+                else:
+                    added.append(saved.name)
+                continue
             old = existing.get(name.lower())
             if old is None and count >= knowlib.MAX_FILES:
                 skipped.append({"name": name, "reason": tr("Dateilimit erreicht ({max})", max=knowlib.MAX_FILES)})
@@ -1528,7 +1724,39 @@ def register_chat_routes(
             added.append(name)
         if not added and not skipped:
             raise HTTPException(status_code=422, detail=tr("Nichts übernommen"))
-        return {"added": added, "skipped": skipped[:50]}
+        return {"added": added, "skipped": skipped[:50], "no_text": no_text}
+
+    @app.get("/api/projects/{project_id}/knowledge/{knowledge_id}/file")
+    def download_project_file(project_id: str, knowledge_id: int, profile: Profile = Depends(current_profile)) -> FileResponse:
+        """Das Original einer Projektdatei herunterladen (nur der Besitzer des Projekts)."""
+        found = store.knowledge_file_open(profile.id, project_id, knowledge_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        meta, path = found
+        return FileResponse(
+            path, media_type=meta["mime"] or "application/octet-stream", filename=meta["name"].rsplit("/", 1)[-1], content_disposition_type="attachment",
+            headers={"Content-Security-Policy": "sandbox; default-src 'none'", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+        )
+
+    @app.post("/api/chats/{chat_id}/files/{file_id}/to-project", dependencies=[Depends(write_guard)])
+    async def file_to_project(chat_id: str, file_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Eine Datei aus diesem Chat im Projekt des Chats ablegen (Knopf an der Dateikarte)."""
+        if store.get_chat(profile.id, chat_id) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        project_id = store.chat_project_id(profile.id, chat_id)
+        if project_id is None:
+            raise HTTPException(status_code=422, detail=tr("Dieser Chat gehört zu keinem Projekt."))
+        found = store.outfile_open(profile.id, file_id)
+        if found is None or not any(f["id"] == file_id for f in store.outfile_list(profile.id, chat_id)):
+            raise HTTPException(status_code=404, detail=tr("Die Datei ist abgelaufen oder gehört nicht zu diesem Chat."))
+        meta, path = found
+        try:
+            saved = await asyncio.to_thread(
+                lambda: pfiles.save(store, profile.id, project_id, meta["name"], path.read_bytes(), origin="ai")
+            )
+        except pfiles.ProjectFileError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return {"name": saved.name, "replaced": saved.replaced, "has_text": saved.has_text}
 
     @app.delete("/api/projects/{project_id}/knowledge/{knowledge_id}", status_code=204, dependencies=[Depends(write_guard)])
     def delete_knowledge(project_id: str, knowledge_id: int, profile: Profile = Depends(current_profile)) -> Response:
@@ -1752,9 +1980,14 @@ def register_chat_routes(
         memory_enabled_or_404()
         names = {p.id: (p.label or p.id) for p in settings.profiles}
         household = [{**m, "by": names.get(m["author"], "")} for m in store.memory_list("household", auto=False)]
+        projects = []
+        for pr in store.list_projects(profile.id):
+            entries = store.project_memory_list(profile.id, pr["id"]) or []
+            projects.append({"id": pr["id"], "name": pr["name"], "entries": entries})
         out = {
             "household": household,
             "person": store.memory_list("person", profile.id),
+            "projects": projects,
             "household_write": household_writable(profile),
             "instructions": store.profile_instructions(profile.id),
             "instructions_max": INSTRUCTIONS_MAX,
@@ -1781,17 +2014,69 @@ def register_chat_routes(
             scanner.start("manual")
         return {"status": scan_status()}
 
-    @app.post("/api/memory", dependencies=[Depends(write_guard)])
-    def save_memory(body: MemoryBody, profile: Profile = Depends(current_profile)) -> dict:
-        memory_enabled_or_404()
-        if body.scope == "household" and not household_writable(profile):
+    def project_memory_check(profile: Profile, project_id: str) -> None:
+        """Das Projekt muss dieser Person gehören; sonst 404 (wie bei allen Projektdaten)."""
+        if not project_id or store.project_memory_list(profile.id, project_id) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+
+    def memory_write_rules(profile: Profile, scope: str, project_id: str, topic: str, content: str, secrets: bool = True) -> None:
+        if scope == "household" and not household_writable(profile):
             raise HTTPException(status_code=403, detail=tr("Das Haushaltsgedächtnis darfst du nicht ändern."))
-        topic = " ".join(body.topic.split())
-        if len(topic) < 2:
+        if scope == "project":
+            project_memory_check(profile, project_id)
+        if not 2 <= len(topic) <= TOPIC_MAX:
             raise HTTPException(status_code=422, detail=tr("Thema fehlt"))
         if _RESERVED.match(topic):
             raise HTTPException(status_code=422, detail=tr(RESERVED_TEXT))
-        return store.memory_save(body.scope, profile.id, topic, body.content.strip(), profile.id)
+        if secrets and (_SECRET.search(topic) or _SECRET.search(content)):
+            raise HTTPException(status_code=422, detail=tr("Zugangsdaten, Schlüssel und Kontonummern werden nicht im Gedächtnis gespeichert."))
+
+    def memory_put(profile: Profile, scope: str, project_id: str, topic: str, content: str, origin: str) -> dict:
+        if scope == "project":
+            if store.project_memory_get(profile.id, project_id, topic) is None and store.project_memory_count(profile.id, project_id) >= PROJECT_LIMIT:
+                raise HTTPException(status_code=422, detail=tr("Das Projektgedächtnis ist voll ({n} Einträge).", n=PROJECT_LIMIT))
+            return store.project_memory_save(profile.id, project_id, topic, content, profile.id, origin) or {}
+        return store.memory_save(scope, profile.id, topic, content, profile.id, origin)
+
+    @app.post("/api/memory", dependencies=[Depends(write_guard)])
+    def save_memory(body: MemoryBody, profile: Profile = Depends(current_profile)) -> dict:
+        memory_enabled_or_404()
+        topic = " ".join(body.topic.split())
+        content = body.content.strip()
+        memory_write_rules(profile, body.scope, body.project_id, topic, content, secrets=False)  # eigene Einträge der Person: wie bisher keine Prüfung
+        return memory_put(profile, body.scope, body.project_id, topic, content, "manual")
+
+    @app.delete("/api/projects/{project_id}/memory/{memory_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def delete_project_memory(project_id: str, memory_id: int, profile: Profile = Depends(current_profile)) -> Response:
+        memory_enabled_or_404()
+        project_memory_check(profile, project_id)
+        if not store.project_memory_delete(profile.id, project_id, memory_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.post("/api/memory/undo", dependencies=[Depends(write_guard)])
+    def undo_memory(body: MemoryUndoBody, profile: Profile = Depends(current_profile)) -> dict:
+        """„Rückgängig“ unter einer Antwort: nur, solange der Eintrag noch so ist, wie die KI ihn hinterlassen hat."""
+        memory_enabled_or_404()
+        topic = " ".join(body.topic.split())
+        if body.scope == "household" and not household_writable(profile):
+            raise HTTPException(status_code=403, detail=tr("Das Haushaltsgedächtnis darfst du nicht ändern."))
+        if body.scope == "project":
+            project_memory_check(profile, body.project_id)
+            current = store.project_memory_get(profile.id, body.project_id, topic)
+        else:
+            current = store.memory_get(body.scope, profile.id, topic)
+        if (current["content"] if current else None) != body.now:
+            raise HTTPException(status_code=409, detail=tr("Der Eintrag wurde inzwischen geändert. Öffne das Gedächtnis, um ihn anzupassen."))
+        if body.prev is None:  # die KI hat den Eintrag neu angelegt: wieder entfernen
+            if body.scope == "project":
+                store.project_memory_delete(profile.id, body.project_id, topic=topic)
+            else:
+                store.memory_delete_topic(body.scope, profile.id, topic)
+            return {"restored": False}
+        memory_write_rules(profile, body.scope, body.project_id, topic, body.prev)
+        memory_put(profile, body.scope, body.project_id, topic, body.prev, "")
+        return {"restored": True}
 
     @app.put("/api/memory/instructions", dependencies=[Depends(write_guard)])
     def save_instructions(body: InstructionsBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -1876,7 +2161,7 @@ def register_chat_routes(
                 elif not exists and free <= 0:
                     reason = tr("Gedächtnis ist voll ({n} Einträge)", n=limit)
                 else:
-                    store.memory_save(body.scope, profile.id, topic, content, profile.id)
+                    store.memory_save(body.scope, profile.id, topic, content, profile.id, "import")
                     if exists:
                         replaced += 1
                     else:
@@ -2036,8 +2321,8 @@ def register_chat_routes(
         history = store.list_messages(profile_id, chat_id)
         if chat is None or history is None:
             return None
-        if len(history) < 2 or history[0]["role"] != "user":
-            return chat
+        if chat.get("kind") == "incognito" or len(history) < 2 or history[0]["role"] != "user":
+            return chat  # Inkognito: kein zusätzlicher Aufruf der KI nur für einen Titel
         first, answer = history[0]["content"], history[1]["content"]
         provisional = _title_from(_title_source(first, history[0].get("attachments")))
         generate = getattr(backend, "title", None)
@@ -2095,6 +2380,7 @@ def register_chat_routes(
         # Eingefügter Text stammt von der Person selbst (wie getippter Text) und gilt nicht als fremder Inhalt.
         foreign_files = [f for f in files if not f.pasted]
         key = (profile.id, chat_id)
+        imported = bool((store.get_chat(profile.id, chat_id) or {}).get("imported"))  # Verlauf aus einem geteilten Chat: fremder Inhalt
         previous = live_run(key)
         if previous and not previous.finished:
             raise HTTPException(status_code=409, detail=tr("In diesem Chat läuft bereits eine Antwort"))
@@ -2102,6 +2388,9 @@ def register_chat_routes(
             raise HTTPException(status_code=429, detail=tr("Gerade zu viele Anfragen, bitte kurz warten"))
         effort = "low" if spoken else (body.effort or settings.default_effort)
         chat = store.get_chat(profile.id, chat_id) or {}
+        incognito = chat.get("kind") == "incognito"
+        if incognito and not settings.incognito_enabled:
+            raise HTTPException(status_code=403, detail=tr("Inkognito-Chats sind ausgeschaltet."))
         requested_model = (body.model or "").strip()
         if requested_model and requested_model != AUTO_MODEL and requested_model not in model_ids:
             raise HTTPException(status_code=422, detail=tr("Unbekanntes Modell"))
@@ -2118,6 +2407,16 @@ def register_chat_routes(
         previous_model = concrete_model(saved_model or user_default_model(profile.id))
         switched_from = previous_model if history and not spoken and requested_model and chosen_model != previous_model else ""
         web_on = settings.web_level(profile) == "on" and body.web is not False
+        research = body.research
+        if research:
+            if not settings.research_enabled:
+                raise HTTPException(status_code=403, detail=tr("Deep Research ist ausgeschaltet."))
+            if spoken or incognito or files or not text:
+                raise HTTPException(status_code=422, detail=tr("Deep Research braucht eine getippte Frage ohne Anhänge und geht nicht im Inkognito-Chat."))
+            if not web_on:
+                raise HTTPException(status_code=422, detail=tr("Deep Research braucht die Websuche. Schalte sie ein."))
+            if store.research_used(profile.id, research_day()) >= settings.research_daily_limit:
+                raise HTTPException(status_code=429, detail=tr("Das Tageslimit für Deep Research ist erreicht. Morgen geht es wieder."))
         first_exchange = not history and chat.get("title") in DEFAULT_TITLES
         metas = [f.meta() for f in files]
         instructions = store.chat_instructions(profile.id, chat_id)
@@ -2223,7 +2522,7 @@ def register_chat_routes(
                 limit_to_exposed=settings.ha_limit_to_exposed,
                 confirm_writes=settings.ha_write_confirm == "ask",
                 # Dateien können eingeschleuste Anweisungen enthalten: dann nichts ohne ausdrückliches Zulassen
-                force_confirm=lambda: bool(files) or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or imported or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write") for a in run.actions.values()),
                 ask=ask,
                 record=run.push,
                 chat_allowed=lambda: key in chat_allow,
@@ -2235,9 +2534,10 @@ def register_chat_routes(
         context = ContextToolbox(
             store, profile.id, profile.label,
             project_id=store.chat_project_id(profile.id, chat_id),
-            memory_enabled=settings.memory_enabled,
+            chat_id=chat_id,
+            memory_enabled=settings.memory_enabled and not incognito,  # Inkognito: weder lesen noch schreiben, auch nicht Haushalt und Projekt
             household_write=household_writable(profile),
-            force_confirm=bool(foreign_files),
+            force_confirm=bool(foreign_files) or imported,
             ask=ask_memory, record=run.push, next_id=run.next_tool_id,
             tainted=lambda: any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             overview=overview_allowed(profile),
@@ -2255,7 +2555,7 @@ def register_chat_routes(
                 store, profile.id, chat_id, images, record=run.push, next_id=run.next_tool_id,
                 keep_days=settings.files_keep_days, limit_month=settings.image_limit_month, ask=ask_image,
                 # Gelesene Web- oder Dateiinhalte (und angehängte Dokumente) können Anweisungen enthalten: dann vor jedem Bild nachfragen
-                tainted=lambda: any(f.kind != "image" for f in foreign_files) or any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
+                tainted=lambda: imported or any(f.kind != "image" for f in foreign_files) or any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             )
             specs += image_box.specs()
         gh_level = "none" if spoken else github_level(profile)
@@ -2273,14 +2573,14 @@ def register_chat_routes(
                 gh_api, gh_level,
                 policy=gh_policy,
                 confirm_writes=settings.github_write_confirm == "ask",
-                force_confirm=lambda: bool(foreign_files) or any(a["kind"] in TAINTING_KINDS - {"gh-write"} for a in run.actions.values()),
+                force_confirm=lambda: bool(foreign_files) or imported or any(a["kind"] in TAINTING_KINDS - {"gh-write"} for a in run.actions.values()),
                 ask=ask_github, record=run.push, chat_allowed=lambda: key in github_allow, allow_chat=lambda: github_allow.add(key),
                 next_id=run.next_tool_id, file_bytes=attachment_bytes,
             ).specs()
         connector_box = ConnectorToolbox(
             connectors, profile.id,
             confirm_writes=settings.connector_write_confirm == "ask",
-            force_confirm=lambda: bool(foreign_files) or any(a["kind"] in TAINTING_KINDS - {"mcp-write"} for a in run.actions.values()),
+            force_confirm=lambda: bool(foreign_files) or imported or any(a["kind"] in TAINTING_KINDS - {"mcp-write"} for a in run.actions.values()),
             ask=ask_connector, record=run.push,
             chat_allowed=lambda cid: (profile.id, chat_id, cid) in connector_allow,
             allow_chat=lambda cid: connector_allow.add((profile.id, chat_id, cid)),
@@ -2294,6 +2594,8 @@ def register_chat_routes(
         if specs:
             extra["tools"] = specs
         extra["note"] = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
+        if incognito:
+            extra["note"] += "\n" + INCOGNITO_NOTE
         if switched_from:
             extra["note"] += "\n" + tr(
                 "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.",
@@ -2369,13 +2671,85 @@ def register_chat_routes(
                 context = ([{"role": "summary", "content": summary}] if summary else []) + [
                     {"role": m["role"], "content": m["content"]} for m in pending
                 ]
+                async def run_research() -> None:
+                    """Deep Research: Rückfrage, Tageslimit vormerken, Recherche in Schritten, Bericht als Antwort und als Datei."""
+                    day = research_day()
+                    state = research_state(profile)
+                    decision = await ask_about(
+                        "research", tr("Deep Research starten"),
+                        tr(
+                            "Die KI plant die Recherche, sucht in mehreren Runden im Web, liest und gleicht Quellen ab und schreibt einen Bericht mit Quellenliste. "
+                            "Das dauert mehrere Minuten (höchstens {minutes}) und verbraucht deutlich mehr Kontingent als eine normale Antwort. "
+                            "Du kannst den Chat währenddessen verlassen. Heute noch {left} von {limit} Läufen.",
+                            minutes=state["minutes"], left=state["left"], limit=state["limit"],
+                        ),
+                        False,
+                    )
+                    if decision == "deny":
+                        raise _Declined(tr("Nicht gestartet: Deep Research wurde abgelehnt."))
+                    if not store.research_reserve(profile.id, day, settings.research_daily_limit):
+                        raise _Declined(tr("Das Tageslimit für Deep Research ist erreicht. Morgen geht es wieder."))
+                    web_steps = 0
+                    timeouts = {"plan": researchlib.PLAN_SECONDS, "step": researchlib.STEP_SECONDS, "check": researchlib.CHECK_SECONDS, "report": researchlib.REPORT_SECONDS}
+
+                    async def collect(phase: str, prompt: str) -> str:
+                        nonlocal web_steps
+                        opts: dict = {k: v for k, v in extra.items() if k in ("model", "on_usage", "on_limit")}
+                        history_here: list[dict] = []
+                        if phase == "step":
+                            # Nur das Web: nichts in Home Assistant, GitHub, Gedächtnis oder Konnektoren (Webinhalte sind fremde Daten)
+                            opts.update(tools=WebToolbox(run.push, run.next_tool_id).specs(), web=True, record=run.push, next_id=run.next_tool_id,
+                                        note=WEB_NOTE + "\n" + researchlib.STEP_NOTE)
+                        else:
+                            opts["note"] = researchlib.ANALYSIS_NOTE
+                            if phase in ("plan", "report"):
+                                history_here = context
+                            if phase == "report":
+                                for key in ("instructions", "personal_instructions"):
+                                    if key in extra:
+                                        opts[key] = extra[key]
+                        parts: list[str] = []
+                        async with asyncio.timeout(timeouts[phase]):
+                            live = _pump(lambda: backend.stream(history_here, prompt, "low" if phase == "plan" else effort, **opts), KEEPALIVE_SECONDS)
+                            async with contextlib.aclosing(live):
+                                async for piece in live:
+                                    if piece is not None:
+                                        parts.append(piece)
+                        if phase == "step" and any(p.strip() for p in parts):
+                            web_steps += 1  # ein Schritt hat etwas geliefert; ohne das geht der Lauf zurück ans Tageslimit
+                        return "".join(parts)
+
+                    try:
+                        result = await researchlib.run(asked, collect=collect, status=lambda text: run.push({"type": "status", "text": text}))
+                    except BaseException:
+                        if web_steps == 0:
+                            store.research_release(profile.id, day)  # nichts verbraucht: den Lauf zurückgeben
+                        raise
+                    if settings.files_enabled:
+                        try:
+                            name = clean_name(f"Recherche {result.title}.md")
+                            meta = store.outfile_add(profile.id, chat_id, name, "text/markdown", result.report.encode("utf-8"), settings.files_keep_days)
+                            if meta:
+                                run.push({"type": "tool", "id": run.next_tool_id(), "label": tr("Datei erstellt: {name}", name=name), "status": "ok", "kind": "file", "note": "",
+                                          "file": {"id": meta["id"], "name": name, "size": meta["size"]}})
+                        except Exception:
+                            log.warning("Recherchebericht konnte nicht als Datei abgelegt werden", exc_info=True)
+                    for at in range(0, len(result.report), 700):
+                        run.push({"type": "delta", "text": result.report[at:at + 700]})
+                        await asyncio.sleep(0)
+
                 try:
-                    async with asyncio.timeout(REQUEST_TIMEOUT + (TOOL_EXTRA_TIMEOUT if specs else 0)):
-                        live = _pump(lambda: backend.stream(context, asked, effort, **extra), KEEPALIVE_SECONDS)
-                        async with contextlib.aclosing(live):
-                            async for piece in live:
-                                if piece is not None:
-                                    run.push({"type": "delta", "text": piece})
+                    if research:
+                        await run_research()
+                    else:
+                        async with asyncio.timeout(REQUEST_TIMEOUT + (TOOL_EXTRA_TIMEOUT if specs else 0)):
+                            live = _pump(lambda: backend.stream(context, asked, effort, **extra), KEEPALIVE_SECONDS)
+                            async with contextlib.aclosing(live):
+                                async for piece in live:
+                                    if piece is not None:
+                                        run.push({"type": "delta", "text": piece})
+                except researchlib.ResearchError as exc:
+                    error = str(exc)
                 except BackendError as exc:
                     error = exc.user_message
                     run.error_resets_at = exc.resets_at
@@ -2423,8 +2797,8 @@ def register_chat_routes(
                     # Niemand sieht zu (Chat gewechselt, Seite neu geladen): Kurztitel gleich hier erzeugen.
                     with contextlib.suppress(Exception):
                         await make_title(profile.id, chat_id)
-                if run.parts and not run.error and run.followers == 0:
-                    # Antwort fertig und niemand sieht zu: bei ungelesenem Chat nach kurzer Schonfrist aufs Handy melden.
+                if run.parts and not run.error and run.followers == 0 and not incognito:
+                    # Antwort fertig und niemand sieht zu: bei ungelesenem Chat nach kurzer Schonfrist aufs Handy melden (nie bei Inkognito).
                     notifier.spawn(profile, chat_id, plain_excerpt("".join(run.parts), notifierlib.EXCERPT))
 
         run.task = asyncio.create_task(generate())
@@ -2821,6 +3195,41 @@ def build_public_app(
         response.delete_cookie(SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
         return response
 
+    # Öffentlicher Link zu einem geteilten Chat: ohne Anmeldung, nur lesen. Der Link besteht aus 43 zufälligen Zeichen
+    # (256 Bit); wer ihn nicht kennt, kann ihn nicht erraten. Je Gegenstelle begrenzt, nie für Suchmaschinen, nie gemerkt.
+    share_limit = RateLimiter(60, 600)
+
+    def public_share(request: Request, token: str) -> dict:
+        ip = client_ip(request)
+        if not share_limit.allow(ip):
+            raise HTTPException(status_code=429, detail=tr("Zu viele Versuche"))
+        if settings.sharing != "public" or not SHARE_TOKEN.fullmatch(token):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        row = store.share_read(token=token, mode="public")
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return row
+
+    @app.get("/s/{token}", response_class=HTMLResponse, include_in_schema=False)
+    def shared_page(request: Request, token: str) -> Response:
+        # Dieselbe Seite auch bei ungültigem Link (Status 404): sie holt die Daten und zeigt dann die Meldung in der Seitensprache.
+        try:
+            public_share(request, token)
+            status = 200
+        except HTTPException as exc:
+            status = exc.status_code
+        page = _shared_page(branding, version)
+        page.status_code = status
+        return page
+
+    @app.get("/s/{token}/data", include_in_schema=False)
+    def shared_data(request: Request, token: str) -> JSONResponse:
+        row = public_share(request, token)
+        return JSONResponse(
+            {"title": row["title"], "taken_at": row["taken_at"], "expires_at": row["expires_at"], "messages": row["messages"]},
+            headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noarchive"},
+        )
+
     register_chat_routes(
         app, settings, store, backend, busy, current_profile, write_guard,
         {"mode": "domain", "can_logout": True},
@@ -2831,6 +3240,7 @@ def build_public_app(
 
 
 SNAPSHOT_CHECK_SECONDS = 1800
+INCOGNITO_IDLE_MINUTES = 180  # Inkognito-Chats, deren Seite ohne Abmelden verschwand (Handy-Tab beendet), werden nach 3 Stunden gelöscht
 
 
 async def _snapshot_loop(store: Store) -> None:
@@ -2862,6 +3272,18 @@ async def _sweep_loop(backend: ChatBackend, store: Store | None = None, voice_da
                     log.info("%d abgelaufene erzeugte Dateien entfernt", removed)
             except Exception:
                 log.warning("Aufräumen der erzeugten Dateien fehlgeschlagen", exc_info=True)
+            try:
+                expired = await asyncio.to_thread(store.share_sweep)
+                if expired:
+                    log.info("%d abgelaufene Chat-Freigaben entfernt", expired)
+            except Exception:
+                log.warning("Aufräumen der Chat-Freigaben fehlgeschlagen", exc_info=True)
+            try:
+                left = await asyncio.to_thread(store.incognito_sweep, INCOGNITO_IDLE_MINUTES)
+                if left:
+                    log.info("%d liegen gebliebene Inkognito-Chats gelöscht", left)
+            except Exception:
+                log.warning("Aufräumen der Inkognito-Chats fehlgeschlagen", exc_info=True)
             try:
                 gone = await asyncio.to_thread(store.voice_sweep, voice_days)
                 if gone:
@@ -3025,6 +3447,8 @@ def main() -> None:
         (log.error if line.startswith("DATENBANK-FEHLER") else log.info)("Datensicherheit: %s", line)
     store = Store(DB_PATH)
     store.sync_profiles(p.id for p in settings.profiles)
+    if (left := store.incognito_sweep(0)):  # nach einem Absturz liegen gebliebene Inkognito-Chats
+        log.info("%d liegen gebliebene Inkognito-Chats gelöscht", left)
     if settings.export_database:
         try:
             dest = safety.export_database(DB_PATH, BRANDING_DIR)
@@ -3041,6 +3465,8 @@ def main() -> None:
             log.info("Keine Verbindung zu Home Assistant (SUPERVISOR_TOKEN fehlt): Benutzernamen-Auflösung und Theme-Übernahme sind aus")
         asyncio.run(_serve(settings, store, backend, health, ha))
     finally:
+        with contextlib.suppress(Exception):
+            store.incognito_sweep(0)  # beim Beenden (auch vor der Sicherung durch Home Assistant) bleibt nichts zurück
         store.close()
 
 

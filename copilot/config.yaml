@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.55.2"
+version: "0.56.0"
 slug: copilot
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -47,6 +47,10 @@ options:
     model: claude-sonnet-5-5
     memory_enabled: true
     schedules_enabled: true
+    incognito_enabled: true
+    sharing: instance
+    research_enabled: false
+    research_daily_limit: 3
     files_enabled: true
     ha_access_default: execute
     ha_limit_to_exposed: true
@@ -117,6 +121,10 @@ schema:
     model: str?
     memory_enabled: bool?
     schedules_enabled: bool?
+    incognito_enabled: bool?
+    sharing: list(off|instance|public)?
+    research_enabled: bool?
+    research_daily_limit: int(1,20)?
     files_enabled: bool?
     ha_access_default: list(none|read|execute|write)?
     ha_limit_to_exposed: bool?

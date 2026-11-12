@@ -1,0 +1,14 @@
+/* Öffentliche Leseseite eines geteilten Chats: eine ruhige Spalte, die Nachrichten sehen aus wie im Chat. */
+html, body.shared { height: auto; min-height: 100%; }
+body.shared { overflow: auto; }
+.shared-page { max-width: 760px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) 20px 40px; }
+.shared-head { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.shared-head .mark { flex: none; width: 32px; height: 32px; border-radius: 8px; }
+.shared-title { min-width: 0; }
+.shared-title h1 { margin: 0; font-size: 20px; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+.shared-title p { margin: 2px 0 0; font-size: 13.5px; color: var(--text-2); }
+.shared-note { margin: 14px 0 0; padding: 10px 14px; border-radius: var(--r-2); background: var(--panel-2); color: var(--text-2); font-size: 14px; }
+.shared-error { margin: 24px 0; font-size: 16px; color: var(--danger); }
+.shared-error[hidden], .shared-note[hidden] { display: none; }
+.shared-page .thread { max-width: none; padding: 20px 0 8px; }
+.shared-foot { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }

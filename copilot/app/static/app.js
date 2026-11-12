@@ -2,7 +2,7 @@
 
 // Alle Pfade sind relativ, damit die Seite unter dem Ingress-Pfad von Home Assistant funktioniert.
 const $ = (id) => document.getElementById(id);
-const state = { view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
+const state = { research: false, incognito: false, incognitoId: null, view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
 const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
 
 // ---------------------------------------------------------------- Hilfen
@@ -10,8 +10,10 @@ const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
 const SVG_NS = "http://www.w3.org/2000/svg";
 const ICONS = {
   sliders: ["M4 7h9M17 7h3M4 17h3M11 17h9", "M15 5v4M9 15v4"],
+  lock: ["M7 11V8a5 5 0 0 1 10 0v3", "M6 11h12v9H6z"],
   gauge: ["M4.5 17.5a8.5 8.5 0 1 1 15 0", "M12 13.5l3.2-4.2", "M12 13.5h.01"],
   github: ["M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"],
+  share: ["M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"],
   link: ["M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1", "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"],
   download: ["M12 4v11M7 11l5 5 5-5M5 20h14"],
   attach: ["M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"],
@@ -49,6 +51,7 @@ const ICONS = {
   stack: ["M7 5h10M5 9h14M4 13h16l-1.5 6h-13z"],
   skill: ["M6 4h11a2 2 0 0 1 2 2v13H8a2 2 0 0 1-2-2z", "M6 17a2 2 0 0 1 2-2h11", "M10 8h5"],
   memory: ["M12 3a5 5 0 0 0-5 5c0 2 1 3 2 4v2h6v-2c1-1 2-2 2-4a5 5 0 0 0-5-5z", "M10 18h4M10.5 21h3"],
+  ghost: ["M5 21V11a7 7 0 0 1 14 0v10l-2.33-2-2.34 2-2.33-2-2.33 2-2.34-2z", "M9.5 11h.01M14.5 11h.01"],
   sun: ["M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z", "M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"],
   logout: ["M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h11"],
   upload: ["M12 16V5M7 9l5-5 5 5M5 20h14"],
@@ -478,8 +481,148 @@ function focusInput() {
 
 // Kopfzeile ohne Inhalt (Ruhezustand, kein Testmodus-Hinweis) blendet sich auf dem Handy in HA aus.
 function syncTopbar() {
-  $("topbar").classList.toggle("empty", !$("chat-title").textContent && $("test-badge").hidden);
+  syncIncognito();
+  syncCrumbs();
+  $("topbar").classList.toggle("empty", !$("chat-title").textContent && $("test-badge").hidden && $("incognito-top").hidden);
 }
+
+// ---------------------------------------------------------------- Pfad in der Kopfzeile
+// Wie in Claude: „Projekt / Chatname ▾“. Ein Klick auf den Namen benennt um, der Pfeil öffnet die Aktionen des Chats, rechts steht „Teilen“.
+
+function currentChat() {
+  return state.view === "chat" && state.activeId ? state.chats.find((c) => c.id === state.activeId) || null : null;
+}
+
+function syncCrumbs() {
+  const chat = currentChat();
+  const project = chat?.project_id ? state.projects.find((p) => p.id === chat.project_id) : null;
+  const crumb = $("crumb-project");
+  crumb.hidden = $("crumb-sep").hidden = !project;
+  if (project) { crumb.textContent = project.name; crumb.title = tr("Projekt „{0}“ in der Seitenleiste zeigen", project.name); }
+  $("crumb-menu").hidden = !chat;
+  const title = $("chat-title");
+  const editing = !!title.querySelector("input");
+  title.classList.toggle("renamable", !!chat);
+  if (chat && !editing) { title.tabIndex = 0; title.setAttribute("role", "button"); title.title = tr("Umbenennen"); }
+  else if (!editing) { title.removeAttribute("tabindex"); title.removeAttribute("role"); title.removeAttribute("title"); }
+  const share = $("share-top");
+  share.hidden = !(chat && canShare() && !chat.kind);
+  share.classList.toggle("on", !!chat?.shared?.length);
+}
+
+function renameInline(chat) {
+  const title = $("chat-title");
+  if (title.querySelector("input")) return;
+  const input = node("input", "title-edit");
+  input.type = "text";
+  input.maxLength = 120;
+  input.value = chat.title;
+  input.setAttribute("aria-label", tr("Name"));
+  title.textContent = "";
+  title.removeAttribute("role");
+  title.removeAttribute("tabindex");
+  title.append(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    const value = input.value.trim().slice(0, 120);
+    title.textContent = chat.title;
+    syncCrumbs();
+    if (!save || !value || value === chat.title) return;
+    try {
+      await patchChat(chat, { title: value });
+      await loadAll();
+      if (state.activeId === chat.id) setTitle(value);
+    } catch {
+      toast(tr("Umbenennen hat nicht geklappt."));
+    }
+  };
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); finish(true); }
+    else if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(false); }
+  });
+  input.addEventListener("blur", () => finish(true));
+}
+
+function initCrumbs() {
+  $("chat-title").addEventListener("click", () => { const chat = currentChat(); if (chat) renameInline(chat); });
+  $("chat-title").addEventListener("keydown", (event) => {
+    if ((event.key === "Enter" || event.key === " ") && event.target === $("chat-title")) { event.preventDefault(); const chat = currentChat(); if (chat) renameInline(chat); }
+  });
+  $("crumb-menu").addEventListener("click", async () => {
+    const chat = currentChat();
+    if (!chat) return;
+    const button = $("crumb-menu");
+    button.setAttribute("aria-expanded", "true");
+    try { await chatMenu(chat, button); } finally { button.setAttribute("aria-expanded", "false"); }
+  });
+  $("crumb-project").addEventListener("click", () => {
+    const chat = currentChat();
+    if (!chat?.project_id) return;
+    ui.projectsOpen = true;
+    ui.openProjects.add(chat.project_id);
+    saveUi();
+    renderSide();
+    if (narrowScreen()) openMenu();
+  });
+  $("share-top").addEventListener("click", () => { const chat = currentChat(); if (chat) shareChat(chat).catch(() => {}); });
+}
+
+// ---------------------------------------------------------------- Inkognito-Chat
+// Das Gespenster-Symbol oben rechts gibt es auf dem Startbild eines neuen Chats und in einem Inkognito-Chat. Der Chat entsteht erst
+// mit der ersten Nachricht auf dem Server (Art „incognito“) und wird gelöscht, sobald man ihn verlässt, die Seite schließt oder neu lädt.
+
+function syncIncognito() {
+  const button = $("incognito-top");
+  const here = state.view === "chat" && !!state.me?.incognito && (state.activeId === null || state.activeId === state.incognitoId);
+  button.hidden = !here;
+  button.setAttribute("aria-pressed", state.incognito ? "true" : "false");
+  document.documentElement.classList.toggle("incognito", here && state.incognito);
+  $("input").placeholder = composerPlaceholder();
+}
+
+function composerPlaceholder() {
+  if (state.files.length) return tr("Frage zu den Dateien stellen");
+  return document.documentElement.classList.contains("incognito") ? tr("Inkognito-Nachricht schreiben") : tr("Nachricht schreiben");
+}
+
+function endIncognito() {
+  const id = state.incognitoId;
+  state.incognitoId = null;
+  state.incognito = false;
+  if (id) api(`api/chats/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
+  syncIncognito();
+}
+
+async function toggleIncognito() {
+  if (state.activeId === null) {  // Startbild: Modus an oder aus
+    state.incognito = !state.incognito;
+    if (state.incognito) state.newProject = null;  // Inkognito gehört in kein Projekt
+    setTitle(state.incognito ? tr("Inkognito-Chat") : idleTitle());
+    showHello();
+    focusInput();
+    return;
+  }
+  if (state.activeId !== state.incognitoId) return;
+  const ok = await openSheet({
+    title: tr("Inkognito-Chat beenden?"),
+    sub: tr("Der Chat und alles, was darin entstanden ist, wird gelöscht. Das lässt sich nicht rückgängig machen."),
+    ok: tr("Beenden und löschen"),
+    danger: true,
+  });
+  if (ok) startNew();
+}
+
+// Schließt man die Seite oder lädt sie neu, geht die Löschung noch hinaus; was dabei liegen bleibt (Handy beendet den Tab), räumt der Server nach drei Stunden auf.
+window.addEventListener("pagehide", () => {
+  if (!state.incognitoId) return;
+  try {
+    fetch(`api/chats/${encodeURIComponent(state.incognitoId)}`, { method: "DELETE", keepalive: true, credentials: "same-origin", headers: { "X-Requested-With": "ki-chat" } });
+  } catch { /* der Server räumt auf */ }
+});
 
 function setTitle(text) {
   const el = $("chat-title");
@@ -579,6 +722,13 @@ function chatRow(chat, meta = "") {
     item.append(mark);
   }
   item.append(node("span", "name", chat.title));
+  if (chat.shared?.length) {
+    const mark = icon("share");
+    mark.classList.add("share-mark");
+    mark.setAttribute("role", "img");
+    mark.setAttribute("aria-label", tr("Geteilt"));
+    item.append(mark);
+  }
   if (meta) item.append(node("span", "meta", meta));
   if (chat.needs_approval) {
     item.classList.add("running");
@@ -764,6 +914,22 @@ async function loadAll() {
   state.projects = projects;
   renderSide();
   syncBadge();
+  syncCrumbs();
+  syncSharedNav();
+  refreshShared().catch(() => {});
+}
+
+// „Geteilt“ steht in der Seitenleiste nur, wenn etwas geteilt ist: von dir (Symbol auch in der Chatliste) oder mit dir.
+async function refreshShared() {
+  const button = $("nav-shared");
+  if (!button) return;
+  state.sharedIn = canShare() ? await api("api/shared") : [];
+  syncSharedNav();
+}
+
+function syncSharedNav() {
+  const button = $("nav-shared");
+  if (button) button.hidden = !canShare() || !(state.sharedIn?.length || state.chats.some((c) => c.shared?.length));
 }
 
 // Ein Punkt vor dem Namen im Tab-Titel zeigt ungelesene Chats auch dann, wenn der Tab im Hintergrund liegt.
@@ -814,8 +980,9 @@ async function refreshWhenSeen() {
 
 // Offener Chat bleibt nach dem Neuladen derselbe (nur in diesem Tab).
 function rememberActive() {
+  if (state.incognitoId && state.activeId !== state.incognitoId) endIncognito();  // den Inkognito-Chat verlassen: er wird gelöscht
   try {
-    if (state.activeId) sessionStorage.setItem("ki-active", state.activeId);
+    if (state.activeId && state.activeId !== state.incognitoId) sessionStorage.setItem("ki-active", state.activeId);
     else sessionStorage.removeItem("ki-active");
   } catch { /* optional */ }
   syncPresence();
@@ -886,6 +1053,7 @@ async function chatMenu(chat, anchor) {
   const pin = { value: "pin", icon: "pin", label: chat.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" };
   const rename = { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" };
   const exportMd = { value: "export", icon: "download", label: tr("Als Markdown exportieren") };
+  const share = canShare() && !chat.kind ? [{ value: "share", icon: "share", label: tr("Teilen …") }] : [];
   const remove = { value: "delete", icon: "trash", label: tr("Löschen"), danger: true, key: "D" };
   let choice;
   if (anchor && wideScreen()) {
@@ -902,6 +1070,7 @@ async function chatMenu(chat, anchor) {
       { icon: "stack", label: tr("Projekt wechseln"), submenu: projects, search: tr("Projekt suchen") },
       ...(chat.project_id ? [{ value: "unproject", icon: "folderX", label: tr("Aus Projekt entfernen") }] : []),
       exportMd,
+      ...share,
       { divider: true },
       remove,
     ]);
@@ -912,6 +1081,7 @@ async function chatMenu(chat, anchor) {
         unread, pin, rename,
         { value: "move", icon: "folder", label: chat.project_id ? tr("Projekt ändern") : tr("In Projekt verschieben") },
         exportMd,
+        ...share,
         remove,
       ],
     });
@@ -922,6 +1092,7 @@ async function chatMenu(chat, anchor) {
   else if (choice === "move") await moveChat(chat);
   else if (choice === "unproject") await moveChatTo(chat, "");
   else if (choice === "export") await exportChat(chat);
+  else if (choice === "share") await shareChat(chat);
   else if (typeof choice === "string" && choice.startsWith("move:")) await moveChatTo(chat, choice.slice(5));
   else if (choice === "delete") await deleteChat(chat);
 }
@@ -1069,17 +1240,19 @@ function confirmButton(label, onConfirm) {
   return b;
 }
 
-function memoryEntry(entry, scope, canDelete, refresh) {
+function memoryEntry(entry, scope, canDelete, refresh, url = "") {
   const row = node("div", "mem-entry");
   const text = node("div", "mem-text");
   text.append(node("b", "mem-topic", entry.topic), node("p", "", entry.content));
-  const meta = [entry.by ? tr("von {0}", entry.by) : "", dayText(entry.updated_at)].filter(Boolean).join(" · ");
+  const shared = scope === "household" && entry.by;  // im Haushalt kann ein Eintrag von jemand anderem stammen
+  const origin = { said: shared ? tr("gesagt") : tr("von dir gesagt"), inferred: tr("von der KI abgeleitet"), manual: shared ? tr("eingetragen") : tr("von dir eingetragen"), import: tr("importiert") }[entry.origin] || "";
+  const meta = [origin, entry.by ? tr("von {0}", entry.by) : "", dayText(entry.updated_at)].filter(Boolean).join(" · ");
   if (meta) text.append(node("small", "mem-meta", meta));
   row.append(text);
   if (canDelete) {
     row.append(confirmButton(tr("Eintrag löschen"), async () => {
       try {
-        await api(`api/memory/${scope}/${entry.id}`, { method: "DELETE" });
+        await api(url || `api/memory/${scope}/${entry.id}`, { method: "DELETE" });
         refresh();
       } catch (err) { toast(errorText(err, tr("Löschen hat nicht geklappt."))); }
     }));
@@ -1475,15 +1648,19 @@ function memoryPanel(body) {
     let data;
     try { data = await api("api/memory"); } catch { body.replaceChildren(node("p", "mem-empty", tr("Das Gedächtnis ist gerade nicht erreichbar."))); return; }
     const parts = [instructionsSection(data)];
-    const section = (title, hint, entries, scope, canDelete) => {
+    const section = (title, hint, entries, scope, canDelete, url = null) => {
       const box = node("section", "mem-section");
       box.append(node("h4", "", title), node("p", "mem-hint", hint));
       if (entries.length === 0) box.append(node("p", "mem-empty", tr("Noch nichts gemerkt.")));
-      for (const e of entries) box.append(memoryEntry(e, scope, canDelete, draw));
+      for (const e of entries) box.append(memoryEntry(e, scope, canDelete, draw, url ? url(e) : ""));
       parts.push(box);
     };
     section(tr("Mein Gedächtnis"), tr("Nur du siehst das und nur dir gegenüber nutzt die KI es."), data.person, "person", true);
     section(tr("Haushalt"), data.household_write ? tr("Gilt für alle im Haushalt.") : tr("Gilt für alle im Haushalt. Du darfst es ansehen, aber nicht ändern."), data.household, "household", data.household_write);
+    for (const pr of data.projects || []) {
+      if (!pr.entries.length) continue;
+      section(tr("Projekt: {0}", pr.name), tr("Gilt nur in den Chats dieses Projekts, zusätzlich zu deinem Gedächtnis und dem Haushalt."), pr.entries, "project", true, (e) => `api/projects/${encodeURIComponent(pr.id)}/memory/${e.id}`);
+    }
     if (data.overview) parts.push(overviewSection(data.overview, draw));
     parts.push(memoryImportSection(body, draw));
     // Eintrag selbst hinzufügen
@@ -1493,6 +1670,7 @@ function memoryPanel(body) {
     scope.setAttribute("aria-label", tr("Wo speichern"));
     scope.append(new Option(tr("Mein Gedächtnis"), "person"));
     if (data.household_write) scope.append(new Option(tr("Haushalt"), "household"));
+    for (const pr of data.projects || []) scope.append(new Option(tr("Projekt: {0}", pr.name), `project:${pr.id}`));
     const topic = node("input", "field");
     topic.placeholder = tr("Thema, z. B. Heizung");
     topic.maxLength = 60;
@@ -1510,7 +1688,8 @@ function memoryPanel(body) {
       if (topic.value.trim().length < 2 || content.value.trim().length < 3) { toast(tr("Bitte Thema und Inhalt ausfüllen.")); return; }
       add.disabled = true;
       try {
-        await api("api/memory", { method: "POST", body: JSON.stringify({ scope: scope.value, topic: topic.value, content: content.value }) });
+        const [kind, projectId = ""] = scope.value.split(":");
+        await api("api/memory", { method: "POST", body: JSON.stringify({ scope: kind, project_id: projectId, topic: topic.value, content: content.value }) });
         draw();
       } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); add.disabled = false; }
     });
@@ -1529,7 +1708,7 @@ async function openMemory() {
   });
 }
 
-const KNOWLEDGE_ACCEPT = ".zip,.pdf,.docx,.xlsx,text/*,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.log,.py,.js,.ts,.sh,.ps1,.ini,.conf,.cfg,.toml,.sql,.html,.css,.jinja,.j2";
+const KNOWLEDGE_ACCEPT = ".zip,.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,text/*,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.log,.py,.js,.ts,.sh,.ps1,.ini,.conf,.cfg,.toml,.sql,.html,.css,.jinja,.j2";
 const KNOWLEDGE_MAX = 8 * 1024 * 1024;
 
 function knowledgePanel(project) {
@@ -1557,7 +1736,7 @@ function knowledgePanel(project) {
         if (!files.length || state2.busy) return;
         state2.busy = true;
         add.disabled = true;
-        const report = { added: 0, skipped: [] };
+        const report = { added: 0, skipped: [], noText: [] };
         for (const [i, file] of files.entries()) {
           status.textContent = tr("Lade {0} ({1} von {2}) …", file.name, i + 1, files.length);
           if (file.size > KNOWLEDGE_MAX) { report.skipped.push({ name: file.name, reason: tr("zu groß (höchstens {0} MB je Datei oder ZIP)", KNOWLEDGE_MAX / 1024 / 1024) }); continue; }
@@ -1565,6 +1744,7 @@ function knowledgePanel(project) {
             const answer = await api(`api/projects/${encodeURIComponent(project.id)}/knowledge`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) });
             report.added += answer.added.length;
             report.skipped.push(...answer.skipped);
+            report.noText.push(...(answer.no_text || []));
           } catch (err) {
             report.skipped.push({ name: file.name, reason: errorText(err, tr("Hochladen fehlgeschlagen")) });
           }
@@ -1575,6 +1755,7 @@ function knowledgePanel(project) {
         if (note) {
           const added = trn(report.added, "1 Datei übernommen", "{0} Dateien übernommen");
           note.textContent = report.skipped.length ? tr("{0}, {1} übersprungen.", added, report.skipped.length) : `${added}.`;
+          if (report.noText.length) note.textContent += " " + tr("Ohne durchsuchbaren Text, das Original ist gespeichert: {0}.", report.noText.join(", "));
           if (report.skipped.length) {
             const list = node("ul", "know-skipped");
             for (const sk of report.skipped.slice(0, 12)) list.append(node("li", "", `${sk.name}: ${sk.reason}`));
@@ -1583,14 +1764,23 @@ function knowledgePanel(project) {
         }
         loadAll().catch(() => {});
       });
-      parts.push(node("p", "mem-hint", tr("Text, Markdown, YAML, Word, Excel, PDF oder ein ZIP davon. Die KI durchsucht das Wissen bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts.")), add, picker, status);
+      parts.push(node("p", "mem-hint", tr("Text, Markdown, YAML, Word, Excel, PDF, Bilder oder ein ZIP davon. Das Original bleibt erhalten. Die KI durchsucht das Wissen bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts, und legt auf Wunsch eigene Dateien hier ab.")), add, picker, status);
       const list = node("div", "know-list");
       if (data.files.length === 0) list.append(node("p", "mem-empty", tr("Noch keine Dateien. Importiere zum Beispiel Notizen, Anleitungen oder Konfigurationen.")));
       for (const f of data.files) {
         const row = node("div", "know-file");
         const name = node("span", "know-name", f.name);
         name.title = f.name;
-        row.append(icon("file"), name, node("small", "mem-meta", tr("{0} Text", formatSize(f.size))));
+        row.append(icon("file"), name, node("small", "mem-meta", f.has_file && !(f.mime || "").startsWith("text/") ? tr("{0} · Original", formatSize(f.file_size)) : tr("{0} Text", formatSize(f.size))));
+        if (f.has_file) {
+          const get = node("button", "icon-btn");
+          get.type = "button";
+          get.title = tr("{0} herunterladen", f.name);
+          get.setAttribute("aria-label", tr("{0} herunterladen", f.name));
+          get.append(icon("download"));
+          get.addEventListener("click", () => downloadProjectFile(project, f));
+          row.append(get);
+        }
         row.append(confirmButton(tr("{0} entfernen", f.name), async () => {
           try {
             await api(`api/projects/${encodeURIComponent(project.id)}/knowledge/${f.id}`, { method: "DELETE" });
@@ -1606,6 +1796,17 @@ function knowledgePanel(project) {
     };
     draw();
   };
+}
+
+async function downloadProjectFile(project, entry) {
+  try {
+    const response = await fetch(`api/projects/${encodeURIComponent(project.id)}/knowledge/${entry.id}/file`, { credentials: "same-origin", headers: { "X-Requested-With": "ki-chat" } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    await saveFile(entry.name.split("/").pop(), blob, blob.type || "application/octet-stream");
+  } catch {
+    toast(tr("Der Download hat nicht geklappt."));
+  }
 }
 
 async function openKnowledge(project) {
@@ -3555,6 +3756,25 @@ function showHello() {
   mark.src = document.querySelector(".brand .mark")?.getAttribute("src") || "";
   mark.alt = "";
   mark.width = mark.height = 44;
+  if (state.incognito) {
+    const ghost = icon("ghost");
+    ghost.setAttribute("class", "icon hello-ghost");
+    const facts = node("ul", "incognito-facts");
+    for (const line of [
+      tr("Der Chat steht in keiner Liste und keiner Suche und wird nicht exportiert."),
+      tr("Ich lese und ändere kein Gedächtnis: weder deins noch das des Haushalts oder eines Projekts."),
+      tr("Er wird gelöscht, sobald du ihn verlässt oder die Seite schließt. Dateien, die ich erstelle, verschwinden mit ihm."),
+    ]) facts.append(node("li", "", line));
+    hello.append(
+      ghost,
+      node("h2", "", tr("Inkognito-Chat")),
+      node("p", "", tr("Hier bleibt nichts zurück.")),
+      facts,
+      node("p", "hello-note", tr("Zum Antworten verarbeitet der KI-Anbieter deine Nachrichten trotzdem. Was ich in Home Assistant oder anderen Diensten ausführe, steht dort weiterhin im Protokoll.")),
+    );
+    thread.append(hello);
+    return;
+  }
   hello.append(
     mark,
     node("h2", "", greeting()),
@@ -3888,6 +4108,33 @@ function fileCard(file) {
   return card;
 }
 
+// In einem Projekt-Chat steht neben der Dateikarte ein Knopf, der die Datei im Projekt ablegt (dann bleibt sie, statt nach einigen Tagen abzulaufen).
+function fileCardWithSave(file) {
+  const card = fileCard(file);
+  const chat = state.chats.find((c) => c.id === state.activeId);
+  if (!chat || !chat.project_id || file.gone || file.image) return card;
+  const wrap = node("div", "out-wrap");
+  const save = node("button", "icon-btn out-save");
+  save.type = "button";
+  save.title = tr("Im Projekt ablegen");
+  save.setAttribute("aria-label", tr("{0} im Projekt ablegen", file.name));
+  save.append(icon("stack"));
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      const answer = await api(`api/chats/${encodeURIComponent(chat.id)}/files/${encodeURIComponent(file.id)}/to-project`, { method: "POST" });
+      save.classList.add("done");
+      toast(answer.replaced ? tr("Im Projekt ersetzt: {0}", answer.name) : tr("Im Projekt abgelegt: {0}", answer.name));
+      loadAll().catch(() => {});
+    } catch (err) {
+      save.disabled = false;
+      toast(errorText(err, tr("Ablegen hat nicht geklappt.")));
+    }
+  });
+  wrap.append(card, save);
+  return wrap;
+}
+
 // ------------------------------------------------- Bilder
 // Bilder (von OpenAI, Google oder als SVG gezeichnet) erscheinen als Vorschaukarte; ein Klick öffnet die Bildvorschau.
 const imageUrls = new Map(); // Datei-ID -> Promise mit der Blob-Adresse (die Anfrage braucht den Header, ein <img src> kann ihn nicht senden)
@@ -4056,15 +4303,17 @@ function fileCardsEl(actions) {
       return made.get(f.id);
     });
     box.hidden = files.length === 0 && pending.length === 0;
-    box.replaceChildren(...cards, ...pending.map(imagePending), ...files.filter((f) => !f.image).map(fileCard));
+    box.replaceChildren(...cards, ...pending.map(imagePending), ...files.filter((f) => !f.image).map(fileCardWithSave));
   };
   box.update(actions);
   return box;
 }
 
-// Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude).
+// Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude),
+// mit „Rückgängig“ für jede Änderung. Der Server prüft, ob der Eintrag noch so ist, wie die KI ihn hinterlassen hat.
 function memoryNoteEl(actions) {
   const box = node("div", "mem-note");
+  const undone = new Set();
   box.update = (items) => {
     const done = items.filter((a) => a.kind === "memory" && a.status === "ok");
     box.hidden = done.length === 0;
@@ -4072,7 +4321,29 @@ function memoryNoteEl(actions) {
     const open = node("button", "mem-open", tr("Gedächtnis öffnen"));
     open.type = "button";
     open.addEventListener("click", () => openMemory());
-    box.replaceChildren(icon("memory"), node("span", "mem-text", done.map((a) => a.label).join(" · ")), open);
+    const list = node("span", "mem-text");
+    done.forEach((a, i) => {
+      if (i) list.append(" · ");
+      const key = `${a.undo?.scope}|${a.undo?.project}|${a.undo?.topic}|${a.undo?.now}`;
+      list.append(node("span", "mem-what", a.label));
+      if (!a.undo) return;
+      if (undone.has(key)) { list.append(" ", node("em", "mem-undone", tr("Rückgängig gemacht"))); return; }
+      const undo = node("button", "mem-open mem-undo", tr("Rückgängig"));
+      undo.type = "button";
+      undo.addEventListener("click", async () => {
+        undo.disabled = true;
+        try {
+          await api("api/memory/undo", { method: "POST", body: JSON.stringify({ scope: a.undo.scope, topic: a.undo.topic, prev: a.undo.prev, now: a.undo.now, project_id: a.undo.project || "" }) });
+          undone.add(key);
+          box.update(items);
+        } catch (err) {
+          toast(errorText(err, tr("Rückgängig hat nicht geklappt.")));
+          undo.disabled = false;
+        }
+      });
+      list.append(" ", undo);
+    });
+    box.replaceChildren(icon("memory"), list, open);
   };
   box.update(actions);
   return box;
@@ -4474,6 +4745,7 @@ function startNew(projectId = null) {
   setView("chat");
   detachRun();
   releaseRecent();
+  state.incognito = false;
   state.activeId = null;
   rememberActive();
   state.heldUnread = null;
@@ -4680,7 +4952,7 @@ function renderTray() {
   const tray = $("attach-tray");
   tray.replaceChildren(...state.files.map((f) => fileChip(f, true)));
   tray.hidden = state.files.length === 0;
-  $("input").placeholder = state.files.length ? tr("Frage zu den Dateien stellen") : tr("Nachricht schreiben");
+  $("input").placeholder = composerPlaceholder();
 }
 
 function toBase64(blob) {
@@ -4842,7 +5114,7 @@ async function consume(response, run, bubble) {
       } else if (ev.type === "status") {
         statusText = ev.text.replace(/\s*…\s*$/, "");
       } else if (ev.type === "tool") {
-        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "" });
+        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null });
         out.actions = [...byId.values()];
         if (!run.detached) { build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble); }
       } else if (ev.type === "approval") {
@@ -5056,11 +5328,12 @@ function approvalCard(chatId, ev) {
   const card = node("div", "ask-card");
   card.setAttribute("role", "group");
   card.setAttribute("aria-label", tr("Rückfrage"));
-  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
+  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), research: tr("Soll die Recherche gestartet werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
   card.append(node("div", "ask-title", question), node("div", "ask-what", ev.label));
   if (ev.details) {
     const more = document.createElement("details");
     more.className = "ask-details";
+    more.open = ev.topic === "research"; // Zeit und Kosten stehen dort: bei Deep Research gleich sichtbar
     more.append(node("summary", "", tr("Einzelheiten")), node("pre", "", ev.details));
     card.append(more);
   }
@@ -5156,7 +5429,7 @@ async function settleRun(run, bubble, out, view = {}) {
   if (finished && !(out.failure && !follow.anchored)) followAnswer(finished);
   else if (!finished || follow.on) scrollDown(true);
   // Wird die Antwort gerade angesehen, gilt sie als gelesen; liegt das Fenster im Hintergrund, bleibt der Chat ungelesen.
-  if (out.answer && !document.hidden) await patchChat({ id: chatId }, { unread: false }).catch(() => {});
+  if (out.answer && !document.hidden && chatId !== state.incognitoId) await patchChat({ id: chatId }, { unread: false }).catch(() => {});
   await loadAll().catch(() => {});
   if (state.activeId === chatId) state.shownAt = state.chats.find((c) => c.id === chatId)?.updated_at ?? null;
   if (state.activeId === chatId) await stampMessages(chatId);
@@ -5166,7 +5439,7 @@ async function settleRun(run, bubble, out, view = {}) {
   }
   if (out.title && state.activeId === chatId) setTitle(out.title);
   focusInput();
-  if (out.answer && view.first) refreshTitle(chatId);
+  if (out.answer && view.first && chatId !== state.incognitoId) refreshTitle(chatId);
 }
 
 // Wieder an eine laufende Antwort anhängen (Seite neu geladen oder in den Chat zurückgekehrt).
@@ -5323,10 +5596,11 @@ async function sendMessage(edit = null, spoken = null) {
 
   if (!state.activeId) {
     try {
-      const body = state.newProject ? { project_id: state.newProject } : {};
+      const body = state.incognito ? { incognito: true } : state.newProject ? { project_id: state.newProject } : {};
       const chat = await api("api/chats", { method: "POST", body: JSON.stringify(body) });
       if (chat.project_id) { ui.projectsOpen = true; ui.openProjects.add(chat.project_id); saveUi(); }
       state.newProject = null;
+      if (chat.kind === "incognito") state.incognitoId = chat.id;
       state.activeId = chat.id;
       rememberActive();
       await loadAll();
@@ -5377,10 +5651,12 @@ async function sendMessage(edit = null, spoken = null) {
         ...(spoken ? { voice: true } : {}),
         ...((state.me?.models?.length || 0) > 1 && validModel(state.model) ? { model: state.model } : {}),
         ...(state.me?.web && !state.web ? { web: false } : {}),
+        ...(researchOn() ? { research: true } : {}),
       }),
     });
     if (!response.ok) throw await sendFailure(response);
     run.accepted = true; // ab hier gehört die Antwort dem Server
+    if (researchOn()) { state.research = false; $("toast").hidden = true; markTools(); refreshResearch().catch(() => {}); } // gilt nur für diese eine Nachricht
     loadAll().catch(() => {}); // Kreisel und Titel in der Liste sofort anzeigen
     if (run.detached) run.controller.abort(); // Chat wurde schon während des Hochladens verlassen
     out = await consume(response, run, bubble);
@@ -5480,7 +5756,8 @@ function markTools() {
   const btn = $("tools");
   const model = hasModels ? modelLabel(selectedModel()) : "";
   $("tools-name").textContent = model;
-  $("tools-effort").textContent = effortLabel(state.effort);
+  $("tools-effort").textContent = researchOn() ? tr("Deep Research") : effortLabel(state.effort);
+  btn.classList.toggle("research", researchOn());
   btn.classList.toggle("web-off", !!me?.web && !state.web);
   btn.classList.toggle("on-openai", hasModels && usesOpenAI());
   btn.title = hasModels && usesOpenAI() ? tr("Dieser Chat läuft mit ChatGPT: Nachrichten und Anhänge gehen an OpenAI.") : "";
@@ -5563,6 +5840,15 @@ async function phoneToolsMenu() {
             web.addEventListener("click", pick("web"));
             body.append(web);
           }
+          if (researchAvailable()) {
+            const rs = node("span", "pop-switch" + (state.research ? " on" : ""));
+            rs.setAttribute("aria-hidden", "true");
+            const research = row("mm-link", node("span", "mm-name", tr("Deep Research")), rs);
+            research.setAttribute("role", "menuitemcheckbox");
+            research.setAttribute("aria-checked", String(state.research));
+            research.addEventListener("click", pick("research"));
+            body.append(research);
+          }
         };
         const effortPage = () => {
           $("sheet-title").textContent = tr("Aufwand");
@@ -5612,6 +5898,10 @@ async function toolsMenu() {
       entries.push({ divider: true });
       entries.push({ value: "web", icon: "globe", label: tr("Websuche"), active: state.web, toggle: state.web });
     }
+    if (researchAvailable()) {
+      if (!me.web) entries.push({ divider: true });
+      entries.push({ value: "research", icon: "search", label: tr("Deep Research"), active: state.research, toggle: state.research });
+    }
     const button = $("tools");
     button.setAttribute("aria-expanded", "true");
     try {
@@ -5641,8 +5931,29 @@ async function toolsMenu() {
     state.web = !state.web;
     try { localStorage.setItem("ki-web", state.web ? "on" : "off"); } catch { /* optional */ }
     toast(state.web ? tr("Websuche ist an.") : tr("Websuche ist aus."));
+    if (!state.web) state.research = false;
+  } else if (choice === "research") {
+    await toggleResearch();
   }
   markTools();
+}
+
+// Deep Research: mehrstufige Recherche mit Quellenbericht. Gilt nur für die nächste Nachricht und braucht die Websuche.
+const researchAvailable = () => !!state.me?.research && !!state.me?.web && state.web;
+const researchOn = () => state.research && researchAvailable();
+
+async function refreshResearch() {
+  try { state.me.research = await api("api/research"); } catch { /* Stand bleibt */ }
+}
+
+async function toggleResearch() {
+  if (state.research) { state.research = false; toast(tr("Deep Research ist aus.")); return; }
+  await refreshResearch();
+  const info = state.me?.research;
+  if (!info) return;
+  if (info.left <= 0) { toast(tr("Das Tageslimit für Deep Research ist erreicht. Morgen geht es wieder.")); return; }
+  state.research = true;
+  toast(tr("Deep Research ist an, nur für die nächste Nachricht. Heute noch {0} von {1} Läufen.", info.left, info.limit));
 }
 
 // Seitenleiste einklappen: nur im Web am Computer. In Home Assistant gibt es schon die Seitenleiste von HA.
@@ -5680,6 +5991,7 @@ function setView(view) {
   $("skills").hidden = view !== "skills";
   $("settings").hidden = view !== "settings";
   rememberView(view);
+  syncIncognito();
   syncPresence();
   if (view !== "settings") { settingsStop(); settingsStop = () => {}; }
   $("nav-schedules").classList.toggle("active", view === "schedules");
@@ -5988,6 +6300,222 @@ async function exportChat(chat) {
   }
 }
 
+// ------------------------------------------------- Chats teilen
+
+const canShare = () => !!state.me?.sharing && state.me.sharing !== "off";
+
+// Teilen-Fenster (nach dem Vorbild von Claude): „Wer hat Zugriff“ mit drei Stufen (nur ich, alle in dieser Instanz, jede Person mit dem Link),
+// die Besitzerzeile, Zahnrad für Stand und Gültigkeit und unten „Link kopieren“. Geteilt wird immer ein Stand von jetzt; spätere Nachrichten
+// erscheinen erst nach „Stand aktualisieren“. Anhänge und Gedächtnis-Hinweise werden nie mitgeteilt. Stufe „Link“ schließt „Instanz“ ein.
+async function shareChat(chat) {
+  await openSheet({
+    title: tr("Chat teilen"), sub: tr("Nur die bisherigen Nachrichten werden geteilt"), plain: true,
+    panel: (body) => { drawSharePanel(body, chat).catch(() => { body.textContent = tr("Das hat nicht geklappt."); }); },
+  });
+  await loadAll().catch(() => {});  // Symbol in der Chatliste
+}
+
+function shareLevels(data) {
+  const linkReady = data.sharing === "public" && data.public_available;
+  const levels = [
+    { value: "private", icon: "lock", label: tr("Nur ich"), hint: tr("Niemand sonst sieht diesen Chat.") },
+    { value: "instance", icon: "users", label: tr("Alle in dieser Instanz"), hint: tr("Andere Personen finden den Chat unter „Geteilt“, können ihn lesen und als eigene Kopie weiterführen.") },
+  ];
+  if (data.sharing === "public") {
+    levels.push({
+      value: "public", icon: "link", label: tr("Jede Person mit dem Link"), disabled: !linkReady,
+      hint: linkReady
+        ? tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst.")
+        : tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."),
+    });
+  }
+  return levels;
+}
+
+async function drawSharePanel(body, chat, view = { open: false }) {
+  const base = `api/chats/${encodeURIComponent(chat.id)}/share`;
+  const load = async () => render(await api(base));
+  const post = (payload, path = "") => api(`${base}${path}`, { method: "POST", body: JSON.stringify(payload) });
+  const del = (mode) => api(`${base}/${mode}`, { method: "DELETE" });
+  const run = async (action, success) => {
+    try { await action(); if (success) toast(success); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); }
+    await load();
+  };
+
+  function render(data) {
+    const level = data.public ? "public" : data.instance ? "instance" : "private";
+    const levels = shareLevels(data);
+    const current = levels.find((l) => l.value === level) || levels[0];
+    const choose = async (next) => {
+      view.open = false;
+      if (next === level) { render(data); return; }
+      await run(async () => {
+        if (next === "private") { if (data.public) await del("public"); if (data.instance) await del("instance"); }
+        else if (next === "instance") { if (!data.instance) await post({ mode: "instance" }); if (data.public) await del("public"); }
+        else { if (!data.instance) await post({ mode: "instance" }); if (!data.public) await post({ mode: "public", expires_days: 30 }); }
+      }, next === "private" ? tr("Nicht mehr geteilt.") : tr("Chat geteilt."));
+    };
+
+    const nodes = [node("p", "share-h", tr("Wer hat Zugriff"))];
+    const access = node("button", "share-access");
+    access.type = "button";
+    access.setAttribute("aria-expanded", String(view.open));
+    const lead = node("span", "share-lead");
+    lead.append(icon(current.icon));
+    const text = node("span", "share-text");
+    text.append(node("b", "", current.label));
+    access.append(lead, text, icon("chevron"));
+    access.addEventListener("click", () => { view.open = !view.open; render(data); });
+    nodes.push(access);
+
+    if (view.open) {
+      const list = node("div", "share-options");
+      list.setAttribute("role", "radiogroup");
+      list.setAttribute("aria-label", tr("Wer hat Zugriff"));
+      for (const l of levels) {
+        const row = node("button", "share-opt" + (l.value === level ? " on" : ""));
+        row.type = "button";
+        row.setAttribute("role", "radio");
+        row.setAttribute("aria-checked", String(l.value === level));
+        row.disabled = !!l.disabled;
+        const lead2 = node("span", "share-lead");
+        lead2.append(icon(l.icon));
+        const t = node("span", "share-text");
+        t.append(node("b", "", l.label), node("span", "share-hint", l.hint));
+        row.append(lead2, t);
+        if (l.value === level) row.append(icon("check"));
+        row.addEventListener("click", () => choose(l.value));
+        list.append(row);
+      }
+      nodes.push(list);
+    } else {
+      nodes.push(node("p", "share-hint", current.hint));
+      if (level !== "private") {
+        const taken = (data.public || data.instance).taken_at;
+        const until = data.public ? ` · ${data.public.expires_at ? tr("Gültig bis {0}", exactTime(data.public.expires_at)) : tr("Läuft nicht ab")}` : "";
+        nodes.push(node("p", "share-state", tr("Stand {0}", exactTime(taken)) + until));
+      }
+    }
+
+    const owner = node("div", "share-owner");
+    const name = state.me?.label || "";
+    owner.append(node("span", "share-avatar", (name || "?").slice(0, 1).toUpperCase()), node("span", "share-name", `${name} ${tr("(du)")}`.trim()), node("span", "share-role", tr("Besitzer")));
+    nodes.push(owner);
+    nodes.push(node("p", "share-note", tr("Wer Zugriff hat, sieht den Chat so, wie er jetzt ist. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis.")));
+
+    const foot = node("div", "share-foot");
+    if (level !== "private") {
+      const gear = node("button", "share-gear");
+      gear.type = "button";
+      gear.setAttribute("aria-label", tr("Einstellungen zum Teilen"));
+      gear.title = tr("Einstellungen zum Teilen");
+      gear.append(icon("sliders"));
+      gear.addEventListener("click", async () => {
+        const entries = [{ value: "refresh", icon: "refresh", label: tr("Stand aktualisieren") }];
+        if (data.public) {
+          entries.push({ divider: true }, { heading: tr("Link gültig") },
+            { value: "exp:7", label: tr("7 Tage ab jetzt") }, { value: "exp:30", label: tr("30 Tage ab jetzt") }, { value: "exp:0", label: tr("Unbegrenzt"), active: !data.public.expires_at });
+        }
+        const choice = await openPopover(gear, entries);
+        if (choice === "refresh") await run(async () => { await post({ mode: "instance" }, "/refresh"); if (data.public) await post({ mode: "public" }, "/refresh"); }, tr("Stand aktualisiert."));
+        else if (typeof choice === "string" && choice.startsWith("exp:")) await run(() => post({ mode: "public", expires_days: Number(choice.slice(4)) }), tr("Gültigkeit geändert."));
+      });
+      foot.append(gear);
+    }
+    const main = node("button", "pill primary share-main");
+    main.type = "button";
+    if (level === "public") {
+      const field = node("input", "share-url");
+      field.type = "text";
+      field.readOnly = true;
+      field.hidden = true;
+      field.value = data.public.url;
+      field.setAttribute("aria-label", tr("Öffentlicher Link"));
+      field.addEventListener("focus", () => field.select());
+      nodes.push(field);
+      main.append(icon("link"), node("span", "", tr("Link kopieren")));
+      main.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(data.public.url); toast(tr("Kopiert.")); } catch { field.hidden = false; field.select(); toast(tr("Zum Kopieren Strg+C drücken.")); }
+      });
+    } else {
+      main.append(node("span", "", tr("Fertig")));
+      main.addEventListener("click", () => closeSheet(true));
+    }
+    foot.append(main);
+    nodes.push(foot);
+    body.replaceChildren(...nodes);
+  }
+  await load();
+}
+
+// „Geteilt“: alles, was geteilt ist. Von dir (mit Projekt und Stufe) und mit dir (von wem). Gedacht auch für künftig teilbare Dinge.
+async function openSharedChats() {
+  let incoming = [];
+  try { incoming = canShare() ? await api("api/shared") : []; } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); return; }
+  state.sharedIn = incoming;
+  syncSharedNav();
+  const mine = state.chats.filter((c) => c.shared?.length);
+  if (!incoming.length && !mine.length) { toast(tr("Noch nichts geteilt.")); return; }
+  let picked = null;
+  await openSheet({
+    title: tr("Geteilt"), plain: true,
+    panel: (body) => {
+      const group = (heading, rows) => {
+        if (!rows.length) return;
+        body.append(node("p", "share-h", heading));
+        const list = node("div", "shared-list");
+        for (const r of rows) {
+          const row = node("button", "sheet-item shared-item");
+          row.type = "button";
+          row.append(icon("chat"));
+          const t = node("span", "share-text");
+          t.append(node("b", "", r.title), node("span", "share-hint", r.sub));
+          row.append(t);
+          row.addEventListener("click", () => { picked = r.open; closeSheet(true); });
+          list.append(row);
+        }
+        body.append(list);
+      };
+      group(tr("Von mir geteilt"), mine.map((c) => {
+        const project = c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name : "";
+        const how = c.shared.includes("public") ? tr("Jede Person mit dem Link") : tr("Alle in dieser Instanz");
+        return { title: c.title, sub: project ? `${project} · ${how}` : how, open: () => selectChat(c.id) };
+      }));
+      group(tr("Mit mir geteilt"), incoming.map((c) => ({ title: c.title, sub: tr("Von {0}", c.owner), open: () => openSharedChat(c.id) })));
+    },
+  });
+  if (picked) await picked();
+}
+
+async function openSharedChat(id) {
+  let chat;
+  try { chat = await api(`api/shared/${encodeURIComponent(id)}`); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); return; }
+  let copied = null;
+  await openSheet({
+    title: chat.title, sub: tr("Geteilt von {0}, Stand {1}. Du kannst nur lesen.", chat.owner, exactTime(chat.taken_at)),
+    ok: tr("Als Kopie weiterführen"),
+    panel: (body) => {
+      const thread = node("div", "share-thread");
+      for (const m of chat.messages) {
+        const el = node("div", `msg ${m.role === "user" ? "user" : "assistant"}`);
+        if (m.role === "user") el.textContent = m.content; else el.append(window.renderMarkdown(m.content));
+        thread.append(el);
+      }
+      body.append(thread, node("p", "mem-hint", tr("Die Kopie ist ein eigener Chat von dir. Aktionen darin fragen immer erst nach, weil der Inhalt von jemand anderem stammt.")));
+    },
+    onOk: async () => {
+      try {
+        copied = await api(`api/shared/${encodeURIComponent(id)}/copy`, { method: "POST" });
+        return true;
+      } catch (err) {
+        toast(errorText(err, tr("Das hat nicht geklappt.")));
+        return false;
+      }
+    },
+  });
+  if (copied) { await loadAll(); await selectChat(copied.id); }
+}
+
 // Ausschnitt mit hervorgehobenen Fundstellen (nur Textknoten, kein HTML)
 function highlighted(text, spans) {
   const out = node("span", "srch-snip");
@@ -6018,6 +6546,7 @@ function searchActions() {
   ];
   if (state.me?.schedules) list.push({ icon: "clock", label: tr("Geplant"), run: () => openSchedules() });
   if (state.me?.memory) list.push({ icon: "memory", label: tr("Gedächtnis"), run: () => openMemory() });
+  if (canShare()) list.push({ icon: "share", label: tr("Geteilte Chats"), run: () => openSharedChats() });
   list.push({ icon: "download", label: tr("Meine Daten"), run: () => openMyData() });
   return list.map((a) => ({ ...a, id: `a-${a.label}`, title: a.label, meta: "", marks: [] }));
 }
@@ -6609,7 +7138,7 @@ function githubPanel(body, alive) {
   };
   const actions = (...buttons) => { const row = node("div", "gh-actions"); row.append(...buttons); return row; };
   const fail = (error, fallback) => toast(error?.detail || fallback);
-  const refreshMe = async () => { try { state.me = await api("api/me"); } catch { /* beim nächsten Laden */ } };
+  const refreshMe = async () => { try { state.me = await api("api/me"); syncIncognito(); } catch { /* beim nächsten Laden */ } };
 
   const show = (...parts) => { if (alive()) body.replaceChildren(...parts); };
 
@@ -7269,9 +7798,12 @@ async function init() {
   $("nav-schedules").addEventListener("click", () => { openSchedules().catch(() => {}); });
   $("nav-search").addEventListener("click", () => { openSearch().catch(() => {}); });
   $("nav-skills").addEventListener("click", () => { openSkills().catch(() => {}); });
+  $("nav-shared").addEventListener("click", () => { openSharedChats().catch(() => {}); });
+  initCrumbs();
   initShortcuts();
   $("account").addEventListener("click", () => { accountMenu().catch(() => {}); });
   $("new-chat-top").addEventListener("click", () => startNew());
+  $("incognito-top").addEventListener("click", () => toggleIncognito());
   initSideToggle();
   initAttachments();
   initFollow();
@@ -7297,6 +7829,7 @@ async function init() {
 
   try {
     state.me = await api("api/me");
+    syncIncognito();
     initVoiceButton();
     $("who").textContent = state.me.label;
     fillAvatar($("avatar"), state.me.label);
