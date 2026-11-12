@@ -1069,17 +1069,19 @@ function confirmButton(label, onConfirm) {
   return b;
 }
 
-function memoryEntry(entry, scope, canDelete, refresh) {
+function memoryEntry(entry, scope, canDelete, refresh, url = "") {
   const row = node("div", "mem-entry");
   const text = node("div", "mem-text");
   text.append(node("b", "mem-topic", entry.topic), node("p", "", entry.content));
-  const meta = [entry.by ? tr("von {0}", entry.by) : "", dayText(entry.updated_at)].filter(Boolean).join(" · ");
+  const shared = scope === "household" && entry.by;  // im Haushalt kann ein Eintrag von jemand anderem stammen
+  const origin = { said: shared ? tr("gesagt") : tr("von dir gesagt"), inferred: tr("von der KI abgeleitet"), manual: shared ? tr("eingetragen") : tr("von dir eingetragen"), import: tr("importiert") }[entry.origin] || "";
+  const meta = [origin, entry.by ? tr("von {0}", entry.by) : "", dayText(entry.updated_at)].filter(Boolean).join(" · ");
   if (meta) text.append(node("small", "mem-meta", meta));
   row.append(text);
   if (canDelete) {
     row.append(confirmButton(tr("Eintrag löschen"), async () => {
       try {
-        await api(`api/memory/${scope}/${entry.id}`, { method: "DELETE" });
+        await api(url || `api/memory/${scope}/${entry.id}`, { method: "DELETE" });
         refresh();
       } catch (err) { toast(errorText(err, tr("Löschen hat nicht geklappt."))); }
     }));
@@ -1475,15 +1477,19 @@ function memoryPanel(body) {
     let data;
     try { data = await api("api/memory"); } catch { body.replaceChildren(node("p", "mem-empty", tr("Das Gedächtnis ist gerade nicht erreichbar."))); return; }
     const parts = [instructionsSection(data)];
-    const section = (title, hint, entries, scope, canDelete) => {
+    const section = (title, hint, entries, scope, canDelete, url = null) => {
       const box = node("section", "mem-section");
       box.append(node("h4", "", title), node("p", "mem-hint", hint));
       if (entries.length === 0) box.append(node("p", "mem-empty", tr("Noch nichts gemerkt.")));
-      for (const e of entries) box.append(memoryEntry(e, scope, canDelete, draw));
+      for (const e of entries) box.append(memoryEntry(e, scope, canDelete, draw, url ? url(e) : ""));
       parts.push(box);
     };
     section(tr("Mein Gedächtnis"), tr("Nur du siehst das und nur dir gegenüber nutzt die KI es."), data.person, "person", true);
     section(tr("Haushalt"), data.household_write ? tr("Gilt für alle im Haushalt.") : tr("Gilt für alle im Haushalt. Du darfst es ansehen, aber nicht ändern."), data.household, "household", data.household_write);
+    for (const pr of data.projects || []) {
+      if (!pr.entries.length) continue;
+      section(tr("Projekt: {0}", pr.name), tr("Gilt nur in den Chats dieses Projekts, zusätzlich zu deinem Gedächtnis und dem Haushalt."), pr.entries, "project", true, (e) => `api/projects/${encodeURIComponent(pr.id)}/memory/${e.id}`);
+    }
     if (data.overview) parts.push(overviewSection(data.overview, draw));
     parts.push(memoryImportSection(body, draw));
     // Eintrag selbst hinzufügen
@@ -1493,6 +1499,7 @@ function memoryPanel(body) {
     scope.setAttribute("aria-label", tr("Wo speichern"));
     scope.append(new Option(tr("Mein Gedächtnis"), "person"));
     if (data.household_write) scope.append(new Option(tr("Haushalt"), "household"));
+    for (const pr of data.projects || []) scope.append(new Option(tr("Projekt: {0}", pr.name), `project:${pr.id}`));
     const topic = node("input", "field");
     topic.placeholder = tr("Thema, z. B. Heizung");
     topic.maxLength = 60;
@@ -1510,7 +1517,8 @@ function memoryPanel(body) {
       if (topic.value.trim().length < 2 || content.value.trim().length < 3) { toast(tr("Bitte Thema und Inhalt ausfüllen.")); return; }
       add.disabled = true;
       try {
-        await api("api/memory", { method: "POST", body: JSON.stringify({ scope: scope.value, topic: topic.value, content: content.value }) });
+        const [kind, projectId = ""] = scope.value.split(":");
+        await api("api/memory", { method: "POST", body: JSON.stringify({ scope: kind, project_id: projectId, topic: topic.value, content: content.value }) });
         draw();
       } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); add.disabled = false; }
     });
@@ -4111,9 +4119,11 @@ function fileCardsEl(actions) {
   return box;
 }
 
-// Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude).
+// Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude),
+// mit „Rückgängig“ für jede Änderung. Der Server prüft, ob der Eintrag noch so ist, wie die KI ihn hinterlassen hat.
 function memoryNoteEl(actions) {
   const box = node("div", "mem-note");
+  const undone = new Set();
   box.update = (items) => {
     const done = items.filter((a) => a.kind === "memory" && a.status === "ok");
     box.hidden = done.length === 0;
@@ -4121,7 +4131,29 @@ function memoryNoteEl(actions) {
     const open = node("button", "mem-open", tr("Gedächtnis öffnen"));
     open.type = "button";
     open.addEventListener("click", () => openMemory());
-    box.replaceChildren(icon("memory"), node("span", "mem-text", done.map((a) => a.label).join(" · ")), open);
+    const list = node("span", "mem-text");
+    done.forEach((a, i) => {
+      if (i) list.append(" · ");
+      const key = `${a.undo?.scope}|${a.undo?.project}|${a.undo?.topic}|${a.undo?.now}`;
+      list.append(node("span", "mem-what", a.label));
+      if (!a.undo) return;
+      if (undone.has(key)) { list.append(" ", node("em", "mem-undone", tr("Rückgängig gemacht"))); return; }
+      const undo = node("button", "mem-open mem-undo", tr("Rückgängig"));
+      undo.type = "button";
+      undo.addEventListener("click", async () => {
+        undo.disabled = true;
+        try {
+          await api("api/memory/undo", { method: "POST", body: JSON.stringify({ scope: a.undo.scope, topic: a.undo.topic, prev: a.undo.prev, now: a.undo.now, project_id: a.undo.project || "" }) });
+          undone.add(key);
+          box.update(items);
+        } catch (err) {
+          toast(errorText(err, tr("Rückgängig hat nicht geklappt.")));
+          undo.disabled = false;
+        }
+      });
+      list.append(" ", undo);
+    });
+    box.replaceChildren(icon("memory"), list, open);
   };
   box.update(actions);
   return box;
@@ -4891,7 +4923,7 @@ async function consume(response, run, bubble) {
       } else if (ev.type === "status") {
         statusText = ev.text.replace(/\s*…\s*$/, "");
       } else if (ev.type === "tool") {
-        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "" });
+        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null });
         out.actions = [...byId.values()];
         if (!run.detached) { build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble); }
       } else if (ev.type === "approval") {

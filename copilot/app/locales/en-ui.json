@@ -1007,5 +1007,15 @@
  "Ohne durchsuchbaren Text, das Original ist gespeichert: {0}.": "No searchable text, the original is stored: {0}.",
  "Text, Markdown, YAML, Word, Excel, PDF, Bilder oder ein ZIP davon. Das Original bleibt erhalten. Die KI durchsucht das Wissen bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts, und legt auf Wunsch eigene Dateien hier ab.": "Text, Markdown, YAML, Word, Excel, PDF, images or a ZIP of them. The original is kept. The AI searches the knowledge when needed and reads into it, only in the chats of this project, and saves its own files here on request.",
  "{0} im Projekt ablegen": "Save {0} in the project",
- "{0} · Original": "{0} · original"
+ "{0} · Original": "{0} · original",
+ "Gilt nur in den Chats dieses Projekts, zusätzlich zu deinem Gedächtnis und dem Haushalt.": "Applies only in this project's chats, in addition to your memory and the household.",
+ "Projekt: {0}": "Project: {0}",
+ "Rückgängig": "Undo",
+ "Rückgängig gemacht": "Undone",
+ "Rückgängig hat nicht geklappt.": "Undo didn't work.",
+ "eingetragen": "entered",
+ "gesagt": "said",
+ "von der KI abgeleitet": "inferred by the AI",
+ "von dir eingetragen": "entered by you",
+ "von dir gesagt": "said by you"
 }

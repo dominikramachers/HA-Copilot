@@ -114,6 +114,24 @@ CREATE TABLE IF NOT EXISTS memories (
 );
 """
 
+MEMORY_ORIGINS = ('said', 'inferred', 'manual', 'import')  # Herkunft eines Eintrags; '' = unbekannt (ältere Einträge)
+
+PROJECT_MEMORY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS project_memories (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id  TEXT NOT NULL,
+    project_id  TEXT NOT NULL,
+    topic       TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    author      TEXT NOT NULL DEFAULT '',
+    origin      TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    UNIQUE (project_id, topic COLLATE NOCASE),
+    FOREIGN KEY (project_id, profile_id) REFERENCES projects(id, profile_id) ON DELETE CASCADE
+);
+"""
+
 STATE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS app_state (
     key    TEXT PRIMARY KEY,
@@ -310,7 +328,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 23  # 23: Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 23  # 23: Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind"
 
@@ -378,6 +396,13 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
         link = str(i.get("link", ""))
         if link.startswith("https://github.com/") and len(link) < 400:
             entry["link"] = link
+        undo = i.get("undo")
+        if isinstance(undo, dict) and undo.get("scope") in ("household", "person", "project") and isinstance(undo.get("topic"), str):
+            entry["undo"] = {
+                "scope": undo["scope"], "topic": undo["topic"][:60], "project": str(undo.get("project") or "")[:64],
+                "prev": undo["prev"][:800] if isinstance(undo.get("prev"), str) else None,
+                "now": undo["now"][:800] if isinstance(undo.get("now"), str) else None,
+            }
         out.append(entry)
     return out
 
@@ -490,6 +515,10 @@ class Store:
             self._conn.execute("ALTER TABLE knowledge ADD COLUMN file_size INTEGER NOT NULL DEFAULT 0")
             self._conn.execute("ALTER TABLE knowledge ADD COLUMN mime TEXT NOT NULL DEFAULT ''")
             self._conn.execute("ALTER TABLE knowledge ADD COLUMN origin TEXT NOT NULL DEFAULT 'upload'")  # upload = von der Person, ai = von der KI abgelegt
+        memory_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(memories)")}
+        if "origin" not in memory_columns:  # Herkunft: '' unbekannt, said = von der Person gesagt, inferred = von der KI abgeleitet, manual = selbst eingetragen, import
+            self._conn.execute("ALTER TABLE memories ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
+        self._conn.executescript(PROJECT_MEMORY_SCHEMA)
         self._conn.executescript(STATE_SCHEMA)
         self._conn.executescript(OUTFILES_SCHEMA)
         outfile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(outfiles)")}
@@ -1517,7 +1546,7 @@ class Store:
         params: tuple = (scope, owner) if auto is None else (scope, owner, AUTO_AUTHOR)
         with self._lock:
             rows = self._conn.execute(
-                "SELECT id, topic, content, author, updated_at FROM memories WHERE scope = ? AND owner = ?" + extra
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM memories WHERE scope = ? AND owner = ?" + extra
                 + " ORDER BY topic COLLATE NOCASE",
                 params,
             ).fetchall()
@@ -1558,22 +1587,89 @@ class Store:
                 (key, value),
             )
 
-    def memory_save(self, scope: str, profile_id: str, topic: str, content: str, author: str = "") -> dict[str, Any]:
+    def memory_save(self, scope: str, profile_id: str, topic: str, content: str, author: str = "", origin: str = "") -> dict[str, Any]:
         """Eintrag anlegen oder (gleiches Thema, Groß-/Kleinschreibung egal) aktualisieren."""
         owner = self._memory_owner(scope, profile_id)
+        origin = origin if origin in MEMORY_ORIGINS else ""
         now = _now()
         with self._lock, self._conn:
             self._conn.execute(
-                "INSERT INTO memories (scope, owner, topic, content, author, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "INSERT INTO memories (scope, owner, topic, content, author, origin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(scope, owner, topic) DO UPDATE SET content = excluded.content, author = excluded.author, "
-                "updated_at = excluded.updated_at",
-                (scope, owner, topic, content, author, now, now),
+                "origin = excluded.origin, updated_at = excluded.updated_at",
+                (scope, owner, topic, content, author, origin, now, now),
             )
             row = self._conn.execute(
-                "SELECT id, topic, content, author, updated_at FROM memories WHERE scope = ? AND owner = ? AND topic = ? COLLATE NOCASE",
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM memories WHERE scope = ? AND owner = ? AND topic = ? COLLATE NOCASE",
                 (scope, owner, topic),
             ).fetchone()
         return dict(row)
+
+    # ------------------------------------------------- Gedächtnis des Projekts
+
+    def project_memory_list(self, profile_id: str, project_id: str) -> list[dict[str, Any]] | None:
+        """Einträge des Projektgedächtnisses; ``None``, wenn das Projekt nicht dem Profil gehört."""
+        _require(profile_id)
+        with self._lock:
+            if not self._owns_project_locked(profile_id, project_id):
+                return None
+            rows = self._conn.execute(
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM project_memories WHERE project_id = ? AND profile_id = ? "
+                "ORDER BY topic COLLATE NOCASE", (project_id, profile_id),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def _owns_project_locked(self, profile_id: str, project_id: str) -> bool:
+        return self._conn.execute("SELECT 1 FROM projects WHERE id = ? AND profile_id = ?", (project_id, profile_id)).fetchone() is not None
+
+    def project_memory_save(
+        self, profile_id: str, project_id: str, topic: str, content: str, author: str = "", origin: str = ""
+    ) -> dict[str, Any] | None:
+        _require(profile_id)
+        origin = origin if origin in MEMORY_ORIGINS else ""
+        now = _now()
+        with self._lock, self._conn:
+            if not self._owns_project_locked(profile_id, project_id):
+                return None
+            self._conn.execute(
+                "INSERT INTO project_memories (profile_id, project_id, topic, content, author, origin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(project_id, topic) DO UPDATE SET content = excluded.content, author = excluded.author, origin = excluded.origin, updated_at = excluded.updated_at",
+                (profile_id, project_id, topic, content, author, origin, now, now),
+            )
+            row = self._conn.execute(
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM project_memories WHERE project_id = ? AND topic = ? COLLATE NOCASE",
+                (project_id, topic),
+            ).fetchone()
+        return dict(row)
+
+    def project_memory_get(self, profile_id: str, project_id: str, topic: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM project_memories "
+                "WHERE project_id = ? AND profile_id = ? AND topic = ? COLLATE NOCASE", (project_id, profile_id, topic),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def project_memory_count(self, profile_id: str, project_id: str) -> int:
+        _require(profile_id)
+        with self._lock:
+            return self._conn.execute(
+                "SELECT COUNT(*) FROM project_memories WHERE project_id = ? AND profile_id = ?", (project_id, profile_id)
+            ).fetchone()[0]
+
+    def project_memory_delete(self, profile_id: str, project_id: str, memory_id: int | None = None, topic: str = "") -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            if memory_id is not None:
+                cur = self._conn.execute(
+                    "DELETE FROM project_memories WHERE id = ? AND project_id = ? AND profile_id = ?", (memory_id, project_id, profile_id)
+                )
+            else:
+                cur = self._conn.execute(
+                    "DELETE FROM project_memories WHERE topic = ? COLLATE NOCASE AND project_id = ? AND profile_id = ?", (topic, project_id, profile_id)
+                )
+        return cur.rowcount == 1
 
     def profile_instructions(self, profile_id: str) -> str:
         """„Meine Anweisungen“ der Person (gelten in allen ihren Chats); leer, wenn keine gesetzt sind."""
@@ -1603,6 +1699,16 @@ class Store:
             self._conn.execute("INSERT OR IGNORE INTO profiles (id) VALUES (?)", (profile_id,))
             self._conn.execute("UPDATE profiles SET default_model = ? WHERE id = ?", (model, profile_id))
         return model
+
+    def memory_get(self, scope: str, profile_id: str, topic: str) -> dict[str, Any] | None:
+        """Ein Eintrag mit Thema (Groß-/Kleinschreibung egal); der automatisch erfasste Überblick zählt nicht."""
+        owner = self._memory_owner(scope, profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, topic, content, author, origin, created_at, updated_at FROM memories "
+                "WHERE scope = ? AND owner = ? AND topic = ? COLLATE NOCASE AND author <> ?", (scope, owner, topic, AUTO_AUTHOR),
+            ).fetchone()
+        return dict(row) if row else None
 
     def memory_has_topic(self, scope: str, profile_id: str, topic: str) -> bool:
         owner = self._memory_owner(scope, profile_id)

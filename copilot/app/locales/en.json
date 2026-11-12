@@ -620,5 +620,9 @@
  "Die Textgrenze des Projekts ist erreicht. Zuerst Dateien löschen.": "The project's text limit has been reached. Delete some files first.",
  "Dieser Chat gehört zu keinem Projekt.": "This chat does not belong to a project.",
  "Im Projekt abgelegt: {name}": "Saved in the project: {name}",
- "„{name}“ hat die Person selbst hochgeladen und wird nicht überschrieben. Wähle einen anderen Namen.": "“{name}” was uploaded by the person themselves and will not be overwritten. Choose another name."
+ "„{name}“ hat die Person selbst hochgeladen und wird nicht überschrieben. Wähle einen anderen Namen.": "“{name}” was uploaded by the person themselves and will not be overwritten. Choose another name.",
+ "Das Projektgedächtnis ist voll ({n} Einträge).": "The project memory is full ({n} entries).",
+ "Der Eintrag wurde inzwischen geändert. Öffne das Gedächtnis, um ihn anzupassen.": "The entry has been changed since. Open the memory to adjust it.",
+ "Projekt": "Project",
+ "Zugangsdaten, Schlüssel und Kontonummern werden nicht im Gedächtnis gespeichert.": "Credentials, keys and account numbers are not stored in memory."
 }

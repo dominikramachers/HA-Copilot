@@ -69,7 +69,7 @@ from . import plugins_github
 from . import package_catalog
 from . import memory_import as memlib
 from .context_tools import (
-    CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
+    CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, PROJECT_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
 )
 from .ha_tools import HaToolbox
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
@@ -571,6 +571,8 @@ class Run:
                 self.actions[event["id"]]["file"] = event["file"]
             if event.get("link"):
                 self.actions[event["id"]]["link"] = event["link"]
+            if event.get("undo"):
+                self.actions[event["id"]]["undo"] = event["undo"]
         self.wake()
 
     def next_tool_id(self) -> int:
@@ -728,9 +730,19 @@ class PluginImportBody(BaseModel):
 
 
 class MemoryBody(BaseModel):
-    scope: Literal["household", "person"]
+    scope: Literal["household", "person", "project"]
     topic: str = Field(min_length=2, max_length=60)
     content: str = Field(min_length=3, max_length=800)
+    project_id: str = Field(default="", max_length=64)
+
+
+class MemoryUndoBody(BaseModel):
+    """Eine Gedächtnis-Änderung der KI zurücknehmen: ``prev`` = Text davor (leer: gab es nicht), ``now`` = Text danach (leer: gelöscht)."""
+    scope: Literal["household", "person", "project"]
+    topic: str = Field(min_length=2, max_length=60)
+    prev: str | None = Field(default=None, max_length=800)
+    now: str | None = Field(default=None, max_length=800)
+    project_id: str = Field(default="", max_length=64)
 
 
 class InstructionsBody(BaseModel):
@@ -1805,9 +1817,14 @@ def register_chat_routes(
         memory_enabled_or_404()
         names = {p.id: (p.label or p.id) for p in settings.profiles}
         household = [{**m, "by": names.get(m["author"], "")} for m in store.memory_list("household", auto=False)]
+        projects = []
+        for pr in store.list_projects(profile.id):
+            entries = store.project_memory_list(profile.id, pr["id"]) or []
+            projects.append({"id": pr["id"], "name": pr["name"], "entries": entries})
         out = {
             "household": household,
             "person": store.memory_list("person", profile.id),
+            "projects": projects,
             "household_write": household_writable(profile),
             "instructions": store.profile_instructions(profile.id),
             "instructions_max": INSTRUCTIONS_MAX,
@@ -1834,17 +1851,69 @@ def register_chat_routes(
             scanner.start("manual")
         return {"status": scan_status()}
 
-    @app.post("/api/memory", dependencies=[Depends(write_guard)])
-    def save_memory(body: MemoryBody, profile: Profile = Depends(current_profile)) -> dict:
-        memory_enabled_or_404()
-        if body.scope == "household" and not household_writable(profile):
+    def project_memory_check(profile: Profile, project_id: str) -> None:
+        """Das Projekt muss dieser Person gehören; sonst 404 (wie bei allen Projektdaten)."""
+        if not project_id or store.project_memory_list(profile.id, project_id) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+
+    def memory_write_rules(profile: Profile, scope: str, project_id: str, topic: str, content: str, secrets: bool = True) -> None:
+        if scope == "household" and not household_writable(profile):
             raise HTTPException(status_code=403, detail=tr("Das Haushaltsgedächtnis darfst du nicht ändern."))
-        topic = " ".join(body.topic.split())
-        if len(topic) < 2:
+        if scope == "project":
+            project_memory_check(profile, project_id)
+        if not 2 <= len(topic) <= TOPIC_MAX:
             raise HTTPException(status_code=422, detail=tr("Thema fehlt"))
         if _RESERVED.match(topic):
             raise HTTPException(status_code=422, detail=tr(RESERVED_TEXT))
-        return store.memory_save(body.scope, profile.id, topic, body.content.strip(), profile.id)
+        if secrets and (_SECRET.search(topic) or _SECRET.search(content)):
+            raise HTTPException(status_code=422, detail=tr("Zugangsdaten, Schlüssel und Kontonummern werden nicht im Gedächtnis gespeichert."))
+
+    def memory_put(profile: Profile, scope: str, project_id: str, topic: str, content: str, origin: str) -> dict:
+        if scope == "project":
+            if store.project_memory_get(profile.id, project_id, topic) is None and store.project_memory_count(profile.id, project_id) >= PROJECT_LIMIT:
+                raise HTTPException(status_code=422, detail=tr("Das Projektgedächtnis ist voll ({n} Einträge).", n=PROJECT_LIMIT))
+            return store.project_memory_save(profile.id, project_id, topic, content, profile.id, origin) or {}
+        return store.memory_save(scope, profile.id, topic, content, profile.id, origin)
+
+    @app.post("/api/memory", dependencies=[Depends(write_guard)])
+    def save_memory(body: MemoryBody, profile: Profile = Depends(current_profile)) -> dict:
+        memory_enabled_or_404()
+        topic = " ".join(body.topic.split())
+        content = body.content.strip()
+        memory_write_rules(profile, body.scope, body.project_id, topic, content, secrets=False)  # eigene Einträge der Person: wie bisher keine Prüfung
+        return memory_put(profile, body.scope, body.project_id, topic, content, "manual")
+
+    @app.delete("/api/projects/{project_id}/memory/{memory_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def delete_project_memory(project_id: str, memory_id: int, profile: Profile = Depends(current_profile)) -> Response:
+        memory_enabled_or_404()
+        project_memory_check(profile, project_id)
+        if not store.project_memory_delete(profile.id, project_id, memory_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.post("/api/memory/undo", dependencies=[Depends(write_guard)])
+    def undo_memory(body: MemoryUndoBody, profile: Profile = Depends(current_profile)) -> dict:
+        """„Rückgängig“ unter einer Antwort: nur, solange der Eintrag noch so ist, wie die KI ihn hinterlassen hat."""
+        memory_enabled_or_404()
+        topic = " ".join(body.topic.split())
+        if body.scope == "household" and not household_writable(profile):
+            raise HTTPException(status_code=403, detail=tr("Das Haushaltsgedächtnis darfst du nicht ändern."))
+        if body.scope == "project":
+            project_memory_check(profile, body.project_id)
+            current = store.project_memory_get(profile.id, body.project_id, topic)
+        else:
+            current = store.memory_get(body.scope, profile.id, topic)
+        if (current["content"] if current else None) != body.now:
+            raise HTTPException(status_code=409, detail=tr("Der Eintrag wurde inzwischen geändert. Öffne das Gedächtnis, um ihn anzupassen."))
+        if body.prev is None:  # die KI hat den Eintrag neu angelegt: wieder entfernen
+            if body.scope == "project":
+                store.project_memory_delete(profile.id, body.project_id, topic=topic)
+            else:
+                store.memory_delete_topic(body.scope, profile.id, topic)
+            return {"restored": False}
+        memory_write_rules(profile, body.scope, body.project_id, topic, body.prev)
+        memory_put(profile, body.scope, body.project_id, topic, body.prev, "")
+        return {"restored": True}
 
     @app.put("/api/memory/instructions", dependencies=[Depends(write_guard)])
     def save_instructions(body: InstructionsBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -1929,7 +1998,7 @@ def register_chat_routes(
                 elif not exists and free <= 0:
                     reason = tr("Gedächtnis ist voll ({n} Einträge)", n=limit)
                 else:
-                    store.memory_save(body.scope, profile.id, topic, content, profile.id)
+                    store.memory_save(body.scope, profile.id, topic, content, profile.id, "import")
                     if exists:
                         replaced += 1
                     else:
