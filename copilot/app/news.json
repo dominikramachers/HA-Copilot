@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.54.1",
+    "items": [
+      {
+        "de": {
+          "title": "Menü per Wischen öffnen",
+          "text": "Auf dem Handy kannst du mein Seitenmenü jetzt mit einer Wischbewegung von links nach rechts öffnen und wieder schließen."
+        },
+        "en": {
+          "title": "Swipe to open the menu",
+          "text": "On your phone you can now open my side menu with a swipe from left to right, and close it again."
+        }
+      },
+      {
+        "de": {
+          "title": "Dein Profilbild",
+          "text": "Ich zeige jetzt dein Profilbild aus Home Assistant bei deinem Namen an."
+        },
+        "en": {
+          "title": "Your profile picture",
+          "text": "I now show your profile picture from Home Assistant next to your name."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.54.0",
     "items": [
       {

@@ -35,6 +35,7 @@ class HaApi:
         self._timeout = timeout
         self._themes: tuple[float, dict | None] | None = None
         self._engines: tuple[float, dict[str, bool]] | None = None
+        self._pictures: dict[str, tuple[bytes, str]] = {}
 
     @property
     def enabled(self) -> bool:
@@ -223,6 +224,39 @@ class HaApi:
             value = None
         self._themes = (now, value)
         return value
+
+    async def person_picture(self, user_id: str) -> tuple[bytes, str] | None:
+        """Profilbild der Person, die in Home Assistant mit diesem Benutzer verknüpft ist: ``(Bild, Medientyp)`` oder ``None``.
+
+        Home Assistant legt hochgeladene Bilder unter ``/api/image/serve/<id>/<Größe>`` ab; nur dieser Pfad wird geholt.
+        Der Pfad ändert sich mit jedem neuen Bild, deshalb genügt ein kleiner Zwischenspeicher darauf.
+        """
+        uid = (user_id or "").lower()
+        if not uid or not self.enabled or not self._rest_url:
+            return None
+        data = await self.call({"type": "person/list"})
+        path = ""
+        for entry in (data or {}).get("storage", []) + (data or {}).get("config", []) if isinstance(data, dict) else []:
+            if isinstance(entry, dict) and str(entry.get("user_id") or "").lower() == uid:
+                path = str(entry.get("picture") or "")
+                break
+        if not path.startswith("/api/image/serve/") or ".." in path or "?" in path:
+            return None
+        cached = self._pictures.get(path)
+        if cached:
+            return cached
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout + 8) as client:
+                response = await client.get(self._rest_url + path[len("/api"):], headers={"Authorization": f"Bearer {self._token}"})
+        except httpx.HTTPError as exc:
+            raise HaApiError(f"person_picture: {type(exc).__name__}") from None
+        media = response.headers.get("content-type", "").split(";")[0]
+        if response.status_code != 200 or not response.content or not media.startswith("image/") or len(response.content) > 2_000_000:
+            return None
+        if len(self._pictures) >= 32:
+            self._pictures.clear()
+        self._pictures[path] = (response.content, media)
+        return self._pictures[path]
 
     async def users(self) -> list[dict[str, str]]:
         """Benutzer von Home Assistant: ``[{id, name, username, person}]`` (für die Zuordnung von Benutzernamen zu IDs).

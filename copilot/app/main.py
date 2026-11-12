@@ -834,6 +834,7 @@ def register_chat_routes(
         return {
             "id": profile.id,
             "label": profile.label,
+            "picture": bool(profile.ha_user_id) and ha is not None and ha.enabled,
             "app_name": settings.app_name,
             "default_effort": settings.default_effort,
             "test_mode": settings.backend == "echo",
@@ -859,6 +860,17 @@ def register_chat_routes(
             "welcome": welcome.state(profile.id),
             **me_extra,
         }
+
+    @app.get("/api/me/picture")
+    async def me_picture(profile: Profile = Depends(current_profile)) -> Response:
+        """Das Profilbild der Person aus Home Assistant (Einstellungen der Person dort); ohne Bild 404, die Oberfläche zeigt dann den Buchstaben."""
+        try:
+            found = await ha.person_picture(profile.ha_user_id) if ha is not None and profile.ha_user_id else None
+        except HaApiError:
+            found = None
+        if not found:
+            raise HTTPException(status_code=404, detail="kein Profilbild")
+        return Response(found[0], media_type=found[1], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
 
     @app.post("/api/presence", status_code=204, dependencies=[Depends(write_guard)])
     def report_presence(body: PresenceBody, profile: Profile = Depends(current_profile)) -> Response:
