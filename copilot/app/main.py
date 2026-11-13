@@ -43,6 +43,7 @@ from . import news as newslib
 from . import quotes
 from . import research as researchlib
 from . import styles as stylelib
+from . import usage as usagelib
 from . import i18n
 from .i18n import tr
 from .previews import MAX_CHARS as PREVIEW_MAX_CHARS, PREVIEW_HEADERS, PreviewStore
@@ -926,9 +927,18 @@ def register_chat_routes(
             raise HTTPException(status_code=404, detail=tr("Nicht verfügbar"))
         return research_state(profile)
 
+    async def is_admin(profile: Profile) -> bool:
+        """Administrator der App: im Profil eingetragen (``admin``) oder Administrator in Home Assistant."""
+        if profile.admin:
+            return True
+        ha_id = registry.ha_id_of(profile) if registry else profile.ha_user_id.lower()
+        lookup = getattr(ha, "admin_ids", None)
+        return bool(ha_id and lookup is not None and ha_id in await lookup())
+
     @app.get("/api/me")
-    def me(profile: Profile = Depends(current_profile)) -> dict:
+    async def me(profile: Profile = Depends(current_profile)) -> dict:
         return {
+            "usage_all": await is_admin(profile),  # darf die Verbrauchsübersicht „Alle Personen“ sehen
             "id": profile.id,
             "label": profile.label,
             "picture": bool(profile.ha_user_id) and ha is not None and ha.enabled,
@@ -1034,6 +1044,7 @@ def register_chat_routes(
         if len(text) < 200:
             raise HTTPException(status_code=422, detail=tr("Der Beispieltext ist zu kurz. Füge mindestens ein paar Absätze deiner eigenen Texte ein."))
         describe = getattr(backend, "describe_style", None)
+        usagelib.bind(store, profile.id)
         found = await describe(text) if describe else None
         if not found:
             raise HTTPException(status_code=502, detail=tr("Den Stil konnte ich gerade nicht ableiten. Versuche es gleich noch einmal."))
@@ -1448,6 +1459,21 @@ def register_chat_routes(
                 "limit": settings.openai_limit_month * 1000,
             },
         }
+
+    @app.get("/api/usage/all")
+    async def usage_all(range: str = "month", profile: Profile = Depends(current_profile)) -> dict:
+        """Verbrauch aller Personen (nur Administratoren): Zahlen je Person und Zeitraum, nie Inhalte."""
+        if not await is_admin(profile):
+            raise HTTPException(status_code=403, detail=tr("Kein Zugriff"))
+        euro = i18n.language() == "de"
+
+        def label_of(pid: str) -> str:
+            remembered = store.recall_ha_profile(pid)
+            return remembered[0] if remembered else ""
+
+        labels = {p.id: p.label for p in (registry.all() if registry else settings.profiles)}
+        data = usagelib.overview(store, labels, range, settings.usd_eur_rate if euro else 1.0, resolve=label_of)
+        return {**data, "currency": "EUR" if euro else "USD", "ranges": list(usagelib.RANGES)}
 
     @app.get("/api/chats")
     def list_chats(profile: Profile = Depends(current_profile)) -> list[dict]:
@@ -2438,6 +2464,7 @@ def register_chat_routes(
         history = store.list_messages(profile_id, chat_id)
         if chat is None or history is None:
             return None
+        usagelib.bind(store, profile_id)
         if chat.get("kind") == "incognito" or len(history) < 2 or history[0]["role"] != "user":
             return chat  # Inkognito: kein zusätzlicher Aufruf der KI nur für einen Titel
         first, answer = history[0]["content"], history[1]["content"]
@@ -2755,6 +2782,7 @@ def register_chat_routes(
 
         async def generate() -> None:
             error: str | None = None
+            usagelib.bind(store, profile.id, "voice" if spoken else "chat")
             try:
                 if provider == "openai" and token_limit:
                     used_tokens = store.token_usage(profile.id, usage_month, "openai")
@@ -3398,6 +3426,12 @@ async def _sweep_loop(backend: ChatBackend, store: Store | None = None, voice_da
                     log.info("%d abgelaufene erzeugte Dateien entfernt", removed)
             except Exception:
                 log.warning("Aufräumen der erzeugten Dateien fehlgeschlagen", exc_info=True)
+            try:
+                packed = await asyncio.to_thread(usagelib.compact, store)
+                if packed:
+                    log.info("%d ältere Verbrauchseinträge zu Tagessummen verdichtet", packed)
+            except Exception:
+                log.warning("Verdichten des Verbrauchsprotokolls fehlgeschlagen", exc_info=True)
             try:
                 expired = await asyncio.to_thread(store.share_sweep)
                 if expired:

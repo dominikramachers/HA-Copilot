@@ -7988,7 +7988,52 @@ async function settingsUsage(body, alive) {
     pics.append(node("p", "mem-hint", tr("Fotos und Kunstbilder sind nicht eingerichtet. Einfache Grafiken zeichnet die KI kostenlos als SVG.")));
   }
   parts.push(pics);
+  if (state.me?.usage_all) parts.push(usageAllBlock(alive));
   body.replaceChildren(...parts);
+}
+
+// Nur für Administratoren: wer wie viel genutzt hat (Zahlen, keine Inhalte)
+const usageRanges = () => [["24h", tr("24 Stunden")], ["today", tr("Heute")], ["week", tr("Diese Woche")], ["month", tr("Dieser Monat")], ["lastmonth", tr("Letzter Monat")]];
+let usageAllRange = "month";
+
+function usageAllBlock(alive) {
+  const box = node("section", "set-block");
+  box.append(node("h4", "", tr("Alle Personen")));
+  const tabs = node("div", "usage-ranges");
+  const list = node("div", "usage-all");
+  const note = node("p", "mem-hint", tr("Nur für Administratoren. Es werden nur Zahlen gezählt, keine Inhalte. Der Wert ist der Preis, den Claude für die Aufrufe meldet; ChatGPT und Bilder haben keinen Wert und zählen nur als Token bzw. Bilder."));
+  const buttons = new Map();
+  const load = async () => {
+    list.replaceChildren(node("p", "mem-hint", tr("Wird geladen …")));
+    for (const [key, button] of buttons) button.setAttribute("aria-pressed", String(key === usageAllRange));
+    let data;
+    try { data = await api(`api/usage/all?range=${encodeURIComponent(usageAllRange)}`); } catch { if (alive()) list.replaceChildren(node("p", "mem-empty", tr("Die Übersicht ist gerade nicht erreichbar."))); return; }
+    if (!alive()) return;
+    const count = new Intl.NumberFormat(kiLocale, { notation: "compact", maximumFractionDigits: 1 });
+    const money = new Intl.NumberFormat(kiLocale, { style: "currency", currency: data.currency });
+    const line = (r) => [tr("{0} Token", count.format(r.tokens)), r.images ? trn(r.images, "{0} Bild", "{0} Bilder", r.images) : "", r.cost ? money.format(r.cost) : ""].filter(Boolean).join(" · ");
+    const rows = data.people.map((r) => {
+      const row = node("div", "usage-row");
+      const head = node("div", "usage-head");
+      head.append(node("b", "", r.label), node("span", "", r.tokens ? tr("{0} % der Token", String(r.share).replace(".", kiLocale.startsWith("de") ? "," : ".")) : tr("nichts genutzt")));
+      row.append(head);
+      if (r.tokens) row.append(usageBar(Math.min(1, r.share / 100)));
+      row.append(node("span", "usage-sub", r.tokens || r.images ? line(r) : ""));
+      return row;
+    });
+    const total = node("p", "set-lead", tr("Zusammen: {0}", line(data.total) || tr("noch nichts")));
+    list.replaceChildren(total, ...rows);
+  };
+  for (const [key, label] of usageRanges()) {
+    const button = node("button", "pill ghost small", label);
+    button.type = "button";
+    button.addEventListener("click", () => { usageAllRange = key; load(); });
+    buttons.set(key, button);
+    tabs.append(button);
+  }
+  box.append(tabs, list, note);
+  load();
+  return box;
 }
 
 // Meldungen aufs Handy: an/aus und auf welchen Geräten (Home-Assistant-App). Die Meldung kommt nur, wenn eine Antwort ungelesen bleibt.

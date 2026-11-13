@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 
 from . import schedule as sched
 from . import styles as stylelib
+from . import usage as usagelib
 from .i18n import tr
 from .backend import BackendError
 from .config import Profile, Settings, provider_of
@@ -309,6 +310,7 @@ class Scheduler:
         store = self.store
         error: str | None = None
         cancelled = False
+        usagelib.bind(store, profile.id, "scheduled")
         try:
             extra: dict = {"on_limit": self.limits.update}
             personal = store.profile_instructions(profile.id)

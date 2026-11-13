@@ -1134,5 +1134,18 @@
  "Du kannst bis zu {0} eigene Stile anlegen.": "You can create up to {0} styles of your own.",
  "Aus Beispieltext lernen": "Learn from sample text",
  "Schreibstile": "Writing styles",
- "Wie ich antworte: kurz, ausführlich, locker, formell oder in deinem eigenen Stil.": "How I answer: short, detailed, casual, formal or in your own style."
+ "Wie ich antworte: kurz, ausführlich, locker, formell oder in deinem eigenen Stil.": "How I answer: short, detailed, casual, formal or in your own style.",
+ "24 Stunden": "24 hours",
+ "Dieser Monat": "This month",
+ "Letzter Monat": "Last month",
+ "Alle Personen": "All people",
+ "Nur für Administratoren. Es werden nur Zahlen gezählt, keine Inhalte. Der Wert ist der Preis, den Claude für die Aufrufe meldet; ChatGPT und Bilder haben keinen Wert und zählen nur als Token bzw. Bilder.": "Administrators only. Only numbers are counted, never content. The value is the price Claude reports for the calls; ChatGPT and images have no value and only count as tokens or images.",
+ "Die Übersicht ist gerade nicht erreichbar.": "The overview is not available right now.",
+ "{0} Token": "{0} tokens",
+ "{0} % der Token": "{0} % of tokens",
+ "nichts genutzt": "nothing used",
+ "Zusammen: {0}": "Total: {0}",
+ "noch nichts": "nothing yet",
+ "{0} Bild": "{0} image",
+ "{0} Bilder": "{0} images"
 }

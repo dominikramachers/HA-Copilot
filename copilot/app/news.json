@@ -4,6 +4,16 @@
     "items": [
       {
         "de": {
+          "title": "Verbrauch im Blick",
+          "text": "Wer die App verwaltet, sieht jetzt, wie viel jede Person von mir genutzt hat: als Anteil, mit Bildern und Wert. Es werden nur Zahlen gezählt, nie Inhalte."
+        },
+        "en": {
+          "title": "Usage at a glance",
+          "text": "Whoever manages the app can now see how much each person has used me: as a share, with images and value. Only numbers are counted, never content."
+        }
+      },
+      {
+        "de": {
           "title": "Eigene Schreibstile",
           "text": "Ich kann jetzt in verschiedenen Stilen antworten: kurz, ausführlich, locker oder so, wie du schreibst. Wähle ihn unter dem Eingabefeld."
         },

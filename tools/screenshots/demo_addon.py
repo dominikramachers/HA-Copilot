@@ -109,7 +109,7 @@ class Backend:
 raw = {
     "users": {"profiles": [
         {"id": "demo", "label": "Demo Nutzer", "ha_user_id": DEMO_ID, "ha_access": "write", "github_access": "read",
-         "notify_service": "notify.mobile_app_handy", "voice_access": "on"},
+         "notify_service": "notify.mobile_app_handy", "voice_access": "on", "admin": bool(os.environ.get("DEMO_ADMIN"))},
         {"id": "sam", "label": "Sam", "ha_user_id": SAM_ID, "ha_access": "read", "github_access": "none"},
     ]},
     "chat": {"anthropic_api_key": "sk-ant-platzhalter", "ha_access_default": "read", "github_access_default": "read",
@@ -123,6 +123,9 @@ settings = parse_settings(raw, frozenset({"127.0.0.1"}))
 d = pathlib.Path(tempfile.mkdtemp()); brand = pathlib.Path(tempfile.mkdtemp())
 store = Store(d / "d.sqlite3"); store.sync_profiles([p.id for p in settings.profiles])
 U = "demo"
+if os.environ.get("DEMO_ADMIN"):  # Verbrauchsübersicht „Alle Personen“ mit Beispielzahlen
+    for pid, tin, tout, cost, img in (("demo", 820_000, 140_000, 3.1, 3), ("sam", 260_000, 60_000, 0.9, 0)):
+        store.usage_add(pid, "claude", "claude-sonnet-5-5", tokens_in=tin, tokens_out=tout, cost_usd=cost, images=img)
 p = store.create_project(U, "Haus" if LANG == "de" else "House")
 
 c1 = store.create_chat(U, "Welche Lichter sind an?" if LANG == "de" else "Which lights are on?", p["id"])

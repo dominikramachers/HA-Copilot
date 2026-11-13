@@ -221,6 +221,34 @@ CREATE TABLE IF NOT EXISTS token_usage (
 );
 """
 
+USAGE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS usage_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          INTEGER NOT NULL,
+    profile_id  TEXT NOT NULL,
+    provider    TEXT NOT NULL,
+    model       TEXT NOT NULL DEFAULT '',
+    kind        TEXT NOT NULL DEFAULT 'chat',
+    tokens_in   INTEGER NOT NULL DEFAULT 0,
+    tokens_out  INTEGER NOT NULL DEFAULT 0,
+    cost_usd    REAL NOT NULL DEFAULT 0,
+    images      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS usage_events_ts ON usage_events (ts);
+CREATE TABLE IF NOT EXISTS usage_daily (
+    day         TEXT NOT NULL,
+    profile_id  TEXT NOT NULL,
+    provider    TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    calls       INTEGER NOT NULL DEFAULT 0,
+    tokens_in   INTEGER NOT NULL DEFAULT 0,
+    tokens_out  INTEGER NOT NULL DEFAULT 0,
+    cost_usd    REAL NOT NULL DEFAULT 0,
+    images      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, profile_id, provider, kind)
+);
+"""
+
 RESEARCH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS research_runs (
     profile_id  TEXT NOT NULL,
@@ -376,7 +404,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 26  # 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 27  # 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
 
@@ -595,6 +623,7 @@ class Store:
         self._conn.executescript(PLUGINS_SCHEMA)
         self._conn.executescript(GITHUB_SCHEMA)
         self._conn.executescript(STYLES_SCHEMA)
+        self._conn.executescript(USAGE_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -2235,6 +2264,62 @@ class Store:
                 "SELECT tokens FROM token_usage WHERE profile_id = ? AND month = ? AND provider = ?", (profile_id, month, provider)
             ).fetchone()
         return int(row["tokens"])
+
+    def usage_add(
+        self, profile_id: str, provider: str, model: str = "", kind: str = "chat",
+        tokens_in: int = 0, tokens_out: int = 0, cost_usd: float = 0.0, images: int = 0, ts: int | None = None,
+    ) -> None:
+        """Einen Verbrauch ins Protokoll schreiben (ein Aufruf der KI oder ein Bild). Es werden nur Zahlen gespeichert."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO usage_events (ts, profile_id, provider, model, kind, tokens_in, tokens_out, cost_usd, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (int(ts if ts is not None else time.time()), profile_id, provider[:20], model[:60], kind[:20],
+                 max(0, int(tokens_in)), max(0, int(tokens_out)), max(0.0, float(cost_usd)), max(0, int(images))),
+            )
+
+    def usage_summary(self, start_ts: int, end_ts: int, start_day: str, end_day: str) -> list[dict]:
+        """Verbrauch je Person im Zeitraum: frische Einträge nach Zeit, verdichtete Tage nach Datum (``JJJJ-MM-TT``, beide Grenzen eingeschlossen)."""
+        rows: dict[str, dict] = {}
+
+        def add(pid: str, calls: int, tin: int, tout: int, cost: float, images: int) -> None:
+            row = rows.setdefault(pid, {"profile_id": pid, "calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "images": 0})
+            row["calls"] += calls
+            row["tokens_in"] += tin
+            row["tokens_out"] += tout
+            row["cost_usd"] += cost
+            row["images"] += images
+
+        with self._lock:
+            for r in self._conn.execute(
+                "SELECT profile_id, COUNT(*) AS n, SUM(tokens_in) AS ti, SUM(tokens_out) AS to_, SUM(cost_usd) AS c, SUM(images) AS im "
+                "FROM usage_events WHERE ts >= ? AND ts < ? GROUP BY profile_id", (start_ts, end_ts),
+            ):
+                add(r["profile_id"], r["n"], r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0)
+            for r in self._conn.execute(
+                "SELECT profile_id, SUM(calls) AS n, SUM(tokens_in) AS ti, SUM(tokens_out) AS to_, SUM(cost_usd) AS c, SUM(images) AS im "
+                "FROM usage_daily WHERE day >= ? AND day <= ? GROUP BY profile_id", (start_day, end_day),
+            ):
+                add(r["profile_id"], r["n"] or 0, r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0)
+        return list(rows.values())
+
+    def usage_compact(self, before_ts: int) -> int:
+        """Einträge vor ``before_ts`` zu Tagessummen (lokales Datum) verdichten und löschen; liefert die Zahl verdichteter Einträge."""
+        with self._lock, self._conn:
+            old = self._conn.execute(
+                "SELECT ts, profile_id, provider, kind, tokens_in, tokens_out, cost_usd, images FROM usage_events WHERE ts < ?", (int(before_ts),)
+            ).fetchall()
+            for r in old:
+                day = datetime.fromtimestamp(r["ts"]).strftime("%Y-%m-%d")
+                self._conn.execute(
+                    "INSERT INTO usage_daily (day, profile_id, provider, kind, calls, tokens_in, tokens_out, cost_usd, images) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?) "
+                    "ON CONFLICT(day, profile_id, provider, kind) DO UPDATE SET calls = calls + 1, tokens_in = tokens_in + excluded.tokens_in, "
+                    "tokens_out = tokens_out + excluded.tokens_out, cost_usd = cost_usd + excluded.cost_usd, images = images + excluded.images",
+                    (day, r["profile_id"], r["provider"], r["kind"], r["tokens_in"], r["tokens_out"], r["cost_usd"], r["images"]),
+                )
+            if old:
+                self._conn.execute("DELETE FROM usage_events WHERE ts < ?", (int(before_ts),))
+        return len(old)
 
     def outfile_sweep(self, grace_seconds: int = 900) -> int:
         """Abgelaufene Dateien entfernen sowie Dateien ohne Eintrag (Chat gelöscht); liefert die Anzahl entfernter Dateien."""

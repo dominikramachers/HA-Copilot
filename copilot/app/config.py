@@ -82,6 +82,7 @@ class Profile:
     web_access: str = ""  # Websuche und Seiten lesen: on | off; leer = web_access_default
     notify_service: str = ""  # Benachrichtigungsdienst dieser Person, z. B. notify.mobile_app_pixel; leer = keiner
     voice_access: str = ""  # Sprechen mit der KI: on | off; leer = voice_access_default
+    admin: bool = False  # Administrator der App (Übersicht „Alle Personen“); Administratoren von Home Assistant sind es ohnehin
 
 
 DEFAULT_MODELS = ("claude-opus-5-5", "claude-haiku-5-5")  # neben ``model`` wählbar
@@ -144,6 +145,7 @@ class Settings:
     connector_access_default: str = "use"
     research_enabled: bool = False  # Deep Research (mehrstufige Recherche mit Quellenbericht); aus, weil sie viel Kontingent braucht
     research_daily_limit: int = 3  # Läufe je Person und Tag
+    usd_eur_rate: float = 0.92  # Euro je US-Dollar für den Wert in der Verbrauchsübersicht (nur bei deutscher Sprache)
     sharing: str = "instance"  # Chats teilen: off | instance (nur in dieser Instanz) | public (zusätzlich Link ohne Anmeldung über die Domain)
     connector_write_confirm: str = "ask"  # fest: jede Änderung über einen Konnektor wird im Chat bestätigt
     connector_allow_private: bool = True  # fest: wer Konnektoren anlegen darf, darf auch Adressen im Heimnetz und mit http eintragen (Gesperrtes bleibt gesperrt)
@@ -235,6 +237,7 @@ class Settings:
 HA_ACCESS_LEVELS = ("none", "read", "execute", "write")
 SHARING_MODES = ("off", "instance", "public")
 RESEARCH_DAILY_LIMIT_DEFAULT = 3
+USD_EUR_RATE_DEFAULT = 0.92
 WEB_ACCESS_LEVELS = ("on", "off")
 VOICE_ACCESS_LEVELS = ("on", "off")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
@@ -254,6 +257,11 @@ def slug_id(label: str, taken: set[str]) -> str:
         candidate = f"{base[:26]}-{n}"
         n += 1
     return candidate
+
+
+def _flag(value: Any) -> bool:
+    """Ja/Nein-Feld eines Profileintrags (fehlend oder leer = nein)."""
+    return value is True or (isinstance(value, str) and value.strip().lower() in ("true", "yes", "ja", "1", "on"))
 
 
 def _optional(entry: dict[str, Any], key: str) -> str:
@@ -426,7 +434,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         profile = Profile(
             id=profile_id, label=label, ha_user_id=ha_user_id, entra_upn=entra_upn, ha_user=ha_user,
             ha_access=ha_access, connector_access=connector_access, web_access=web_access, notify_service=notify_service,
-            voice_access=voice_access,
+            voice_access=voice_access, admin=_flag(entry.get("admin")),
         )
         for key in seen:
             value = getattr(profile, key)
@@ -451,7 +459,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     chat = _group(
         raw, "chat",
         "model, memory_enabled, schedules_enabled, incognito_enabled, sharing, research_enabled, research_daily_limit, files_enabled, connector_access_default, "
-        "openai_enabled, openai_api_key, openai_key_expires, openai_models, openai_limit_month",
+        "openai_enabled, openai_api_key, openai_key_expires, openai_models, openai_limit_month, usd_eur_rate",
     )
     openai_models_raw = chat.get("openai_models")
     if openai_models_raw is None or (isinstance(openai_models_raw, str) and not openai_models_raw.strip()):
@@ -483,6 +491,12 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("chat.research_daily_limit muss eine Zahl von 1 bis 20 sein") from None
     if not 1 <= research_daily_limit <= 20:
         raise ConfigError("chat.research_daily_limit muss eine Zahl von 1 bis 20 sein")
+    try:
+        usd_eur_rate = float(chat.get("usd_eur_rate", USD_EUR_RATE_DEFAULT))
+    except (TypeError, ValueError):
+        raise ConfigError("chat.usd_eur_rate muss eine Zahl von 0,1 bis 10 sein") from None
+    if not 0.1 <= usd_eur_rate <= 10:
+        raise ConfigError("chat.usd_eur_rate muss eine Zahl von 0,1 bis 10 sein")
     connector_access_default = str(chat.get("connector_access_default") or "use").strip().lower()
     if connector_access_default not in CONNECTOR_ACCESS_LEVELS:
         raise ConfigError("chat.connector_access_default muss none, use, own oder global sein")
@@ -603,6 +617,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         sharing=sharing,
         research_enabled=bool(chat.get("research_enabled", False)),
         research_daily_limit=research_daily_limit,
+        usd_eur_rate=usd_eur_rate,
         restore_snapshot=restore,
         export_database=bool(raw.get("export_database", False)),
         claude_token_expires=token_expires,

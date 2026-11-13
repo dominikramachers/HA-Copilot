@@ -258,8 +258,25 @@ class HaApi:
         self._pictures[path] = (response.content, media)
         return self._pictures[path]
 
-    async def users(self) -> list[dict[str, str]]:
-        """Benutzer von Home Assistant: ``[{id, name, username, person}]`` (für die Zuordnung von Benutzernamen zu IDs).
+    async def admin_ids(self, max_age: float = 300.0) -> frozenset[str]:
+        """IDs der Home-Assistant-Administratoren (Gruppe ``system-admin``), kurz zwischengespeichert.
+
+        Schlägt die Abfrage fehl, bleibt der letzte bekannte Stand; ohne Stand ist niemand Administrator (im Zweifel zu).
+        """
+        now = time.monotonic()
+        cached = getattr(self, "_admins", None)
+        if cached is not None and now - cached[0] < max_age:
+            return cached[1]
+        try:
+            ids = frozenset(u["id"] for u in await self.users() if u.get("admin"))
+        except Exception as exc:  # keine Verbindung, keine Rechte: nicht raten
+            log.info("Administratoren nicht abrufbar: %s", exc)
+            return cached[1] if cached else frozenset()
+        self._admins = (now, ids)
+        return ids
+
+    async def users(self) -> list[dict[str, Any]]:
+        """Benutzer von Home Assistant: ``[{id, name, username, person, admin}]`` (für die Zuordnung von Benutzernamen zu IDs).
 
         Quelle ist die Benutzerverwaltung (braucht Administratorrechte des Supervisor-Tokens); wenn sie nicht
         antwortet, dienen die Personen mit verknüpftem Benutzer als Ersatz.
@@ -281,10 +298,13 @@ class HaApi:
                     continue
                 uid = str(entry.get("id") or "").lower()
                 if uid:
-                    users.append({"id": uid, "name": str(entry.get("name") or ""), "username": str(entry.get("username") or ""), "person": persons.get(uid, "")})
+                    users.append({
+                        "id": uid, "name": str(entry.get("name") or ""), "username": str(entry.get("username") or ""), "person": persons.get(uid, ""),
+                        "admin": "system-admin" in (entry.get("group_ids") or []),
+                    })
         except HaApiError as exc:
             log.info("Benutzerliste nicht abrufbar, nutze Personen: %s", exc)
-            users = [{"id": uid, "name": name, "username": "", "person": name} for uid, name in persons.items()]
+            users = [{"id": uid, "name": name, "username": "", "person": name, "admin": False} for uid, name in persons.items()]
         if not users:
             raise HaApiError("keine Benutzer abrufbar")
         return sorted(users, key=lambda u: (u["person"] or u["name"]).lower())

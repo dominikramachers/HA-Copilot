@@ -20,6 +20,7 @@ from typing import Any
 
 import httpx
 
+from . import usage as usagelib
 from .attachments import Attachment, with_inline_text
 from .backend import (
     MAX_HISTORY_CHARS,
@@ -357,6 +358,7 @@ class OpenAIBackend:
                                 output = list(response.get("output") or seen_items)
                                 usage = response.get("usage") or {}
                                 total = int(usage.get("total_tokens") or (int(usage.get("input_tokens") or 0) + int(usage.get("output_tokens") or 0)))
+                                usagelib.report("openai", model, int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0) )
                                 if on_usage and total:
                                     try:
                                         on_usage(total)
@@ -409,6 +411,7 @@ class OpenAIBackend:
                 if response.status_code == 200:
                     data = response.json()
                     usage = data.get("usage") or {}
+                    usagelib.report("openai", model, int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0))
                     if on_usage and usage.get("total_tokens"):
                         with contextlib.suppress(Exception):
                             on_usage(int(usage["total_tokens"]))

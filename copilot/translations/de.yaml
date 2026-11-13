@@ -31,6 +31,9 @@ configuration:
           voice_access:
             name: Sprechen mit der KI (optional)
             description: 'on = diese Person darf per Sprache mit der KI sprechen (Mikrofon-Knopf im Chat), off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“.'
+          admin:
+            name: Administrator der App (optional)
+            description: 'An = diese Person sieht unter Einstellungen → Nutzung die Übersicht „Alle Personen“ (wer wie viel genutzt hat, nur Zahlen, keine Inhalte). Administratoren von Home Assistant sind es automatisch; dieses Feld ist für Personen, die in Home Assistant keine Administratoren sind, oder für die Anmeldung über die Domain. Leer/aus: nur wer in Home Assistant Administrator ist.'
           notify_service:
             name: Benachrichtigungsdienst (optional)
             description: 'Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Vorgabe für die Geräte dieser Person (jede Person wählt ihre Geräte selbst unter Einstellungen → Benachrichtigungen; ohne Auswahl gelten die Geräte ihrer Person in Home Assistant). Leer: keine Vorgabe.'
@@ -77,6 +80,9 @@ configuration:
       research_daily_limit:
         name: Deep Research je Person und Tag
         description: 'Wie viele Deep-Research-Läufe eine Person pro Tag starten darf (1 bis 20, Standard 3). Gilt nur, wenn Deep Research erlaubt ist. Jeder Lauf ist zusätzlich begrenzt: höchstens 6 Fragen plus 2 Nachrecherchen, höchstens 12 gelesene Seiten je Frage und 30 Minuten.'
+      usd_eur_rate:
+        name: Euro je US-Dollar (Verbrauchsübersicht)
+        description: 'Umrechnungskurs für den Wert in der Übersicht „Alle Personen“ (Einstellungen → Nutzung, nur für Administratoren): Claude meldet den Verbrauch in US-Dollar, bei deutscher Sprache wird er mit diesem Kurs in Euro angezeigt (Standard 0,92). Bei englischer Sprache steht der Wert in US-Dollar.'
       files_enabled:
         name: Dateien erzeugen
         description: 'An (Standard): Die KI kann auf Wunsch Dateien erstellen (Word, Excel, PowerPoint, PDF sowie Skripte und andere Textdateien) und im Chat zum Herunterladen anbieten. Aus: nur Text und Codeblöcke.'

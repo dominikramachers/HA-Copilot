@@ -66,6 +66,10 @@ Mehr: [Inkognito-Chat](../copilot/DOCS.md#inkognito-chat-ab-0560), [Chats teilen
 
 Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigene-daten-ab-0220).
 
+## Verbrauch im Blick
+
+- Administratoren sehen unter **Einstellungen → Nutzung → Alle Personen**, wer wie viel der KI genutzt hat: Anteil an den Token, Bilder und Wert in Euro (bei englischer Sprache Dollar), für 24 Stunden, heute, diese Woche, diesen Monat oder den letzten Monat. Es werden nur Zahlen gezählt, nie Inhalte. Administrator ist, wer in Home Assistant Administrator ist, oder wer im Benutzer-Eintrag `admin: true` hat.
+
 ## Schreibstile
 
 - Im Menü unter dem Eingabefeld wählst du den **Stil** der Antworten: Kurz und klar, Ausführlich erklärend, Locker, Formell oder Technisch, oder „Ohne Stil“. Die Wahl gilt für den Chat.

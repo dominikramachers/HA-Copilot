@@ -31,6 +31,9 @@ configuration:
           voice_access:
             name: Talking to the AI (optional)
             description: 'on = this person may talk to the AI by voice (microphone button in the chat), off = not. Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
+          admin:
+            name: App administrator (optional)
+            description: 'On = this person sees the “All people” overview under Settings → Usage (who used how much, numbers only, no content). Home Assistant administrators are administrators automatically; this field is for people who are not administrators in Home Assistant, or for sign-in via the domain. Empty/off: only Home Assistant administrators.'
           notify_service:
             name: Notification service (optional)
             description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). Default device of this person (everyone picks their own devices under Settings → Notifications; without a choice the devices of their person in Home Assistant apply). Empty: no default.'
@@ -77,6 +80,9 @@ configuration:
       research_daily_limit:
         name: Deep Research per person and day
         description: 'How many Deep Research runs a person may start per day (1 to 20, default 3). Only applies when Deep Research is allowed. Each run is also capped: at most 6 questions plus 2 follow-up searches, at most 12 pages read per question and 30 minutes.'
+      usd_eur_rate:
+        name: Euro per US dollar (usage overview)
+        description: 'Exchange rate for the value shown in the “All people” overview (Settings → Usage, administrators only): Claude reports usage in US dollars; with the German language it is shown in euros using this rate (default 0.92). With English the value is shown in US dollars.'
       files_enabled:
         name: Create files
         description: 'On (default): The AI can create files on request (Word, Excel, PowerPoint, PDF, scripts and other text files) and offer them for download in the chat. Off: text and code blocks only.'

@@ -56,6 +56,7 @@ Nach dem Speichern das Add-on neu starten. Jeder Benutzer meldet sich dabei wie 
 | `ha_access` | nein | Rechte der KI in Home Assistant: `none`, `read`, `execute`, `write` (siehe unten). Leer: `ha_access_default`. |
 | `web_access` | nein | `on` oder `off`: Websuche. Leer: an. |
 | `voice_access` | nein | `on` oder `off`: Sprechen per Mikrofon-Knopf. Leer: der Standard `voice.access_default` (Gruppe „Sprechen mit der KI“, Standard aus). |
+| `admin` | nein | `true`: Administrator der App, sieht unter Einstellungen → Nutzung die Übersicht „Alle Personen“. Administratoren von Home Assistant sind es automatisch. |
 | `notify_service` | nein | Nur eine Vorgabe: Benachrichtigungsdienst fürs Handy, z. B. `notify.mobile_app_pixel`. Die Geräte einer Person erkennt der Chat sonst selbst aus Home Assistant; gewählt wird unter Einstellungen → Benachrichtigungen. |
 | `id` | nein | Interner, stabiler Schlüssel. **Die Chats gehören diesem Schlüssel**, nach dem Anlegen nicht mehr ändern. |
 

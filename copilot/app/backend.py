@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Protocol
 
 from . import styles as stylelib
+from . import usage as usagelib
 from .i18n import language, tr
 from .attachments import Attachment, human_size, sweep_scratch, user_message, with_inline_text
 from .ha_tools import TOOL_NOTE, ToolError, ToolResult, ToolSpec
@@ -510,6 +511,7 @@ class ClaudeSdkBackend:
                             except Exception:
                                 log.warning("Limit-Angabe konnte nicht verarbeitet werden", exc_info=True)
                     elif isinstance(msg, ResultMessage):
+                        usagelib.report_claude(msg)
                         if msg.is_error or error_code:
                             log.warning(
                                 "Claude-Fehler: code=%s status=%s subtype=%s",
@@ -545,8 +547,10 @@ class ClaudeSdkBackend:
                     if msg.error:
                         error_code = msg.error
                     text = "".join(b.text for b in msg.content if isinstance(b, TextBlock))
-                elif isinstance(msg, ResultMessage) and (msg.is_error or error_code):
-                    raise BackendError(map_error(error_code, msg.api_error_status))
+                elif isinstance(msg, ResultMessage):
+                    usagelib.report_claude(msg)
+                    if msg.is_error or error_code:
+                        raise BackendError(map_error(error_code, msg.api_error_status))
         return text
 
     async def title(self, user_text: str, answer: str) -> str | None:

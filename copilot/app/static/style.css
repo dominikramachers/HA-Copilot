@@ -1241,6 +1241,9 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .usage-row { display: grid; gap: 6px; }
 .usage-head { display: flex; justify-content: space-between; gap: 12px; font-size: 14.5px; }
 .usage-head span, .usage-sub { color: var(--text-2); font-size: 13.5px; }
+.usage-ranges { display: flex; flex-wrap: wrap; gap: 6px; }
+.usage-ranges .pill[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.usage-all { display: grid; gap: 14px; }
 .usage-bar { height: 8px; border-radius: 4px; background: var(--chip); overflow: hidden; }
 .usage-bar span { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
 .usage-bar.warn span { background: #d99a2b; }
