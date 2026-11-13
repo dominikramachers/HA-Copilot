@@ -1229,8 +1229,11 @@
  "Zuletzt aktiv: {0}": "Last active: {0}",
  "{0} wird abgemeldet. Zum erneuten Anmelden öffnest du die App und meldest dich wieder an.": "{0} will be signed out. To sign in again, open the app and sign in once more.",
  "App-Einstellungen": "App settings",
- "Alle Änderungs-Werkzeuge einschalten": "Switch on all change tools",
- "Alle Änderungs-Werkzeuge ausschalten": "Switch off all change tools",
  "GitHub lehnt deinen Zugang ab: Er ist abgelaufen oder wurde widerrufen. Die KI kann dein GitHub gerade nicht nutzen. Verbinde dich neu.": "GitHub rejects your access: it has expired or was revoked. I can’t use your GitHub right now. Please reconnect.",
- "Neu verbinden": "Reconnect"
+ "Neu verbinden": "Reconnect",
+ "Alles erlauben": "Allow all",
+ "Nichts erlauben": "Allow none",
+ "Benutzerdefiniert": "Custom",
+ "Alle Werkzeuge der Gruppe „{0}“": "All tools in the group “{0}”",
+ "Dieser Server bietet keine ändernden Werkzeuge an. Das liegt meist am Server selbst: Er darf nur lesen (zum Beispiel „Read-only“ oder eingeschränkte Rechte des Zugangs) oder zeigt nur lesende Werkzeuge an.": "This server offers no tools that change anything. That is usually down to the server itself: it may only read (for example “read-only” or limited rights of the access) or shows only reading tools."
 }

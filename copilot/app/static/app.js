@@ -3221,6 +3221,7 @@ const connUi = {
   data: null, catalog: null, catalogError: "", catalogLoading: false, tab: "mine", mineQuery: "", query: "", category: "all",
   registry: { q: "", items: [], next: "", loading: false, error: "", loaded: false, seq: 0 },
   id: null, form: null, flow: null, setup: null, error: "", loading: false,
+  toolsOpen: new Set(),  // aufgeklappte Werkzeug-Gruppen („<Konnektor>:read“, „<Konnektor>:write“); zu ist der Standard
 };
 
 async function loadConnectors() {
@@ -3906,22 +3907,48 @@ function connToolList(c) {
   const wrap = node("div", "conn-tools");
   if (!c.tools.length) { wrap.append(node("p", "skills-hint", tr("Der Server meldet keine Werkzeuge."))); return wrap; }
   const confirm = connUi.data.write_confirm === "ask";
-  const part = (title, hint, list, bulk = false) => {
-    if (!list.length) return;
-    wrap.append(node("p", "skills-label", title), node("p", "skills-hint", hint));
-    if (bulk && list.length > 1) {
-      const allOn = list.every((t) => t.enabled);
-      const all = node("button", "pill ghost", allOn ? tr("Alle Änderungs-Werkzeuge ausschalten") : tr("Alle Änderungs-Werkzeuge einschalten"));
-      all.type = "button";
-      all.addEventListener("click", async () => {
-        all.disabled = true;
+  const part = (key, title, hint, list, emptyHint = "") => {
+    if (!list.length && !emptyHint) return;
+    const head = node("div", "conn-group-head");
+    const id = `${c.id}:${key}`;
+    const open = !list.length || connUi.toolsOpen.has(id);  // eine leere Gruppe hat nichts zum Einklappen: ihr Hinweis bleibt sichtbar
+    let name;
+    if (list.length) {
+      name = node("button", "conn-group-name conn-group-toggle");
+      name.type = "button";
+      name.setAttribute("aria-expanded", String(open));
+      name.append(icon("chevron"), node("span", "skills-label", title), node("span", "conn-count", String(list.length)));
+      name.addEventListener("click", () => { if (open) connUi.toolsOpen.delete(id); else connUi.toolsOpen.add(id); renderSkills(); });
+    } else {
+      name = node("div", "conn-group-name");
+      name.append(node("span", "skills-label", title), node("span", "conn-count", "0"));
+    }
+    head.append(name);
+    if (list.length) {
+      // Rechts je Gruppe: alles erlauben oder nichts erlauben (wie die Gruppenwahl bei Claude); bei gemischtem Stand „Benutzerdefiniert“
+      const on = list.filter((t) => t.enabled).length;
+      const now = on === list.length ? "all" : on === 0 ? "none" : "custom";
+      const bulk = node("select", "field conn-bulk");
+      bulk.setAttribute("aria-label", tr("Alle Werkzeuge der Gruppe „{0}“", title));
+      for (const [value, label] of [["all", tr("Alles erlauben")], ["none", tr("Nichts erlauben")], ["custom", tr("Benutzerdefiniert")]]) {
+        const option = node("option", "", label);
+        option.value = value;
+        option.selected = value === now;
+        option.disabled = value === "custom";
+        bulk.append(option);
+      }
+      bulk.addEventListener("change", async () => {
+        bulk.disabled = true;
         try {
-          connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ tools: Object.fromEntries(list.map((t) => [t.name, !allOn])) }) }));
+          connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ tools: Object.fromEntries(list.map((t) => [t.name, bulk.value === "all"])) }) }));
         } catch (err) { skillsUi.status = errorText(err, tr("Das hat nicht geklappt.")); }
         renderSkills();
       });
-      wrap.append(all);
+      head.append(bulk);
     }
+    wrap.append(head);
+    if (!open) return;
+    wrap.append(node("p", "skills-hint", list.length ? hint : emptyHint));
     for (const t of list) {
       const row = node("div", "conn-tool");
       const text = node("div", "conn-tool-text");
@@ -3933,8 +3960,8 @@ function connToolList(c) {
       wrap.append(row);
     }
   };
-  part(tr("Lesen"), tr("Diese Werkzeuge verändern nichts. Die KI darf sie ohne Rückfrage nutzen."), c.tools.filter((t) => t.read_only));
-  part(tr("Ändern"), confirm ? tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach.") : tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest."), c.tools.filter((t) => !t.read_only), true);
+  part("read", tr("Lesen"), tr("Diese Werkzeuge verändern nichts. Die KI darf sie ohne Rückfrage nutzen."), c.tools.filter((t) => t.read_only));
+  part("write", tr("Ändern"), confirm ? tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach.") : tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest."), c.tools.filter((t) => !t.read_only), tr("Dieser Server bietet keine ändernden Werkzeuge an. Das liegt meist am Server selbst: Er darf nur lesen (zum Beispiel „Read-only“ oder eingeschränkte Rechte des Zugangs) oder zeigt nur lesende Werkzeuge an."));
   return wrap;
 }
 

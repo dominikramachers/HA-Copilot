@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.59.3",
+    "items": [
+      {
+        "de": {
+          "title": "Werkzeuge schneller auswählen",
+          "text": "Bei jedem verbundenen Dienst kannst du jetzt je Gruppe mit einer Auswahl alles erlauben oder nichts erlauben. Vor jeder Änderung frage ich weiterhin nach."
+        },
+        "en": {
+          "title": "Pick tools faster",
+          "text": "For each connected service you can now allow all or none per group with one choice. I still ask before every change."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.59.2",
     "items": [
       {
