@@ -105,3 +105,5 @@ html[data-entra="true"] .alt-go:hover { background: var(--panel); opacity: 1; }
   .sign { animation: none; }
   .spin { animation-duration: 2s; }
 }
+
+.app-note { margin: -14px 0 22px; padding: 10px 12px; text-align: center; color: var(--text-2); font-size: 14px; line-height: 1.4; border: 1px solid var(--border, rgba(127,127,127,.3)); border-radius: 10px; }

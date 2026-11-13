@@ -223,7 +223,7 @@ Mehr: [Personalisierung](../copilot/DOCS.md#personalisierung-name-logo-texte-far
 
 ## Auf dem Handy
 
-Die Oberfläche passt sich dem Gerät an: Die Chat-Liste öffnet als Fenster von unten, Menüs werden zu Fenstern. Über die Domain (im Browser) öffnet die Seitenleiste auch mit einer Wischgeste von links nach rechts. In Home Assistant gibt es das nicht, dort öffnet diese Geste die Seitenleiste von Home Assistant. Über die Domain lässt sich HA Copilot im Handy-Browser mit „Zum Home-Bildschirm“ als eigene App ablegen.
+Die Oberfläche passt sich dem Gerät an: Die Chat-Liste öffnet als Fenster von unten, Menüs werden zu Fenstern. Über die Domain (im Browser) öffnet die Seitenleiste auch mit einer Wischgeste von links nach rechts. In Home Assistant gibt es das nicht, dort öffnet diese Geste die Seitenleiste von Home Assistant. Über die Domain lässt sich HA Copilot im Handy-Browser mit „Zum Home-Bildschirm“ als eigene App ablegen. Für iPhone und iPad entsteht eine eigene App (ab 0.59.0 stellt das Add-on dafür die Anmeldung bereit, einzuschalten mit `domain.app_access`); die Geräte siehst du in den Einstellungen unter **Geräte (App)**. Siehe [App-Zugang](app.md).
 
 ![Chat auf dem Handy](screenshots/chat-handy.png)
 

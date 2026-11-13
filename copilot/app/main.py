@@ -100,6 +100,7 @@ from .ops import Health
 from . import setup_check
 from .setup_check import PeerLog
 from .ratelimit import RateLimiter
+from . import appaccess
 
 log = logging.getLogger("copilot")
 
@@ -746,8 +747,13 @@ def register_branding_routes(app: FastAPI, branding: Branding) -> None:
         return Response(branding.manifest_json(), media_type="application/manifest+json")
 
 
-def _login_page(branding: Branding, version: str) -> HTMLResponse:
+def _login_page(branding: Branding, version: str, for_app: bool = False) -> HTMLResponse:
     page = i18n.translate_html((STATIC_DIR / "login.html").read_text(encoding="utf-8"))
+    note = (
+        '<p class="app-note" role="note">' + html.escape(tr("Du meldest dich für die App an. Prüfe, dass die Adresse oben im Browser deine eigene ist.")) + "</p>"
+        if for_app else ""
+    )
+    page = page.replace("__APPNOTE__", note)
     return HTMLResponse(branding.render(page, version), headers={"Cache-Control": "no-store"})
 
 
@@ -989,8 +995,29 @@ def register_chat_routes(
             "setup": channel == "ingress",
             "setup_open": setup_check.banner(settings) if channel == "ingress" else None,
             "welcome": welcome.state(profile.id),
+            "app_access": settings.app_access,
             **me_extra,
         }
+
+    @app.get("/api/devices")
+    def devices_list(profile: Profile = Depends(current_profile)) -> dict:
+        """Geräte der mobilen App dieser Person (nur eigene; ohne App-Zugang leer)."""
+        if not settings.app_access:
+            return {"devices": []}
+        return {"devices": [d for d in store.device_list(profile.id) if d["status"] != "expired"]}
+
+    @app.delete("/api/devices/{device_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def devices_revoke(device_id: str, profile: Profile = Depends(current_profile)) -> Response:
+        if not re.fullmatch(r"[0-9a-f]{16}", device_id) or not store.device_revoke(profile.id, device_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        log.info("App-Gerät %s von der Person entfernt (Profil %s)", device_id, profile.id)
+        return Response(status_code=204)
+
+    @app.delete("/api/devices", status_code=204, dependencies=[Depends(write_guard)])
+    def devices_revoke_all(profile: Profile = Depends(current_profile)) -> Response:
+        count = store.device_revoke_all(profile.id)
+        log.info("Alle App-Geräte entfernt (%d, Profil %s)", count, profile.id)
+        return Response(status_code=204)
 
     @app.get("/api/me/picture")
     async def me_picture(profile: Profile = Depends(current_profile)) -> Response:
@@ -3423,6 +3450,7 @@ def build_public_app(
     ha_pending = PendingLogins()  # Anmeldung mit Home Assistant (state → Bindung an den Browser)
     start_limit = RateLimiter(10, 600)
     callback_limit = RateLimiter(30, 600)
+    access = appaccess.AppAccess(settings, store, registry) if settings.app_access else None  # App-Zugang (nur Domain)
 
     app = FastAPI(title="HA Copilot (Domain)", docs_url=None, redoc_url=None, openapi_url=None)
     _add_security_headers(app, PUBLIC_SECURITY_HEADERS)
@@ -3465,6 +3493,15 @@ def build_public_app(
             name, value, max_age=max_age, path="/", secure=True, httponly=True, samesite="lax"
         )
 
+    def hand_off_to_app(request: Request, profile: Profile) -> RedirectResponse | None:
+        """Kam die Anmeldung aus der App: statt Sitzungs-Cookie zurück in die App (Einmal-Code, kein Cookie im Systembrowser)."""
+        handoff = access.finish(request, profile) if access is not None else None
+        if handoff is not None:
+            handoff.headers["Cache-Control"] = "no-store"
+            handoff.delete_cookie(LOGIN_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
+            handoff.delete_cookie(appaccess.FLOW_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
+        return handoff
+
     def back_to_login(code: str) -> RedirectResponse:
         response = RedirectResponse(f"/login?e={code}", status_code=303)
         response.delete_cookie(LOGIN_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
@@ -3479,9 +3516,10 @@ def build_public_app(
     @app.get("/login", response_class=HTMLResponse)
     def login(request: Request) -> Response:
         client_ip(request)  # merkt sich die Gegenstelle für die Einrichtungsprüfung
-        if session_profile(request) is not None:
+        for_app = access is not None and access.flow_for(request) is not None
+        if session_profile(request) is not None and not for_app:  # Anmeldung für die App verlangt immer eine frische Anmeldung
             return RedirectResponse("/new", status_code=303)
-        return _login_page(branding, version)
+        return _login_page(branding, version, for_app)
 
     def app_page(request: Request) -> Response:
         if session_profile(request) is None:
@@ -3546,6 +3584,9 @@ def build_public_app(
         except AccessDenied as exc:
             log.warning("Zugriff verweigert: %s", exc.reason)
             return back_to_login("denied")
+        handoff = hand_off_to_app(request, profile)
+        if handoff is not None:
+            return handoff
         token = store.create_session(profile.id, settings.session_days)
         log.info("Anmeldung: Profil %s", profile.id)
         response = RedirectResponse("/new", status_code=303)
@@ -3593,6 +3634,9 @@ def build_public_app(
         if profile is None:
             log.warning("Zugriff verweigert: Home-Assistant-Benutzer %s ist nicht freigegeben", identity.user_id)
             return back_to_login("denied")
+        handoff = hand_off_to_app(request, profile)
+        if handoff is not None:
+            return handoff
         token = store.create_session(profile.id, settings.session_days)
         log.info("Anmeldung (Home Assistant): Profil %s", profile.id)
         response = RedirectResponse("/new", status_code=303)
@@ -3606,6 +3650,17 @@ def build_public_app(
         response = Response(status_code=204)
         response.delete_cookie(SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
         return response
+
+    if access is not None:
+        appaccess.install(
+            app, access,
+            client_ip=client_ip,
+            set_cookie=cookie,
+            session_cookie=SESSION_COOKIE,
+            addon_version=newslib.latest(),
+            auth_methods=lambda: [m for m, on in (("entra", entra is not None), ("ha", ha_login is not None)) if on],
+            app_name=settings.app_name,
+        )
 
     # Öffentlicher Link zu einem geteilten Chat: ohne Anmeldung, nur lesen. Der Link besteht aus 43 zufälligen Zeichen
     # (256 Bit); wer ihn nicht kennt, kann ihn nicht erraten. Je Gegenstelle begrenzt, nie für Suchmaschinen, nie gemerkt.

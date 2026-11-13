@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.59.0",
+    "items": [
+      {
+        "de": {
+          "title": "Bald eine App fürs iPhone",
+          "text": "Ich bekomme eine eigene App für dein iPhone. Dein Administrator kann sie schon vorbereiten. Welche Geräte angemeldet sind, siehst du dann in den Einstellungen und kannst sie dort entfernen."
+        },
+        "en": {
+          "title": "Soon an app for your iPhone",
+          "text": "I am getting my own app for your iPhone. Your administrator can already get things ready. You will then see which devices are signed in under Settings and can remove them there."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.58.0",
     "items": [
       {

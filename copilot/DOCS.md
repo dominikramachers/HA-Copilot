@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.58.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.59.0.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -78,6 +78,8 @@ Der Domain-Zugang ist an, sobald `domain.public_base_url` und eine Anmeldung ein
 | `domain.entra_client_secret` | Geheimer Clientschlüssel der App-Registrierung (läuft ab, Ablaufdatum notieren). |
 | `domain.ha_url` | Optional. Von außen erreichbare Adresse von Home Assistant (https, ohne Pfad), z. B. `https://ha.example.org`. Schaltet auf der Anmeldeseite zusätzlich „Mit Home Assistant anmelden“ ein. Leer: nur Entra, wie bisher. |
 | `domain.session_days` | Wie lange man angemeldet bleibt, 1 bis 90 Tage (Standard 30). Die Sitzung verlängert sich bei Nutzung, endet aber spätestens nach 90 Tagen. |
+| `domain.app_access` | Optional, Standard aus (ab 0.59.0). Schaltet die Schnittstelle für die mobile App „HA Copilot“ ein (siehe [App-Zugang](#app-zugang-ab-0590)). Wirkt nur mit Domain-Zugang. |
+| `domain.device_days` | Wie lange ein Gerät mit der App ohne Nutzung angemeldet bleibt, 1 bis 180 Tage (Standard 90). Jede Nutzung verlängert; nach 180 Tagen ist spätestens eine neue Anmeldung nötig. |
 | `domain.public_trusted_proxies` | Optional. Adressen von Proxys (z. B. des cloudflared-Add-ons), deren Header `CF-Connecting-IP` für die Ratenbegrenzung verwendet werden darf. |
 
 Entra-Angaben sind nötig, solange `domain.ha_url` leer ist. Mit `domain.ha_url` darfst du sie auch ganz weglassen (nur Home-Assistant-Anmeldung); halb ausgefüllt bleiben sie ein Fehler.
@@ -411,6 +413,18 @@ Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connect
 - **Sichtbarkeit:** Unter der Antwort steht einklappbar „N Aktionen bei GitHub, davon M Änderungen“ mit jedem Schritt; bei Commits, Pull Requests und Issues gibt es einen Link „Öffnen“ (nur Adressen auf github.com werden angezeigt).
 - GitHub begrenzt Anfragen (bei Tokens 5 000 je Stunde, die Code-Suche deutlich weniger); wird das Limit erreicht, sagt die KI das.
 
+## App-Zugang (ab 0.59.0)
+
+Für die mobile App „HA Copilot“ (iPhone/iPad; eigenes Repository `HA-Copilot-Mobile`, erscheint getrennt vom Add-on). Die App zeigt dieselbe Oberfläche wie die Handy-Ansicht; das Add-on stellt nur die Anmeldung für sie bereit. **Standardmäßig aus** (`domain.app_access`), nur über den Domain-Zugang, nur https.
+
+**Anmeldung.** Die App öffnet die Anmeldeseite im **Systembrowser** (nicht in einem eingebetteten Fenster) und bekommt am Ende einen Einmal-Code, den sie mit einem nur ihr bekannten Geheimnis (PKCE) gegen ein **Gerätetoken** tauscht. Dort liegt es im Schlüsselspeicher des Geräts. Entra und Home Assistant bleiben unverändert (dieselben Rückkehradressen, dieselbe App-Registrierung, dieselbe Zugangsregel); die App sieht nie ein Entra- oder Home-Assistant-Token. Für die App gilt immer eine frische Anmeldung, auch wenn der Browser schon angemeldet ist.
+
+**Geräte.** Unter Einstellungen → **Geräte (App)** siehst du die Geräte deines Profils (Name, Betriebssystem, App-Version, zuletzt aktiv) und entfernst eines oder alle (in der App selbst steht dort zusätzlich **App-Einstellungen** mit App-Sperre und Abmelden). Entfernen wirkt sofort: das Gerät kann sich nicht mehr melden, seine laufende Sitzung endet. Ein Gerät bleibt `domain.device_days` Tage ohne Nutzung angemeldet, höchstens 180 Tage am Stück. Die Sitzung im App-Fenster erneuert sich bei Nutzung, gilt aber höchstens 7 Tage ohne Nutzung.
+
+**Diebstahlschutz.** Das Gerätetoken wird regelmäßig erneuert. Taucht ein bereits erneuertes Token später wieder auf (jemand hat eine Kopie), sperrt das Add-on das Gerät und beendet seine Sitzungen; die Geräteliste zeigt „Gesperrt“.
+
+Technik und Sicherheitsbetrachtung: [App-Zugang](../docs/app.md).
+
 ## Artefakte (ab 0.57.3)
 
 Ein **Artefakt** ist ein eigenständiges Ergebnis, das du behalten, weiterbearbeiten oder wiederverwenden willst: eine HTML-Seite (auch interaktiv), eine Zeichnung (SVG), ein längeres Dokument (Markdown) oder eine Code-Datei (z. B. Python, YAML, CSV). Word, Excel, PowerPoint und PDF bleiben Dateien zum Herunterladen. Die KI legt ein Artefakt von sich aus an, wenn das Ergebnis dazu passt; kurze Antworten und Befehle im Text bleiben Text.
@@ -570,7 +584,7 @@ Alles gilt nur für das eigene Profil; andere Personen sind nie betroffen. Die L
 
 Unten links in der Seitenleiste öffnet das Konto-Menü, wie bei Claude, nur noch das Wichtigste: **Einstellungen**, **Nutzung**, **Einrichtungsprüfung** (wenn der Chat über Home Assistant läuft) und, nur über die eigene Domain, **Abmelden**. Gedächtnis, Kurzanleitung und „Das ist neu“ erreichst du nur über die Einstellungen. **Auf dem Handy** gibt es dieses Menü nicht: Ein Tipp auf deinen Namen unten in der Seitenleiste öffnet gleich die Einstellungen, als kompakte Liste mit Karten je Gruppe (wie in der Claude-App); „Abmelden“ steht dort ganz unten. Alles Weitere liegt in den **Einstellungen**, einem **großen Fenster** über dem Chat (Laptop und Tablet, wie bei Claude) mit Liste links und Inhalt rechts; es schließt mit dem Kreuz, mit Esc oder mit einem Klick daneben. Auf dem Handy ist es eine eigene Seite: erst die Liste, dann der Inhalt mit „Zurück“:
 
-- **Präferenzen:** *Allgemein* (Design hell/dunkel/Auto, in Home Assistant eingebettet gibt HA das Design vor; Sprache und Name nur zur Ansicht, die Sprache stellt der Administrator mit `look.language` ein), *Nutzung*, *Gedächtnis*, *GitHub*, *Meine Daten*.
+- **Präferenzen:** *Allgemein* (Design hell/dunkel/Auto, in Home Assistant eingebettet gibt HA das Design vor; Sprache und Name nur zur Ansicht, die Sprache stellt der Administrator mit `look.language` ein), *Nutzung*, *Gedächtnis*, *GitHub*, *Geräte (App)* (nur mit `domain.app_access`, ab 0.59.0), *Meine Daten*.
 - **Hilfe:** *Kurzanleitung*, *Das ist neu* (die Neuerungen der letzten Versionen), *Einrichtungsprüfung*.
 
 **Nutzung** zeigt zwei Dinge. **Claude-Abo:** je Zeitfenster ein Balken mit Prozent verwendet, Rest und Zeitpunkt der Rücksetzung: *Aktuelle Sitzung* (Fenster von 5 Stunden) und *Diese Woche* (Wochenlimit; je nach Abo auch Opus oder Sonnet getrennt). Die Werte meldet Claude mit den Antworten der KI, egal welche Person sie bekommt; die Seite zeigt den letzten gemeldeten Stand („Stand: vor 3 Min.“). Ist die Rücksetzzeit vorbei, steht dort „0 % verwendet“ und „Zurückgesetzt …“, der neue Wert erscheint mit der nächsten Antwort. Solange noch nichts gemeldet wurde (zum Beispiel nach der Installation), steht „Noch keine Angabe zum Limit“. Orange Balken heißen „fast erreicht“, rote „erreicht“. Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. **ChatGPT (ab 0.55.0, nur wenn eingeschaltet):** die Token im laufenden Monat mit ChatGPT-Modellen gegen `chat.openai_limit_month` (Eingabe plus Ausgabe; Titel und Zusammenfassungen zählen nicht). **Bilder:** Fotos und Kunstbilder von OpenAI oder Google im laufenden Monat (`images.limit_month`); SVG-Grafiken zählen nicht. **Für alle gleich und live (ab 0.58.0):** ChatGPT-Token und Bilder zählen für alle Personen zusammen (ein API-Konto, ein Limit), jede Person sieht dieselben Zahlen. Solange die Seite offen ist, fragt sie alle 8 Sekunden nach (nicht bei verstecktem Tab); Antworten und Bilder anderer Personen, auch ihr Anteil bei „Alle Personen“, stehen damit ohne eigene Nachricht und ohne Neuladen da. **Grenze beim Claude-Abo:** Anthropic gibt den Verbrauch eines Abos nur bei jeder Antwort der KI heraus. Eine eigene Abfrage über die Anthropic-Schnittstelle `/api/oauth/usage` braucht die Berechtigung `user:profile`, die ein mit `claude setup-token` erzeugtes Token nicht hat (es kann nur `user:inference`). Was außerhalb des Add-ons verbraucht wird, etwa in der Claude-App oder in Claude Code, erscheint deshalb erst mit der nächsten Antwort der KI im Add-on. **Jetzt prüfen (ab 0.58.0, nur mit Abo):** Im Block „Claude-Abo“ schickt der Knopf eine winzige Anfrage an das kleinste Claude-Modell, damit Claude den Stand der Fenster meldet; er gilt dann für alle Personen. Höchstens einmal pro Minute für alle zusammen; die Anfrage zählt (minimal) in der Verbrauchsübersicht mit. Ob Claude dabei immer einen Stand meldet, ist nicht zugesichert; sonst steht ein Hinweis da und der alte Wert bleibt. **Mit API-Schlüssel (`chat.anthropic_api_key`) gibt es den Knopf nicht**: Der Schlüssel hat Vorrang vor dem Abo-Token, es gibt keine 5-Stunden- und Wochenfenster, abgerechnet wird nach Verbrauch in der Claude-Konsole.

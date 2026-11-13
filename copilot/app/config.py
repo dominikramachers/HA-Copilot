@@ -178,6 +178,8 @@ class Settings:
     entra_client_secret: str = field(default="", repr=False)
     session_days: int = 30
     public_trusted_proxies: frozenset[str] = frozenset()
+    app_access: bool = False  # Schnittstelle für die mobile App (Geräte-Anmeldung), nur mit Domain-Zugang
+    device_days: int = 90  # so lange gilt ein Gerät der mobilen App ohne Erneuerung (die App erneuert regelmäßig)
     ha_url: str = ""  # Adresse von Home Assistant im Browser: schaltet "Mit Home Assistant anmelden" ein
     # Zugang über Home Assistant
     all_ha_users: bool = False  # jeder aktive HA-Benutzer darf die App nutzen
@@ -281,7 +283,7 @@ def _text(entry: dict[str, Any], key: str) -> str:
 MOVED = {
     "users": ("profiles", "all_ha_users", "ha_users_excluded"),
     "chat": ("anthropic_api_key", "claude_oauth_token", "claude_token_expires", "ha_access_default", "ha_limit_to_exposed"),
-    "domain": ("public_base_url", "ha_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "entra_secret_expires", "session_days", "public_trusted_proxies"),
+    "domain": ("public_base_url", "ha_url", "entra_tenant_id", "entra_client_id", "entra_client_secret", "entra_secret_expires", "session_days", "public_trusted_proxies", "app_access", "device_days"),
     "look": ("app_name", "language", "login_text", "login_placeholder", "logo_tile", "follow_ha_theme", "theme_name"),
     "global": ("restore_snapshot", "export_database"),
 }
@@ -291,7 +293,7 @@ MOVED_DEFAULTS: dict[str, Any] = {
     "profiles": [{"label": "Administrator"}], "all_ha_users": False, "ha_users_excluded": "",
     "anthropic_api_key": "", "claude_oauth_token": "", "claude_token_expires": "", "ha_access_default": "execute", "ha_limit_to_exposed": True,
     "public_base_url": "", "ha_url": "", "entra_tenant_id": "", "entra_client_id": "", "entra_client_secret": "", "entra_secret_expires": "",
-    "session_days": 30, "public_trusted_proxies": [],
+    "session_days": 30, "public_trusted_proxies": [], "app_access": False, "device_days": 90,
     "app_name": "HA Copilot", "language": "de", "login_text": "", "login_placeholder": "", "logo_tile": False, "follow_ha_theme": True, "theme_name": "",
     "restore_snapshot": "", "export_database": False,
 }
@@ -549,6 +551,15 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("session_days muss eine Zahl sein") from None
     if not 1 <= session_days <= 90:
         raise ConfigError("session_days muss zwischen 1 und 90 liegen")
+    try:
+        device_days = int(raw.get("device_days", 90))
+    except (TypeError, ValueError):
+        raise ConfigError("device_days muss eine Zahl sein") from None
+    if not 1 <= device_days <= 180:
+        raise ConfigError("device_days muss zwischen 1 und 180 liegen")
+    app_access = raw.get("app_access", False)
+    if not isinstance(app_access, bool):
+        raise ConfigError("app_access muss true oder false sein")
     proxies = raw.get("public_trusted_proxies") or []
     if not isinstance(proxies, list) or not all(isinstance(x, str) for x in proxies):
         raise ConfigError("public_trusted_proxies muss eine Liste von Adressen sein")
@@ -598,6 +609,8 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         entra_client_id=client_id,
         entra_client_secret=secret,
         session_days=session_days,
+        app_access=app_access and public_enabled,  # ohne Domain-Zugang gibt es keine App-Anmeldung
+        device_days=device_days,
         public_trusted_proxies=frozenset(x.strip() for x in proxies if x.strip()),
         ha_url=ha_url,
         all_ha_users=all_ha_users,
