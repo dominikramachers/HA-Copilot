@@ -1650,6 +1650,8 @@ def register_chat_routes(
 
     @app.get("/preview/{preview_id}", response_class=HTMLResponse)
     def show_preview(preview_id: str, profile: Profile = Depends(current_profile)) -> HTMLResponse:
+        # Absichtlich: das HTML-Artefakt der eigenen Person wird als Vorschau gezeigt. Schutz sind die Kopfzeilen
+        # (``sandbox`` ohne ``allow-same-origin``, ``default-src 'none'``; siehe previews.py), die zufällige, nur für diese Person gültige Adresse und das Ablaufen nach einer Stunde.
         page = previews.get(profile.id, preview_id)
         if page is None:
             raise HTTPException(status_code=404, detail=tr("Die Vorschau ist abgelaufen."))

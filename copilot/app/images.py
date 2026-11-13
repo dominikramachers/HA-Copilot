@@ -25,6 +25,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+from defusedxml import DefusedXmlException, ElementTree as SafeET
 
 from .db import Store
 from .ha_tools import Ask, ToolError, ToolSpec
@@ -135,7 +136,9 @@ def check_svg(text: str) -> tuple[str, int, int]:
         raise ImageError("DOCTYPE und ENTITY sind in SVG nicht erlaubt. Beginne direkt mit <svg …>.")
     src = re.sub(r"^<\?xml[^>]*\?>\s*", "", src)
     try:
-        root = ET.fromstring(src)
+        root = SafeET.fromstring(src, forbid_dtd=True)  # zusätzlich zur Prüfung oben: kein DOCTYPE, keine Entitäten
+    except DefusedXmlException:
+        raise ImageError("DOCTYPE und ENTITY sind in SVG nicht erlaubt. Beginne direkt mit <svg …>.") from None
     except ET.ParseError as exc:
         raise ImageError(f"Das SVG ist kein gültiges XML ({exc}). Prüfe geschlossene Tags und maskiere & als &amp;.") from None
 
