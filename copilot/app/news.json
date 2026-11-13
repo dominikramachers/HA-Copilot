@@ -5,11 +5,11 @@
       {
         "de": {
           "title": "Alle Werkzeuge der Konnektoren",
-          "text": "Ich kann jetzt alle Werkzeuge eines verbundenen Dienstes nutzen, nicht mehr nur die ersten 40. Du entscheidest weiter selbst, welche eingeschaltet sind."
+          "text": "Ich kann jetzt alle Werkzeuge eines verbundenen Dienstes nutzen, nicht mehr nur die ersten 40. Änderungs-Werkzeuge schaltest du mit einem Knopf auf einmal ein. Vor jeder Änderung frage ich nach."
         },
         "en": {
           "title": "All tools of your connectors",
-          "text": "I can now use all the tools of a connected service, not just the first 40. You still decide which ones are switched on."
+          "text": "I can now use all the tools of a connected service, not just the first 40. You can switch on all change tools with one button. I still ask before every change."
         }
       }
     ]

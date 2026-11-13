@@ -3901,9 +3901,22 @@ function connToolList(c) {
   const wrap = node("div", "conn-tools");
   if (!c.tools.length) { wrap.append(node("p", "skills-hint", tr("Der Server meldet keine Werkzeuge."))); return wrap; }
   const confirm = connUi.data.write_confirm === "ask";
-  const part = (title, hint, list) => {
+  const part = (title, hint, list, bulk = false) => {
     if (!list.length) return;
     wrap.append(node("p", "skills-label", title), node("p", "skills-hint", hint));
+    if (bulk && list.length > 1) {
+      const allOn = list.every((t) => t.enabled);
+      const all = node("button", "pill ghost", allOn ? tr("Alle Änderungs-Werkzeuge ausschalten") : tr("Alle Änderungs-Werkzeuge einschalten"));
+      all.type = "button";
+      all.addEventListener("click", async () => {
+        all.disabled = true;
+        try {
+          connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ tools: Object.fromEntries(list.map((t) => [t.name, !allOn])) }) }));
+        } catch (err) { skillsUi.status = errorText(err, tr("Das hat nicht geklappt.")); }
+        renderSkills();
+      });
+      wrap.append(all);
+    }
     for (const t of list) {
       const row = node("div", "conn-tool");
       const text = node("div", "conn-tool-text");
@@ -3916,7 +3929,7 @@ function connToolList(c) {
     }
   };
   part(tr("Lesen"), tr("Diese Werkzeuge verändern nichts. Die KI darf sie ohne Rückfrage nutzen."), c.tools.filter((t) => t.read_only));
-  part(tr("Ändern"), confirm ? tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach.") : tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest."), c.tools.filter((t) => !t.read_only));
+  part(tr("Ändern"), confirm ? tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach.") : tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest."), c.tools.filter((t) => !t.read_only), true);
   return wrap;
 }
 
