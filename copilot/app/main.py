@@ -75,7 +75,7 @@ from . import memory_import as memlib
 from .context_tools import (
     CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, PROJECT_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
 )
-from .ha_tools import HaToolbox
+from .ha_tools import HaToolbox, ToolError
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
 from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox, clean_name
 from . import exporter
@@ -187,6 +187,12 @@ class FileBody(BaseModel):
     name: str = Field(max_length=255)
     data: str = Field(max_length=filelib.MAX_BASE64_CHARS)  # Base64; wird nur im Arbeitsspeicher verarbeitet
     pasted: bool = False  # eingefügter langer Text (Textanhang der Person selbst, bleibt im Chat stehen)
+
+
+class ArtifactBody(BaseModel):
+    content: str | None = Field(default=None, max_length=artifactlib.CONTENT_MAX)
+    title: str | None = Field(default=None, max_length=artifactlib.TITLE_MAX)
+    restore: int | None = Field(default=None, ge=1, le=100_000)  # Inhalt dieser Version als neue Version übernehmen
 
 
 class PreviewBody(BaseModel):
@@ -381,6 +387,8 @@ class PatchScheduleBody(BaseModel):
 SMALL_BODY_BYTES = 128 * 1024  # alle Anfragen außer dem Senden mit Dateien
 SEND_PATH = re.compile(r"^/api/chats/[^/]+/send$")
 PREVIEW_PATH = re.compile(r"^/api/previews$")
+ARTIFACT_PATH = re.compile(r"^/api/artifacts/[0-9a-f]{12}$")
+ARTIFACT_BODY_BYTES = 700_000  # CONTENT_MAX Zeichen, im Anfragetext als JSON mit Maskierungen
 KNOWLEDGE_PATH = re.compile(r"^/api/projects/[^/]+/knowledge$")
 KNOWLEDGE_BODY_BYTES = knowlib.MAX_BASE64_CHARS + 64 * 1024
 SKILLS_PATH = re.compile(r"^/api/skills(/preview)?$")
@@ -414,6 +422,7 @@ class BodyLimit:
         big = (
             filelib.MAX_BODY_BYTES if SEND_PATH.match(scope["path"])
             else PREVIEW_BODY_BYTES if PREVIEW_PATH.match(scope["path"])
+            else ARTIFACT_BODY_BYTES if ARTIFACT_PATH.match(scope["path"])
             else KNOWLEDGE_BODY_BYTES if KNOWLEDGE_PATH.match(scope["path"])
             else skilllib.MAX_BASE64_CHARS + 64 * 1024 if SKILLS_PATH.match(scope["path"])
             else PLUGINS_BODY_BYTES if PLUGINS_PATH.match(scope["path"])
@@ -1591,6 +1600,53 @@ def register_chat_routes(
                 "Content-Security-Policy": "sandbox; default-src 'none'", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store",
             },
         )
+
+    @app.put("/api/artifacts/{artifact_id}", dependencies=[Depends(write_guard)])
+    def edit_artifact(artifact_id: str, body: ArtifactBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Die Person ändert ein Artefakt selbst oder stellt eine frühere Version wieder her; beides legt eine neue Version an."""
+        found = store.artifact_get(profile.id, artifact_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        title = re.sub(r"\s+", " ", body.title or "").strip() or None
+        if title and re.search(r"[\x00-\x1f<>]", title):
+            raise HTTPException(status_code=422, detail=tr("Der Titel enthält ungültige Zeichen."))
+        note = ""
+        if body.restore is not None:
+            old = store.artifact_get(profile.id, artifact_id, body.restore)
+            if old is None:
+                raise HTTPException(status_code=404, detail=tr("Diese Version gibt es nicht mehr."))
+            text = old["content"]
+            note = tr("Version {n} wiederhergestellt", n=body.restore)
+        elif body.content is not None:
+            text = body.content
+            note = tr("Selbst geändert")
+        elif title:
+            text = found["content"]
+        else:
+            raise HTTPException(status_code=422, detail=tr("Es gibt nichts zu speichern."))
+        try:
+            _, text = artifactlib.validate(found["kind"], found["language"], text)
+        except ToolError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        done = store.artifact_update(profile.id, artifact_id, text, note, "user", title)
+        if done is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return store.artifact_get(profile.id, artifact_id)
+
+    @app.post("/api/artifacts/{artifact_id}/to-project", dependencies=[Depends(write_guard)])
+    def artifact_to_project(artifact_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Die aktuelle Version als Datei im Projekt des Chats ablegen (Ordner „Artefakte/“); eine frühere Ablage wird ersetzt."""
+        found = store.artifact_get(profile.id, artifact_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if not found["project_id"]:
+            raise HTTPException(status_code=409, detail=tr("Dieser Chat gehört zu keinem Projekt."))
+        name = pfiles.ARTIFACT_DIR + artifactlib.filename(found["title"], found["kind"], found["language"])
+        try:
+            saved = pfiles.save(store, profile.id, found["project_id"], name, found["content"].encode("utf-8"), origin="ai", text=found["content"])
+        except pfiles.ProjectFileError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        return {"name": saved.name, "replaced": saved.replaced, "project_id": found["project_id"]}
 
     @app.delete("/api/artifacts/{artifact_id}", status_code=204, dependencies=[Depends(write_guard)])
     def delete_artifact(artifact_id: str, profile: Profile = Depends(current_profile)) -> Response:

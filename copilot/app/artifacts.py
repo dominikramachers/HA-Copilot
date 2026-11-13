@@ -49,7 +49,11 @@ def rules_note(items: list[dict]) -> str:
     """Absatz für die Systemanweisung: die Regeln und die Artefakte dieses Chats (Kennung, Titel, Art, Version)."""
     text = RULES
     if items:
-        lines = [f"- {a['id']}: „{a['title']}“ ({a['kind']}{'/' + a['language'] if a['language'] else ''}, Version {a['version']})" for a in items[:MAX_PER_CHAT]]
+        lines = [
+            f"- {a['id']}: „{a['title']}“ ({a['kind']}{'/' + a['language'] if a['language'] else ''}, Version {a['version']}"
+            f"{', zuletzt vom Nutzer selbst geändert: lies es vor jeder Änderung mit artifact_read' if a.get('last_by') == 'user' else ''})"
+            for a in items[:MAX_PER_CHAT]
+        ]
         text += "\nArtefakte in diesem Chat:\n" + "\n".join(lines)
     return text
 

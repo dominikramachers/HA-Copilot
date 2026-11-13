@@ -1165,5 +1165,14 @@
  "Artefakt löschen": "Delete artifact",
  "Artefakt gelöscht.": "Artifact deleted.",
  "Das ist eine frühere Version.": "This is an earlier version.",
- "Aktuelle Version": "Current version"
+ "Aktuelle Version": "Current version",
+ "Selbst bearbeiten": "Edit it myself",
+ "Inhalt bearbeiten": "Edit content",
+ "Beim Speichern entsteht eine neue Version.": "Saving creates a new version.",
+ "Gespeichert als neue Version.": "Saved as a new version.",
+ "Diese Version wiederherstellen": "Restore this version",
+ "Version {0} ist wieder die aktuelle.": "Version {0} is the current one again.",
+ "Wiederherstellen hat nicht geklappt.": "Restoring did not work.",
+ "„{0}“ im Projekt abgelegt.": "“{0}” saved in the project.",
+ "„{0}“ im Projekt aktualisiert.": "“{0}” updated in the project."
 }

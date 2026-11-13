@@ -164,3 +164,79 @@ def test_send_flow_offers_the_tools_and_keeps_the_card(store):
     backend.pieces = ["Noch eine."]
     app.post(f"/api/chats/{chat}/send", headers=H, json={"content": "Und weiter"})
     assert f"{card['id']}: „Seite“" in backend.calls[-1]["note"]  # die KI kennt die vorhandenen Artefakte
+
+
+# --- Paket E2: selbst bearbeiten, wiederherstellen, im Projekt ablegen -------------------------------------------------
+
+def test_user_edit_creates_a_version_by_the_user(client, store):
+    chat = store.create_chat("adm01", "Chat", None)["id"]
+    made = store.artifact_create("adm01", chat, "markdown", "", "Plan", "eins")
+    url = f"/api/artifacts/{made['id']}"
+    assert client.put(url, headers=as_user(ADM01), json={"content": "zwei"}).status_code == 403  # ohne Schreibkopf
+    assert client.put(url, headers={**as_user(DORA), **WRITE}, json={"content": "zwei"}).status_code == 404
+    got = client.put(url, headers=H, json={"content": "zwei"}).json()
+    assert got["version"] == 2 and got["content"] == "zwei" and got["versions"][-1]["by"] == "user"
+    assert store.artifact_list("adm01", chat)[0]["last_by"] == "user"
+    assert client.put(url, headers=H, json={"content": "zwei"}).json()["version"] == 2  # gleicher Inhalt: keine neue Version
+    assert client.put(url, headers=H, json={"title": "Neuer Titel"}).json()["title"] == "Neuer Titel"
+    assert client.put(url, headers=H, json={}).status_code == 422
+    assert client.put(url, headers=H, json={"content": "   "}).status_code == 422
+    assert client.put(url, headers=H, json={"title": "a<b>"}).status_code == 422
+    assert client.put(url, headers=H, json={"content": "x" * (art.CONTENT_MAX + 1)}).status_code == 422
+
+
+def test_user_edit_of_svg_is_checked(client, store):
+    chat = store.create_chat("adm01", "Chat", None)["id"]
+    made = store.artifact_create("adm01", chat, "svg", "", "Bild", "<svg xmlns='http://www.w3.org/2000/svg'><rect width='1' height='1'/></svg>")
+    bad = client.put(f"/api/artifacts/{made['id']}", headers=H, json={"content": "<svg xmlns='http://www.w3.org/2000/svg'><script>1</script></svg>"})
+    assert bad.status_code == 422
+    assert store.artifact_get("adm01", made["id"])["version"] == 1
+
+
+def test_large_edit_passes_the_body_limit(client, store):
+    chat = store.create_chat("adm01", "Chat", None)["id"]
+    made = store.artifact_create("adm01", chat, "code", "text", "Lang", "a")
+    big = "ä" * 100_000  # über 128 KB als Anfragetext, aber unter der Zeichengrenze
+    assert client.put(f"/api/artifacts/{made['id']}", headers=H, json={"content": big}).status_code == 200
+
+
+def test_restore_makes_an_old_version_current_again(client, store):
+    chat = store.create_chat("adm01", "Chat", None)["id"]
+    made = store.artifact_create("adm01", chat, "code", "python", "Skript", "v1")
+    store.artifact_update("adm01", made["id"], "v2")
+    url = f"/api/artifacts/{made['id']}"
+    got = client.put(url, headers=H, json={"restore": 1}).json()
+    assert got["version"] == 3 and got["content"] == "v1" and got["versions"][-1]["by"] == "user"
+    assert client.put(url, headers=H, json={"restore": 9}).status_code == 404
+    assert [v["n"] for v in store.artifact_get("adm01", made["id"])["versions"]] == [1, 2, 3]  # nichts geht verloren
+
+
+def test_the_ai_is_told_when_the_user_changed_an_artifact(store, chat):
+    made = store.artifact_create("adm01", chat, "markdown", "", "Plan", "eins")
+    assert "selbst geändert" not in art.rules_note(store.artifact_list("adm01", chat))
+    store.artifact_update("adm01", made["id"], "zwei", "", "user")
+    assert "zuletzt vom Nutzer selbst geändert" in art.rules_note(store.artifact_list("adm01", chat))
+    store.artifact_update("adm01", made["id"], "drei", "", "ai")
+    assert "selbst geändert" not in art.rules_note(store.artifact_list("adm01", chat))
+
+
+def test_put_in_the_project(client, store):
+    project = store.create_project("adm01", "Projekt")["id"]
+    chat = store.create_chat("adm01", "Chat", project)["id"]
+    made = store.artifact_create("adm01", chat, "code", "yaml", "Konfig", "a: 1")
+    url = f"/api/artifacts/{made['id']}/to-project"
+    assert client.post(url, headers=as_user(ADM01)).status_code == 403
+    assert client.post(url, headers={**as_user(DORA), **WRITE}).status_code == 404
+    first = client.post(url, headers=H).json()
+    assert first == {"name": "Artefakte/Konfig.yaml", "replaced": False, "project_id": project}
+    store.artifact_update("adm01", made["id"], "a: 2")
+    assert client.post(url, headers=H).json()["replaced"] is True
+    files = store.list_knowledge("adm01", project)
+    assert [f["name"] for f in files] == ["Artefakte/Konfig.yaml"]
+    assert store.get_knowledge("adm01", project, "Artefakte/Konfig.yaml") == "a: 2"
+
+
+def test_without_a_project_nothing_is_put_away(client, store):
+    chat = store.create_chat("adm01", "Chat", None)["id"]
+    made = store.artifact_create("adm01", chat, "markdown", "", "A", "x")
+    assert client.post(f"/api/artifacts/{made['id']}/to-project", headers=H).status_code == 409

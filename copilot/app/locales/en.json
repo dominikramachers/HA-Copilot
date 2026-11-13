@@ -666,5 +666,10 @@
  "Die Antwort läuft noch.": "The answer is still running.",
  "Artefakt anlegen: {title}": "Create artifact: {title}",
  "Artefakt ändern: {title}": "Change artifact: {title}",
- "Artefakt lesen: {title}": "Read artifact: {title}"
+ "Artefakt lesen: {title}": "Read artifact: {title}",
+ "Der Titel enthält ungültige Zeichen.": "The title contains invalid characters.",
+ "Diese Version gibt es nicht mehr.": "This version no longer exists.",
+ "Es gibt nichts zu speichern.": "There is nothing to save.",
+ "Selbst geändert": "Edited by hand",
+ "Version {n} wiederhergestellt": "Version {n} restored"
 }

@@ -4722,7 +4722,7 @@ function artifactKindText(a) {
   return a.kind === "code" && a.language && a.language !== "text" ? `${label} · ${a.language}` : label;
 }
 
-const artifactUi = { id: null, data: null, tab: "preview", seen: new Set() };
+const artifactUi = { id: null, data: null, tab: "preview", seen: new Set(), editing: false };
 
 function artifactCard(a) {
   const [, ic] = artifactKinds()[a.kind] || [0, "code"];
@@ -4777,6 +4777,7 @@ async function openArtifact(id, version = null, tab = null) {
   const data = await api(`api/artifacts/${encodeURIComponent(id)}${version ? `?version=${version}` : ""}`);
   artifactUi.id = id;
   artifactUi.data = data;
+  artifactUi.editing = false;
   artifactUi.tab = tab || (data.kind === "code" ? "code" : "preview");
   $("app").classList.add("with-artifact");
   $("artifact-panel").hidden = false;
@@ -4879,19 +4880,77 @@ function drawArtifact() {
       if (state.activeId) { try { renderMessages(await api(`api/chats/${encodeURIComponent(state.activeId)}/messages`)); } catch { /* bleibt */ } }
     } catch { toast(tr("Löschen hat nicht geklappt.")); }
   });
-  actions.append(copy, download, del);
+  const canEdit = artifactUi.tab === "code" && data.version === data.latest && !artifactUi.editing;
+  const edit = canEdit ? actionButton(tr("Selbst bearbeiten"), "edit", "msg-act", () => { artifactUi.editing = true; drawArtifact(); }) : null;
+  const toProject = data.project_id
+    ? actionButton(tr("Im Projekt ablegen"), "folder", "msg-act", async () => {
+      try {
+        const r = await api(`api/artifacts/${encodeURIComponent(data.id)}/to-project`, { method: "POST" });
+        toast(r.replaced ? tr("„{0}“ im Projekt aktualisiert.", r.name) : tr("„{0}“ im Projekt abgelegt.", r.name));
+      } catch (err) { toast(errorText(err, tr("Ablegen hat nicht geklappt."))); }
+    })
+    : null;
+  actions.append(...[edit, copy, download, toProject, del].filter(Boolean));
   bar.append(tabs, actions);
 
   const body = node("div", "art-body");
-  if (artifactUi.tab === "preview" && data.kind !== "code") body.append(artifactPreview(data));
-  else {
-    const pre = node("pre", "art-code");
-    pre.tabIndex = 0;
-    pre.append(node("code", "", data.content));
-    body.append(pre);
+  let foot;
+  if (artifactUi.editing) {
+    const area = node("textarea", "art-edit");
+    area.value = data.content;
+    area.spellcheck = false;
+    area.setAttribute("aria-label", tr("Inhalt bearbeiten"));
+    body.append(area);
+    foot = node("div", "art-foot art-foot-row");
+    const save = node("button", "pill primary small", tr("Speichern"));
+    save.type = "button";
+    save.addEventListener("click", async () => {
+      if (area.value === data.content) { artifactUi.editing = false; drawArtifact(); return; }
+      save.disabled = true;
+      try {
+        artifactUi.data = await api(`api/artifacts/${encodeURIComponent(data.id)}`, { method: "PUT", body: JSON.stringify({ content: area.value }) });
+        artifactUi.editing = false;
+        toast(tr("Gespeichert als neue Version."));
+        drawArtifact();
+        refreshArtifactCards(data.id);
+      } catch (err) { save.disabled = false; toast(errorText(err, tr("Speichern hat nicht geklappt."))); }
+    });
+    const cancel = node("button", "pill ghost small", tr("Abbrechen"));
+    cancel.type = "button";
+    cancel.addEventListener("click", () => { artifactUi.editing = false; drawArtifact(); });
+    foot.append(node("span", "art-foot-text", tr("Beim Speichern entsteht eine neue Version.")), cancel, save);
+  } else {
+    if (artifactUi.tab === "preview" && data.kind !== "code") body.append(artifactPreview(data));
+    else {
+      const pre = node("pre", "art-code");
+      pre.tabIndex = 0;
+      pre.append(node("code", "", data.content));
+      body.append(pre);
+    }
+    if (data.version < data.latest) {
+      foot = node("div", "art-foot art-foot-row");
+      const restore = node("button", "pill ghost small", tr("Diese Version wiederherstellen"));
+      restore.type = "button";
+      restore.addEventListener("click", async () => {
+        restore.disabled = true;
+        try {
+          artifactUi.data = await api(`api/artifacts/${encodeURIComponent(data.id)}`, { method: "PUT", body: JSON.stringify({ restore: data.version }) });
+          toast(tr("Version {0} ist wieder die aktuelle.", data.version));
+          drawArtifact();
+          refreshArtifactCards(data.id);
+        } catch (err) { restore.disabled = false; toast(errorText(err, tr("Wiederherstellen hat nicht geklappt."))); }
+      });
+      foot.append(node("span", "art-foot-text", tr("Das ist eine frühere Version.")), restore);
+    } else foot = node("p", "art-foot", tr("Aktuelle Version"));
   }
-  const foot = node("p", "art-foot", data.version < data.latest ? tr("Das ist eine frühere Version.") : tr("Aktuelle Version"));
   panel.replaceChildren(head, bar, body, foot);
+}
+
+// Die Karte im Chat zeigt die Versionsnummer; nach einer eigenen Änderung wird sie nachgezogen.
+function refreshArtifactCards(id) {
+  const data = artifactUi.data;
+  if (!data || data.id !== id) return;
+  document.querySelectorAll(`.art-card[data-artifact="${id}"] small`).forEach((el) => { el.textContent = `${artifactKindText(data)} · ${tr("Version {0}", data.latest)}`; });
 }
 
 // Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude),
@@ -6168,14 +6227,14 @@ function initQuotePicker() {
   let timer = 0;
 
   const hide = () => { pop.hidden = true; picked = ""; };
-  const hostOf = (n) => (n && (n.nodeType === 1 ? n : n.parentElement))?.closest(".msg.assistant:not(.pending)") || null;
+  const hostOf = (n) => (n && (n.nodeType === 1 ? n : n.parentElement))?.closest(".msg.assistant:not(.pending), #artifact-panel .art-code, #artifact-panel .art-doc") || null;
 
   function update() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) { hide(); return; }
     const range = sel.getRangeAt(0);
     const host = hostOf(range.startContainer);
-    if (!host || host !== hostOf(range.endContainer) || !host.closest("#thread")) { hide(); return; }
+    if (!host || host !== hostOf(range.endContainer) || !host.closest("#thread, #artifact-panel")) { hide(); return; }
     const text = cleanQuote(sel.toString());
     const rect = range.getBoundingClientRect();
     if (!text || (!rect.width && !rect.height)) { hide(); return; }
@@ -6199,6 +6258,7 @@ function initQuotePicker() {
   document.addEventListener("keyup", (event) => { if (event.key.startsWith("Arrow") || event.key === "Shift") later(30); });
   window.addEventListener("resize", hide);
   $("messages").addEventListener("scroll", () => { if (!pop.hidden) hide(); }, { passive: true });
+  $("artifact-panel").addEventListener("scroll", () => { if (!pop.hidden) hide(); }, { passive: true, capture: true });
   // Mausdruck auf den Knopf darf die Markierung nicht aufheben.
   pop.addEventListener("pointerdown", (event) => event.preventDefault());
   pop.addEventListener("mousedown", (event) => event.preventDefault());

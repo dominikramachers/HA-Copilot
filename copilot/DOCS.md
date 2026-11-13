@@ -418,9 +418,12 @@ Ein **Artefakt** ist ein eigenständiges Ergebnis, das du behalten, weiterbearbe
 - **Im Chat** steht unter der Antwort eine Karte (Titel, Art, Version). Beim Schreiben zeigt sie „Wird geschrieben …“.
 - **Das Fenster** öffnet sich am Laptop und Tablet neben dem Chat, am Handy als Vollbild. Reiter **Vorschau** und **Code**, oben die **Version** (jede Änderung der KI ist eine neue Version, bis 50), Kopieren, Herunterladen und Löschen. Über die Karte unter einer älteren Antwort öffnest du dasselbe Artefakt wieder.
 - **Änderungen:** „Mach die Überschrift größer“ ändert nur die betroffene Stelle (neue Version), statt alles neu zu schreiben. Die KI kennt die Artefakte des Chats und liest sie bei Bedarf neu.
+- **Selbst bearbeiten:** Im Reiter **Code** ändert der Stift den Text selbst. **Speichern** legt eine neue Version an (sie steht als „selbst geändert“ in der Liste); die KI liest sie danach neu, bevor sie weiterarbeitet, und überschreibt deine Änderung nicht blind. Bei einer früheren Version steht unten **Diese Version wiederherstellen**: Sie wird als neue aktuelle Version kopiert, nichts geht verloren.
+- **Im Projekt ablegen:** Gehört der Chat zu einem Projekt, legt der Ordner-Knopf die aktuelle Version als Datei in `Artefakte/` ab (eine frühere Ablage wird ersetzt). Dort finden die KI und die Suche im Projekt sie wieder.
+- **Auf Auswahl antworten:** Markiere im Fenster eine Stelle (Code oder Dokument); der Knopf **Antworten** setzt sie als Zitat über das Eingabefeld, zum Beispiel „Mach das kürzer“.
 - **Sicherheit:** HTML läuft in der abgeschotteten Vorschau: eigene Herkunft ohne Zugriff auf den Chat, **kein Netzwerk**, keine Formulare, Bilder nur als `data:`. SVG wird vorher geprüft (keine Skripte, Bilder oder Adressen) und nur als Bild gezeigt. Markdown und Code sind Text. Herunterladen liefert eine Datei mit passender Endung.
 - **Grenzen:** bis 150 000 Zeichen je Version, 30 Artefakte je Chat, nicht in Sprachgesprächen. Ein Artefakt gehört zu seinem Chat; wird der Chat gelöscht, gehen seine Artefakte mit.
-- Tabellen `artifacts` und `artifact_versions`; Werkzeuge `artifact_create`, `artifact_update`, `artifact_read`.
+- Schnittstellen: `PUT /api/artifacts/{id}` (`content`, `title` oder `restore`; Version von `user`), `POST /api/artifacts/{id}/to-project`. Tabellen `artifacts` und `artifact_versions`; Werkzeuge `artifact_create`, `artifact_update`, `artifact_read`.
 
 ## Mehrere Fassungen einer Antwort (ab 0.57.2)
 

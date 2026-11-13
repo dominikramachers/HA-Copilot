@@ -2481,7 +2481,8 @@ class Store:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT a.id, a.chat_id, a.kind, a.language, a.title, a.created_at, a.updated_at, c.title AS chat_title, c.project_id AS project_id, "
-                "(SELECT MAX(n) FROM artifact_versions v WHERE v.artifact_id = a.id) AS version "
+                "(SELECT MAX(n) FROM artifact_versions v WHERE v.artifact_id = a.id) AS version, "
+                "(SELECT v2.by FROM artifact_versions v2 WHERE v2.artifact_id = a.id ORDER BY v2.n DESC LIMIT 1) AS last_by "
                 f"FROM artifacts a JOIN chats c ON c.id = a.chat_id AND c.profile_id = a.profile_id WHERE a.profile_id = ? {where} ORDER BY a.updated_at DESC, a.created_at DESC",
                 args,
             ).fetchall()
