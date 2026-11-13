@@ -1149,5 +1149,21 @@
  "{0} Bild": "{0} image",
  "{0} Bilder": "{0} images",
  "Vorherige Fassung": "Previous version",
- "Nächste Fassung": "Next version"
+ "Nächste Fassung": "Next version",
+ "Seite": "Page",
+ "Grafik": "Graphic",
+ "Dokument": "Document",
+ "Code": "Code",
+ "Artefakt": "Artifact",
+ "{0} öffnen": "Open {0}",
+ "Wird geschrieben …": "Being written …",
+ "Das Artefakt konnte nicht geöffnet werden.": "The artifact could not be opened.",
+ "Vorschau ohne Netzwerkzugriff": "Preview without network access",
+ "Version": "Version",
+ "aktuell": "current",
+ "Code kopieren": "Copy code",
+ "Artefakt löschen": "Delete artifact",
+ "Artefakt gelöscht.": "Artifact deleted.",
+ "Das ist eine frühere Version.": "This is an earlier version.",
+ "Aktuelle Version": "Current version"
 }

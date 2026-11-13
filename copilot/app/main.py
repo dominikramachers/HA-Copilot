@@ -43,6 +43,7 @@ from . import news as newslib
 from . import quotes
 from . import research as researchlib
 from . import styles as stylelib
+from . import artifacts as artifactlib
 from . import usage as usagelib
 from . import i18n
 from .i18n import tr
@@ -619,6 +620,8 @@ class Run:
             self.actions[event["id"]] = {k: event.get(k, "") for k in ("label", "kind", "status", "note")}
             if event.get("file"):
                 self.actions[event["id"]]["file"] = event["file"]
+            if event.get("artifact"):
+                self.actions[event["id"]]["artifact"] = event["artifact"]
             if event.get("link"):
                 self.actions[event["id"]]["link"] = event["link"]
             if event.get("undo"):
@@ -1561,6 +1564,39 @@ def register_chat_routes(
         if page is None:
             raise HTTPException(status_code=404, detail=tr("Die Vorschau ist abgelaufen."))
         return HTMLResponse(page, headers=PREVIEW_HEADERS)
+
+    @app.get("/api/chats/{chat_id}/artifacts")
+    def chat_artifacts(chat_id: str, profile: Profile = Depends(current_profile)) -> list[dict]:
+        if store.get_chat(profile.id, chat_id) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return store.artifact_list(profile.id, chat_id)
+
+    @app.get("/api/artifacts/{artifact_id}")
+    def get_artifact(artifact_id: str, version: int | None = None, profile: Profile = Depends(current_profile)) -> dict:
+        found = store.artifact_get(profile.id, artifact_id, version)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return found
+
+    @app.get("/api/artifacts/{artifact_id}/download")
+    def download_artifact(artifact_id: str, version: int | None = None, profile: Profile = Depends(current_profile)) -> Response:
+        found = store.artifact_get(profile.id, artifact_id, version)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        name = artifactlib.filename(found["title"], found["kind"], found["language"])
+        return Response(
+            found["content"].encode("utf-8"), media_type=artifactlib.MIME[found["kind"]] + "; charset=utf-8",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
+                "Content-Security-Policy": "sandbox; default-src 'none'", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store",
+            },
+        )
+
+    @app.delete("/api/artifacts/{artifact_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def delete_artifact(artifact_id: str, profile: Profile = Depends(current_profile)) -> Response:
+        if not store.artifact_delete(profile.id, artifact_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
 
     @app.get("/api/files/{file_id}")
     def download_file(file_id: str, profile: Profile = Depends(current_profile)) -> FileResponse:
@@ -2716,6 +2752,10 @@ def register_chat_routes(
             overview=overview_allowed(profile),
         )
         specs += context.specs()
+        artifact_note = ""
+        if not spoken:
+            specs += artifactlib.ArtifactToolbox(store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id).specs()
+            artifact_note = artifactlib.rules_note(store.artifact_list(profile.id, chat_id))
         if settings.files_enabled and not spoken:
             specs += OutboxToolbox(
                 store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
@@ -2774,6 +2814,8 @@ def register_chat_routes(
                 "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.",
                 old=model_label(switched_from), new=model_label(chosen_model),
             )
+        if artifact_note:
+            extra["note"] += "\n" + artifact_note
         if any(s.name == "design_guide" for s in specs):
             extra["note"] += "\n" + DESIGN_NOTE
         if any(s.name == "file_edit" for s in specs):

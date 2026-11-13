@@ -202,6 +202,31 @@ CREATE TABLE IF NOT EXISTS skill_files (
 );
 """
 
+ARTIFACTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS artifacts (
+    id          TEXT PRIMARY KEY,
+    profile_id  TEXT NOT NULL,
+    chat_id     TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    language    TEXT NOT NULL DEFAULT '',
+    title       TEXT NOT NULL,
+    current     INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    FOREIGN KEY (chat_id, profile_id) REFERENCES chats(id, profile_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_artifacts_chat ON artifacts (profile_id, chat_id);
+CREATE TABLE IF NOT EXISTS artifact_versions (
+    artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+    n           INTEGER NOT NULL,
+    content     TEXT NOT NULL,
+    note        TEXT NOT NULL DEFAULT '',
+    by          TEXT NOT NULL DEFAULT 'ai',
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (artifact_id, n)
+);
+"""
+
 VARIANTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS answer_versions (
     chat_id     TEXT NOT NULL,
@@ -417,7 +442,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 28  # 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 29  # 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
 
@@ -484,6 +509,12 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
                     image=True, w=int(file.get("w", 0) or 0), h=int(file.get("h", 0) or 0), version=int(file.get("version", 1) or 1),
                     engine=str(file.get("engine", ""))[:10],
                 )
+        art = i.get("artifact")
+        if isinstance(art, dict) and re.fullmatch(r"[0-9a-f]{12}", str(art.get("id", ""))):
+            entry["artifact"] = {
+                "id": str(art["id"]), "title": str(art.get("title", ""))[:120], "kind": str(art.get("kind", ""))[:10],
+                "language": str(art.get("language", ""))[:20], "version": int(art.get("version", 1) or 1),
+            }
         link = str(i.get("link", ""))
         if link.startswith("https://github.com/") and len(link) < 400:
             entry["link"] = link
@@ -640,6 +671,7 @@ class Store:
         self._conn.executescript(STYLES_SCHEMA)
         self._conn.executescript(USAGE_SCHEMA)
         self._conn.executescript(VARIANTS_SCHEMA)
+        self._conn.executescript(ARTIFACTS_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -2394,6 +2426,95 @@ class Store:
                 (now, role, chat_id, profile_id),
             )
         return {"id": cur.lastrowid, "role": role, "content": content, "created_at": now}
+
+    # --- Artefakte: eigenständige Ergebnisse (Seite, Grafik, Dokument, Code) mit Versionen ---------------------------------
+
+    ARTIFACT_VERSIONS_MAX = 50
+
+    def artifact_create(self, profile_id: str, chat_id: str, kind: str, language: str, title: str, content: str, note: str = "", by: str = "ai") -> dict[str, Any] | None:
+        """Neues Artefakt (Version 1) im Chat anlegen; ``None``, wenn der Chat nicht dieser Person gehört."""
+        _require(profile_id)
+        now = _now()
+        with self._lock, self._conn:
+            if not self._conn.execute("SELECT 1 FROM chats WHERE id = ? AND profile_id = ?", (chat_id, profile_id)).fetchone():
+                return None
+            art_id = secrets.token_hex(6)
+            self._conn.execute(
+                "INSERT INTO artifacts (id, profile_id, chat_id, kind, language, title, current, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                (art_id, profile_id, chat_id, kind, language, title, now, now),
+            )
+            self._conn.execute(
+                "INSERT INTO artifact_versions (artifact_id, n, content, note, by, created_at) VALUES (?, 1, ?, ?, ?, ?)", (art_id, content, note[:200], by, now)
+            )
+        return {"id": art_id, "chat_id": chat_id, "kind": kind, "language": language, "title": title, "version": 1, "created_at": now, "updated_at": now}
+
+    def _artifact_row(self, profile_id: str, art_id: str) -> sqlite3.Row | None:
+        return self._conn.execute(
+            "SELECT a.*, (SELECT MAX(n) FROM artifact_versions v WHERE v.artifact_id = a.id) AS latest, c.title AS chat_title, c.project_id AS project_id "
+            "FROM artifacts a JOIN chats c ON c.id = a.chat_id AND c.profile_id = a.profile_id WHERE a.id = ? AND a.profile_id = ?", (art_id, profile_id)
+        ).fetchone()
+
+    def artifact_get(self, profile_id: str, art_id: str, version: int | None = None) -> dict[str, Any] | None:
+        """Ein Artefakt mit Inhalt (neueste oder gewünschte Version) und der Liste seiner Versionen."""
+        _require(profile_id)
+        with self._lock:
+            row = self._artifact_row(profile_id, art_id)
+            if row is None:
+                return None
+            versions = [dict(r) for r in self._conn.execute(
+                "SELECT n, note, by, created_at, LENGTH(content) AS size FROM artifact_versions WHERE artifact_id = ? ORDER BY n", (art_id,)
+            )]
+            n = version if version is not None else row["latest"]
+            found = self._conn.execute("SELECT content FROM artifact_versions WHERE artifact_id = ? AND n = ?", (art_id, n)).fetchone()
+        if found is None:
+            return None
+        return {
+            "id": row["id"], "chat_id": row["chat_id"], "chat_title": row["chat_title"], "project_id": row["project_id"], "kind": row["kind"],
+            "language": row["language"], "title": row["title"], "version": n, "latest": row["latest"], "versions": versions, "content": found["content"],
+            "created_at": row["created_at"], "updated_at": row["updated_at"],
+        }
+
+    def artifact_list(self, profile_id: str, chat_id: str | None = None) -> list[dict[str, Any]]:
+        """Artefakte der Person (eines Chats oder alle), zuletzt geändert zuerst, ohne Inhalt."""
+        _require(profile_id)
+        where, args = ("AND a.chat_id = ?", (profile_id, chat_id)) if chat_id else ("", (profile_id,))
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT a.id, a.chat_id, a.kind, a.language, a.title, a.created_at, a.updated_at, c.title AS chat_title, c.project_id AS project_id, "
+                "(SELECT MAX(n) FROM artifact_versions v WHERE v.artifact_id = a.id) AS version "
+                f"FROM artifacts a JOIN chats c ON c.id = a.chat_id AND c.profile_id = a.profile_id WHERE a.profile_id = ? {where} ORDER BY a.updated_at DESC, a.created_at DESC",
+                args,
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def artifact_update(self, profile_id: str, art_id: str, content: str, note: str = "", by: str = "ai", title: str | None = None) -> dict[str, Any] | None:
+        """Neue Version ablegen (gleicher Inhalt: keine neue Version). Liefert ``{id, version, changed}``; ``None``, wenn es das Artefakt nicht gibt."""
+        _require(profile_id)
+        now = _now()
+        with self._lock, self._conn:
+            row = self._artifact_row(profile_id, art_id)
+            if row is None:
+                return None
+            latest = self._conn.execute("SELECT content FROM artifact_versions WHERE artifact_id = ? AND n = ?", (art_id, row["latest"])).fetchone()
+            changed = latest is None or latest["content"] != content
+            version = row["latest"]
+            if changed:
+                version += 1
+                self._conn.execute(
+                    "INSERT INTO artifact_versions (artifact_id, n, content, note, by, created_at) VALUES (?, ?, ?, ?, ?, ?)", (art_id, version, content, note[:200], by, now)
+                )
+                self._conn.execute(
+                    "DELETE FROM artifact_versions WHERE artifact_id = ? AND n <= ?", (art_id, version - self.ARTIFACT_VERSIONS_MAX)
+                )
+            if changed or (title and title != row["title"]):
+                self._conn.execute("UPDATE artifacts SET updated_at = ?, title = ? WHERE id = ?", (now, title or row["title"], art_id))
+        return {"id": art_id, "version": version, "changed": changed}
+
+    def artifact_delete(self, profile_id: str, art_id: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM artifacts WHERE id = ? AND profile_id = ?", (art_id, profile_id))
+        return cur.rowcount == 1
 
     # --- Fassungen der letzten Antwort (Antwort neu erzeugen, ``‹ 2/3 ›``) -------------------------------------------------
 

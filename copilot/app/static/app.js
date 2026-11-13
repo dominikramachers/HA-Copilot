@@ -4391,7 +4391,7 @@ function actionsEl(list = [], open = false) {
   box.append(head, node("ul", "act-list"));
   box.update = (all) => {
     // Gelungene Gedächtnis-Änderungen zeigt der Hinweis unter der Antwort (memoryNoteEl); hier stehen sie nicht doppelt.
-    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok"));
+    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok") && a.kind !== "artifact"); // Artefakte zeigen ihre Karten
     const ha = items.filter((a) => ["read", "execute", "write"].includes(a.kind));
     const changes = ha.filter((a) => a.kind !== "read").length;
     const wissen = items.filter((a) => a.kind === "knowledge").length;
@@ -4710,6 +4710,190 @@ function fileCardsEl(actions) {
   return box;
 }
 
+// ----------------------------------------------------------------------------------------------------------------
+// Artefakte: eigenständige Ergebnisse der KI (Seite, Grafik, Dokument, Code). Unter der Antwort steht eine Karte, daneben
+// öffnet sich ein Fenster mit Vorschau und Code. HTML läuft in der abgeschotteten Vorschau (kein Netzwerk), SVG nur als Bild.
+const artifactKinds = () => ({
+  html: [tr("Seite"), "globe"], svg: [tr("Grafik"), "picture"], markdown: [tr("Dokument"), "note"], code: [tr("Code"), "code"],
+});
+
+function artifactKindText(a) {
+  const [label] = artifactKinds()[a.kind] || [tr("Artefakt"), "code"];
+  return a.kind === "code" && a.language && a.language !== "text" ? `${label} · ${a.language}` : label;
+}
+
+const artifactUi = { id: null, data: null, tab: "preview", seen: new Set() };
+
+function artifactCard(a) {
+  const [, ic] = artifactKinds()[a.kind] || [0, "code"];
+  const card = node("button", `out-card art-card${artifactUi.id === a.id ? " open" : ""}`);
+  card.type = "button";
+  card.dataset.artifact = a.id;
+  card.setAttribute("aria-label", tr("{0} öffnen", a.title));
+  const tile = node("span", "out-tile");
+  tile.append(icon(ic));
+  const meta = node("span", "out-meta");
+  meta.append(node("b", "", a.title), node("small", "", `${artifactKindText(a)} · ${tr("Version {0}", a.version)}`));
+  card.append(tile, meta);
+  card.addEventListener("click", () => openArtifact(a.id).catch(() => toast(tr("Das Artefakt konnte nicht geöffnet werden."))));
+  return card;
+}
+
+function artifactPendingCard(label) {
+  const card = node("div", "out-card art-card pending");
+  const tile = node("span", "out-tile");
+  tile.append(node("span", "run-spin"));
+  const meta = node("span", "out-meta");
+  meta.append(node("b", "", label), node("small", "", tr("Wird geschrieben …")));
+  card.append(tile, meta);
+  return card;
+}
+
+// Karten unter der Antwort: je Artefakt eine (zuletzt gemeldete Version), solange es entsteht eine Wartekarte
+function artifactCardsEl(actions) {
+  const box = node("div", "out-cards art-cards");
+  box.update = (items) => {
+    const done = new Map();
+    for (const a of items) if (a.kind === "artifact" && a.artifact && a.status === "ok") done.set(a.artifact.id, a.artifact);
+    const pending = items.filter((a) => a.kind === "artifact" && a.status === "running");
+    box.hidden = done.size === 0 && pending.length === 0;
+    box.replaceChildren(...[...done.values()].map(artifactCard), ...pending.map((a) => artifactPendingCard(a.label)));
+  };
+  box.update(actions);
+  return box;
+}
+
+function closeArtifact() {
+  const panel = $("artifact-panel");
+  artifactUi.id = null;
+  artifactUi.data = null;
+  panel.hidden = true;
+  panel.replaceChildren();
+  $("app").classList.remove("with-artifact");
+  document.querySelectorAll(".art-card.open").forEach((c) => c.classList.remove("open"));
+}
+
+async function openArtifact(id, version = null, tab = null) {
+  const data = await api(`api/artifacts/${encodeURIComponent(id)}${version ? `?version=${version}` : ""}`);
+  artifactUi.id = id;
+  artifactUi.data = data;
+  artifactUi.tab = tab || (data.kind === "code" ? "code" : "preview");
+  $("app").classList.add("with-artifact");
+  $("artifact-panel").hidden = false;
+  document.querySelectorAll(".art-card").forEach((c) => c.classList.toggle("open", c.dataset.artifact === id));
+  drawArtifact();
+}
+
+function artifactPreview(data) {
+  const wrap = node("div", "art-preview");
+  if (data.kind === "html") {
+    const frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("referrerpolicy", "no-referrer");
+    frame.title = data.title;
+    api("api/previews", { method: "POST", body: JSON.stringify({ html: data.content }) })
+      .then((r) => { frame.src = `preview/${encodeURIComponent(r.id)}`; })
+      .catch(() => wrap.replaceChildren(node("p", "mem-empty", tr("Die Vorschau konnte nicht erstellt werden (zu groß?)."))));
+    wrap.append(frame, node("p", "art-note", tr("Vorschau ohne Netzwerkzugriff")));
+  } else if (data.kind === "svg") {
+    const img = document.createElement("img");
+    img.alt = data.title;
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(data.content)}`;
+    wrap.classList.add("art-svg");
+    wrap.append(img);
+  } else {
+    const doc = node("div", "art-doc md");
+    doc.append(window.renderMarkdown(data.content));
+    wrap.append(doc);
+  }
+  return wrap;
+}
+
+function drawArtifact() {
+  const data = artifactUi.data;
+  const panel = $("artifact-panel");
+  if (!data) return;
+  const head = node("div", "art-head");
+  const titleBox = node("div", "art-titles");
+  titleBox.append(node("h2", "art-title", data.title), node("small", "art-sub", artifactKindText(data)));
+  const close = node("button", "icon-btn art-close");
+  close.type = "button";
+  close.title = tr("Schließen");
+  close.setAttribute("aria-label", tr("Schließen"));
+  close.append(icon("close"));
+  close.addEventListener("click", closeArtifact);
+  head.append(titleBox);
+  if (data.versions.length > 1) {
+    const select = node("select", "field art-versions");
+    select.setAttribute("aria-label", tr("Version"));
+    for (const v of [...data.versions].reverse()) {
+      const option = node("option", "", `${tr("Version {0}", v.n)}${v.n === data.latest ? ` (${tr("aktuell")})` : ""}`);
+      option.value = String(v.n);
+      option.selected = v.n === data.version;
+      select.append(option);
+    }
+    select.addEventListener("change", () => openArtifact(data.id, Number(select.value), artifactUi.tab).catch(() => {}));
+    head.append(select);
+  }
+  head.append(close);
+
+  const bar = node("div", "art-bar");
+  const tabs = node("div", "art-tabs");
+  tabs.setAttribute("role", "tablist");
+  const tabList = data.kind === "code" ? [["code", tr("Code")]] : [["preview", tr("Vorschau")], ["code", tr("Code")]];
+  for (const [key, label] of tabList) {
+    const tab = node("button", "skills-tab", label);
+    tab.type = "button";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(artifactUi.tab === key));
+    tab.addEventListener("click", () => { artifactUi.tab = key; drawArtifact(); });
+    tabs.append(tab);
+  }
+  const actions = node("div", "art-actions");
+  const copy = actionButton(tr("Code kopieren"), "copy", "msg-act", async () => {
+    try {
+      await navigator.clipboard.writeText(data.content);
+      copy.replaceChildren(icon("check"));
+      setTimeout(() => copy.replaceChildren(icon("copy")), 1600);
+    } catch { toast(tr("Kopieren nicht möglich.")); }
+  });
+  const download = actionButton(tr("Herunterladen"), "download", "msg-act", () => {
+    const link = document.createElement("a");
+    link.href = `api/artifacts/${encodeURIComponent(data.id)}/download?version=${data.version}`;
+    link.rel = "noopener";
+    document.body.append(link);
+    link.click();
+    link.remove();
+  });
+  const del = actionButton(tr("Artefakt löschen"), "trash", "msg-act", async () => {
+    if (!del.classList.contains("confirm")) {
+      del.classList.add("confirm");
+      del.title = tr("Wirklich löschen?");
+      setTimeout(() => { del.classList.remove("confirm"); del.title = tr("Artefakt löschen"); }, 4000);
+      return;
+    }
+    try {
+      await api(`api/artifacts/${encodeURIComponent(data.id)}`, { method: "DELETE" });
+      closeArtifact();
+      toast(tr("Artefakt gelöscht."));
+      if (state.activeId) { try { renderMessages(await api(`api/chats/${encodeURIComponent(state.activeId)}/messages`)); } catch { /* bleibt */ } }
+    } catch { toast(tr("Löschen hat nicht geklappt.")); }
+  });
+  actions.append(copy, download, del);
+  bar.append(tabs, actions);
+
+  const body = node("div", "art-body");
+  if (artifactUi.tab === "preview" && data.kind !== "code") body.append(artifactPreview(data));
+  else {
+    const pre = node("pre", "art-code");
+    pre.tabIndex = 0;
+    pre.append(node("code", "", data.content));
+    body.append(pre);
+  }
+  const foot = node("p", "art-foot", data.version < data.latest ? tr("Das ist eine frühere Version.") : tr("Aktuelle Version"));
+  panel.replaceChildren(head, bar, body, foot);
+}
+
 // Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude),
 // mit „Rückgängig“ für jede Änderung. Der Server prüft, ob der Eintrag noch so ist, wie die KI ihn hinterlassen hat.
 function memoryNoteEl(actions) {
@@ -4965,6 +5149,7 @@ function messageEl(role, text, files = [], actions = [], meta = {}) {
     if (actions.length) el.append(actionsEl(actions));
     el.append(window.renderMarkdown(text));
     if (actions.some((a) => a.file)) el.append(fileCardsEl(actions));
+    if (actions.some((a) => a.kind === "artifact" && a.artifact)) el.append(artifactCardsEl(actions));
     if (actions.some((a) => a.kind === "memory" && a.status === "ok")) el.append(memoryNoteEl(actions));
     const at = meta.at || new Date().toISOString();
     el.dataset.at = at;
@@ -5138,6 +5323,7 @@ function renderMessages(messages) {
 
 async function selectChat(id) {
   if (state.streaming && state.streaming.chatId === id) return; // läuft hier schon
+  if (artifactUi.data && artifactUi.data.chat_id !== id) closeArtifact(); // das Fenster gehört zum Chat des Artefakts
   setView("chat");
   detachRun(); // eine laufende Antwort bleibt auf dem Server und wird dort gespeichert
   releaseRecent();
@@ -5169,6 +5355,7 @@ async function selectChat(id) {
 }
 
 function startNew(projectId = null) {
+  closeArtifact();
   setView("chat");
   detachRun();
   releaseRecent();
@@ -5511,8 +5698,9 @@ async function consume(response, run, bubble) {
     parts.log.hidden = true;
     parts.text = node("div", "act-text");
     parts.files = fileCardsEl([]);
+    parts.arts = artifactCardsEl([]);
     parts.mem = memoryNoteEl([]);
-    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.mem, ...(run.busy ? [run.busy.el] : []));
+    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.arts, parts.mem, ...(run.busy ? [run.busy.el] : []));
   };
   // Was die Warteanzeige gerade zeigt: laufende Aktion, Rückfrage, Hinweistext oder (sobald Text kommt) nur das kleine Zeichen
   let statusText = "";
@@ -5541,9 +5729,16 @@ async function consume(response, run, bubble) {
       } else if (ev.type === "status") {
         statusText = ev.text.replace(/\s*…\s*$/, "");
       } else if (ev.type === "tool") {
-        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null });
+        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null, artifact: ev.artifact || null });
         out.actions = [...byId.values()];
-        if (!run.detached) { build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble); }
+        if (!run.detached) {
+          build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.arts.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble);
+          // Ein neues oder geändertes Artefakt öffnet sich am Laptop und Tablet gleich neben dem Chat (am Handy erst per Karte)
+          if (ev.artifact && ev.status === "ok" && window.matchMedia("(min-width: 1000px)").matches && (artifactUi.id === ev.artifact.id || !artifactUi.seen.has(ev.artifact.id + ":" + ev.id))) {
+            artifactUi.seen.add(ev.artifact.id + ":" + ev.id);
+            openArtifact(ev.artifact.id).catch(() => {});
+          }
+        }
       } else if (ev.type === "approval") {
         if (!run.detached) { build(); const card = approvalCard(run.chatId, ev); cards.set(ev.id, card); $("dock-asks").append(card); syncDock(); }
       } else if (ev.type === "approval_done") {

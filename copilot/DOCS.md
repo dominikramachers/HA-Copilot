@@ -411,6 +411,17 @@ Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connect
 - **Sichtbarkeit:** Unter der Antwort steht einklappbar „N Aktionen bei GitHub, davon M Änderungen“ mit jedem Schritt; bei Commits, Pull Requests und Issues gibt es einen Link „Öffnen“ (nur Adressen auf github.com werden angezeigt).
 - GitHub begrenzt Anfragen (bei Tokens 5 000 je Stunde, die Code-Suche deutlich weniger); wird das Limit erreicht, sagt die KI das.
 
+## Artefakte (ab 0.57.2)
+
+Ein **Artefakt** ist ein eigenständiges Ergebnis, das du behalten, weiterbearbeiten oder wiederverwenden willst: eine HTML-Seite (auch interaktiv), eine Zeichnung (SVG), ein längeres Dokument (Markdown) oder eine Code-Datei (z. B. Python, YAML, CSV). Word, Excel, PowerPoint und PDF bleiben Dateien zum Herunterladen. Die KI legt ein Artefakt von sich aus an, wenn das Ergebnis dazu passt; kurze Antworten und Befehle im Text bleiben Text.
+
+- **Im Chat** steht unter der Antwort eine Karte (Titel, Art, Version). Beim Schreiben zeigt sie „Wird geschrieben …“.
+- **Das Fenster** öffnet sich am Laptop und Tablet neben dem Chat, am Handy als Vollbild. Reiter **Vorschau** und **Code**, oben die **Version** (jede Änderung der KI ist eine neue Version, bis 50), Kopieren, Herunterladen und Löschen. Über die Karte unter einer älteren Antwort öffnest du dasselbe Artefakt wieder.
+- **Änderungen:** „Mach die Überschrift größer“ ändert nur die betroffene Stelle (neue Version), statt alles neu zu schreiben. Die KI kennt die Artefakte des Chats und liest sie bei Bedarf neu.
+- **Sicherheit:** HTML läuft in der abgeschotteten Vorschau: eigene Herkunft ohne Zugriff auf den Chat, **kein Netzwerk**, keine Formulare, Bilder nur als `data:`. SVG wird vorher geprüft (keine Skripte, Bilder oder Adressen) und nur als Bild gezeigt. Markdown und Code sind Text. Herunterladen liefert eine Datei mit passender Endung.
+- **Grenzen:** bis 150 000 Zeichen je Version, 30 Artefakte je Chat, nicht in Sprachgesprächen. Ein Artefakt gehört zu seinem Chat; wird der Chat gelöscht, gehen seine Artefakte mit.
+- Tabellen `artifacts` und `artifact_versions`; Werkzeuge `artifact_create`, `artifact_update`, `artifact_read`.
+
 ## Mehrere Fassungen einer Antwort (ab 0.57.2)
 
 „Antwort neu erzeugen“ (Symbol unter der Antwort) behält die bisherige Antwort. Unter der **letzten** Antwort erscheint dann `‹ 2/3 ›`: mit den Pfeilen blätterst du zwischen den Fassungen, die gezeigte Fassung ist die, mit der das Gespräch weitergeht. Es sind höchstens 10 Fassungen; kommt eine elfte, fällt die älteste weg. Sobald du eine neue Frage stellst oder eine Frage bearbeitest, bleibt nur die gezeigte Antwort. Bei früheren Antworten ersetzt „neu erzeugen“ wie bisher alles danach. Jede neue Fassung ist ein eigener Aufruf der KI und zählt im Verbrauch (auch bei ChatGPT-Limit und in der Übersicht der Administratoren).

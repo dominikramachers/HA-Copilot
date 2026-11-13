@@ -1244,6 +1244,33 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .variant-pager { display: inline-flex; align-items: center; gap: 2px; }
 .variant-count { min-width: 30px; text-align: center; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .variant-pager .msg-act:disabled { opacity: .35; cursor: default; }
+/* Artefakte: Fenster neben dem Chat (ab 1000 px), darunter als Vollbild */
+.artifact-panel { display: flex; flex-direction: column; flex: 0 0 min(46vw, 640px); min-width: 380px; border-left: 1px solid var(--line); background: var(--bg); min-height: 0; }
+.artifact-panel[hidden] { display: none; }
+.art-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px 18px; }
+.art-titles { flex: 1; min-width: 0; display: grid; }
+.art-title { margin: 0; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-sub { color: var(--text-2); font-size: 12.5px; }
+.art-versions { width: auto; height: 32px; padding: 0 8px; font-size: 13px; }
+.art-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 10px; border-bottom: 1px solid var(--line); }
+.art-tabs { display: flex; }
+.art-actions { display: flex; gap: 2px; }
+.art-actions .msg-act.confirm { color: var(--danger); }
+.art-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.art-preview { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.art-preview iframe { flex: 1; width: 100%; min-height: 320px; border: 0; background: #fff; }
+.art-preview.art-svg { align-items: center; justify-content: center; padding: 18px; background: #fff; }
+.art-preview.art-svg img { max-width: 100%; max-height: 100%; }
+.art-note { margin: 0; padding: 6px 16px; font-size: 12px; color: var(--text-2); border-top: 1px solid var(--line); }
+.art-doc { padding: 16px 20px 28px; }
+.art-code { margin: 0; padding: 16px 18px 28px; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; flex: 1; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.art-foot { margin: 0; padding: 6px 16px 10px; font-size: 12px; color: var(--text-2); }
+.art-card.pending { cursor: default; }
+.art-card.open { border-color: var(--accent); }
+.app.with-artifact .thread { max-width: 640px; }
+@media (max-width: 999px) {
+  .artifact-panel { position: fixed; inset: 0; z-index: 40; min-width: 0; flex: none; border-left: 0; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+}
 .usage-ranges { display: flex; flex-wrap: wrap; gap: 6px; }
 .usage-ranges .pill[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .usage-all { display: grid; gap: 14px; }

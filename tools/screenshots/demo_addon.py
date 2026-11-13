@@ -62,6 +62,7 @@ async def fake_image_api(request):
 
 class Backend:
     last_image = None
+    last_artifact = None
 
     async def stream(self, history, message, effort, attachments=None, instructions=None, tools=None, note="", **kw):
         handlers = {t.name: t.handler for t in tools or []}
@@ -81,7 +82,18 @@ class Backend:
                    "Der Verbrauch liegt typischerweise bei 3.500 bis 6.000 kWh im Jahr ([Verbrauch](https://example.org/waermepumpe-verbrauch)). "
                    "Die Förderung beträgt bis zu 70 % ([Förderung](https://example.org/foerderung)).\n\n## Offene Punkte\n- Der Verbrauch stützt sich auf eine einzige Quelle.\n\n"
                    "Quellen:\n- [Verbrauch](https://example.org/waermepumpe-verbrauch)\n- [Förderung](https://example.org/foerderung)\n- [Erfunden](https://erfunden.example/x)\n"); return
-        if "image_svg" in handlers and ("grundriss" in low or "floor plan" in low):
+        if "artifact_create" in handlers and ("artefakt" in low or "artifact" in low):
+            if "ändere" in low or "change" in low:
+                await handlers["artifact_update"]({"id": Backend.last_artifact, "edits": [{"old": "Guten Abend", "new": "Gute Nacht"}], "note": "Gruß geändert"})
+                yield "Ich habe den Gruß geändert. Die alte Version bleibt im Fenster auswählbar." if de else "I changed the greeting. The old version stays selectable in the panel."
+            else:
+                made = await handlers["artifact_create"]({"title": "Abendstimmung" if de else "Evening mood", "kind": "html", "content": (
+                    "<!doctype html><meta charset=utf-8><style>body{margin:0;font:20px/1.4 system-ui;background:linear-gradient(#26324f,#e08a4a);color:#fff;"
+                    "display:grid;place-items:center;height:100vh}button{font:inherit;padding:10px 18px;border-radius:999px;border:0}</style>"
+                    "<div><h1>Guten Abend</h1><button onclick=\"this.textContent='Licht an'\">Licht dimmen</button></div>")})
+                Backend.last_artifact = re.search(r"id ([0-9a-f]{12})", made).group(1)
+                yield "Ich habe dir eine kleine Seite gebaut. Sie öffnet sich daneben." if de else "I built you a small page. It opens beside the chat."
+        elif "image_svg" in handlers and ("grundriss" in low or "floor plan" in low):
             await handlers["image_svg"]({"svg": SVG_PLAN, "title": "Grundriss Erdgeschoss" if de else "Floor plan ground floor"})
             yield ("Ich habe den Grundriss als SVG gezeichnet, weil das ein einfacher Plan ist und nichts kostet. Die blauen Punkte sind die Leuchten." if de
                    else "I drew the floor plan as an SVG because it is a simple plan and costs nothing. The blue dots are the lights.")

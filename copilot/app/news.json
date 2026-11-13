@@ -4,6 +4,16 @@
     "items": [
       {
         "de": {
+          "title": "Artefakte neben dem Chat",
+          "text": "Wenn ich dir eine Seite, Zeichnung, ein Dokument oder ein Skript baue, öffne ich es neben dem Chat. Du siehst Vorschau und Text, kannst Versionen wählen und es herunterladen."
+        },
+        "en": {
+          "title": "Artifacts beside the chat",
+          "text": "When I build you a page, drawing, document or script, I open it beside the chat. You can see the preview and text, pick versions and download it."
+        }
+      },
+      {
+        "de": {
           "title": "Mehrere Fassungen",
           "text": "Wenn du mich bittest, eine Antwort neu zu schreiben, behalte ich die alte. Unter der Antwort kannst du zwischen den Fassungen blättern und die beste behalten."
         },
