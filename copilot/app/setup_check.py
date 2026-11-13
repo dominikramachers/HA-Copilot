@@ -177,7 +177,7 @@ def static_items(
 
     # --- ChatGPT (OpenAI) als zweiter Anbieter im Chat
     if settings.openai_active:
-        limit = tr("{n} Tausend Token je Person und Monat", n=f"{settings.openai_limit_month:,}".replace(",", ".")) if settings.openai_limit_month else tr("kein Monatslimit")
+        limit = tr("{n} Tausend Token im Monat für alle zusammen", n=f"{settings.openai_limit_month:,}".replace(",", ".")) if settings.openai_limit_month else tr("kein Monatslimit")
         own = tr("eigener Schlüssel") if settings.openai_chat_api_key else tr("Schlüssel aus der Gruppe „Bilder“")
         items.append(_item(
             "chatgpt", "optional", "ok", tr("ChatGPT (OpenAI)"),
@@ -203,7 +203,7 @@ def static_items(
             [
                 tr("Lege bei platform.openai.com ein API-Konto mit Guthaben an und erzeuge unter „API keys“ einen Schlüssel. Ein ChatGPT-Abo reicht dafür nicht."),
                 tr(CONFIG_STEP),
-                tr("Schalte in der Gruppe „Chat“ `openai_enabled` ein und trage den Schlüssel bei `openai_api_key` ein. Mit `openai_limit_month` legst du fest, wie viele Token (in Tausend) jede Person im Monat verbrauchen darf, bevor der Chat nachfragt."),
+                tr("Schalte in der Gruppe „Chat“ `openai_enabled` ein und trage den Schlüssel bei `openai_api_key` ein. Mit `openai_limit_month` legst du fest, wie viele Token (in Tausend) alle Personen zusammen im Monat verbrauchen dürfen, bevor der Chat nachfragt."),
                 tr(RESTART_STEP),
                 tr("Danach wählst du das Modell im Chat unten rechts oder stellst es in den Einstellungen unter „Standardmodell“ für neue Chats ein."),
             ],
@@ -213,7 +213,7 @@ def static_items(
     if settings.images_enabled and settings.files_enabled:
         names = [n for n, key in (("OpenAI", settings.openai_api_key), ("Google", settings.google_api_key)) if key]
         if names:
-            limit = tr("{n} Bilder je Person und Monat", n=settings.image_limit_month) if settings.image_limit_month else tr("kein Monatslimit")
+            limit = tr("{n} Bilder im Monat für alle zusammen", n=settings.image_limit_month) if settings.image_limit_month else tr("kein Monatslimit")
             items.append(_item("images", "optional", "ok", tr("Bilder erzeugen"), tr("Fotos und Kunstbilder über {names} ({limit}); einfache Grafiken zeichnet die KI kostenlos als SVG.", names=" + ".join(names), limit=limit)))
         else:
             items.append(_item(
@@ -222,7 +222,7 @@ def static_items(
                 [
                     tr("Lege bei OpenAI (platform.openai.com) oder Google (aistudio.google.com) ein API-Konto mit Guthaben an und erzeuge einen API-Schlüssel. Ein ChatGPT- oder Google-Abo reicht dafür nicht."),
                     tr(CONFIG_STEP),
-                    tr("Trage den Schlüssel in der Gruppe „Bilder“ bei `openai_api_key` oder `google_api_key` ein. Mit `limit_month` legst du fest, wie viele Bilder jede Person im Monat erzeugen darf, bevor der Chat nachfragt."),
+                    tr("Trage den Schlüssel in der Gruppe „Bilder“ bei `openai_api_key` oder `google_api_key` ein. Mit `limit_month` legst du fest, wie viele Bilder alle Personen zusammen im Monat erzeugen dürfen, bevor der Chat nachfragt."),
                     tr(RESTART_STEP),
                 ],
             ))

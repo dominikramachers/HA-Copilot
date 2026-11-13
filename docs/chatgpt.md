@@ -55,13 +55,13 @@ Es gibt drei Stellen, und die jeweils engste gewinnt:
 
 Eine Einstellung je Projekt gibt es bewusst nicht. Ein Chat, in dem du selbst ein Modell gewählt hast, behält es. Ein Chat ohne eigene Wahl folgt deinem Standardmodell. Wird ein Modell später aus `openai_models` entfernt oder ChatGPT ausgeschaltet, gilt das Standardmodell der Person wieder als **Auto**.
 
-## Token-Limit je Person
+## Token-Limit für alle
 
-`chat.openai_limit_month` begrenzt, wie viele Token (Eingabe plus Ausgabe) jede Person im Kalendermonat mit ChatGPT-Modellen verbrauchen darf. Angegeben wird es **in Tausend**: Der Standard `3000` sind 3 Millionen, `0` heißt kein Limit.
+`chat.openai_limit_month` begrenzt, wie viele Token (Eingabe plus Ausgabe) alle Personen zusammen im Kalendermonat mit ChatGPT-Modellen verbrauchen dürfen (bis 0.57 galt es je Person). Es gibt ein API-Konto bei OpenAI, deshalb auch ein gemeinsames Limit und für alle dieselbe Anzeige. Angegeben wird es **in Tausend**: Der Standard `3000` sind 3 Millionen, `0` heißt kein Limit.
 
 - Wird das Limit erreicht, **fragt der Chat vor jeder weiteren Antwort nach** (Zulassen oder Ablehnen), genau wie bei den Bildern. Es sperrt nichts von allein.
 - In **geplanten Aufgaben** kann niemand antworten; dort wird die Aufgabe mit einer Meldung abgelehnt, sobald das Limit erreicht ist.
-- Gezählt wird, was OpenAI als Verbrauch zurückmeldet. Titel und Zusammenfassungen zählen nicht mit. Der Zähler beginnt jeden Monat neu und steht unter **Einstellungen → Nutzung** („ChatGPT in diesem Monat“).
+- Gezählt wird, was OpenAI als Verbrauch zurückmeldet. Titel und Zusammenfassungen zählen nicht mit. Der Zähler beginnt jeden Monat neu und steht unter **Einstellungen → Nutzung** („ChatGPT in diesem Monat“); die Seite aktualisiert sich selbst, jede Person sieht dieselbe Zahl.
 - Das Limit zählt Token, keine Euro. Wie teuer ein Token ist, hängt vom Modell ab; die Rechnung steht in deinem OpenAI-Konto unter **Usage**.
 
 ## Kosten klein halten

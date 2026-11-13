@@ -1,4 +1,4 @@
-"""Seite „Nutzung“: Abo-Limit und Bilder der Person im Monat."""
+"""Seite „Nutzung“: Abo-Limit sowie Bilder und ChatGPT-Token des Monats (für alle Personen zusammen)."""
 from datetime import datetime
 
 from fastapi.testclient import TestClient
@@ -19,15 +19,47 @@ def test_usage_without_images_and_limits(store):
     assert data["limits"] == [] and data["images"] == {"enabled": False, "month": datetime.now().strftime("%Y-%m"), "used": 0, "limit": data["images"]["limit"]}
 
 
-def test_usage_counts_images_per_person(store):
+def test_usage_counts_images_for_everyone_together(store):
     app = client(store, openai_api_key="sk-test-abcdefghijklmnop", image_limit_month=5)
     month = datetime.now().strftime("%Y-%m")
     store.image_usage_add("adm01", month)
     store.image_usage_add("adm01", month)
+    store.image_usage_add("dora", month)
     mine = app.get("/api/usage", headers=as_user(ADM01)).json()["images"]
     other = app.get("/api/usage", headers=as_user(DORA)).json()["images"]
-    assert mine["enabled"] is True and mine["used"] == 2 and mine["limit"] == 5
-    assert other["used"] == 0
+    assert mine["enabled"] is True and mine["used"] == 3 and mine["limit"] == 5
+    assert other == mine  # jede Person sieht dieselbe Zahl
+
+
+def test_usage_counts_chatgpt_tokens_for_everyone_together(store):
+    app = client(store, openai_enabled=True, openai_api_key="sk-test-abcdefghijklmnop", openai_limit_month=3000)
+    month = datetime.now().strftime("%Y-%m")
+    store.token_usage_add("adm01", month, 200_000, "openai")
+    store.token_usage_add("dora", month, 7_296, "openai")
+    store.token_usage_add("dora", month, 9_999, "claude")  # anderer Anbieter zählt nicht mit
+    mine = app.get("/api/usage", headers=as_user(ADM01)).json()["openai"]
+    other = app.get("/api/usage", headers=as_user(DORA)).json()["openai"]
+    assert mine["used"] == 207_296 and mine["limit"] == 3_000_000
+    assert other == mine
+
+
+def test_usage_reports_server_time_for_the_live_display(store):
+    import time  # noqa: PLC0415
+    data = client(store).get("/api/usage", headers=as_user(ADM01)).json()
+    assert abs(data["server_time"] - time.time()) < 5
+
+
+def test_usage_shows_another_persons_update_without_own_message(store):
+    """Der gemeinsame Stand ändert sich, wenn irgendwer eine Antwort bekommt; jede Person sieht ihn beim nächsten Abruf."""
+    from app import limits as limitlib  # noqa: PLC0415
+    app = client(store, openai_enabled=True, openai_api_key="sk-test-abcdefghijklmnop")
+    month = datetime.now().strftime("%Y-%m")
+    before = app.get("/api/usage", headers=as_user(DORA)).json()
+    assert before["openai"]["used"] == 0 and before["windows"] == []
+    store.token_usage_add("adm01", month, 1234, "openai")
+    limitlib.shared(store).update({"status": "allowed", "type": "seven_day", "resets_at": 4_000_500_000, "utilization": 0.77})
+    after = app.get("/api/usage", headers=as_user(DORA)).json()
+    assert after["openai"]["used"] == 1234 and after["windows"][0]["utilization"] == 0.77
 
 
 def test_usage_needs_a_person(store):

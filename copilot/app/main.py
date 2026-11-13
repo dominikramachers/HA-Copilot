@@ -1463,19 +1463,21 @@ def register_chat_routes(
 
     @app.get("/api/usage")
     def usage(profile: Profile = Depends(current_profile)) -> dict:
-        """Seite „Nutzung“: Stand des Abo-Limits (nur Warnungen, kein laufender Zähler) und die Bilder dieser Person im Monat."""
+        """Seite „Nutzung“: Stand des Abo-Limits sowie ChatGPT-Token und Bilder des Monats, jeweils für alle Personen zusammen (für jede Person gleich)."""
         generate = bool(settings.images_enabled and settings.files_enabled and images.providers())
         month = datetime.now().strftime("%Y-%m")
         return {
             "limits": limits.current(),
             "windows": limits.overview(),
             "subscription": settings.backend == "claude" and bool(settings.claude_oauth_token),
-            "images": {"enabled": generate, "month": month, "used": store.image_usage(profile.id, month) if generate else 0, "limit": settings.image_limit_month},
+            # Bilder und ChatGPT zählen für alle Personen zusammen (ein API-Konto, ein Limit): jede Person sieht dieselben Zahlen
+            "images": {"enabled": generate, "month": month, "used": store.image_usage_total(month) if generate else 0, "limit": settings.image_limit_month},
             "openai": {
                 "enabled": settings.openai_active, "month": month,
-                "used": store.token_usage(profile.id, month, "openai") if settings.openai_active else 0,
+                "used": store.token_usage_total(month, "openai") if settings.openai_active else 0,
                 "limit": settings.openai_limit_month * 1000,
             },
+            "server_time": int(time.time()),
         }
 
     @app.get("/api/usage/all")
@@ -3007,11 +3009,11 @@ def register_chat_routes(
             usagelib.bind(store, profile.id, "voice" if spoken else "chat")
             try:
                 if provider == "openai" and token_limit:
-                    used_tokens = store.token_usage(profile.id, usage_month, "openai")
+                    used_tokens = store.token_usage_total(usage_month, "openai")
                     if used_tokens >= token_limit:
                         decision = await ask_about(
                             "tokens", tr("Monatslimit für ChatGPT erreicht"),
-                            tr("Du hast diesen Monat {used} von {limit} Token mit ChatGPT verbraucht. Jede weitere Antwort verursacht Kosten bei OpenAI.", used=f"{used_tokens:,}".replace(",", "."), limit=f"{token_limit:,}".replace(",", ".")),
+                            tr("Dieser Monat: {used} von {limit} Token mit ChatGPT verbraucht (alle Personen zusammen). Jede weitere Antwort verursacht Kosten bei OpenAI.", used=f"{used_tokens:,}".replace(",", "."), limit=f"{token_limit:,}".replace(",", ".")),
                             False,
                         )
                         if decision == "deny":

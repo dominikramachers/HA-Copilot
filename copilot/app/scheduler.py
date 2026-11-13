@@ -328,7 +328,7 @@ class Scheduler:
             if provider_of(model or "") == "openai":
                 month = datetime.now().strftime("%Y-%m")
                 limit = self.settings.openai_limit_month * 1000
-                if limit and store.token_usage(profile.id, month, "openai") >= limit:
+                if limit and store.token_usage_total(month, "openai") >= limit:
                     # Geplant kann niemand gefragt werden: bei erreichtem Monatslimit läuft die Aufgabe nicht mit ChatGPT
                     raise BackendError(tr("Das Monatslimit für ChatGPT ist erreicht. Die Aufgabe läuft erst im nächsten Monat wieder oder mit einem Claude-Modell."))
                 extra["on_usage"] = lambda tokens: store.token_usage_add(profile.id, month, tokens, "openai")

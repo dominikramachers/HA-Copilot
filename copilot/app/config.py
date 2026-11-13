@@ -90,7 +90,7 @@ TITLE_MODEL = "claude-haiku-5-5"
 VOICE_MODEL = "claude-haiku-5-5"  # gesprochene Antworten: das schnelle Modell (bleibt immer Claude)
 AUTO_MODEL = "auto"  # in der Modellwahl: das in der App eingestellte Standard-Modell
 DEFAULT_OPENAI_MODELS = ("gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6-sol")  # neben den Claude-Modellen wählbar, wenn OpenAI eingeschaltet ist
-OPENAI_LIMIT_MONTH_DEFAULT = 3000  # Tausend Token je Person und Monat (= 3 Mio.), danach fragt der Chat nach (0 = kein Limit)
+OPENAI_LIMIT_MONTH_DEFAULT = 3000  # Tausend Token im Monat für alle Personen zusammen (= 3 Mio.), danach fragt der Chat nach (0 = kein Limit)
 OPENAI_VOICES = ("alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse")  # Stimmen von gpt-4o-mini-tts
 VOICE_INSTRUCTIONS_MAX = 600  # Zeichen für eigene Wünsche an die gesprochenen Antworten (voice.instructions)
 IMAGE_MODEL_OPENAI = "gpt-image-2.5-sunburst"
@@ -117,7 +117,7 @@ class Settings:
     openai_chat_api_key: str = field(default="", repr=False)  # eigener Schlüssel für den Chat; leer = der Schlüssel aus „Bilder“
     openai_chat_key_expires: date | None = None
     openai_models: tuple[str, ...] = DEFAULT_OPENAI_MODELS
-    openai_limit_month: int = OPENAI_LIMIT_MONTH_DEFAULT  # Tausend Token je Person und Monat (0 = kein Limit)
+    openai_limit_month: int = OPENAI_LIMIT_MONTH_DEFAULT  # Tausend Token im Monat für alle Personen zusammen (0 = kein Limit)
     web_access_default: str = "on"  # Websuche und Seiten lesen (on | off), pro Benutzer überschreibbar (web_access)
     schedules_enabled: bool = True  # geplante Aufgaben (Menüpunkt „Geplant“)
     incognito_enabled: bool = True  # Inkognito-Chat (nichts wird gespeichert)
@@ -160,7 +160,7 @@ class Settings:
     image_model_openai: str = IMAGE_MODEL_OPENAI
     image_model_google: str = IMAGE_MODEL_GOOGLE
     image_provider: str = "auto"  # auto = die KI wählt je Bild; openai oder google = immer dieser Anbieter
-    image_limit_month: int = 30  # Bilder von OpenAI/Google je Person und Monat, danach fragt der Chat vor jedem weiteren nach (0 = kein Limit)
+    image_limit_month: int = 30  # Bilder von OpenAI/Google im Monat für alle Personen zusammen, danach fragt der Chat vor jedem weiteren nach (0 = kein Limit)
     # Sprache (Sprechen per Knopf): Spracherkennung über OpenAI (openai_api_key) oder die Assist-Pipeline von Home Assistant
     voice_access_default: str = "off"  # wer mit der KI sprechen darf (on | off), pro Benutzer überschreibbar (voice_access)
     voice_openai_key_expires: date | None = None

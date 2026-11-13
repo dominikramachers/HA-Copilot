@@ -98,6 +98,18 @@ def test_overview_lists_every_window_even_without_warning(tmp_path):
     store.close()
 
 
+def test_overview_shows_an_expired_window_as_reset(tmp_path):
+    store = Store(tmp_path / "t.sqlite3")
+    now = [1_000_000.0]
+    state = LimitState(store, clock=lambda: now[0])
+    state.update({"status": "allowed_warning", "type": "five_hour", "resets_at": 1_005_000, "utilization": 0.9})
+    assert state.overview()[0]["utilization"] == 0.9 and state.overview()[0]["status"] == "allowed_warning"
+    now[0] = 1_005_001  # Fenster ist vorbei: Verbrauch 0, keine Warnung mehr
+    row = state.overview()[0]
+    assert row["expired"] is True and row["utilization"] == 0.0 and row["status"] == "allowed" and row["resets_at"] == 1_005_000
+    store.close()
+
+
 def test_limit_state_survives_garbage(tmp_path):
     store = Store(tmp_path / "t.sqlite3")
     store.state_set("usage_limits", "{kaputt")

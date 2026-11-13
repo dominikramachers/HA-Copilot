@@ -73,7 +73,8 @@ class LimitState:
     def overview(self) -> list[dict]:
         """Alle bekannten Zeitfenster mit letztem Stand (auch ohne Warnung), für die Seite „Nutzung“.
 
-        ``expired``: die gemeldete Rücksetzzeit ist vorbei, der Wert gilt nicht mehr; ein neuer kommt mit der nächsten Antwort.
+        ``expired``: die gemeldete Rücksetzzeit ist vorbei. Das Fenster ist damit zurückgesetzt: Der Verbrauch steht auf 0 und
+        ein neuer gemeldeter Wert kommt mit der nächsten Antwort der KI (ein neues 5-Stunden-Fenster beginnt erst mit ihr).
         """
         now = self._clock()
         out = []
@@ -81,13 +82,14 @@ class LimitState:
             if kind == "unknown" or item.get("utilization") is None and item.get("status") == "allowed" and not item.get("resets_at"):
                 continue
             resets = item.get("resets_at")
+            expired = bool(resets and resets <= now)
             out.append({
                 "type": kind,
-                "status": item.get("status"),
-                "utilization": item.get("utilization"),
+                "status": "allowed" if expired else item.get("status"),
+                "utilization": 0.0 if expired else item.get("utilization"),
                 "resets_at": resets,
                 "seen_at": item.get("seen_at"),
-                "expired": bool(resets and resets <= now),
+                "expired": expired,
             })
         out.sort(key=lambda i: (self.ORDER.index(i["type"]) if i["type"] in self.ORDER else len(self.ORDER), i["type"]))
         return out

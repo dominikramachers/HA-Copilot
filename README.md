@@ -52,10 +52,10 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 - Chats pro Benutzer getrennt, Projekte mit Anweisungen, Anpinnen, Umbenennen, automatische Kurztitel
 - **Suche** in allen eigenen Chats (Strg/Cmd+Umschalt+F), Export als Markdown oder ZIP, eigene Chats gesammelt löschen
 - **Dateien erzeugen und bearbeiten:** Word, Excel, PowerPoint, PDF und Skripte (PowerShell, Shell, Python …) zum Herunterladen; angehängte Dateien (PDF-Formulare, Word, Excel, PowerPoint, Text und Code) liest und ändert die KI auf Wunsch, das Original bleibt unverändert
-- **Bilder:** Die KI erkennt Bildwünsche selbst: einfache Grafiken zeichnet sie kostenlos als SVG, Fotos und Kunst lässt sie von OpenAI oder Google erzeugen (eigener Schlüssel, Monatslimit je Person); Änderungen im selben Chat als neue Fassung, Bildvorschau im Chat
+- **Bilder:** Die KI erkennt Bildwünsche selbst: einfache Grafiken zeichnet sie kostenlos als SVG, Fotos und Kunst lässt sie von OpenAI oder Google erzeugen (eigener Schlüssel, ein gemeinsames Monatslimit für alle); Änderungen im selben Chat als neue Fassung, Bildvorschau im Chat
 - **GitHub:** Repositories lesen, Code durchsuchen, Issues und Pull Requests ansehen; mit Schreibrecht Commits, Zweige und Pull Requests (jede Änderung wird im Chat bestätigt)
 - **Websuche** und Seiten lesen, wählbare Modelle (Auto, Sonnet, Opus, Haiku; persönliches Standardmodell), Hinweis auf das Nutzungslimit des Abos
-- **ChatGPT (OpenAI) neben Claude** (optional, Standard aus): gleiche Fähigkeiten, Monatslimit an Token je Person, klarer Hinweis, dass der Chat zu OpenAI geht ([Einrichtung](docs/chatgpt.md))
+- **ChatGPT (OpenAI) neben Claude** (optional, Standard aus): gleiche Fähigkeiten, gemeinsames Monatslimit an Token für alle, klarer Hinweis, dass der Chat zu OpenAI geht ([Einrichtung](docs/chatgpt.md))
 - **Geplante Aufgaben** (lesend, ohne Rückfragen) mit Benachrichtigung im Chat, in Home Assistant oder aufs Handy
 - Dateianhänge bis 50 MB: Bilder, PDF, Word, Excel, PowerPoint, Text und Code (zum Bearbeiten als Kopie im Chat, sonst nur im Arbeitsspeicher)
 - Lange Chats werden automatisch zusammengefasst, statt abgeschnitten zu werden

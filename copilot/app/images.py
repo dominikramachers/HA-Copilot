@@ -367,15 +367,15 @@ class ImageToolbox:
         return self._now().strftime("%Y-%m")
 
     def used(self) -> int:
-        return self.store.image_usage(self.profile_id, self.month())
+        return self.store.image_usage_total(self.month())  # alle Personen zusammen: ein Konto, ein Limit
 
     def usage_note(self) -> str:
         if not self.generate_enabled:
             return ""
         used = self.used()
         if self.limit_month:
-            return f" Diesen Monat hat die Person {used} von {self.limit_month} Bildern von OpenAI/Google erzeugt."
-        return f" Diesen Monat hat die Person {used} Bilder von OpenAI/Google erzeugt (kein Limit)."
+            return f" Diesen Monat wurden von allen Personen zusammen {used} von {self.limit_month} Bildern von OpenAI/Google erzeugt."
+        return f" Diesen Monat wurden von allen Personen zusammen {used} Bilder von OpenAI/Google erzeugt (kein Limit)."
 
     def _event(self, tid: int, label: str, status: str, note: str = "", file: dict | None = None) -> None:
         event: dict[str, Any] = {"type": "tool", "id": tid, "label": label, "status": status, "kind": "image", "note": note}
