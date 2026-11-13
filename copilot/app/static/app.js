@@ -3305,10 +3305,15 @@ function connCard(c) {
     connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ enabled: on }) }));
     renderSkills();
   }));
-  card.append(top, connBadges(c));
+  card.append(top);
   if (c.description) card.append(node("p", "skill-desc", c.description));
+  // Unten in der Kachel (bei allen auf einer Linie): Art und Stand als Marken, danach die Zahl der Werkzeuge
   const on = c.tools.filter((t) => t.enabled).length;
-  card.append(node("small", "mem-meta", c.status === "ok" ? tr("{0} von {1} Werkzeugen an", on, c.tools.length) : c.message || tr("Noch nicht verbunden.")));
+  if (c.status !== "ok") card.append(node("small", "mem-meta", c.message || tr("Noch nicht verbunden.")));
+  const foot = node("div", "conn-foot");
+  foot.append(connBadges(c));
+  if (c.status === "ok") foot.append(node("small", "mem-meta", tr("{0} von {1} Werkzeugen an", on, c.tools.length)));
+  card.append(foot);
   card.addEventListener("click", (event) => { if (!event.target.closest("button")) connOpen(c.id); });
   return card;
 }
