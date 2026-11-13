@@ -161,35 +161,14 @@ def static_items(
             items.append(_item("ha_access", "optional", "ok", tr("Zugriff der KI auf Home Assistant"), detail.strip()))
 
     # --- GitHub (gehört der Person: eigenes Konto, verbunden in den Einstellungen)
-    configured = profile.github_access or settings.github_access_default
-    if github_enabled and github_level == "none":
-        items.append(_item(
-            "github", "optional", "warn", "GitHub",
-            tr("GitHub ist verbunden, aber für dich ausgeschaltet (Stufe `none`)."),
-            [
-                tr(CONFIG_STEP),
-                tr("Setze in der Gruppe „Chat“ `github_access_default` auf `read` oder `write`, oder trage im Benutzer-Eintrag `github_access` ein."),
-                tr(RESTART_STEP),
-            ],
-        ))
-    elif not github_enabled and configured == "none":
-        items.append(_item(
-            "github", "optional", "off", "GitHub",
-            tr("Für dich ausgeschaltet: Der Administrator hat GitHub für dich nicht freigegeben (Stufe `none`). Ohne Freigabe kannst du kein Konto verbinden."),
-            [
-                tr(CONFIG_STEP),
-                tr("Setze in der Gruppe „Chat“ `github_access_default` auf `read` oder `write`, oder trage im Benutzer-Eintrag `github_access` ein. Danach verbindest du dein eigenes Konto in den Einstellungen unter „GitHub“."),
-                tr(RESTART_STEP),
-            ],
-        ))
-    elif not github_enabled:
+    if not github_enabled:
         items.append(_item(
             "github", "optional", "off", "GitHub",
             tr("Dein GitHub-Konto ist nicht verbunden. Nur nötig, wenn die KI mit deinen GitHub-Repositories arbeiten soll. Jede Person verbindet ihr eigenes Konto."),
             [
                 tr("Öffne unten links das Konto-Menü, wähle „Einstellungen“ und dort „GitHub“."),
                 tr("Wähle „Mit GitHub verbinden“, gib den angezeigten Code bei GitHub ein und bestätige. Alternativ kannst du ein eigenes Token einfügen."),
-                tr("Ob du lesen oder auch ändern darfst, legt der Administrator in der Gruppe „Chat“ mit `github_access_default` oder `github_access` im Benutzer-Eintrag fest: `read` oder `write`."),
+                tr("Die KI darf damit so viel, wie dein GitHub-Konto selbst darf; jede Änderung fragt im Chat vorher nach."),
             ],
         ))
     else:

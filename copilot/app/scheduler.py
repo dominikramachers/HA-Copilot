@@ -140,7 +140,7 @@ class Scheduler:
     def github_level(self, profile: Profile) -> str:
         if not self.github_api(profile).enabled:
             return "none"
-        return "none" if (profile.github_access or self.settings.github_access_default) == "none" else "read"
+        return "read"
 
     def model_for(self, row: dict) -> str | None:
         wanted = row.get("model") or ""

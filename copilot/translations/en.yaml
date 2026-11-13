@@ -22,9 +22,6 @@ configuration:
           ha_access:
             name: Home Assistant access (optional)
             description: 'What the AI may do in Home Assistant for this user: none, read, execute (read and operate devices) or write (read, execute and change automations, scripts, dashboards, helpers). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
-          github_access:
-            name: GitHub access (optional)
-            description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies. This is the upper limit: the AI works with the GitHub account the person connects themselves in the settings; without a connected account nothing happens.'
           connector_access:
             name: Connectors (optional)
             description: 'What the AI may do with connectors (MCP servers such as Microsoft 365, Google Workspace or Zabbix) for this user: none, use (use shared/global connectors), own (also create their own), global (also create and change global connectors for everyone, including home-network addresses). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
@@ -89,9 +86,6 @@ configuration:
       ha_limit_to_exposed:
         name: Only entities exposed to Assist (read/execute)
         description: 'On (default): users with read or execute only see and control entities that are exposed to Assist in Home Assistant. Users with write are not affected.'
-      github_access_default:
-        name: Default GitHub access
-        description: 'Applies to all users without their own setting: none (default), read or write. Takes effect once a person has connected their GitHub in the settings. Can be overridden per user with github_access.'
       connector_access_default:
         name: Default connector access
         description: 'Applies to all users without their own setting: none, use (default: use global connectors), own (also create their own) or global (also manage global ones). Connectors link the AI to services outside Home Assistant; what it reads through them is treated as foreign content.'

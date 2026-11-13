@@ -66,7 +66,6 @@ GROUPED = {
     "research_enabled": ("chat", "research_enabled"),
     "research_daily_limit": ("chat", "research_daily_limit"),
     "files_enabled": ("chat", "files_enabled"),
-    "github_access_default": ("chat", "github_access_default"),
     "connector_access_default": ("chat", "connector_access_default"),
     "openai_enabled": ("chat", "openai_enabled"),
     "openai_chat_api_key": ("chat", "openai_api_key"),

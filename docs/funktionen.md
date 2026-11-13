@@ -58,7 +58,7 @@ Mehr: [Inkognito-Chat](../copilot/DOCS.md#inkognito-chat-ab-0560), [Chats teilen
 - **Tastenkürzel** am Computer: Strg (Mac: ⌘) + Umschalt + **O** neuer Chat, **F** Suchen, **P** neues Projekt, **G** geplante Aufgaben. Das Kürzel steht in der Seitenleiste erst, wenn du mit der Maus über den Eintrag fährst.
 - **Hinweise über dem Eingabefeld:** Nutzungslimit und Rückfragen der KI (z. B. vor einer Änderung in Home Assistant) erscheinen als Streifen direkt über dem Eingabefeld, wie in Claude selbst, jeweils als eigene schmale Box (nicht am Eingabefeld angebaut).
 - Anpinnen, umbenennen, in ein Projekt verschieben, als Markdown exportieren, archivieren, löschen: alles im Menü (⋯) jeder Zeile.
-- **Alle Chats** (unter der Chatliste): die ganze Liste mit Reitern Aktiv, Geteilt und Archiviert, Suche und Mehrfachauswahl. Archivierte Chats verschwinden aus den Listen (auch in Projekten, dort unter „Archiviert (n)“), bleiben aber auffindbar; neues Schreiben holt sie zurück.
+- **Alle Chats** (Eintrag unter der Chatliste, öffnet eine eigene Seite): die ganze Liste mit Reitern Aktiv, Geteilt und Archiviert, Suche und Mehrfachauswahl. Archivierte Chats verschwinden aus allen Listen (auch aus Projekten) und stehen nur dort; neues Schreiben holt sie zurück.
 
 ![Chat-Menü](screenshots/menue.png)
 
@@ -127,7 +127,7 @@ Einrichtung für dich:
 2. **Mit GitHub verbinden** wählen, den angezeigten Code bei GitHub eingeben und bestätigen. Alternativ **Token einfügen**.
 3. Fertig: Der Dialog zeigt „Verbunden als …“. **Trennen** löscht das Token wieder.
 
-Für den Administrator: Die Rechte (`github_access` je Benutzer, `chat.github_access_default`, Standard `none`) stehen weiter in der Konfiguration. Die Tokens der Personen liegen verschlüsselt im Add-on. Ein gemeinsames Token (`github_token`) und die Freigabeliste `github_repos` gibt es seit 0.47.0 nicht mehr; alte Einträge in der Konfiguration kannst du löschen.
+Für den Administrator: Seit 0.57.2 braucht GitHub keine Freigabe mehr; die Optionen `github_access` und `chat.github_access_default` entfallen (alte Einträge werden ignoriert). Die Tokens der Personen liegen verschlüsselt im Add-on. Ein gemeinsames Token (`github_token`) und die Freigabeliste `github_repos` gibt es seit 0.47.0 nicht mehr; alte Einträge in der Konfiguration kannst du löschen.
 
 Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 

@@ -5,11 +5,21 @@
       {
         "de": {
           "title": "Chats archivieren",
-          "text": "Chats, die du nicht mehr brauchst, kannst du jetzt archivieren. Sie verschwinden aus der Liste, bleiben aber unter „Alle Chats“ und im Projekt zu finden."
+          "text": "Chats, die du nicht mehr brauchst, kannst du jetzt archivieren. Sie verschwinden aus der Liste und stehen unter „Alle Chats“."
         },
         "en": {
           "title": "Archive chats",
-          "text": "You can now archive chats you no longer need. They leave your list but stay under “All chats” and in their project."
+          "text": "You can now archive chats you no longer need. They leave your list and stay under “All chats”."
+        }
+      },
+      {
+        "de": {
+          "title": "GitHub für alle",
+          "text": "Jede Person kann jetzt ihr eigenes GitHub-Konto verbinden. Dafür muss der Administrator nichts mehr freigeben."
+        },
+        "en": {
+          "title": "GitHub for everyone",
+          "text": "Everyone can now connect their own GitHub account. The administrator no longer has to allow it first."
         }
       },
       {

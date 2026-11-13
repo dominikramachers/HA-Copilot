@@ -9,7 +9,7 @@ Zwei Wege zum Verbinden (ein gemeinsames Token in der Add-on-Konfiguration gibt 
 
 Das Token liegt verschlüsselt in der Datenbank (Fernet, Schlüssel wie bei den Konnektoren im Datenordner). Es geht nie an den Browser,
 nie in Protokoll, Fehlermeldungen oder „Meine Daten“. Der Code der Anmeldung (``device_code``) bleibt im Arbeitsspeicher des Add-ons.
-Wer welche Rechte hat (``none``, ``read``, ``write``), bleibt Sache der Konfiguration (``github_access``); ein persönliches Token reicht
+Eine Einstellung der Konfiguration gibt es dafür nicht mehr; ein persönliches Token reicht
 ohnehin nur so weit, wie die Person selbst darf.
 """
 from __future__ import annotations

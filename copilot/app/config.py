@@ -78,7 +78,6 @@ class Profile:
     entra_upn: str  # leer = kein Zugang über die Domain
     ha_user: str = ""  # HA-Benutzername oder Personenname; das Add-on löst ihn zur ID auf (ha_user_id hat Vorrang)
     ha_access: str = ""  # Zugriff auf Home Assistant: none | read | execute | write; leer = ha_access_default
-    github_access: str = ""  # Zugriff auf GitHub: none | read | write; leer = github_access_default
     connector_access: str = ""  # Konnektoren: none | use | own | global; leer = connector_access_default
     web_access: str = ""  # Websuche und Seiten lesen: on | off; leer = web_access_default
     notify_service: str = ""  # Benachrichtigungsdienst dieser Person, z. B. notify.mobile_app_pixel; leer = keiner
@@ -139,8 +138,7 @@ class Settings:
     memory_enabled: bool = True
     memory_household_writers: str = "all"  # fest: jeder darf das Haushaltsgedächtnis ändern (ha_write = nur Stufe write, nur noch in Tests)
     ha_scan_days: int = 7  # fest: Überblick über Home Assistant beim ersten Start und dann alle 7 Tage einlesen (Knopf im Gedächtnis-Dialog)
-    # GitHub (jede Person verbindet ihr eigenes Konto; wer was darf, steht je Profil bzw. in github_access_default)
-    github_access_default: str = "none"
+    # GitHub: keine Einstellung nötig; jede Person verbindet ihr eigenes Konto (alte Optionen github_access* werden ignoriert)
     github_write_confirm: str = "ask"  # fest: jede Änderung wird im Chat bestätigt
     # Konnektoren (MCP-Server): wer sie nutzen, selbst anlegen oder für alle verwalten darf, steht je Profil bzw. hier
     connector_access_default: str = "use"
@@ -240,7 +238,6 @@ RESEARCH_DAILY_LIMIT_DEFAULT = 3
 WEB_ACCESS_LEVELS = ("on", "off")
 VOICE_ACCESS_LEVELS = ("on", "off")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
-GITHUB_ACCESS_LEVELS = ("none", "read", "write")
 CONNECTOR_ACCESS_LEVELS = ("none", "use", "own", "global")  # none = keine, use = globale nutzen, own = zusätzlich eigene, global = zusätzlich globale verwalten
 
 
@@ -414,9 +411,6 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         ha_access = _optional(entry, "ha_access").lower()
         if ha_access and ha_access not in HA_ACCESS_LEVELS:
             raise ConfigError(f"ha_access bei Profil {profile_id!r} muss none, read, execute oder write sein")
-        github_access = _optional(entry, "github_access").lower()
-        if github_access and github_access not in GITHUB_ACCESS_LEVELS:
-            raise ConfigError(f"github_access bei Profil {profile_id!r} muss none, read oder write sein")
         connector_access = _optional(entry, "connector_access").lower()
         if connector_access and connector_access not in CONNECTOR_ACCESS_LEVELS:
             raise ConfigError(f"connector_access bei Profil {profile_id!r} muss none, use, own oder global sein")
@@ -431,7 +425,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
             raise ConfigError(f"notify_service bei Profil {profile_id!r} muss ein Benachrichtigungsdienst wie notify.mobile_app_pixel sein")
         profile = Profile(
             id=profile_id, label=label, ha_user_id=ha_user_id, entra_upn=entra_upn, ha_user=ha_user,
-            ha_access=ha_access, github_access=github_access, connector_access=connector_access, web_access=web_access, notify_service=notify_service,
+            ha_access=ha_access, connector_access=connector_access, web_access=web_access, notify_service=notify_service,
             voice_access=voice_access,
         )
         for key in seen:
@@ -456,7 +450,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         raise ConfigError("ha_access_default muss none, read, execute oder write sein")
     chat = _group(
         raw, "chat",
-        "model, memory_enabled, schedules_enabled, incognito_enabled, sharing, research_enabled, research_daily_limit, files_enabled, github_access_default, connector_access_default, "
+        "model, memory_enabled, schedules_enabled, incognito_enabled, sharing, research_enabled, research_daily_limit, files_enabled, connector_access_default, "
         "openai_enabled, openai_api_key, openai_key_expires, openai_models, openai_limit_month",
     )
     openai_models_raw = chat.get("openai_models")
@@ -480,9 +474,6 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     if not 0 <= openai_limit_month <= 100000:
         raise ConfigError("chat.openai_limit_month muss eine Zahl von 0 bis 100000 sein (Tausend Token, 0 = kein Limit)")
     images = _group(raw, "images", "openai_api_key, google_api_key, openai_key_expires, google_key_expires, provider, limit_month")
-    github_access_default = str(chat.get("github_access_default") or "none").strip().lower()
-    if github_access_default not in GITHUB_ACCESS_LEVELS:
-        raise ConfigError("chat.github_access_default muss none, read oder write sein")
     sharing = str(chat.get("sharing") or "instance").strip().lower()
     if sharing not in SHARING_MODES:
         raise ConfigError("chat.sharing muss off, instance oder public sein")
@@ -622,7 +613,6 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         ha_access_default=ha_access_default,
         ha_limit_to_exposed=bool(raw.get("ha_limit_to_exposed", True)),
         memory_enabled=bool(chat.get("memory_enabled", True)),
-        github_access_default=github_access_default,
         connector_access_default=connector_access_default,
         files_enabled=bool(chat.get("files_enabled", True)),
         openai_api_key=str(images.get("openai_api_key") or "").strip(),

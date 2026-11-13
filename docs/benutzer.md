@@ -33,7 +33,6 @@ users:
     - ha_user: dominik
       label: Dominik
       ha_access: write          # darf in Home Assistant alles bauen und ändern
-      github_access: write      # darf bei GitHub schreiben
       notify_service: notify.mobile_app_pixel
     - ha_user: anna
       label: Anna
@@ -55,7 +54,6 @@ Nach dem Speichern das Add-on neu starten. Jeder Benutzer meldet sich dabei wie 
 | `ha_user_id` | nein | Benutzer-ID (32 Hex-Zeichen) statt des Namens. Nur nötig bei mehrdeutigem Namen. Hat Vorrang. |
 | `entra_upn` | nein | Konto für die Anmeldung über die [eigene Domain](domain-zugang.md) mit Microsoft. |
 | `ha_access` | nein | Rechte der KI in Home Assistant: `none`, `read`, `execute`, `write` (siehe unten). Leer: `ha_access_default`. |
-| `github_access` | nein | Rechte der KI bei GitHub: `none`, `read`, `write`. Leer: `chat.github_access_default`. |
 | `web_access` | nein | `on` oder `off`: Websuche. Leer: an. |
 | `voice_access` | nein | `on` oder `off`: Sprechen per Mikrofon-Knopf. Leer: der Standard `voice.access_default` (Gruppe „Sprechen mit der KI“, Standard aus). |
 | `notify_service` | nein | Nur eine Vorgabe: Benachrichtigungsdienst fürs Handy, z. B. `notify.mobile_app_pixel`. Die Geräte einer Person erkennt der Chat sonst selbst aus Home Assistant; gewählt wird unter Einstellungen → Benachrichtigungen. |
@@ -74,7 +72,7 @@ Die Stufen gelten **je Benutzer** und werden vom Server durchgesetzt, nicht von 
 | `execute` | zusätzlich Geräte bedienen (Licht, Klima, Rollos, Szenen …) | (nicht vorhanden) |
 | `write` | zusätzlich Automationen, Skripte, Szenen, Dashboards, Helfer anlegen und ändern | zusätzlich Dateien einchecken, Zweige, Pull Requests, Issues |
 
-Voreinstellung ohne eigenen Eintrag: Home Assistant `execute` (`chat.ha_access_default`), GitHub `none` (`chat.github_access_default`). Änderungen an der Konfiguration von Home Assistant und GitHub fragen im Chat nach, Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung von Home Assistant sind nie möglich. Alle Einzelheiten: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant-ab-0150) und [GitHub](../copilot/DOCS.md#github-ab-0190).
+Voreinstellung ohne eigenen Eintrag: Home Assistant `execute` (`chat.ha_access_default`), GitHub braucht keine Freigabe (jede Person verbindet ihr eigenes Konto). Änderungen an der Konfiguration von Home Assistant und GitHub fragen im Chat nach, Schlösser, Alarmanlagen und Garagentore **immer**. Neustart, Updates, Sicherungen und Benutzerverwaltung von Home Assistant sind nie möglich. Alle Einzelheiten: [Zugriff auf Home Assistant](../copilot/DOCS.md#zugriff-auf-home-assistant-ab-0150) und [GitHub](../copilot/DOCS.md#github-ab-0190).
 
 ## Alle Home-Assistant-Benutzer zulassen
 
@@ -88,7 +86,7 @@ users:
 
 - Jeder Home-Assistant-Benutzer bekommt beim ersten Zugriff automatisch ein **eigenes Profil** (Kennung `ha-` plus Anfang seiner ID) mit eigenen, von den anderen getrennten Chats.
 - `users.ha_users_excluded` nimmt Benutzernamen, Namen oder IDs, durch Komma getrennt. Diese Benutzer kommen nicht herein.
-- Die Liste `users.profiles` brauchst du dann nur noch für Sonderfälle: eigener Anzeigename, abweichende Rechte, Microsoft-Anmeldung. Wer eingetragen ist, behält sein Profil und seine Rechte; alle anderen haben die Standardrechte (`chat.ha_access_default`, `chat.github_access_default`).
+- Die Liste `users.profiles` brauchst du dann nur noch für Sonderfälle: eigener Anzeigename, abweichende Rechte, Microsoft-Anmeldung. Wer eingetragen ist, behält sein Profil und seine Rechte; alle anderen haben die Standardrechte (`chat.ha_access_default`).
 - Ein Abo-Token ist mit mehreren Benutzern nicht erlaubt, siehe [Installation](installation.md#4-zugang-zu-claude).
 
 ## Benutzer entfernen, umbenennen, wechseln

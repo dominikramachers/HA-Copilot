@@ -87,7 +87,7 @@ from .github_accounts import AccountError, GithubAccounts
 from . import connector_catalog, connector_icons
 from .connectors import ConnectorError, ConnectorService, ConnectorToolbox
 from .vault import Vault
-from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_RIGHT, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
+from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
 from .ha_scan import OverviewScanner
 from .db import INSTRUCTIONS_MAX, Store
 from .ha_login import HaLoginClient, HaLoginError
@@ -878,9 +878,8 @@ def register_chat_routes(
 
     def github_level(profile: Profile) -> str:
         """Stufe des Zugriffs auf GitHub für diese Person (none, read, write)."""
-        if not accounts.enabled_for(profile.id):
-            return "none"
-        return profile.github_access or settings.github_access_default
+        # Jede Person darf, sobald sie ihr eigenes Konto verbunden hat; Änderungen fragen im Chat immer nach.
+        return "write" if accounts.enabled_for(profile.id) else "none"
 
     def household_writable(profile: Profile) -> bool:
         """Darf diese Person das Haushaltsgedächtnis ändern? (Einstellung der Konfiguration, unabhängig vom Zugangsweg)"""
@@ -922,7 +921,6 @@ def register_chat_routes(
             "notices": health.notices() if health else [],
             "ha_access": ha_level(profile),
             "github": github_level(profile),
-            "github_connect": (profile.github_access or settings.github_access_default) != "none",
             "web": settings.web_level(profile) == "on",
             "voice": voice_allowed(profile),
             "voice_wake": settings.app_name if voice_allowed(profile) else "",
@@ -1030,13 +1028,6 @@ def register_chat_routes(
     github_token_limit = RateLimiter(10, 600)  # eingefügte Token werden bei GitHub geprüft
     github_poll_limit = RateLimiter(400, 600)  # Browser fragt etwa alle 5 Sekunden nach; GitHub selbst wird davon getrennt gedrosselt
 
-    def github_configured_level(profile: Profile) -> str:
-        return profile.github_access or settings.github_access_default
-
-    def github_allowed(profile: Profile) -> None:
-        if github_configured_level(profile) == "none":
-            raise HTTPException(status_code=403, detail=tr("Für dich ist GitHub nicht freigegeben. Der Administrator stellt das in der Konfiguration ein."))
-
     def github_limit(limiter: RateLimiter, profile: Profile) -> None:
         if not limiter.allow(profile.id):
             raise HTTPException(status_code=429, detail=tr("Zu viele Versuche. Bitte in ein paar Minuten noch einmal."))
@@ -1046,13 +1037,12 @@ def register_chat_routes(
         """Stand des GitHub-Zugangs dieser Person (das Token selbst verlässt das Add-on nie)."""
         return {
             **accounts.info(profile.id),
-            "level": github_configured_level(profile),
+            "level": "write",
         }
 
     @app.post("/api/github/device", dependencies=[Depends(write_guard)])
     async def github_device_start(profile: Profile = Depends(current_profile)) -> dict:
         """Anmeldung bei GitHub beginnen: liefert den Code, den die Person bei GitHub eingibt."""
-        github_allowed(profile)
         github_limit(github_start_limit, profile)
         try:
             return await accounts.device_start(profile.id)
@@ -1062,7 +1052,6 @@ def register_chat_routes(
     @app.post("/api/github/device/poll", dependencies=[Depends(write_guard)])
     async def github_device_poll(profile: Profile = Depends(current_profile)) -> dict:
         """Stand der Anmeldung; bewusst POST: über die Domain prüft der Schutz die Herkunft, und die sendet der Browser nur bei POST."""
-        github_allowed(profile)
         github_limit(github_poll_limit, profile)
         try:
             return await accounts.device_poll(profile.id)
@@ -1077,7 +1066,6 @@ def register_chat_routes(
     @app.post("/api/github/token", dependencies=[Depends(write_guard)])
     async def github_token(body: GithubTokenBody, profile: Profile = Depends(current_profile)) -> dict:
         """Ein selbst erzeugtes Token einfügen (wird vor dem Speichern bei GitHub geprüft)."""
-        github_allowed(profile)
         github_limit(github_token_limit, profile)
         try:
             login = await accounts.connect_token(profile.id, body.token)
@@ -2665,7 +2653,7 @@ def register_chat_routes(
         elif any(s.name.startswith("github_") for s in specs):
             extra["note"] += "\n" + GITHUB_NOTE + " " + github_level_text(gh_level, accounts.policy_for(profile.id))
         else:
-            why = GITHUB_OFF_NO_RIGHT if accounts.enabled_for(profile.id) else GITHUB_OFF_NO_TOKEN
+            why = GITHUB_OFF_NO_TOKEN
             extra["note"] += "\n" + GITHUB_OFF_NOTE.format(why=why)
 
         async def generate() -> None:

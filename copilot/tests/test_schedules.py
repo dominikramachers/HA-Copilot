@@ -300,7 +300,7 @@ def test_run_is_read_only_and_asks_nothing(store, tmp_path):
     from app.github_accounts import GithubAccounts  # noqa: PLC0415
     from app.vault import Vault  # noqa: PLC0415
 
-    s = parse_settings({**RAW, "ha_access_default": "write", "github_access_default": "write"}, frozenset({"testclient"}))
+    s = parse_settings({**RAW, "ha_access_default": "write"}, frozenset({"testclient"}))
     scheduler, backend, ha, _, _ = build(store, settings=s, now=2_000)
     scheduler.github_accounts = GithubAccounts(store, Vault(tmp_path / "k.key"))
     store.github_account_save("adm01", scheduler.github_accounts.vault.seal("gho_persoenlich_abcdefghijklmnop"), "dora-gh", "token")  # GitHub ist verbunden
@@ -320,7 +320,7 @@ def test_scheduled_run_uses_the_personal_github_account_read_only(store, tmp_pat
     from app.github_accounts import GithubAccounts  # noqa: PLC0415
     from app.vault import Vault  # noqa: PLC0415
 
-    s = parse_settings({**RAW, "github_access_default": "write"}, frozenset({"testclient"}))
+    s = parse_settings({**RAW}, frozenset({"testclient"}))
     scheduler, backend, _, _, _ = build(store, settings=s, now=2_000)
     accounts = GithubAccounts(store, Vault(tmp_path / "k.key"))
     scheduler.github_accounts = accounts

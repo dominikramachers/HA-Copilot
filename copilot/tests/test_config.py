@@ -73,11 +73,11 @@ def test_chat_and_images_are_groups_and_flat_entries_are_ignored():
     s = real({
         **RAW,
         "chat": {"model": "claude-opus-5-5", "memory_enabled": False, "schedules_enabled": False, "files_enabled": False,
-                 "github_access_default": "read", "connector_access_default": "own"},
+                 "connector_access_default": "own"},
         "images": {"openai_api_key": "sk-o", "google_api_key": "g-k", "provider": "google", "limit_month": 7},
     }, frozenset())
     assert (s.model, s.memory_enabled, s.schedules_enabled, s.files_enabled) == ("claude-opus-5-5", False, False, False)
-    assert (s.github_access_default, s.connector_access_default) == ("read", "own")
+    assert s.connector_access_default == "own"
     assert (s.openai_api_key, s.google_api_key, s.image_provider, s.image_limit_month) == ("sk-o", "g-k", "google", 7)
 
     # Ohne Gruppen gelten die Standardwerte, und die früheren flachen Einträge werden nicht mehr gelesen
@@ -87,7 +87,7 @@ def test_chat_and_images_are_groups_and_flat_entries_are_ignored():
     for name in ("chat", "images", "voice"):
         with pytest.raises(ConfigError, match="Gruppe"):
             real({**RAW, name: "nein"}, frozenset())
-    for bad in ({"images": {"limit_month": -1}}, {"images": {"provider": "bing"}}, {"chat": {"github_access_default": "admin"}}, {"chat": {"model": "!"}}):
+    for bad in ({"images": {"limit_month": -1}}, {"images": {"provider": "bing"}}, {"chat": {"model": "!"}}):
         with pytest.raises(ConfigError):
             real({**RAW, **bad}, frozenset())
 

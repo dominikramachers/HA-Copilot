@@ -229,22 +229,9 @@ def headers(user):
     return {**as_user(user, True), **WRITE}
 
 
-def test_endpoints_follow_the_configured_level(store, vault, gh, clock):
-    from conftest import ADM01  # noqa: PLC0415
-    client, _ = app_client(store, vault, gh, clock, github_access_default="none")
-    me = client.get("/api/me", headers=headers(ADM01)).json()
-    assert me["github_connect"] is False
-    info = client.get("/api/github/account", headers=headers(ADM01)).json()
-    assert info["level"] == "none" and info["source"] == "none" and "shared" not in info and "repos" not in info
-    for method, path in (("post", "/api/github/device"), ("post", "/api/github/device/poll")):
-        assert getattr(client, method)(path, headers=headers(ADM01)).status_code == 403
-    assert client.post("/api/github/token", json={"token": PERSONAL}, headers=headers(ADM01)).status_code == 403
-
-
 def test_connect_with_token_end_to_end_and_chat_uses_the_personal_token(store, vault, gh, clock):
     from conftest import ADM01  # noqa: PLC0415
-    client, accounts = app_client(store, vault, gh, clock, github_access_default="read")
-    assert client.get("/api/me", headers=headers(ADM01)).json()["github_connect"] is True
+    client, accounts = app_client(store, vault, gh, clock)
     answer = client.post("/api/github/token", json={"token": PERSONAL}, headers=headers(ADM01))
     assert answer.status_code == 200 and answer.json() == {"login": "dora-gh"} and PERSONAL not in answer.text
     info = client.get("/api/github/account", headers=headers(ADM01)).json()
@@ -256,21 +243,21 @@ def test_connect_with_token_end_to_end_and_chat_uses_the_personal_token(store, v
 
 def test_without_a_connected_account_the_person_can_connect_and_tools_appear(store, vault, gh, clock):
     from conftest import ADM01  # noqa: PLC0415
-    settings = parse_settings({**RAW, "github_access_default": "read"}, frozenset({"testclient"}))
+    settings = parse_settings(RAW, frozenset({"testclient"}))
     accounts = GithubAccounts(store, vault, transport=gh.transport(), clock=clock)
     chat = FakeChat()
     client = TestClient(build_ingress_app(settings, store, chat, github_accounts=accounts))
     assert client.get("/api/me", headers=headers(ADM01)).json()["github"] == "none"  # noch nichts verbunden
     assert client.post("/api/github/token", json={"token": PERSONAL}, headers=headers(ADM01)).status_code == 200
-    assert client.get("/api/me", headers=headers(ADM01)).json()["github"] == "read"
+    assert client.get("/api/me", headers=headers(ADM01)).json()["github"] == "write"
     chat_id = client.post("/api/chats", json={}, headers=headers(ADM01)).json()["id"]
     client.post(f"/api/chats/{chat_id}/send", json={"content": "Hi"}, headers=headers(ADM01))
-    assert "github_read_file" in chat.tools and "github_commit_files" not in chat.tools
+    assert "github_read_file" in chat.tools and "github_commit_files" in chat.tools
 
 
 def test_device_endpoints_and_other_people_stay_separate(store, vault, gh, clock):
     from conftest import ADM01, DORA  # noqa: PLC0415
-    client, accounts = app_client(store, vault, gh, clock, github_access_default="write")
+    client, accounts = app_client(store, vault, gh, clock)
     start = client.post("/api/github/device", headers=headers(ADM01))
     assert start.status_code == 200 and start.json()["user_code"] == "ABCD-1234" and CODE not in start.text
     assert client.get("/api/github/account", headers=headers(ADM01)).json()["pending"] is True
@@ -286,7 +273,7 @@ def test_device_endpoints_and_other_people_stay_separate(store, vault, gh, clock
 
 def test_changing_endpoints_need_the_csrf_header(store, vault, gh, clock):
     from conftest import ADM01, as_user  # noqa: PLC0415
-    client, _ = app_client(store, vault, gh, clock, github_access_default="write")
+    client, _ = app_client(store, vault, gh, clock)
     plain = as_user(ADM01)
     assert client.post("/api/github/device", headers=plain).status_code == 403
     assert client.post("/api/github/device/poll", headers=plain).status_code == 403
@@ -296,7 +283,7 @@ def test_changing_endpoints_need_the_csrf_header(store, vault, gh, clock):
 
 def test_a_wrong_token_gives_a_readable_error(store, vault, gh, clock):
     from conftest import ADM01  # noqa: PLC0415
-    client, _ = app_client(store, vault, gh, clock, github_access_default="write")
+    client, _ = app_client(store, vault, gh, clock)
     assert client.post("/api/github/token", json={"token": "kurz"}, headers=headers(ADM01)).status_code == 400
     gh.user = (401, {"message": "Bad credentials"})
     bad = client.post("/api/github/token", json={"token": PERSONAL}, headers=headers(ADM01))

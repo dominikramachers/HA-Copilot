@@ -111,13 +111,9 @@ def test_image_rows():
 
 
 def test_github_rows():
-    off = rows(make(chat={"github_access_default": "read"}))["github"]
-    assert off["status"] == "off" and "Mit GitHub verbinden" in " ".join(off["steps"]) and "github_access" in " ".join(off["steps"])
+    off = rows(make())["github"]  # jede Person darf ihr eigenes Konto verbinden, nichts muss freigegeben werden
+    assert off["status"] == "off" and "Mit GitHub verbinden" in " ".join(off["steps"]) and "github_access" not in " ".join(off["steps"])
     assert "eigenes Konto" in off["detail"] or "Jede Person" in off["detail"]
-    blocked = rows(make())["github"]  # der Administrator hat GitHub für diese Person nicht freigegeben: kein Hinweis zum Verbinden
-    assert blocked["status"] == "off" and "nicht freigegeben" in blocked["detail"] and "Mit GitHub verbinden" not in " ".join(blocked["steps"])
-    muted = rows(make(), github_enabled=True, github_level="none")["github"]
-    assert muted["status"] == "warn" and "github_access_default" in " ".join(muted["steps"])
     ok = rows(make(), github_enabled=True, github_level="write")["github"]
     assert ok["status"] == "ok" and "schreiben" in ok["detail"] and "eigenes GitHub-Konto" in ok["detail"] and TOKEN not in str(ok)
 
@@ -307,7 +303,7 @@ def test_expiry_reminder_rows():
 
 def test_every_open_row_has_steps_and_no_row_leaks_secrets():
     settings = domain_settings(backend="claude", claude_oauth_token=ABO, anthropic_api_key=KEY)
-    items = list(rows(settings, github_enabled=True, github_level="none", db_problem="kaputt").values())
+    items = list(rows(settings, db_problem="kaputt").values())
     asyncio.run(sc.run_live(items, None, None, settings.profiles[0]))
     for item in items:
         if item["status"] in ("todo", "warn"):
@@ -315,7 +311,7 @@ def test_every_open_row_has_steps_and_no_row_leaks_secrets():
     dump = str(items)
     for secret in (TOKEN, ABO, KEY, "geheim"):
         assert secret not in dump
-    assert sc.open_count(items) >= 3
+    assert sc.open_count(items) >= 2
 
 
 def test_peer_log_keeps_the_latest_few():
@@ -380,7 +376,7 @@ def test_every_option_named_in_the_steps_exists():
     import pathlib, re, yaml
 
     config = yaml.safe_load((pathlib.Path(__file__).parent.parent / "config.yaml").read_text())
-    options = set(config["options"]) | set(config["schema"]) | {"ha_user", "ha_user_id", "github_access", "notify_service", "ha_access", "connector_access", "voice_access"}
+    options = set(config["options"]) | set(config["schema"]) | {"ha_user", "ha_user_id", "notify_service", "ha_access", "connector_access", "voice_access"}
     for value in config["schema"].values():  # Felder in den Gruppen (chat, images, voice) heißen für sich
         if isinstance(value, dict):
             options |= set(value)
