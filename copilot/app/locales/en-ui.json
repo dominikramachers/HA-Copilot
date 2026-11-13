@@ -1222,5 +1222,7 @@
  "Noch kein Gerät mit der App angemeldet.": "No device has signed in with the app yet.",
  "Zuletzt aktiv: {0}": "Last active: {0}",
  "{0} wird abgemeldet. Zum erneuten Anmelden öffnest du die App und meldest dich wieder an.": "{0} will be signed out. To sign in again, open the app and sign in once more.",
- "App-Einstellungen": "App settings"
+ "App-Einstellungen": "App settings",
+ "Alle Änderungs-Werkzeuge einschalten": "Switch on all change tools",
+ "Alle Änderungs-Werkzeuge ausschalten": "Switch off all change tools"
 }

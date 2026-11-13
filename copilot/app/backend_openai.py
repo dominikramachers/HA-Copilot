@@ -140,9 +140,14 @@ def user_content(prompt: str, attachments: list[Attachment]) -> list[dict]:
     return parts
 
 
+MAX_FUNCTIONS = 120  # die Responses-Schnittstelle erlaubt höchstens 128 Werkzeuge je Anfrage; Platz für die Websuche bleibt
+
+
 def function_tools(tools: list[ToolSpec]) -> list[dict]:
     result = []
-    for spec in tools:
+    if len(tools) > MAX_FUNCTIONS:
+        log.warning("%d Werkzeuge, die Schnittstelle erlaubt höchstens 128: nur die ersten %d werden angeboten", len(tools), MAX_FUNCTIONS)
+    for spec in tools[:MAX_FUNCTIONS]:
         params = spec.schema if isinstance(spec.schema, dict) and spec.schema.get("type") == "object" else {"type": "object", "properties": {}}
         result.append({"type": "function", "name": spec.name, "description": spec.description[:1000], "parameters": params, "strict": False})
     return result

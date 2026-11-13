@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.59.1
+Konnektoren: keine Begrenzung der Werkzeuge mehr.
+- **Alle Werkzeuge eines Konnektors sind nutzbar.** Bisher las das Add-on höchstens 40 Werkzeuge je Konnektor ein (`MAX_TOOLS`, der Rest erschien als „weitere wurden ausgelassen“) und bot höchstens 80 je Antwort an (`MAX_TOOLS_PER_ANSWER`). Beide Grenzen entfallen; `MAX_TOOLS` ist nur noch eine Schutzgrenze von 1000 gegen fehlerhafte Server. Eigener Stand: Lesende Werkzeuge sind weiter an, schreibende aus, bis sie eingeschaltet werden; ein Neu-Einlesen behält die Auswahl.
+- **Kosten:** Die Grenzen waren eine Vorsichtsmaßnahme, weil jedes angebotene Werkzeug (Name, Beschreibung, Schema bis 8000 Zeichen) in jeder Antwort Kontext belegt (`ENABLE_TOOL_SEARCH` ist im Agentenbetrieb aus, die Werkzeuge stehen sofort bereit). Mehr eingeschaltete Werkzeuge bedeuten also mehr Token je Antwort.
+- **ChatGPT als Anbieter:** Die Responses-Schnittstelle erlaubt höchstens 128 Werkzeuge je Anfrage; `function_tools` bietet höchstens 120 an (`MAX_FUNCTIONS`, Platz für die Websuche) und schreibt eine Warnung ins Protokoll, statt dass die ganze Anfrage abgelehnt wird.
+- **Knopf „Alle Änderungs-Werkzeuge einschalten“** in der Gruppe „Ändern“ jedes Konnektors (ab zwei Werkzeugen; ist alles an, heißt er „… ausschalten“). Er setzt per `PATCH /api/connectors/{id}/account` den Zustand aller schreibenden Werkzeuge auf einmal, ohne neue Schnittstelle. Der Standard bleibt aus; die Rückfrage im Chat vor jeder Änderung bleibt unverändert.
+- Tests: `test_all_tools_of_a_large_server_are_usable`, `test_tools_of_several_connectors_are_all_offered` (160 statt 80), `test_normalize_tools_read_write_and_caps` angepasst, neu `tests/test_backend_openai_tools.py`.
+
 ## 0.59.0
 App-Zugang: die serverseitige Grundlage für die mobile App „HA Copilot“ (iPhone/iPad, eigenes Repository `HA-Copilot-Mobile`). Standardmäßig aus; ohne die Option ändert sich nichts. Datenbank-Schema 31 (nur Ergänzungen, die Migration läuft beim ersten Start).
 - **Neue Optionen** (Gruppe `domain`): `app_access` (Standard `false`; wirkt nur mit Domain-Zugang) und `device_days` (1 bis 180, Standard 90: so lange ein Gerät ohne Nutzung angemeldet bleibt). Ohne Domain-Zugang bleibt `app_access` unwirksam (`Settings.app_access = app_access and public_enabled`). Die Schnittstelle gibt es nur auf dem Domain-Server; sie existiert gar nicht, solange `app_access` aus ist (404).
