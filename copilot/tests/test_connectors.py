@@ -11,7 +11,7 @@ import pytest
 from app.config import ConfigError, parse_settings
 from app.connector_oauth import OAuthError, OAuthHelper, ServerAuth, new_pkce
 from app.connectors import (
-    ConnectorError, ConnectorService, ConnectorToolbox, clean_schema, normalize_tools, result_parts, tool_name,
+    ConnectorError, ConnectorService, ConnectorToolbox, MAX_TOOLS, clean_schema, normalize_tools, result_parts, tool_name,
 )
 from app.ha_tools import ToolError, ToolResult
 from app.main import build_ingress_app
@@ -234,10 +234,12 @@ def test_mcp_client_maps_errors_to_readable_messages():
 # ----------------------------------------------------------------------- Werkzeuge und Ergebnisse
 
 def test_normalize_tools_read_write_and_caps():
-    raw = [{"name": f"t{i}", "annotations": {"readOnlyHint": i % 2 == 0}} for i in range(60)]
+    raw = [{"name": f"t{i}", "annotations": {"readOnlyHint": i % 2 == 0}} for i in range(120)]
     raw += [{"name": "böse name!"}, {"name": "t1"}, {"name": "x" * 70}]
     tools, skipped = normalize_tools(raw)
-    assert len(tools) == 40 and skipped == 20  # 60 gültige, Duplikate und ungültige Namen zählen nicht
+    assert len(tools) == 120 and skipped == 0  # alle gültigen Werkzeuge bleiben; Duplikate und ungültige Namen zählen nicht
+    many, left_out = normalize_tools([{"name": f"w{i}"} for i in range(MAX_TOOLS + 5)])
+    assert len(many) == MAX_TOOLS and left_out == 5  # nur die Schutzgrenze gegen fehlerhafte Server
     assert tools[0]["read_only"] is True and tools[1]["read_only"] is False
     fresh, _ = normalize_tools([{"name": "ohne_angabe"}, {"name": "gesetzt", "annotations": {"readOnlyHint": "true"}}])
     assert [t["read_only"] for t in fresh] == [False, False]  # fehlende oder unklare Angabe = schreibend
@@ -722,6 +724,20 @@ def test_toolbox_offers_only_enabled_tools_and_marks_levels(store, servers, serv
     run(scenario())
 
 
+def test_all_tools_of_a_large_server_are_usable(store, tmp_path):
+    """Seit 0.59.1 gibt es keine Grenze von 40 je Konnektor und 80 je Antwort mehr: alle eingeschalteten Werkzeuge stehen bereit."""
+    big = FakeServers(tools=[{"name": f"tool_{i}", "inputSchema": {"type": "object"}, "annotations": {"readOnlyHint": True}} for i in range(150)])
+    service = make_service(store, big, tmp_path)
+
+    async def scenario():
+        created = await service.create("dora", bearer())
+        shown = await service.connect("dora", created["id"], "tok-1")
+        assert "150 Werkzeuge gefunden." in shown["message"] and "ausgelassen" not in shown["message"]
+        specs = Harness().box(service).specs()
+        assert len(specs) == 150 and len({s.name for s in specs}) == 150
+    run(scenario())
+
+
 def test_toolbox_reads_without_asking_and_wraps_foreign_content(store, servers, service):
     async def scenario():
         cid = await connected(service, servers)
@@ -812,14 +828,14 @@ def test_removed_rights_remove_the_tools(store, servers, tmp_path):
     run(scenario())
 
 
-def test_tools_per_answer_are_capped(store, servers, service):
+def test_tools_of_several_connectors_are_all_offered(store, servers, service):
     servers.tools = [{"name": f"t{i}", "annotations": {"readOnlyHint": True}} for i in range(40)]
 
     async def scenario():
         for n in range(4):
             created = await service.create("dora", bearer(name=f"K{n}"))
             await service.connect("dora", created["id"], "tok-1")
-        assert len(Harness().box(service).specs()) == 80
+        assert len(Harness().box(service).specs()) == 160  # keine Grenze je Antwort (bis 0.59.0: 80)
     run(scenario())
 
 

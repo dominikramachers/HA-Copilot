@@ -47,8 +47,7 @@ AUTH_KINDS = ("none", "bearer", "header", "oauth")
 MODES = ("per_user", "shared")
 MAX_PRIVATE = 10
 MAX_GLOBAL = 30
-MAX_TOOLS = 40  # je Konnektor
-MAX_TOOLS_PER_ANSWER = 80
+MAX_TOOLS = 1000  # je Konnektor: nur Schutz vor einem fehlerhaften Server, keine Grenze im Alltag (bis 0.59.0: 40)
 MAX_SCHEMA_CHARS = 8000
 MAX_RESULT_CHARS = 40_000
 MAX_IMAGES = 4
@@ -792,7 +791,7 @@ class ConnectorToolbox:
                 if not state.get(tool["name"], read_only) or (self._read_only and not read_only):
                     continue
                 spec = self._make(row, tool)
-                if spec.name in used or len(out) >= MAX_TOOLS_PER_ANSWER:
+                if spec.name in used:
                     continue
                 used.add(spec.name)
                 out.append(spec)
