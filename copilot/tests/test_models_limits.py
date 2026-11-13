@@ -374,7 +374,7 @@ def test_web_search_blocks_become_actions_and_limits_are_reported(monkeypatch, t
         (2, "Websuche: zweite Suche", "running", "web"), (2, "Websuche: zweite Suche", "error", "web"),
     ]
     assert events[-1]["note"] == "Die Suche ist fehlgeschlagen."
-    assert limits == [{"status": "allowed_warning", "type": "five_hour", "resets_at": 1_900_000_000, "utilization": 0.81}]
+    assert limits == [{"status": "allowed_warning", "type": "five_hour", "resets_at": 1_900_000_000, "utilization": 0.81, "windows": {}}]
     assert seen["options"].model == "claude-opus-5-5" and seen["options"].tools == ["WebSearch"]
 
 
@@ -457,3 +457,71 @@ def test_probe_error_becomes_a_backend_error(monkeypatch, tmp_path):
 def test_subscription_means_token_without_api_key(tmp_path):
     assert ClaudeSdkBackend("tok", "claude-sonnet-5-5", tmp_path).subscription is True
     assert ClaudeSdkBackend("tok", "claude-sonnet-5-5", tmp_path, api_key="sk-ant-x").subscription is False  # der Schlüssel hat Vorrang
+
+
+def test_limit_info_reads_all_windows_from_unified_windows():
+    from claude_agent_sdk import RateLimitInfo
+
+    from app.backend import limit_info
+
+    # so meldet das Programm (ab 2.1.259) den Stand unterhalb der Warnschwelle: oben nur das Fenster, unten alle mit Verbrauch
+    raw = {"status": "allowed", "resetsAt": 1_900_000_000, "rateLimitType": "five_hour", "unifiedWindows": {
+        "five_hour": {"utilization": 0.12, "resetsAt": 1_900_000_000},
+        "seven_day": {"utilization": 0.2, "resetsAt": 1_900_500_000, "status": "allowed"},
+        "seven_day_overage_included": {"utilization": 0.5, "resetsAt": 1_900_500_000},  # unbekannte Fenster werden übergangen
+        "kaputt": "x",
+    }}
+    info = limit_info(RateLimitInfo("allowed", 1_900_000_000, "five_hour", None, raw=raw))
+    assert info["utilization"] is None and info["type"] == "five_hour"
+    assert info["windows"] == {
+        "five_hour": {"utilization": 0.12, "resets_at": 1_900_000_000, "status": None},
+        "seven_day": {"utilization": 0.2, "resets_at": 1_900_500_000, "status": "allowed"},
+    }
+    # ohne das Feld (ältere Programmversion) bleibt es leer
+    assert limit_info(RateLimitInfo("allowed", None, "five_hour"))["windows"] == {}
+    assert limit_info(RateLimitInfo("allowed", None, "five_hour", raw={"unifiedWindows": {"five_hour": {"utilization": True}}}))["windows"] == {}
+
+
+def test_one_event_updates_every_window_including_the_weekly_limit(tmp_path):
+    """Das Programm nennt oben nur das 5-Stunden-Fenster; das Wochenlimit steht nur in ``windows`` (Fehler: blieb auf altem Wert)."""
+    store = Store(tmp_path / "t.sqlite3")
+    now = [1_000_000.0]
+    state = LimitState(store, clock=lambda: now[0])
+    state.update({"status": "allowed", "type": "seven_day", "resets_at": 1_500_000, "utilization": 0.77})  # alter Stand vom Vortag
+    state.update({"status": "allowed", "type": "five_hour", "resets_at": 1_005_000, "utilization": None, "windows": {
+        "five_hour": {"utilization": 0.04, "resets_at": 1_005_000, "status": None},
+        "seven_day": {"utilization": 0.2, "resets_at": 1_500_000, "status": "allowed"},
+    }})
+    rows = {r["type"]: r for r in state.overview()}
+    assert rows["five_hour"]["utilization"] == 0.04 and rows["seven_day"]["utilization"] == 0.2
+    # gespeichert: übersteht einen Neustart
+    assert {r["type"]: r["utilization"] for r in LimitState(store, clock=lambda: now[0]).overview()} == {"five_hour": 0.04, "seven_day": 0.2}
+    store.close()
+
+
+def test_window_without_status_keeps_a_still_valid_warning_of_another_window(tmp_path):
+    store = Store(tmp_path / "t.sqlite3")
+    state = LimitState(store, clock=lambda: 1_000_000.0)
+    state.update({"status": "allowed_warning", "type": "seven_day", "resets_at": 1_500_000, "utilization": 0.9})
+    state.update({"status": "allowed", "type": "five_hour", "resets_at": 1_005_000, "windows": {
+        "five_hour": {"utilization": 0.1, "resets_at": 1_005_000, "status": None},
+        "seven_day": {"utilization": 0.91, "resets_at": 1_500_000, "status": None},
+    }})
+    assert [(w["type"], w["status"]) for w in state.current()] == [("seven_day", "allowed_warning")]  # Warnung bleibt
+    # nach der Rücksetzung des Wochenfensters (neue Rücksetzzeit) ist sie weg
+    state.update({"status": "allowed", "type": "five_hour", "resets_at": 1_005_000, "windows": {
+        "seven_day": {"utilization": 0.02, "resets_at": 2_100_000, "status": None},
+    }})
+    assert state.current() == []
+    store.close()
+
+
+def test_missing_number_keeps_the_last_value_of_the_same_window(tmp_path):
+    store = Store(tmp_path / "t.sqlite3")
+    state = LimitState(store, clock=lambda: 1_000_000.0)
+    state.update({"status": "allowed", "type": "five_hour", "resets_at": 1_005_000, "utilization": 0.3})
+    state.update({"status": "allowed", "type": "five_hour", "resets_at": 1_005_000, "utilization": None})  # ältere Programmversion
+    assert state.overview()[0]["utilization"] == 0.3
+    state.update({"status": "allowed", "type": "five_hour", "resets_at": 1_023_000, "utilization": None})  # neues Fenster
+    assert state.overview()[0]["utilization"] is None
+    store.close()

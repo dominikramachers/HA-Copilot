@@ -143,6 +143,32 @@ class BackendError(Exception):
         self.resets_at = resets_at  # bei erreichtem Nutzungslimit: wann es zurückgesetzt wird (Unix-Zeit)
 
 
+WINDOW_KINDS = ("five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet")
+
+
+def limit_windows(info) -> dict[str, dict]:
+    """Stand aller Fenster aus ``unifiedWindows`` (neuere Programmversionen, bei jeder Meldung, auch unterhalb der Warnschwelle).
+
+    Das Feld der obersten Ebene nennt nur das Fenster, das gerade am engsten ist, und trägt den Verbrauch nur bei einer Warnung.
+    Das SDK kennt ``unifiedWindows`` nicht als eigenes Feld, es steht unverändert in ``raw``."""
+    raw = getattr(info, "raw", None)
+    windows = raw.get("unifiedWindows") if isinstance(raw, dict) else None
+    out: dict[str, dict] = {}
+    for kind, item in (windows.items() if isinstance(windows, dict) else ()):
+        if kind not in WINDOW_KINDS or not isinstance(item, dict):
+            continue
+        utilization, resets = item.get("utilization"), item.get("resetsAt")
+        if isinstance(utilization, bool) or not isinstance(utilization, (int, float)):
+            continue
+        status = item.get("status")
+        out[kind] = {
+            "utilization": float(utilization),
+            "resets_at": int(resets) if isinstance(resets, (int, float)) and not isinstance(resets, bool) and resets else None,
+            "status": status if status in ("allowed", "allowed_warning", "rejected") else None,
+        }
+    return out
+
+
 def limit_info(info) -> dict:
     """Angaben des Programms zum Nutzungslimit des Abos in ein einfaches Wörterbuch."""
     utilization = getattr(info, "utilization", None)
@@ -151,6 +177,7 @@ def limit_info(info) -> dict:
         "type": str(getattr(info, "rate_limit_type", "") or ""),
         "resets_at": int(info.resets_at) if getattr(info, "resets_at", None) else None,
         "utilization": float(utilization) if isinstance(utilization, (int, float)) else None,
+        "windows": limit_windows(info),
     }
 
 

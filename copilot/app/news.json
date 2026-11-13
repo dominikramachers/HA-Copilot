@@ -11,6 +11,16 @@
           "title": "All tools of your connectors",
           "text": "I can now use all the tools of a connected service, not just the first 40. You can switch on all change tools with one button. I still ask before every change."
         }
+      },
+      {
+        "de": {
+          "title": "Limit stimmt jetzt",
+          "text": "Unter „Nutzung“ zeige ich dein Sitzungs- und Wochenlimit jetzt mit dem echten Stand. Er aktualisiert sich nach jeder Antwort und mit „Jetzt prüfen“, auch das Wochenlimit."
+        },
+        "en": {
+          "title": "Limit is now correct",
+          "text": "Under “Usage” I now show your session and weekly limit with the real status. It updates after every answer and with “Check now”, including the weekly limit."
+        }
       }
     ]
   },
