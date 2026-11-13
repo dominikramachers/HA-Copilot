@@ -21,6 +21,16 @@
           "title": "Writing styles tidied up",
           "text": "In the settings, the list of writing styles is now more compact, with more space below the default style. That makes it quicker to find what you are looking for."
         }
+      },
+      {
+        "de": {
+          "title": "Limit mit einem Klick prüfen",
+          "text": "Läuft die KI über dein Claude-Abo, gibt es unter „Nutzung“ den Knopf „Jetzt prüfen“. Ich frage dann kurz bei Claude nach und zeige dir den aktuellen Stand deines Limits."
+        },
+        "en": {
+          "title": "Check your limit with one click",
+          "text": "If the AI runs through your Claude subscription, “Usage” has a “Check now” button. I then ask Claude briefly and show you the current status of your limit."
+        }
       }
     ]
   },

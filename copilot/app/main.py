@@ -107,6 +107,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 INGRESS_PORT = int(os.environ.get("COPILOT_PORT", "8099"))
 PUBLIC_PORT = 8100
 
+PROBE_COOLDOWN = 60  # Sekunden zwischen zwei „Jetzt prüfen“-Anfragen (für alle Personen zusammen)
 MAX_PARALLEL = 2  # gleichzeitige KI-Anfragen insgesamt (jede startet einen eigenen Prozess)
 REQUEST_TIMEOUT = 600  # Sekunden
 TOOL_EXTRA_TIMEOUT = 1500  # zusätzlich, wenn die KI Home Assistant benutzen darf (Rückfragen dauern)
@@ -1461,6 +1462,38 @@ def register_chat_routes(
         """Warnungen zum Nutzungslimit des Abos (leer, solange alles in Ordnung ist)."""
         return limits.current()
 
+    def is_subscription() -> bool:
+        """Zugang über das Claude-Abo (nicht über einen API-Schlüssel, der Vorrang hat und nach Verbrauch abgerechnet wird)."""
+        flag = getattr(backend, "subscription", None)
+        if flag is not None:
+            return bool(flag)
+        return settings.backend == "claude" and bool(settings.claude_oauth_token) and not settings.anthropic_api_key
+
+    probe = {"at": 0.0, "lock": asyncio.Lock()}
+
+    @app.post("/api/usage/refresh", dependencies=[Depends(write_guard)])
+    async def usage_refresh(profile: Profile = Depends(current_profile)) -> dict:
+        """„Jetzt prüfen“: eine winzige Anfrage, damit Claude den aktuellen Stand der Abo-Fenster meldet (nur mit Abo, höchstens einmal pro Minute für alle)."""
+        probe_limits = getattr(backend, "probe_limits", None)
+        if not is_subscription() or probe_limits is None:
+            raise HTTPException(status_code=409, detail=tr("Das Nutzungslimit gibt es nur mit einem Claude-Abo."))
+        async with probe["lock"]:
+            wait = int(PROBE_COOLDOWN - (time.monotonic() - probe["at"]))
+            if probe["at"] and wait > 0:
+                return {"checked": False, "retry_in": wait, "windows": limits.overview()}
+            usagelib.bind(store, profile.id)
+            try:
+                got = await probe_limits(limits.update)
+            except BackendError as exc:
+                raise HTTPException(status_code=502, detail=exc.user_message) from exc
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log.warning("Limit-Prüfung fehlgeschlagen", exc_info=True)
+                raise HTTPException(status_code=502, detail=tr("Die Verbindung zu Claude ist fehlgeschlagen.")) from exc
+            probe["at"] = time.monotonic()
+        return {"checked": True, "reported": got, "retry_in": PROBE_COOLDOWN, "windows": limits.overview(), "limits": limits.current()}
+
     @app.get("/api/usage")
     def usage(profile: Profile = Depends(current_profile)) -> dict:
         """Seite „Nutzung“: Stand des Abo-Limits sowie ChatGPT-Token und Bilder des Monats, jeweils für alle Personen zusammen (für jede Person gleich)."""
@@ -1469,7 +1502,7 @@ def register_chat_routes(
         return {
             "limits": limits.current(),
             "windows": limits.overview(),
-            "subscription": settings.backend == "claude" and bool(settings.claude_oauth_token),
+            "subscription": is_subscription(),
             # Bilder und ChatGPT zählen für alle Personen zusammen (ein API-Konto, ein Limit): jede Person sieht dieselben Zahlen
             "images": {"enabled": generate, "month": month, "used": store.image_usage_total(month) if generate else 0, "limit": settings.image_limit_month},
             "openai": {

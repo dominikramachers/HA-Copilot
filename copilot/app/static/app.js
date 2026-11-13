@@ -8369,6 +8369,9 @@ function usageBar(fraction, tone = "") {
 }
 
 // Bausteine der Seite „Nutzung“. Alles gilt für alle Personen im Add-on zusammen: jede Person sieht dieselben Zahlen.
+// „Jetzt prüfen“ (nur mit Claude-Abo): Zustand bleibt hier, weil die Seite sich beim Abfragen neu aufbaut
+const usageProbe = { busy: false, note: "", run: null };
+
 function usageBlocks(data) {
   const parts = [];
 
@@ -8403,6 +8406,15 @@ function usageBlocks(data) {
     if (w.seen_at && !w.expired) info.push(tr("Stand: {0}", ago(w.seen_at)));
     row.append(node("span", "usage-sub", info.join(" · ")));
     plan.append(row);
+  }
+  if (data.subscription && usageProbe.run) {
+    const check = node("button", "pill ghost small", usageProbe.busy ? tr("Prüfe …") : tr("Jetzt prüfen"));
+    check.type = "button";
+    check.disabled = usageProbe.busy;
+    check.title = tr("Schickt eine winzige Anfrage an Claude, damit der aktuelle Stand gemeldet wird.");
+    check.addEventListener("click", () => usageProbe.run());
+    plan.append(check);
+    if (usageProbe.note) plan.append(node("p", "mem-hint", usageProbe.note));
   }
   plan.append(node("p", "mem-hint", tr("Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Claude meldet den Stand mit jeder Antwort der KI, egal an wen; die Seite holt ihn alle paar Sekunden ab. Was außerhalb des Add-ons verbraucht wird (zum Beispiel in der Claude-App), erscheint erst mit der nächsten Antwort.")));
   parts.push(plan);
@@ -8445,6 +8457,24 @@ async function settingsUsage(body, alive) {
   let ready = false;
   let busy = false;
   let signature = "";
+  let latest = null;
+  usageProbe.run = async () => {
+    if (usageProbe.busy) return;
+    usageProbe.busy = true;
+    usageProbe.note = "";
+    if (latest) live.replaceChildren(...usageBlocks(latest));
+    try {
+      const result = await api("api/usage/refresh", { method: "POST" });
+      if (!result.checked) usageProbe.note = tr("Der Stand wurde gerade erst geprüft. Nächste Prüfung in {0} s.", result.retry_in);
+      else if (!result.reported) usageProbe.note = tr("Claude hat diesmal keinen neuen Stand gemeldet. Er erscheint mit der nächsten Antwort der KI.");
+      else usageProbe.note = tr("Der Stand ist aktuell.");
+    } catch (err) {
+      usageProbe.note = errorText(err, tr("Die Prüfung hat nicht geklappt."));
+    }
+    usageProbe.busy = false;
+    signature = "";
+    if (alive()) await pull();
+  };
   const pull = async () => {
     if (busy) return;
     busy = true;
@@ -8452,7 +8482,8 @@ async function settingsUsage(body, alive) {
       const data = await api("api/usage");
       if (!alive()) return;
       // „Stand: vor 3 Min.“ ändert sich mit der Zeit, deshalb zählt die Minute zur Unterscheidung
-      const sig = JSON.stringify({ ...data, server_time: 0, minute: Math.floor(Date.now() / 60000) });
+      latest = data;
+      const sig = JSON.stringify({ ...data, server_time: 0, minute: Math.floor(Date.now() / 60000), probe: [usageProbe.busy, usageProbe.note] });
       if (sig !== signature) { signature = sig; live.replaceChildren(...usageBlocks(data)); }
       fresh.textContent = tr("Aktualisiert sich automatisch · zuletzt abgefragt um {0} Uhr", new Date().toLocaleTimeString(kiLocale, { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
       if (!ready) {

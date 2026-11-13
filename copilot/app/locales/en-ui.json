@@ -1201,5 +1201,12 @@
  "Die Nutzung ist gerade nicht erreichbar. Ich versuche es weiter.": "Usage is not available right now. I will keep trying.",
  "Zurückgesetzt {0}": "Reset {0}",
  "Zählt Eingabe und Ausgabe aller Chats mit ChatGPT-Modellen, von allen Personen zusammen. Titel und Zusammenfassungen zählen nicht mit. Ist das Limit erreicht, fragt der Chat vor jeder weiteren Antwort nach. Der Zähler beginnt jeden Monat neu.": "Counts input and output of all chats with ChatGPT models, from everyone together. Titles and summaries do not count. Once the limit is reached, the chat asks before every further answer. The counter starts over every month.",
- "Zählt Fotos und Kunstbilder von OpenAI oder Google, von allen Personen zusammen. Einfache Grafiken (SVG) kosten nichts und zählen nicht.": "Counts photos and artwork from OpenAI or Google, from everyone together. Simple graphics (SVG) cost nothing and do not count."
+ "Zählt Fotos und Kunstbilder von OpenAI oder Google, von allen Personen zusammen. Einfache Grafiken (SVG) kosten nichts und zählen nicht.": "Counts photos and artwork from OpenAI or Google, from everyone together. Simple graphics (SVG) cost nothing and do not count.",
+ "Prüfe …": "Checking …",
+ "Jetzt prüfen": "Check now",
+ "Schickt eine winzige Anfrage an Claude, damit der aktuelle Stand gemeldet wird.": "Sends a tiny request to Claude so that it reports the current status.",
+ "Der Stand wurde gerade erst geprüft. Nächste Prüfung in {0} s.": "The status was just checked. Next check in {0} s.",
+ "Claude hat diesmal keinen neuen Stand gemeldet. Er erscheint mit der nächsten Antwort der KI.": "Claude did not report a new status this time. It will appear with the next answer from the AI.",
+ "Der Stand ist aktuell.": "The status is up to date.",
+ "Die Prüfung hat nicht geklappt.": "The check did not work."
 }

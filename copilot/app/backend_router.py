@@ -48,3 +48,11 @@ class RouterBackend:
     def sweep(self) -> int:
         sweep = getattr(self.claude, "sweep", None)
         return sweep() if sweep else 0
+
+    @property
+    def subscription(self) -> bool:
+        return bool(getattr(self.claude, "subscription", False))
+
+    async def probe_limits(self, on_limit: Any) -> bool:
+        probe = getattr(self.claude, "probe_limits", None)
+        return await probe(on_limit) if probe else False

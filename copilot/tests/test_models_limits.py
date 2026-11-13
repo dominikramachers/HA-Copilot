@@ -423,3 +423,37 @@ def test_system_prompt_mentions_web_only_when_enabled():
     assert "WebSearch" in compose_system(None, "", tools=False, web=True)
     assert "keinen Zugriff auf Dateien, Geräte oder das Netzwerk; " in compose_system(None, "", tools=False, web=False)
     assert be.NO_TOOLS not in compose_system(None, "", tools=True, web=True)
+
+
+# ----------------------------------------------------------------------- „Jetzt prüfen“ (Abo-Stand abrufen)
+
+def test_probe_reports_the_limit_state_through_a_tiny_request(monkeypatch, tmp_path):
+    from claude_agent_sdk import RateLimitEvent, RateLimitInfo
+
+    def messages():
+        yield RateLimitEvent(RateLimitInfo("allowed", 1_900_000_000, "five_hour", 0.4), "u", "s")
+        yield RateLimitEvent(RateLimitInfo("allowed", 1_900_500_000, "seven_day", 0.1), "u", "s")
+        yield result()
+
+    seen: dict = {}
+    sdk(monkeypatch, messages, seen)
+    backend = ClaudeSdkBackend("tok", "claude-sonnet-5-5", tmp_path, title_model="claude-haiku-5-5")
+    got: list = []
+    assert run(backend.probe_limits(got.append)) is True
+    assert [g["type"] for g in got] == ["five_hour", "seven_day"] and got[0]["utilization"] == 0.4
+    assert seen["options"].model == "claude-haiku-5-5" and seen["options"].max_turns == 1  # kleinstes Modell, eine Runde
+
+    # meldet Claude nichts, sagt die Prüfung das ehrlich
+    sdk(monkeypatch, lambda: iter([result()]), seen)
+    assert run(backend.probe_limits(got.append)) is False
+
+
+def test_probe_error_becomes_a_backend_error(monkeypatch, tmp_path):
+    sdk(monkeypatch, lambda: iter([result(error=True, status=500)]), {})
+    with pytest.raises(BackendError):
+        run(ClaudeSdkBackend("tok", "claude-sonnet-5-5", tmp_path).probe_limits(lambda info: None))
+
+
+def test_subscription_means_token_without_api_key(tmp_path):
+    assert ClaudeSdkBackend("tok", "claude-sonnet-5-5", tmp_path).subscription is True
+    assert ClaudeSdkBackend("tok", "claude-sonnet-5-5", tmp_path, api_key="sk-ant-x").subscription is False  # der Schlüssel hat Vorrang
