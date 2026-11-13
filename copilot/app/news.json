@@ -14,6 +14,16 @@
       },
       {
         "de": {
+          "title": "Neuer Hintergrund im Chat",
+          "text": "Mein Chat bekommt ein feines, ruhiges Muster im Hintergrund. Unter Einstellungen, Allgemein, Design suchst du dir Punkte, Waben, Pluszeichen oder gar kein Muster aus. Die Farben kommen von deinem Theme."
+        },
+        "en": {
+          "title": "A new look behind the chat",
+          "text": "My chat gets a fine, calm pattern in the background. Under Settings, General, Design you choose dots, honeycomb, plus signs or no pattern at all. The colors come from your theme."
+        }
+      },
+      {
+        "de": {
           "title": "Limit stimmt jetzt",
           "text": "Unter „Nutzung“ zeige ich dein Sitzungs- und Wochenlimit jetzt mit dem echten Stand. Er aktualisiert sich nach jeder Antwort und mit „Jetzt prüfen“, auch das Wochenlimit."
         },

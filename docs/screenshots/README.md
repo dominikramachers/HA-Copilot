@@ -9,6 +9,9 @@ Alle Bilder zeigen eine Test-Instanz von Home Assistant mit Demo-Geräten und di
 | `ha-copilot-doralab.png`, `…-dunkel.png` | Dasselbe mit einem eigenen Theme („DORALAB“, nur Farben) statt dem Standard-Theme von Home Assistant |
 | `nachricht-zeit.png`, `nachricht-bearbeiten.png`, `antwort-zeit.png` | Eigene Nachricht mit Zeitpunkt, Bearbeiten und Kopieren; der Editor; Antwort mit Kopieren, „Als Datei“ und Zeitpunkt |
 | `bild-fassungen.png`, `bild-erzeugen.png`, `bild-vorschau.png`, `bild-rueckfrage.png` | Zwei Fassungen eines erzeugten Bildes im Chat; Platzhalter „Bild wird erzeugt …“; die Bildvorschau; Rückfrage über dem Monatslimit |
+| `design-einstellung.png` | Einstellungen → Allgemein → Design mit den vier Mustern |
+| `design-punktraster.png`, `design-mikro-wabe.png`, `design-plus-raster.png` | Die drei Hintergrund-Muster mit dem Theme DORALAB, links hell, rechts dunkel |
+| `themes-weitere.png` | Die vier weiteren Themes (Nordlicht, Dämmerung, Bernstein, Smaragd), oben hell, unten dunkel |
 | `einrichtungspruefung.png` | Einrichtungsprüfung (Einstellungen) |
 | `suche.png` | Suche über alle eigenen Chats |
 | `geplant.png` | Geplante Aufgaben |

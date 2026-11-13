@@ -1521,3 +1521,70 @@ select.art-lib-project { flex: none; width: auto; min-width: 150px; max-width: 4
 .dev-text span { font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
 .dev-row .pill { flex: none; min-height: 44px; }
 @media (max-width: 520px) { .dev-row { flex-wrap: wrap; } .dev-row .pill { margin-left: 34px; } }
+
+/* ---------- Hintergrund-Muster (Einstellungen → Allgemein → Design) ----------
+   Ein feines, ruhiges Muster hinter dem Chat. Die Farben kommen ausschließlich aus --accent, --text und --bg, also aus dem aktiven
+   Home-Assistant-Theme (hell und dunkel); es gibt keine eigenen Farbwerte. Das Muster ist ein Stempel (mask) in Textfarbe, der zu zwei
+   gegenüberliegenden Ecken hin sichtbar wird und in der Mitte ausläuft, dazu ein leises Leuchten in der Akzentfarbe.
+   Es steht still (keine Bewegung) und liegt hinter allem; custom.css kann es mit  :root { --dz-a: 0% }  oder  .main::after { display: none }  abschalten.
+   "plain" (Schlicht) zeichnet nichts. */
+:root[data-design="dots"], .design-swatch[data-d="dots"] {
+  --dz-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='8' cy='8' r='1.15'/%3E%3C/svg%3E");
+  --dz-size: 16px 16px; --dz-a: 15%;
+}
+:root[data-design="hex"], .design-swatch[data-d="hex"] {
+  --dz-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='19.053' height='33'%3E%3Cpath d='M9.526 0L19.053 5.5V16.5L9.526 22L0 16.5V5.5ZM9.526 22V33' fill='none' stroke='%23000' stroke-width='.8'/%3E%3C/svg%3E");
+  --dz-size: 19.053px 33px; --dz-a: 17%;
+}
+:root[data-design="plus"], .design-swatch[data-d="plus"] {
+  --dz-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M14 11V17M11 14H17' fill='none' stroke='%23000' stroke-linecap='round'/%3E%3C/svg%3E");
+  --dz-size: 28px 28px; --dz-a: 26%;
+}
+:root[data-theme="dark"][data-design="dots"], :root[data-theme="dark"] .design-swatch[data-d="dots"] { --dz-a: 20%; }
+:root[data-theme="dark"][data-design="hex"], :root[data-theme="dark"] .design-swatch[data-d="hex"] { --dz-a: 20%; }
+:root[data-theme="dark"][data-design="plus"], :root[data-theme="dark"] .design-swatch[data-d="plus"] { --dz-a: 30%; }
+
+/* Leuchten (::before) und Muster (::after) liegen hinter dem Inhalt des Hauptbereichs; der Körper ist dafür durchsichtig (die Farbe trägt <html>). */
+:root[data-design]:not([data-design="plain"]) body { background: transparent; }
+:root[data-design]:not([data-design="plain"]) .main { position: relative; }
+:root[data-design]:not([data-design="plain"]) .main::before,
+:root[data-design]:not([data-design="plain"]) .main::after,
+.design-swatch:not([data-d="plain"])::before,
+.design-swatch:not([data-d="plain"])::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+:root[data-design]:not([data-design="plain"]) .main::before,
+:root[data-design]:not([data-design="plain"]) .main::after { z-index: -1; }
+:root[data-design]:not([data-design="plain"]) .main::before,
+.design-swatch:not([data-d="plain"])::before {
+  background:
+    radial-gradient(70% 60% at 100% 0%, color-mix(in srgb, var(--accent) var(--dz-glow-1, 7%), transparent), transparent 70%),
+    radial-gradient(65% 55% at 0% 100%, color-mix(in srgb, var(--accent) var(--dz-glow-2, 4%), transparent), transparent 72%);
+}
+:root[data-design]:not([data-design="plain"]) .main::after,
+.design-swatch:not([data-d="plain"])::after {
+  background-color: color-mix(in srgb, var(--text) var(--dz-a, 15%), transparent);
+  -webkit-mask-image: var(--dz-tile), linear-gradient(to bottom left, #000 0%, transparent 44%, transparent 56%, #000 100%);
+  mask-image: var(--dz-tile), linear-gradient(to bottom left, #000 0%, transparent 44%, transparent 56%, #000 100%);
+  -webkit-mask-size: var(--dz-size), 100% 100%;
+  mask-size: var(--dz-size), 100% 100%;
+  -webkit-mask-repeat: repeat, no-repeat;
+  mask-repeat: repeat, no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+/* Stärke des Leuchtens: oben rechts / unten links (--dz-glow-1 / --dz-glow-2) */
+:root[data-design], .design-swatch { --dz-glow-1: 7%; --dz-glow-2: 4%; }
+:root[data-theme="dark"][data-design], :root[data-theme="dark"] .design-swatch { --dz-glow-1: 11%; --dz-glow-2: 6%; }
+:root[data-design]:not([data-design="plain"]) .topbar { background: color-mix(in srgb, var(--sidebar) 62%, transparent); }
+@media (forced-colors: active) {
+  :root[data-design] .main::before, :root[data-design] .main::after { display: none; }
+}
+
+/* Auswahl in den Einstellungen: kleine Vorschau je Muster, gezeichnet mit denselben Regeln wie der Hintergrund */
+.design-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 8px; margin-top: 10px; }
+.design-opt { display: grid; gap: 6px; padding: 6px 6px 8px; border-radius: var(--r-2); border: 1px solid var(--line-2); text-align: center; font-size: 13px; font-weight: 500; color: var(--text-2); transition: background .15s, border-color .15s; }
+.design-opt:hover { background: var(--chip); }
+.design-opt[aria-pressed="true"] { border-color: var(--accent); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--accent) inset; }
+.design-swatch { position: relative; display: block; height: 52px; overflow: hidden; border-radius: calc(var(--r-2) - 3px); background: var(--bg); border: 1px solid var(--line); isolation: isolate; }
+.design-swatch::before, .design-swatch::after { z-index: 0; }
+.design-swatch::after { z-index: 1; }
+.design-row { flex-direction: column; align-items: stretch; gap: 0; }

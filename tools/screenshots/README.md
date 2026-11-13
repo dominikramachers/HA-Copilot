@@ -13,6 +13,7 @@ python -m venv venv && venv/bin/pip install homeassistant==2026.2.3 numpy pymicr
 pip install -r copilot/requirements.txt playwright && playwright install chromium
 
 mkdir work && cp -r tools/screenshots/ha_config work/hademo
+cp docs/themes/doralab-weitere.yaml work/hademo/themes/   # weitere Themes (für capture_design.py)
 venv/bin/hass -c work/hademo &                      # Test-Instanz auf Port 8123
 SHOT_WORK=work python tools/screenshots/ha_onboard.py work/ha_token.json
 python tools/screenshots/ha_dashboard.py work/ha_token.json
@@ -25,6 +26,7 @@ python tools/screenshots/capture_ha.py docs/screenshots        # Seitenleiste, D
 python tools/screenshots/capture_features.py docs/screenshots  # Einrichtungsprüfung, Suche, Geplant, Gedächtnis, Menü
 python tools/screenshots/capture_app.py docs/screenshots       # Chat allein, Handy, Englisch, Nachricht bearbeiten
 python tools/screenshots/capture_theme.py docs/screenshots     # dasselbe mit dem eigenen Theme DORALAB, hell und dunkel
+python tools/screenshots/capture_design.py docs/screenshots    # Design: die drei Hintergrund-Muster (hell/dunkel), Einstellungsseite, die vier weiteren Themes
 python tools/screenshots/capture_neu.py docs/screenshots       # Funktionen ab 0.56: Sprechen, Inkognito, Teilen, Deep Research, Projektwissen, Gedächtnis (Demo-App frisch starten)
 python tools/screenshots/capture_images.py docs/screenshots    # Bilder: Platzhalter, Fassungen, Bildvorschau, Rückfrage (Demo-App frisch starten; Limit der Demo: 2 Bilder)
 ```
