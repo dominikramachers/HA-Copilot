@@ -12,3 +12,5 @@ body.shared { overflow: auto; }
 .shared-error[hidden], .shared-note[hidden] { display: none; }
 .shared-page .thread { max-width: none; padding: 20px 0 8px; }
 .shared-foot { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.shared-code { margin: 10px 0 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--panel-2); font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; }
+.shared-copy { margin-top: 4px; }

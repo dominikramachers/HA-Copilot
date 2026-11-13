@@ -14,6 +14,7 @@ bei Änderungen) wird an den gewählten Anbieter übertragen.
 """
 from __future__ import annotations
 
+import contextlib
 import base64
 import logging
 import re
@@ -487,6 +488,8 @@ class ImageToolbox:
                 raise ImageError("Der Anbieter hat kein brauchbares Bild geliefert. Noch einmal versuchen.")
             file = self._store(tid, title or "bild", args.get("reference"), data, found[0], found[1], found[2], provider)
             self.store.image_usage_add(self.profile_id, self.month())
+            with contextlib.suppress(Exception):  # Verbrauchsprotokoll: nur Zähler, darf das Bild nie verhindern
+                self.store.usage_add(self.profile_id, provider, self.service.model_of(provider), kind="image", images=1)
         except ToolError as exc:
             self._event(tid, label, "error", str(exc)[:200])
             raise

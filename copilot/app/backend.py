@@ -20,6 +20,8 @@ from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Protocol
 
+from . import styles as stylelib
+from . import usage as usagelib
 from .i18n import language, tr
 from .attachments import Attachment, human_size, sweep_scratch, user_message, with_inline_text
 from .ha_tools import TOOL_NOTE, ToolError, ToolResult, ToolSpec
@@ -78,7 +80,7 @@ SUMMARY_MAX = 8000
 
 
 def compose_system(
-    instructions: str | None, note: str = "", tools: bool = False, web: bool = False, personal: str | None = None
+    instructions: str | None, note: str = "", tools: bool = False, web: bool = False, personal: str | None = None, style: str | None = None
 ) -> str:
     """Grundanweisung, Hinweise zur Sitzung (wer spricht, Rechte), eigene Anweisungen der Person und die des Projekts."""
     base = SYSTEM_PROMPT
@@ -95,6 +97,8 @@ def compose_system(
             "\n\nPersönliche Anweisungen des Nutzers für alle seine Chats (befolge sie, soweit sie den "
             "obigen Regeln nicht widersprechen):\n" + personal.strip()
         )
+    if style and style.strip():
+        base += "\n\n" + stylelib.block(style)
     if not instructions or not instructions.strip():
         return base
     return (
@@ -271,11 +275,13 @@ class EchoBackend:
         note: str = "",
         model: str | None = None,
         personal_instructions: str | None = None,
+        style: str | None = None,
         **_: object,
     ) -> AsyncIterator[str]:
         files = "".join(f" [Datei: {a.name}, {human_size(a.size)}]" for a in attachments or [])
         rules = f" [Projektanweisungen: {len(instructions)} Zeichen]" if instructions else ""
         rules += f" [Persönliche Anweisungen: {len(personal_instructions)} Zeichen]" if personal_instructions else ""
+        rules += f" [Stil: {style[:30]}]" if style else ""
         text = f"Echo ({effort}, {len(history)} frühere Nachrichten): {message}{files}{rules}"
         if tools:
             text += f" [Werkzeuge: {len(tools)}]"
@@ -287,6 +293,9 @@ class EchoBackend:
 
     async def title(self, user_text: str, answer: str) -> str | None:
         return clean_title(" ".join(user_text.split()[:5]))
+
+    async def describe_style(self, text: str) -> str | None:
+        return stylelib.clean("Schreibe knapp und sachlich in kurzen Sätzen. (Beispielbeschreibung des Testmodus.)") if text.strip() else None
 
     async def summarize(self, previous: str | None, messages: list[dict]) -> str | None:
         points = [f"- {' '.join(m['content'].split()[:8])}" for m in messages if m["role"] == "user"]
@@ -434,6 +443,7 @@ class ClaudeSdkBackend:
         next_id: Callable[[], int] | None = None,
         on_limit: Callable[[dict], None] | None = None,
         personal_instructions: str | None = None,
+        style: str | None = None,
         **_: object,
     ) -> AsyncIterator[str]:
         from claude_agent_sdk import (
@@ -464,7 +474,7 @@ class ClaudeSdkBackend:
                 request = one_message()
             else:
                 request = prompt
-            options = self._options(effort, model=model, system=compose_system(instructions, note, bool(tools), web, personal_instructions), tools=tools, web=web)
+            options = self._options(effort, model=model, system=compose_system(instructions, note, bool(tools), web, personal_instructions, style), tools=tools, web=web)
             stream = query(prompt=request, options=options)
             async with contextlib.aclosing(stream) as messages:
                 async for msg in messages:
@@ -501,6 +511,7 @@ class ClaudeSdkBackend:
                             except Exception:
                                 log.warning("Limit-Angabe konnte nicht verarbeitet werden", exc_info=True)
                     elif isinstance(msg, ResultMessage):
+                        usagelib.report_claude(msg)
                         if msg.is_error or error_code:
                             log.warning(
                                 "Claude-Fehler: code=%s status=%s subtype=%s",
@@ -536,8 +547,10 @@ class ClaudeSdkBackend:
                     if msg.error:
                         error_code = msg.error
                     text = "".join(b.text for b in msg.content if isinstance(b, TextBlock))
-                elif isinstance(msg, ResultMessage) and (msg.is_error or error_code):
-                    raise BackendError(map_error(error_code, msg.api_error_status))
+                elif isinstance(msg, ResultMessage):
+                    usagelib.report_claude(msg)
+                    if msg.is_error or error_code:
+                        raise BackendError(map_error(error_code, msg.api_error_status))
         return text
 
     async def title(self, user_text: str, answer: str) -> str | None:
@@ -552,6 +565,17 @@ class ClaudeSdkBackend:
             raise
         except Exception:
             log.warning("Chat-Titel konnte nicht erzeugt werden", exc_info=True)
+            return None
+
+    async def describe_style(self, text: str) -> str | None:
+        """Schreibstil aus Beispieltexten der Person ableiten (kleines Modell); ``None`` bei Misserfolg."""
+        prompt = "Texte der Person (Beispiele ihres Schreibens):\n\n" + text[: stylelib.LEARN_MAX] + "\n\nBeschreibe jetzt ihren Schreibstil als Anweisung."
+        try:
+            return stylelib.clean(await self._complete(prompt, stylelib.LEARN_PROMPT, self._title_model))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.warning("Schreibstil konnte nicht abgeleitet werden", exc_info=True)
             return None
 
     async def summarize(self, previous: str | None, messages: list[dict]) -> str | None:

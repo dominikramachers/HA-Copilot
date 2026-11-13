@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Literal
 
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from starlette.datastructures import Headers
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -42,6 +42,9 @@ from . import attachments as filelib, compact, safety
 from . import news as newslib
 from . import quotes
 from . import research as researchlib
+from . import styles as stylelib
+from . import artifacts as artifactlib
+from . import usage as usagelib
 from . import i18n
 from .i18n import tr
 from .previews import MAX_CHARS as PREVIEW_MAX_CHARS, PREVIEW_HEADERS, PreviewStore
@@ -72,7 +75,7 @@ from . import memory_import as memlib
 from .context_tools import (
     CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, PROJECT_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
 )
-from .ha_tools import HaToolbox
+from .ha_tools import HaToolbox, ToolError
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
 from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox, clean_name
 from . import exporter
@@ -87,7 +90,7 @@ from .github_accounts import AccountError, GithubAccounts
 from . import connector_catalog, connector_icons
 from .connectors import ConnectorError, ConnectorService, ConnectorToolbox
 from .vault import Vault
-from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_RIGHT, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
+from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
 from .ha_scan import OverviewScanner
 from .db import INSTRUCTIONS_MAX, Store
 from .ha_login import HaLoginClient, HaLoginError
@@ -186,6 +189,12 @@ class FileBody(BaseModel):
     pasted: bool = False  # eingefügter langer Text (Textanhang der Person selbst, bleibt im Chat stehen)
 
 
+class ArtifactBody(BaseModel):
+    content: str | None = Field(default=None, max_length=artifactlib.CONTENT_MAX)
+    title: str | None = Field(default=None, max_length=artifactlib.TITLE_MAX)
+    restore: int | None = Field(default=None, ge=1, le=100_000)  # Inhalt dieser Version als neue Version übernehmen
+
+
 class PreviewBody(BaseModel):
     html: str = Field(min_length=1, max_length=PREVIEW_MAX_CHARS)
 
@@ -239,16 +248,38 @@ class SendBody(BaseModel):
     files: list[FileBody] = Field(default_factory=list, max_length=filelib.MAX_FILES)
     # Eine frühere eigene Frage bearbeiten: sie und alles danach werden durch diese Nachricht und die neue Antwort ersetzt.
     edit_message_id: int | None = Field(default=None, ge=1)
+    # Mit ``edit_message_id``: dieselbe letzte Frage noch einmal stellen, die bisherige Antwort bleibt als Fassung erhalten (bis 10)
+    regenerate: bool = False
     # Markierter Ausschnitt einer früheren Antwort, auf den sich die Nachricht bezieht (wird als Zitatblock vorangestellt, siehe quotes.py)
     quote: str | None = Field(default=None, max_length=quotes.QUOTE_MAX * 2)
     # Gesprochene Nachricht: schnelles Modell, kurze Antwort zum Vorlesen, weniger Werkzeuge, Rückfragen werden abgelehnt
     voice: bool = False
     # Deep Research für diese Nachricht (mehrstufige Recherche mit Quellenbericht, siehe research.py)
     research: bool = False
+    # Schreibstil dieses Chats: '' = Standard der Person, "none" = ohne Stil, "preset:…" oder Kennung eines eigenen Stils; None = unverändert
+    style: str | None = Field(default=None, max_length=40)
 
 
 class _Declined(Exception):
     """Die Person hat eine Rückfrage vor dem Start der Antwort abgelehnt (z. B. Monatslimit für ChatGPT)."""
+
+
+class AnswerVersionBody(BaseModel):
+    index: int = Field(ge=1, le=Store.VERSIONS_MAX)
+
+
+class StyleBody(BaseModel):
+    name: str = Field(min_length=1, max_length=stylelib.NAME_MAX)
+    description: str = Field(default="", max_length=stylelib.DESC_MAX)
+    instructions: str = Field(min_length=1, max_length=stylelib.STYLE_MAX)
+
+
+class StyleLearnBody(BaseModel):
+    text: str = Field(min_length=1, max_length=stylelib.LEARN_MAX)
+
+
+class StyleDefaultBody(BaseModel):
+    style: str = Field(default="", max_length=40)
 
 
 class DefaultModelBody(BaseModel):
@@ -307,6 +338,7 @@ class PatchChatBody(BaseModel):
 
     title: str | None = Field(default=None, min_length=1, max_length=120)
     pinned: bool | None = None
+    archived: bool | None = None  # True = ins Archiv (nimmt die Anheftung weg), False = zurück in die Liste
     unread: bool | None = None
     project_id: str | None = Field(default=None, max_length=64)
     keep: bool | None = None  # True = Sprachgespräch als normalen Chat behalten (erscheint in der Chatliste)
@@ -355,6 +387,8 @@ class PatchScheduleBody(BaseModel):
 SMALL_BODY_BYTES = 128 * 1024  # alle Anfragen außer dem Senden mit Dateien
 SEND_PATH = re.compile(r"^/api/chats/[^/]+/send$")
 PREVIEW_PATH = re.compile(r"^/api/previews$")
+ARTIFACT_PATH = re.compile(r"^/api/artifacts/[0-9a-f]{12}$")
+ARTIFACT_BODY_BYTES = 700_000  # CONTENT_MAX Zeichen, im Anfragetext als JSON mit Maskierungen
 KNOWLEDGE_PATH = re.compile(r"^/api/projects/[^/]+/knowledge$")
 KNOWLEDGE_BODY_BYTES = knowlib.MAX_BASE64_CHARS + 64 * 1024
 SKILLS_PATH = re.compile(r"^/api/skills(/preview)?$")
@@ -388,6 +422,7 @@ class BodyLimit:
         big = (
             filelib.MAX_BODY_BYTES if SEND_PATH.match(scope["path"])
             else PREVIEW_BODY_BYTES if PREVIEW_PATH.match(scope["path"])
+            else ARTIFACT_BODY_BYTES if ARTIFACT_PATH.match(scope["path"])
             else KNOWLEDGE_BODY_BYTES if KNOWLEDGE_PATH.match(scope["path"])
             else skilllib.MAX_BASE64_CHARS + 64 * 1024 if SKILLS_PATH.match(scope["path"])
             else PLUGINS_BODY_BYTES if PLUGINS_PATH.match(scope["path"])
@@ -594,6 +629,8 @@ class Run:
             self.actions[event["id"]] = {k: event.get(k, "") for k in ("label", "kind", "status", "note")}
             if event.get("file"):
                 self.actions[event["id"]]["file"] = event["file"]
+            if event.get("artifact"):
+                self.actions[event["id"]]["artifact"] = event["artifact"]
             if event.get("link"):
                 self.actions[event["id"]]["link"] = event["link"]
             if event.get("undo"):
@@ -877,9 +914,8 @@ def register_chat_routes(
 
     def github_level(profile: Profile) -> str:
         """Stufe des Zugriffs auf GitHub für diese Person (none, read, write)."""
-        if not accounts.enabled_for(profile.id):
-            return "none"
-        return profile.github_access or settings.github_access_default
+        # Jede Person darf, sobald sie ihr eigenes Konto verbunden hat; Änderungen fragen im Chat immer nach.
+        return "write" if accounts.enabled_for(profile.id) else "none"
 
     def household_writable(profile: Profile) -> bool:
         """Darf diese Person das Haushaltsgedächtnis ändern? (Einstellung der Konfiguration, unabhängig vom Zugangsweg)"""
@@ -909,9 +945,18 @@ def register_chat_routes(
             raise HTTPException(status_code=404, detail=tr("Nicht verfügbar"))
         return research_state(profile)
 
+    async def is_admin(profile: Profile) -> bool:
+        """Administrator der App: im Profil eingetragen (``admin``) oder Administrator in Home Assistant."""
+        if profile.admin:
+            return True
+        ha_id = registry.ha_id_of(profile) if registry else profile.ha_user_id.lower()
+        lookup = getattr(ha, "admin_ids", None)
+        return bool(ha_id and lookup is not None and ha_id in await lookup())
+
     @app.get("/api/me")
-    def me(profile: Profile = Depends(current_profile)) -> dict:
+    async def me(profile: Profile = Depends(current_profile)) -> dict:
         return {
+            "usage_all": await is_admin(profile),  # darf die Verbrauchsübersicht „Alle Personen“ sehen
             "id": profile.id,
             "label": profile.label,
             "picture": bool(profile.ha_user_id) and ha is not None and ha.enabled,
@@ -921,7 +966,6 @@ def register_chat_routes(
             "notices": health.notices() if health else [],
             "ha_access": ha_level(profile),
             "github": github_level(profile),
-            "github_connect": (profile.github_access or settings.github_access_default) != "none",
             "web": settings.web_level(profile) == "on",
             "voice": voice_allowed(profile),
             "voice_wake": settings.app_name if voice_allowed(profile) else "",
@@ -957,6 +1001,79 @@ def register_chat_routes(
         if not found:
             raise HTTPException(status_code=404, detail="kein Profilbild")
         return Response(found[0], media_type=found[1], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
+    def style_known(profile: Profile, style_id: str) -> bool:
+        return style_id in ("", stylelib.NONE) or stylelib.is_preset(style_id) or store.style_get(profile.id, style_id) is not None
+
+    def style_text(profile: Profile, style_id: str) -> str:
+        """Anweisungstext des Stils, der in diesem Chat gilt ('' = Standard der Person, 'none' = keiner)."""
+        sid = style_id or store.profile_default_style(profile.id)
+        if not sid or sid == stylelib.NONE:
+            return ""
+        if stylelib.is_preset(sid):
+            return stylelib.preset_rules(sid)
+        own = store.style_get(profile.id, sid)
+        return own["instructions"] if own else ""
+
+    @app.get("/api/styles")
+    def list_styles(profile: Profile = Depends(current_profile)) -> dict:
+        default = store.profile_default_style(profile.id)
+        if default and not style_known(profile, default):
+            default = ""
+        return {
+            "presets": stylelib.presets(),
+            "own": [{**s, "preset": False} for s in store.style_list(profile.id)],
+            "default": default,
+            "max": stylelib.MAX_OWN, "limits": {"name": stylelib.NAME_MAX, "description": stylelib.DESC_MAX, "instructions": stylelib.STYLE_MAX, "learn": stylelib.LEARN_MAX},
+        }
+
+    def clean_style(body: StyleBody) -> tuple[str, str, str]:
+        name = " ".join(body.name.split())
+        text = body.instructions.strip()
+        if not name or not text:
+            raise HTTPException(status_code=422, detail=tr("Name und Beschreibung des Stils dürfen nicht leer sein."))
+        return name, " ".join(body.description.split()), text
+
+    @app.post("/api/styles", status_code=201, dependencies=[Depends(write_guard)])
+    def create_style(body: StyleBody, profile: Profile = Depends(current_profile)) -> dict:
+        name, description, text = clean_style(body)
+        if store.style_count(profile.id) >= stylelib.MAX_OWN:
+            raise HTTPException(status_code=409, detail=tr("Du hast schon {n} eigene Stile. Lösche einen, bevor du einen neuen anlegst.", n=stylelib.MAX_OWN))
+        return {**(store.style_save(profile.id, None, name, description, text) or {}), "preset": False}
+
+    @app.put("/api/styles/{style_id}", dependencies=[Depends(write_guard)])
+    def update_style(style_id: str, body: StyleBody, profile: Profile = Depends(current_profile)) -> dict:
+        name, description, text = clean_style(body)
+        saved = store.style_save(profile.id, style_id, name, description, text)
+        if saved is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {**saved, "preset": False}
+
+    @app.delete("/api/styles/{style_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def delete_style(style_id: str, profile: Profile = Depends(current_profile)) -> Response:
+        if not store.style_delete(profile.id, style_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.post("/api/styles/learn", dependencies=[Depends(write_guard)])
+    async def learn_style(body: StyleLearnBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Schreibstil aus Beispieltexten der Person ableiten. Der Text geht einmal an das Titelmodell und wird nicht gespeichert."""
+        text = body.text.strip()
+        if len(text) < 200:
+            raise HTTPException(status_code=422, detail=tr("Der Beispieltext ist zu kurz. Füge mindestens ein paar Absätze deiner eigenen Texte ein."))
+        describe = getattr(backend, "describe_style", None)
+        usagelib.bind(store, profile.id)
+        found = await describe(text) if describe else None
+        if not found:
+            raise HTTPException(status_code=502, detail=tr("Den Stil konnte ich gerade nicht ableiten. Versuche es gleich noch einmal."))
+        return {"instructions": found}
+
+    @app.put("/api/me/style", dependencies=[Depends(write_guard)])
+    def save_default_style(body: StyleDefaultBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Standardstil der Person für alle Chats ohne eigene Wahl ('' = keiner)."""
+        if not style_known(profile, body.style):
+            raise HTTPException(status_code=422, detail=tr("Unbekannter Stil"))
+        return {"style": store.set_profile_default_style(profile.id, body.style)}
 
     @app.put("/api/me/model", dependencies=[Depends(write_guard)])
     def save_default_model(body: DefaultModelBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -1029,13 +1146,6 @@ def register_chat_routes(
     github_token_limit = RateLimiter(10, 600)  # eingefügte Token werden bei GitHub geprüft
     github_poll_limit = RateLimiter(400, 600)  # Browser fragt etwa alle 5 Sekunden nach; GitHub selbst wird davon getrennt gedrosselt
 
-    def github_configured_level(profile: Profile) -> str:
-        return profile.github_access or settings.github_access_default
-
-    def github_allowed(profile: Profile) -> None:
-        if github_configured_level(profile) == "none":
-            raise HTTPException(status_code=403, detail=tr("Für dich ist GitHub nicht freigegeben. Der Administrator stellt das in der Konfiguration ein."))
-
     def github_limit(limiter: RateLimiter, profile: Profile) -> None:
         if not limiter.allow(profile.id):
             raise HTTPException(status_code=429, detail=tr("Zu viele Versuche. Bitte in ein paar Minuten noch einmal."))
@@ -1045,13 +1155,12 @@ def register_chat_routes(
         """Stand des GitHub-Zugangs dieser Person (das Token selbst verlässt das Add-on nie)."""
         return {
             **accounts.info(profile.id),
-            "level": github_configured_level(profile),
+            "level": "write",
         }
 
     @app.post("/api/github/device", dependencies=[Depends(write_guard)])
     async def github_device_start(profile: Profile = Depends(current_profile)) -> dict:
         """Anmeldung bei GitHub beginnen: liefert den Code, den die Person bei GitHub eingibt."""
-        github_allowed(profile)
         github_limit(github_start_limit, profile)
         try:
             return await accounts.device_start(profile.id)
@@ -1061,7 +1170,6 @@ def register_chat_routes(
     @app.post("/api/github/device/poll", dependencies=[Depends(write_guard)])
     async def github_device_poll(profile: Profile = Depends(current_profile)) -> dict:
         """Stand der Anmeldung; bewusst POST: über die Domain prüft der Schutz die Herkunft, und die sendet der Browser nur bei POST."""
-        github_allowed(profile)
         github_limit(github_poll_limit, profile)
         try:
             return await accounts.device_poll(profile.id)
@@ -1076,7 +1184,6 @@ def register_chat_routes(
     @app.post("/api/github/token", dependencies=[Depends(write_guard)])
     async def github_token(body: GithubTokenBody, profile: Profile = Depends(current_profile)) -> dict:
         """Ein selbst erzeugtes Token einfügen (wird vor dem Speichern bei GitHub geprüft)."""
-        github_allowed(profile)
         github_limit(github_token_limit, profile)
         try:
             login = await accounts.connect_token(profile.id, body.token)
@@ -1371,6 +1478,21 @@ def register_chat_routes(
             },
         }
 
+    @app.get("/api/usage/all")
+    async def usage_all(range: str = "month", profile: Profile = Depends(current_profile)) -> dict:
+        """Verbrauch aller Personen (nur Administratoren): Zahlen je Person und Zeitraum, nie Inhalte."""
+        if not await is_admin(profile):
+            raise HTTPException(status_code=403, detail=tr("Kein Zugriff"))
+        euro = i18n.language() == "de"
+
+        def label_of(pid: str) -> str:
+            remembered = store.recall_ha_profile(pid)
+            return remembered[0] if remembered else ""
+
+        labels = {p.id: p.label for p in (registry.all() if registry else settings.profiles)}
+        data = usagelib.overview(store, labels, range, settings.usd_eur_rate if euro else 1.0, resolve=label_of)
+        return {**data, "currency": "EUR" if euro else "USD", "ranges": list(usagelib.RANGES)}
+
     @app.get("/api/chats")
     def list_chats(profile: Profile = Depends(current_profile)) -> list[dict]:
         # "running": Antwort wird gerade erzeugt (auch wenn der Browser nicht mehr zuhört); "shared": Freigaben des Chats (instance, public)
@@ -1452,6 +1574,86 @@ def register_chat_routes(
             raise HTTPException(status_code=404, detail=tr("Die Vorschau ist abgelaufen."))
         return HTMLResponse(page, headers=PREVIEW_HEADERS)
 
+    @app.get("/api/chats/{chat_id}/artifacts")
+    def chat_artifacts(chat_id: str, profile: Profile = Depends(current_profile)) -> list[dict]:
+        if store.get_chat(profile.id, chat_id) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return store.artifact_list(profile.id, chat_id)
+
+    @app.get("/api/artifacts/{artifact_id}")
+    def get_artifact(artifact_id: str, version: int | None = None, profile: Profile = Depends(current_profile)) -> dict:
+        found = store.artifact_get(profile.id, artifact_id, version)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return found
+
+    @app.get("/api/artifacts/{artifact_id}/download")
+    def download_artifact(artifact_id: str, version: int | None = None, profile: Profile = Depends(current_profile)) -> Response:
+        found = store.artifact_get(profile.id, artifact_id, version)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        name = artifactlib.filename(found["title"], found["kind"], found["language"])
+        return Response(
+            found["content"].encode("utf-8"), media_type=artifactlib.MIME[found["kind"]] + "; charset=utf-8",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
+                "Content-Security-Policy": "sandbox; default-src 'none'", "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store",
+            },
+        )
+
+    @app.put("/api/artifacts/{artifact_id}", dependencies=[Depends(write_guard)])
+    def edit_artifact(artifact_id: str, body: ArtifactBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Die Person ändert ein Artefakt selbst oder stellt eine frühere Version wieder her; beides legt eine neue Version an."""
+        found = store.artifact_get(profile.id, artifact_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        title = re.sub(r"\s+", " ", body.title or "").strip() or None
+        if title and re.search(r"[\x00-\x1f<>]", title):
+            raise HTTPException(status_code=422, detail=tr("Der Titel enthält ungültige Zeichen."))
+        note = ""
+        if body.restore is not None:
+            old = store.artifact_get(profile.id, artifact_id, body.restore)
+            if old is None:
+                raise HTTPException(status_code=404, detail=tr("Diese Version gibt es nicht mehr."))
+            text = old["content"]
+            note = tr("Version {n} wiederhergestellt", n=body.restore)
+        elif body.content is not None:
+            text = body.content
+            note = tr("Selbst geändert")
+        elif title:
+            text = found["content"]
+        else:
+            raise HTTPException(status_code=422, detail=tr("Es gibt nichts zu speichern."))
+        try:
+            _, text = artifactlib.validate(found["kind"], found["language"], text)
+        except ToolError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        done = store.artifact_update(profile.id, artifact_id, text, note, "user", title)
+        if done is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return store.artifact_get(profile.id, artifact_id)
+
+    @app.post("/api/artifacts/{artifact_id}/to-project", dependencies=[Depends(write_guard)])
+    def artifact_to_project(artifact_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Die aktuelle Version als Datei im Projekt des Chats ablegen (Ordner „Artefakte/“); eine frühere Ablage wird ersetzt."""
+        found = store.artifact_get(profile.id, artifact_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if not found["project_id"]:
+            raise HTTPException(status_code=409, detail=tr("Dieser Chat gehört zu keinem Projekt."))
+        name = pfiles.ARTIFACT_DIR + artifactlib.filename(found["title"], found["kind"], found["language"])
+        try:
+            saved = pfiles.save(store, profile.id, found["project_id"], name, found["content"].encode("utf-8"), origin="ai", text=found["content"])
+        except pfiles.ProjectFileError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        return {"name": saved.name, "replaced": saved.replaced, "project_id": found["project_id"]}
+
+    @app.delete("/api/artifacts/{artifact_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def delete_artifact(artifact_id: str, profile: Profile = Depends(current_profile)) -> Response:
+        if not store.artifact_delete(profile.id, artifact_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
     @app.get("/api/files/{file_id}")
     def download_file(file_id: str, profile: Profile = Depends(current_profile)) -> FileResponse:
         """Eine von der KI erzeugte Datei herunterladen (nur die eigene, solange sie nicht abgelaufen ist)."""
@@ -1471,6 +1673,16 @@ def register_chat_routes(
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return result
 
+    @app.put("/api/chats/{chat_id}/answer", dependencies=[Depends(write_guard)])
+    def choose_answer_version(chat_id: str, body: AnswerVersionBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Eine andere Fassung der letzten Antwort anzeigen (``index`` ab 1, wie ``‹ 2/3 ›`` zählt)."""
+        run = runs.get((profile.id, chat_id))
+        if run and not run.finished:
+            raise HTTPException(status_code=409, detail=tr("Die Antwort läuft noch."))
+        if not store.versions_select(profile.id, chat_id, body.index):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return store.versions_state(profile.id, chat_id) or {"index": 1, "total": 1}
+
     @app.patch("/api/chats/{chat_id}", dependencies=[Depends(write_guard)])
     async def update_chat(
         chat_id: str, body: PatchChatBody, profile: Profile = Depends(current_profile)
@@ -1489,7 +1701,9 @@ def register_chat_routes(
             if not title:
                 raise HTTPException(status_code=422, detail=tr("Titel fehlt"))
             store.rename_chat(profile.id, chat_id, title)
-        if body.pinned is not None:
+        if body.archived is not None:
+            store.set_chat_archived(profile.id, chat_id, body.archived)
+        if body.pinned is not None:  # Anpinnen holt den Chat aus dem Archiv
             store.set_chat_pinned(profile.id, chat_id, body.pinned)
         if body.keep:
             store.set_chat_kind(profile.id, chat_id, "")
@@ -1578,9 +1792,10 @@ def register_chat_routes(
     def public_ready() -> bool:
         return settings.sharing == "public" and bool(settings.public_base_url)
 
-    def share_view(row: dict | None) -> dict | None:
+    def share_view(row: dict | None, viewers=None) -> dict | None:
         if row is None:
             return None
+        viewers = viewers or store.share_viewers
         out = {"mode": row["mode"], "taken_at": row["taken_at"], "created_at": row["created_at"], "expires_at": row["expires_at"], "token": row["token"]}
         if row["mode"] == "public":
             out["url"] = f"{settings.public_base_url}/s/{row['token']}"
@@ -1589,7 +1804,7 @@ def register_chat_routes(
             out["url"] = f"{settings.public_base_url}/?share={row['token']}" if settings.public_base_url else ""
             out["viewers"] = [
                 {"name": owner_label(v["profile_id"]), "first_at": v["first_at"], "last_at": v["last_at"], "opens": v["opens"]}
-                for v in store.share_viewers(row["id"])
+                for v in viewers(row["id"])
             ]
         return out
 
@@ -1667,6 +1882,10 @@ def register_chat_routes(
         sharing_or_404()
         found = SHARE_TOKEN.search(body.token)
         row = store.share_open(profile.id, found.group(0)) if found else None
+        if row is None and found:
+            shared = store.artifact_share_open(profile.id, found.group(0))
+            if shared is not None:
+                return {"id": shared["id"], "kind": "artifact", "title": shared["title"], "owner": owner_label(shared["profile_id"]), "taken_at": shared["taken_at"], "mine": shared["own"]}
         if row is None:
             raise HTTPException(status_code=404, detail=tr("Der Link gilt nicht (mehr)."))
         return {"id": row["id"], "title": row["title"], "owner": owner_label(row["profile_id"]), "taken_at": row["taken_at"], "mine": row["own"]}
@@ -1700,6 +1919,104 @@ def register_chat_routes(
         if not row["messages"]:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return store.import_chat(profile.id, _title_from(tr("Kopie: {title}", title=row["title"])), row["messages"])
+
+    # ------------------------------------------------------------ Artefakte teilen
+    # Wie Chats ein Stand vom Zeitpunkt des Teilens, aber nur als Text: Wer den Link öffnet, sieht den Code und kann ihn kopieren,
+    # nie eine ausgeführte Seite. Die Links liegen im selben Adressraum wie die der Chats (``/s/<Code>``, ``?share=<Code>``).
+
+    def owned_artifact(profile: Profile, art_id: str) -> dict:
+        found = store.artifact_get(profile.id, art_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return found
+
+    def artifact_share_view(row: dict | None) -> dict | None:
+        out = share_view(row, store.artifact_share_viewers)
+        if out is not None:
+            out["version"] = row["version"]
+        return out
+
+    @app.get("/api/artifacts/{artifact_id}/share")
+    def get_artifact_share(artifact_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        owned_artifact(profile, artifact_id)
+        return {
+            "sharing": settings.sharing, "public_available": public_ready(),
+            "instance": artifact_share_view(store.artifact_share_get(profile.id, artifact_id, "instance")),
+            "public": artifact_share_view(store.artifact_share_get(profile.id, artifact_id, "public")),
+        }
+
+    def take_artifact_share(profile: Profile, artifact_id: str, mode: str, expires_days: int | None) -> dict:
+        sharing_or_404()
+        owned_artifact(profile, artifact_id)
+        if mode == "public":
+            if settings.sharing != "public":
+                raise HTTPException(status_code=403, detail=tr("Öffentliche Links sind nicht erlaubt."))
+            if not settings.public_base_url:
+                raise HTTPException(status_code=409, detail=tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."))
+        row = store.artifact_share_upsert(profile.id, artifact_id, mode, expires_days)
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return artifact_share_view(row) or {}
+
+    @app.post("/api/artifacts/{artifact_id}/share", dependencies=[Depends(write_guard)])
+    def create_artifact_share(artifact_id: str, body: ShareBody, profile: Profile = Depends(current_profile)) -> dict:
+        fresh = body.expires_days is None and not store.artifact_share_get(profile.id, artifact_id, body.mode)
+        return take_artifact_share(profile, artifact_id, body.mode, (30 if body.mode == "public" else 0) if fresh else body.expires_days)
+
+    @app.post("/api/artifacts/{artifact_id}/share/refresh", dependencies=[Depends(write_guard)])
+    def refresh_artifact_share(artifact_id: str, body: ShareModeBody, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        if store.artifact_share_get(profile.id, artifact_id, body.mode) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return take_artifact_share(profile, artifact_id, body.mode, None)
+
+    @app.delete("/api/artifacts/{artifact_id}/share/{mode}", status_code=204, dependencies=[Depends(write_guard)])
+    def revoke_artifact_share(artifact_id: str, mode: Literal["instance", "public"], profile: Profile = Depends(current_profile)) -> Response:
+        if not store.artifact_share_delete(profile.id, artifact_id, mode):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.get("/api/shared-artifacts")
+    def list_shared_artifacts(profile: Profile = Depends(current_profile)) -> list[dict]:
+        """Artefakte anderer Personen, deren Link diese Person geöffnet hat (ohne Text)."""
+        sharing_or_404()
+        return [
+            {"id": r["id"], "title": r["title"], "kind": r["kind"], "language": r["language"], "owner": owner_label(r["profile_id"]),
+             "taken_at": r["taken_at"], "opened_at": r["opened_at"]}
+            for r in store.artifact_shares_opened_by(profile.id)
+        ]
+
+    @app.get("/api/shared-artifacts/{share_id}")
+    def read_shared_artifact(share_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        row = store.artifact_share_read(share_id=share_id)
+        if row is None or (row["profile_id"] != profile.id and not store.artifact_share_has_access(profile.id, share_id)):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {
+            "id": row["id"], "title": row["title"], "kind": row["kind"], "language": row["language"], "content": row["content"], "version": row["version"],
+            "owner": owner_label(row["profile_id"]), "taken_at": row["taken_at"], "mine": row["profile_id"] == profile.id,
+            "filename": artifactlib.filename(row["title"], row["kind"], row["language"]),
+        }
+
+    @app.delete("/api/shared-artifacts/{share_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def remove_shared_artifact(share_id: str, profile: Profile = Depends(current_profile)) -> Response:
+        sharing_or_404()
+        if not store.artifact_share_access_remove(profile.id, share_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.get("/api/artifacts")
+    def list_artifacts(
+        shared: bool = False, q: str = Query(default="", max_length=100), kind: Literal["", "html", "svg", "markdown", "code"] = "",
+        project: str = Query(default="", max_length=64), profile: Profile = Depends(current_profile),
+    ) -> list[dict]:
+        """Alle Artefakte der Person (ohne Inhalt) für die Bibliothek: Suche in Titel und Inhalt (`q`), Filter nach Art und Projekt (`none` = ohne Projekt);
+        `shared` = Wege, auf denen sie gerade geteilt sind, mit `shared=true` nur die geteilten."""
+        modes = store.artifact_share_modes(profile.id) if settings.sharing != "off" else {}
+        found = store.artifact_list(profile.id, query=q.strip(), kind=kind, project=project or None)
+        items = [{**a, "shared": modes.get(a["id"], [])} for a in found]
+        return [a for a in items if a["shared"]] if shared else items
 
     # ------------------------------------------------------------ Projektwissen
 
@@ -2358,6 +2675,7 @@ def register_chat_routes(
         history = store.list_messages(profile_id, chat_id)
         if chat is None or history is None:
             return None
+        usagelib.bind(store, profile_id)
         if chat.get("kind") == "incognito" or len(history) < 2 or history[0]["role"] != "user":
             return chat  # Inkognito: kein zusätzlicher Aufruf der KI nur für einen Titel
         first, answer = history[0]["content"], history[1]["content"]
@@ -2431,6 +2749,9 @@ def register_chat_routes(
         requested_model = (body.model or "").strip()
         if requested_model and requested_model != AUTO_MODEL and requested_model not in model_ids:
             raise HTTPException(status_code=422, detail=tr("Unbekanntes Modell"))
+        requested_style = body.style.strip() if body.style is not None else None
+        if requested_style is not None and not style_known(profile, requested_style):
+            raise HTTPException(status_code=422, detail=tr("Unbekannter Stil"))
         # Vorrang: Wahl in diesem Chat, dann Standardmodell der Person, dann das in der App eingestellte Modell („Auto“)
         saved_model = chat.get("model") if chat.get("model") == AUTO_MODEL or chat.get("model") in model_ids else ""
         chosen_model = concrete_model(requested_model or saved_model or user_default_model(profile.id))
@@ -2471,6 +2792,9 @@ def register_chat_routes(
         personal = store.profile_instructions(profile.id)
         if personal:
             extra["personal_instructions"] = personal
+        wanted_style = style_text(profile, requested_style if requested_style is not None else (chat.get("style_id") or ""))
+        if wanted_style and not spoken:
+            extra["style"] = wanted_style
         summarize = getattr(backend, "summarize", None)
         # Zusammenfassungen erzeugt der Anbieter, bei dem der Chat läuft
         summary_args = {"model": chosen_model, "on_usage": extra["on_usage"]} if provider == "openai" else {}
@@ -2480,7 +2804,10 @@ def register_chat_routes(
 
         # Frage bearbeiten: die alte Frage und alles danach wird entfernt (bei einem Fehler ohne Antwort kommt es zurück).
         cut = None
+        regenerate = False
         if body.edit_message_id is not None:
+            if body.regenerate:
+                regenerate = store.versions_pin(profile.id, chat_id, body.edit_message_id)  # nur bei der letzten Antwort
             cut = store.cut_from(profile.id, chat_id, body.edit_message_id)
             if cut is None:
                 raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
@@ -2492,9 +2819,13 @@ def register_chat_routes(
             if cut:
                 store.restore_cut(profile.id, chat_id, cut)
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if not regenerate:
+            store.versions_clear(profile.id, chat_id)  # es geht mit einer neuen Frage weiter: nur die letzte Antwort hat Fassungen
         provisional = _title_from(_title_source(text, metas))
         if first_exchange:
             store.rename_chat(profile.id, chat_id, provisional)
+        if requested_style is not None and requested_style != (chat.get("style_id") or ""):
+            store.set_chat_style(profile.id, chat_id, requested_style)
         if requested_model:
             # Entspricht die Wahl dem, was ohnehin gilt (Standardmodell der Person), wird nichts gemerkt
             same = concrete_model(requested_model) == concrete_model(user_default_model(profile.id))
@@ -2580,6 +2911,10 @@ def register_chat_routes(
             overview=overview_allowed(profile),
         )
         specs += context.specs()
+        artifact_note = ""
+        if not spoken:
+            specs += artifactlib.ArtifactToolbox(store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id).specs()
+            artifact_note = artifactlib.rules_note(store.artifact_list(profile.id, chat_id))
         if settings.files_enabled and not spoken:
             specs += OutboxToolbox(
                 store, profile.id, chat_id, record=run.push, next_id=run.next_tool_id,
@@ -2638,6 +2973,8 @@ def register_chat_routes(
                 "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.",
                 old=model_label(switched_from), new=model_label(chosen_model),
             )
+        if artifact_note:
+            extra["note"] += "\n" + artifact_note
         if any(s.name == "design_guide" for s in specs):
             extra["note"] += "\n" + DESIGN_NOTE
         if any(s.name == "file_edit" for s in specs):
@@ -2662,11 +2999,12 @@ def register_chat_routes(
         elif any(s.name.startswith("github_") for s in specs):
             extra["note"] += "\n" + GITHUB_NOTE + " " + github_level_text(gh_level, accounts.policy_for(profile.id))
         else:
-            why = GITHUB_OFF_NO_RIGHT if accounts.enabled_for(profile.id) else GITHUB_OFF_NO_TOKEN
+            why = GITHUB_OFF_NO_TOKEN
             extra["note"] += "\n" + GITHUB_OFF_NOTE.format(why=why)
 
         async def generate() -> None:
             error: str | None = None
+            usagelib.bind(store, profile.id, "voice" if spoken else "chat")
             try:
                 if provider == "openai" and token_limit:
                     used_tokens = store.token_usage(profile.id, usage_month, "openai")
@@ -2742,7 +3080,7 @@ def register_chat_routes(
                             if phase in ("plan", "report"):
                                 history_here = context
                             if phase == "report":
-                                for key in ("instructions", "personal_instructions"):
+                                for key in ("instructions", "personal_instructions", "style"):
                                     if key in extra:
                                         opts[key] = extra[key]
                         parts: list[str] = []
@@ -2808,6 +3146,8 @@ def register_chat_routes(
                 if answer:
                     # Auch eine abgebrochene Teilantwort wird behalten (setzt den Chat auf ungelesen).
                     store.add_message(profile.id, chat_id, "assistant", answer, tools=actions)
+                    if regenerate:
+                        store.versions_add(profile.id, chat_id, answer, actions)
                 else:
                     withdraw_question()
                 run.error = error
@@ -3242,7 +3582,7 @@ def build_public_app(
             raise HTTPException(status_code=429, detail=tr("Zu viele Versuche"))
         if settings.sharing != "public" or not SHARE_TOKEN.fullmatch(token):
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
-        row = store.share_read(token=token, mode="public")
+        row = store.share_read(token=token, mode="public") or store.artifact_share_read(token=token, mode="public")
         if row is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return row
@@ -3262,6 +3602,14 @@ def build_public_app(
     @app.get("/s/{token}/data", include_in_schema=False)
     def shared_data(request: Request, token: str) -> JSONResponse:
         row = public_share(request, token)
+        headers = {"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noarchive"}
+        if "content" in row:  # Artefakt: nur der Text, nie eine ausgeführte Seite
+            store.artifact_share_count_open(row["id"])
+            return JSONResponse(
+                {"title": row["title"], "taken_at": row["taken_at"], "expires_at": row["expires_at"],
+                 "artifact": {"kind": row["kind"], "language": row["language"], "content": row["content"], "version": row["version"]}},
+                headers=headers,
+            )
         store.share_count_open(row["id"])
         return JSONResponse(
             {"title": row["title"], "taken_at": row["taken_at"], "expires_at": row["expires_at"], "messages": row["messages"]},
@@ -3310,6 +3658,12 @@ async def _sweep_loop(backend: ChatBackend, store: Store | None = None, voice_da
                     log.info("%d abgelaufene erzeugte Dateien entfernt", removed)
             except Exception:
                 log.warning("Aufräumen der erzeugten Dateien fehlgeschlagen", exc_info=True)
+            try:
+                packed = await asyncio.to_thread(usagelib.compact, store)
+                if packed:
+                    log.info("%d ältere Verbrauchseinträge zu Tagessummen verdichtet", packed)
+            except Exception:
+                log.warning("Verdichten des Verbrauchsprotokolls fehlgeschlagen", exc_info=True)
             try:
                 expired = await asyncio.to_thread(store.share_sweep)
                 if expired:

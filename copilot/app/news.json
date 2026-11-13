@@ -1,5 +1,80 @@
 [
   {
+    "version": "0.57.3",
+    "items": [
+      {
+        "de": {
+          "title": "Alle Artefakte an einem Ort",
+          "text": "Unter „Artefakte“ in der Seitenleiste findest du alles, was ich für dich gebaut habe. Such nach Titel oder Inhalt, filtere nach Projekt oder Art und öffne es mit einem Klick."
+        },
+        "en": {
+          "title": "All artifacts in one place",
+          "text": "Under “Artifacts” in the sidebar you find everything I have built for you. Search by title or content, filter by project or type, and open it with one click."
+        }
+      },
+      {
+        "de": {
+          "title": "Artefakte neben dem Chat",
+          "text": "Wenn ich dir eine Seite, Zeichnung, ein Dokument oder ein Skript baue, öffne ich es neben dem Chat. Du kannst es selbst ändern, im Projekt ablegen, herunterladen und den Text per Link teilen."
+        },
+        "en": {
+          "title": "Artifacts beside the chat",
+          "text": "When I build you a page, drawing, document or script, I open it beside the chat. You can change it yourself, keep it in your project, download it and share the text by link."
+        }
+      },
+      {
+        "de": {
+          "title": "Mehrere Fassungen",
+          "text": "Wenn du mich bittest, eine Antwort neu zu schreiben, behalte ich die alte. Unter der Antwort kannst du zwischen den Fassungen blättern und die beste behalten."
+        },
+        "en": {
+          "title": "Several versions",
+          "text": "When you ask me to write an answer again, I keep the old one. Below the answer you can flip between the versions and keep the one you like best."
+        }
+      },
+      {
+        "de": {
+          "title": "Verbrauch im Blick",
+          "text": "Wer die App verwaltet, sieht jetzt, wie viel jede Person von mir genutzt hat: als Anteil, mit Bildern und Wert. Es werden nur Zahlen gezählt, nie Inhalte."
+        },
+        "en": {
+          "title": "Usage at a glance",
+          "text": "Whoever manages the app can now see how much each person has used me: as a share, with images and value. Only numbers are counted, never content."
+        }
+      },
+      {
+        "de": {
+          "title": "Eigene Schreibstile",
+          "text": "Ich kann jetzt in verschiedenen Stilen antworten: kurz, ausführlich, locker oder so, wie du schreibst. Wähle ihn unter dem Eingabefeld."
+        },
+        "en": {
+          "title": "Your own writing styles",
+          "text": "I can now answer in different styles: short, detailed, casual or the way you write. Pick one below the input field."
+        }
+      },
+      {
+        "de": {
+          "title": "Chats archivieren",
+          "text": "Chats, die du nicht mehr brauchst, kannst du jetzt archivieren. Sie verschwinden aus der Liste und stehen unter „Alle Chats“."
+        },
+        "en": {
+          "title": "Archive chats",
+          "text": "You can now archive chats you no longer need. They leave your list and stay under “All chats”."
+        }
+      },
+      {
+        "de": {
+          "title": "GitHub für alle",
+          "text": "Jede Person kann jetzt ihr eigenes GitHub-Konto verbinden. Dafür muss der Administrator nichts mehr freigeben."
+        },
+        "en": {
+          "title": "GitHub for everyone",
+          "text": "Everyone can now connect their own GitHub account. The administrator no longer has to allow it first."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.57.2",
     "items": [
       {

@@ -57,13 +57,31 @@ Mehr: [Inkognito-Chat](../copilot/DOCS.md#inkognito-chat-ab-0560), [Chats teilen
 - **Suchen** (Strg/Cmd+Umschalt+F) durchsucht Titel und Nachrichten aller deiner Chats, ohne Rücksicht auf Groß- und Kleinschreibung und Umlaute. Schon vor der ersten Eingabe zeigt das Fenster laufende und zuletzt benutzte Chats; Reiter trennen Chats, Projekte und geplante Aufgaben, Pfeiltasten und Enter genügen zur Bedienung.
 - **Tastenkürzel** am Computer: Strg (Mac: ⌘) + Umschalt + **O** neuer Chat, **F** Suchen, **P** neues Projekt, **G** geplante Aufgaben. Das Kürzel steht in der Seitenleiste erst, wenn du mit der Maus über den Eintrag fährst.
 - **Hinweise über dem Eingabefeld:** Nutzungslimit und Rückfragen der KI (z. B. vor einer Änderung in Home Assistant) erscheinen als Streifen direkt über dem Eingabefeld, wie in Claude selbst, jeweils als eigene schmale Box (nicht am Eingabefeld angebaut).
-- Anpinnen, umbenennen, in ein Projekt verschieben, als Markdown exportieren, löschen: alles im Menü (⋯) jeder Zeile.
+- Anpinnen, umbenennen, in ein Projekt verschieben, als Markdown exportieren, archivieren, löschen: alles im Menü (⋯) jeder Zeile.
+- **Alle Chats** (Eintrag unter der Chatliste, öffnet eine eigene Seite): die ganze Liste mit Reitern Aktiv, Geteilt und Archiviert, Suche und Mehrfachauswahl. Archivierte Chats verschwinden aus allen Listen (auch aus Projekten) und stehen nur dort; neues Schreiben holt sie zurück.
 
 ![Chat-Menü](screenshots/menue.png)
 
 - Unter **Einstellungen → Meine Daten** exportierst du alle Chats als ZIP oder löschst sie unwiderruflich.
 
 Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigene-daten-ab-0220).
+
+## Artefakte
+
+- Größere eigenständige Ergebnisse (HTML-Seite, Zeichnung, Dokument, Code-Datei) legt die KI als **Artefakt** an: unter der Antwort steht eine Karte, daneben öffnet sich ein Fenster mit **Vorschau** und **Code**, mit Versionen, Kopieren und Herunterladen. Änderungen („Mach den Titel größer“) erzeugen eine neue Version, die alte bleibt auswählbar. Seiten laufen abgeschottet und ohne Netzwerk. Den Text kannst du selbst ändern (neue Version), eine frühere Version wiederherstellen, das Artefakt im Projekt ablegen oder eine markierte Stelle als Zitat für die nächste Frage nehmen. Mit dem Teilen-Symbol im Fenster gibst du den **Code** (nur lesen, nie als Seite ausgeführt) per Link weiter; **Geteilt** zeigt Artefakte getrennt von Chats. Der Eintrag **Artefakte** in der Seitenleiste ist die Bibliothek: alle Artefakte an einem Ort, mit Suche (Titel, Chat, Inhalt) und Filtern nach Art und Projekt.
+
+## Mehrere Fassungen einer Antwort
+
+- Mit „Antwort neu erzeugen“ geht die bisherige Antwort nicht verloren: unter der letzten Antwort blätterst du mit `‹ 2/3 ›` zwischen den Fassungen (bis zu 10). Mit einer neuen Frage bleibt nur die gezeigte Fassung. Jede Fassung zählt wie ein eigener Aufruf.
+
+## Verbrauch im Blick
+
+- Administratoren sehen unter **Einstellungen → Nutzung → Alle Personen**, wer wie viel der KI genutzt hat: Anteil an den Token, Bilder und Wert in Euro (bei englischer Sprache Dollar), für 24 Stunden, heute, diese Woche, diesen Monat oder den letzten Monat. Es werden nur Zahlen gezählt, nie Inhalte. Administrator ist, wer in Home Assistant Administrator ist, oder wer im Benutzer-Eintrag `admin: true` hat.
+
+## Schreibstile
+
+- Im Menü unter dem Eingabefeld wählst du den **Stil** der Antworten: Kurz und klar, Ausführlich erklärend, Locker, Formell oder Technisch, oder „Ohne Stil“. Die Wahl gilt für den Chat.
+- Unter **Einstellungen → Schreibstile** legst du einen **Standardstil** fest und eigene Stile an, auf Wunsch **aus eigenen Beispieltexten gelernt** (die Texte werden nicht gespeichert). Ein Stil ändert nur Ton, Länge und Gliederung, nie die Regeln und Rückfragen.
 
 ## Zugriff auf Home Assistant
 
@@ -126,7 +144,7 @@ Einrichtung für dich:
 2. **Mit GitHub verbinden** wählen, den angezeigten Code bei GitHub eingeben und bestätigen. Alternativ **Token einfügen**.
 3. Fertig: Der Dialog zeigt „Verbunden als …“. **Trennen** löscht das Token wieder.
 
-Für den Administrator: Die Rechte (`github_access` je Benutzer, `chat.github_access_default`, Standard `none`) stehen weiter in der Konfiguration. Die Tokens der Personen liegen verschlüsselt im Add-on. Ein gemeinsames Token (`github_token`) und die Freigabeliste `github_repos` gibt es seit 0.47.0 nicht mehr; alte Einträge in der Konfiguration kannst du löschen.
+Für den Administrator: Seit 0.57.3 braucht GitHub keine Freigabe mehr; die Optionen `github_access` und `chat.github_access_default` entfallen (alte Einträge werden ignoriert). Die Tokens der Personen liegen verschlüsselt im Add-on. Ein gemeinsames Token (`github_token`) und die Freigabeliste `github_repos` gibt es seit 0.47.0 nicht mehr; alte Einträge in der Konfiguration kannst du löschen.
 
 Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 

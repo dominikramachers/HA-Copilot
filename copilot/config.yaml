@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.57.2"
+version: "0.57.3"
 slug: copilot
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -51,10 +51,10 @@ options:
     sharing: instance
     research_enabled: false
     research_daily_limit: 3
+    usd_eur_rate: 0.92
     files_enabled: true
     ha_access_default: execute
     ha_limit_to_exposed: true
-    github_access_default: none
     connector_access_default: use
     openai_enabled: false
     openai_api_key: ""
@@ -106,10 +106,10 @@ schema:
         ha_user_id: "match(^[0-9a-fA-F]{32}$)?"
         entra_upn: str?
         ha_access: list(none|read|execute|write)?
-        github_access: list(none|read|write)?
         connector_access: list(none|use|own|global)?
         web_access: list(on|off)?
         voice_access: list(on|off)?
+        admin: bool?
         notify_service: str?
         id: "match(^[a-z0-9_-]{2,32}$)?"
     all_ha_users: bool?
@@ -125,10 +125,10 @@ schema:
     sharing: list(off|instance|public)?
     research_enabled: bool?
     research_daily_limit: int(1,20)?
+    usd_eur_rate: float(0.1,10)?
     files_enabled: bool?
     ha_access_default: list(none|read|execute|write)?
     ha_limit_to_exposed: bool?
-    github_access_default: list(none|read|write)?
     connector_access_default: list(none|use|own|global)?
     openai_enabled: bool?
     openai_api_key: password?

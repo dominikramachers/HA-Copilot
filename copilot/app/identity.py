@@ -84,6 +84,10 @@ class Registry:
         self._auto_by_ha[remembered[1]] = profile
         return profile
 
+    def ha_id_of(self, profile: Profile) -> str:
+        """Home-Assistant-Benutzer-ID eines Profils, auch wenn sie erst aus dem Benutzernamen aufgelöst wurde."""
+        return (profile.ha_user_id or self._resolved.get(profile.id, "")).lower()
+
     def by_ha_user_id(self, value: str) -> Profile | None:
         return self._by_ha_user_id.get(value.strip().lower())
 

@@ -759,7 +759,6 @@ GITHUB_OFF_NOTE = (
     "Inhalte öffentlicher Repositories kannst du, falls Websuche an ist, über web_fetch lesen. Schicke oder erfrage nie ein Token im Chat."
 )
 GITHUB_OFF_NO_TOKEN = "Die Person hat GitHub noch nicht verbunden: im Konto-Menü unten links „Einstellungen“ öffnen, dort „GitHub“ wählen und „Mit GitHub verbinden“ klicken."
-GITHUB_OFF_NO_RIGHT = "Für diese Person ist GitHub nicht freigegeben (Add-on-Konfiguration: github_access_default oder github_access des Benutzers auf read oder write stellen)."
 
 
 def level_text(level: str, policy: RepoPolicy) -> str:

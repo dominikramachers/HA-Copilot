@@ -202,6 +202,72 @@ CREATE TABLE IF NOT EXISTS skill_files (
 );
 """
 
+ARTIFACTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS artifacts (
+    id          TEXT PRIMARY KEY,
+    profile_id  TEXT NOT NULL,
+    chat_id     TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    language    TEXT NOT NULL DEFAULT '',
+    title       TEXT NOT NULL,
+    current     INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    FOREIGN KEY (chat_id, profile_id) REFERENCES chats(id, profile_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_artifacts_chat ON artifacts (profile_id, chat_id);
+CREATE TABLE IF NOT EXISTS artifact_versions (
+    artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+    n           INTEGER NOT NULL,
+    content     TEXT NOT NULL,
+    note        TEXT NOT NULL DEFAULT '',
+    by          TEXT NOT NULL DEFAULT 'ai',
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (artifact_id, n)
+);
+"""
+
+ARTIFACT_SHARES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS artifact_shares (
+    id          TEXT PRIMARY KEY,
+    artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+    profile_id  TEXT NOT NULL,
+    mode        TEXT NOT NULL CHECK (mode IN ('instance', 'public')),
+    token       TEXT NOT NULL UNIQUE,
+    title       TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    language    TEXT NOT NULL DEFAULT '',
+    content     TEXT NOT NULL,
+    version     INTEGER NOT NULL,
+    taken_at    TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT,
+    opens       INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (artifact_id, mode)
+);
+CREATE TABLE IF NOT EXISTS artifact_share_access (
+    share_id    TEXT NOT NULL REFERENCES artifact_shares(id) ON DELETE CASCADE,
+    profile_id  TEXT NOT NULL,
+    first_at    TEXT NOT NULL,
+    last_at     TEXT NOT NULL,
+    opens       INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (share_id, profile_id)
+);
+"""
+
+VARIANTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS answer_versions (
+    chat_id     TEXT NOT NULL,
+    profile_id  TEXT NOT NULL,
+    seq         INTEGER NOT NULL,
+    content     TEXT NOT NULL,
+    tools       TEXT,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (chat_id, profile_id, seq),
+    FOREIGN KEY (chat_id, profile_id) REFERENCES chats(id, profile_id) ON DELETE CASCADE
+);
+"""
+
 IMAGE_USAGE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS image_usage (
     profile_id  TEXT NOT NULL,
@@ -218,6 +284,34 @@ CREATE TABLE IF NOT EXISTS token_usage (
     provider    TEXT NOT NULL,
     tokens      INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (profile_id, month, provider)
+);
+"""
+
+USAGE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS usage_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          INTEGER NOT NULL,
+    profile_id  TEXT NOT NULL,
+    provider    TEXT NOT NULL,
+    model       TEXT NOT NULL DEFAULT '',
+    kind        TEXT NOT NULL DEFAULT 'chat',
+    tokens_in   INTEGER NOT NULL DEFAULT 0,
+    tokens_out  INTEGER NOT NULL DEFAULT 0,
+    cost_usd    REAL NOT NULL DEFAULT 0,
+    images      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS usage_events_ts ON usage_events (ts);
+CREATE TABLE IF NOT EXISTS usage_daily (
+    day         TEXT NOT NULL,
+    profile_id  TEXT NOT NULL,
+    provider    TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    calls       INTEGER NOT NULL DEFAULT 0,
+    tokens_in   INTEGER NOT NULL DEFAULT 0,
+    tokens_out  INTEGER NOT NULL DEFAULT 0,
+    cost_usd    REAL NOT NULL DEFAULT 0,
+    images      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, profile_id, provider, kind)
 );
 """
 
@@ -292,6 +386,18 @@ CREATE TABLE IF NOT EXISTS plugins (
 );
 """
 
+STYLES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS styles (
+    id           TEXT PRIMARY KEY,
+    profile_id   TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    instructions TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_styles_profile ON styles(profile_id);
+"""
+
 GITHUB_SCHEMA = """
 CREATE TABLE IF NOT EXISTS github_accounts (
     profile_id    TEXT PRIMARY KEY,
@@ -364,14 +470,15 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 24  # 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 30  # 30: Artefakte teilen (artifact_shares, artifact_share_access); 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
-CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind, imported"
+CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
 
 
 def _chat(row: sqlite3.Row) -> dict[str, Any]:
     data = dict(row)
     data["pinned"] = data.pop("pinned_at") is not None
+    data["archived"] = data.pop("archived_at", None) is not None
     data["unread"] = bool(data.get("unread"))
     data["imported"] = bool(data.get("imported"))
     return data
@@ -430,6 +537,12 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
                     image=True, w=int(file.get("w", 0) or 0), h=int(file.get("h", 0) or 0), version=int(file.get("version", 1) or 1),
                     engine=str(file.get("engine", ""))[:10],
                 )
+        art = i.get("artifact")
+        if isinstance(art, dict) and re.fullmatch(r"[0-9a-f]{12}", str(art.get("id", ""))):
+            entry["artifact"] = {
+                "id": str(art["id"]), "title": str(art.get("title", ""))[:120], "kind": str(art.get("kind", ""))[:10],
+                "language": str(art.get("language", ""))[:20], "version": int(art.get("version", 1) or 1),
+            }
         link = str(i.get("link", ""))
         if link.startswith("https://github.com/") and len(link) < 400:
             entry["link"] = link
@@ -529,6 +642,12 @@ class Store:
             self._conn.execute("ALTER TABLE chats ADD COLUMN summary_upto INTEGER")
         if "imported" not in columns:  # Verlauf aus einem geteilten Chat übernommen: fremder Inhalt, Änderungen fragen immer nach
             self._conn.execute("ALTER TABLE chats ADD COLUMN imported INTEGER NOT NULL DEFAULT 0")
+        if "style_id" not in columns:  # Schreibstil dieses Chats ('' = Standard der Person, 'none' = ohne Stil)
+            self._conn.execute("ALTER TABLE chats ADD COLUMN style_id TEXT NOT NULL DEFAULT ''")
+        if "answer_seq" not in columns:  # welche Fassung der letzten Antwort gerade angezeigt wird (answer_versions.seq)
+            self._conn.execute("ALTER TABLE chats ADD COLUMN answer_seq INTEGER")
+        if "archived_at" not in columns:  # Archiv: aus den Listen genommen, aber weiter auffindbar (Suche, „Alle Chats“, Projekt)
+            self._conn.execute("ALTER TABLE chats ADD COLUMN archived_at TEXT")
         if "kind" not in columns:
             self._conn.execute("ALTER TABLE chats ADD COLUMN kind TEXT NOT NULL DEFAULT ''")  # 'voice' = Sprachgespräch außerhalb eines Chats (nicht in der Liste)
         profile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(profiles)")}
@@ -540,6 +659,8 @@ class Store:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")  # „Meine Anweisungen“ für alle Chats der Person
         if "default_model" not in profile_columns:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN default_model TEXT NOT NULL DEFAULT ''")  # Standardmodell der Person für neue Chats ('' = Auto)
+        if "default_style" not in profile_columns:
+            self._conn.execute("ALTER TABLE profiles ADD COLUMN default_style TEXT NOT NULL DEFAULT ''")  # Standardstil der Person für Chats ohne eigene Wahl
         project_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(projects)")}
         if "instructions" not in project_columns:
             self._conn.execute("ALTER TABLE projects ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")
@@ -575,6 +696,11 @@ class Store:
         self._conn.executescript(CONNECTORS_SCHEMA)
         self._conn.executescript(PLUGINS_SCHEMA)
         self._conn.executescript(GITHUB_SCHEMA)
+        self._conn.executescript(STYLES_SCHEMA)
+        self._conn.executescript(USAGE_SCHEMA)
+        self._conn.executescript(VARIANTS_SCHEMA)
+        self._conn.executescript(ARTIFACTS_SCHEMA)
+        self._conn.executescript(ARTIFACT_SHARES_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -716,7 +842,7 @@ class Store:
             )
         return {
             "id": chat_id, "title": title, "created_at": now, "updated_at": now,
-            "pinned": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind, "imported": False,
+            "pinned": False, "archived": False, "project_id": project_id, "unread": False, "model": "", "style_id": "", "schedule_id": schedule_id, "kind": kind, "imported": False,
         }
 
     def list_chats(self, profile_id: str, kind: str = "") -> list[dict[str, Any]]:
@@ -780,7 +906,7 @@ class Store:
             params += [term, term]
         with self._lock:
             chats = self._conn.execute(
-                f"SELECT c.id, c.title, c.updated_at, c.project_id, c.schedule_id FROM chats c WHERE c.profile_id = ? AND c.kind = '' AND {clauses} "
+                f"SELECT c.id, c.title, c.updated_at, c.project_id, c.schedule_id, c.archived_at FROM chats c WHERE c.profile_id = ? AND c.kind = '' AND {clauses} "
                 "ORDER BY c.updated_at DESC, c.created_at DESC LIMIT ?",
                 (*params, max(1, min(limit, 100))),
             ).fetchall()
@@ -792,7 +918,8 @@ class Store:
                 found.append((chat, texts))
         return [
             {"chat_id": chat["id"], "title": chat["title"], "updated_at": chat["updated_at"],
-             "project_id": chat["project_id"], "schedule_id": chat["schedule_id"], **_snippet(texts, terms)}
+             "project_id": chat["project_id"], "schedule_id": chat["schedule_id"],
+             "archived": chat["archived_at"] is not None, **_snippet(texts, terms)}
             for chat, texts in found
         ]
 
@@ -992,12 +1119,29 @@ class Store:
         return cur.rowcount == 1
 
     def set_chat_pinned(self, profile_id: str, chat_id: str, pinned: bool) -> bool:
+        """Anpinnen holt den Chat aus dem Archiv (beides zugleich gibt es nicht)."""
         _require(profile_id)
         with self._lock, self._conn:
             cur = self._conn.execute(
-                "UPDATE chats SET pinned_at = ? WHERE id = ? AND profile_id = ?",
-                (_now() if pinned else None, chat_id, profile_id),
+                "UPDATE chats SET pinned_at = ?, archived_at = CASE WHEN ? THEN NULL ELSE archived_at END "
+                "WHERE id = ? AND profile_id = ?",
+                (_now() if pinned else None, 1 if pinned else 0, chat_id, profile_id),
             )
+        return cur.rowcount == 1
+
+    def set_chat_archived(self, profile_id: str, chat_id: str, archived: bool) -> bool:
+        """Chat archivieren (nimmt zugleich die Anheftung weg) oder aus dem Archiv holen."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            if archived:
+                cur = self._conn.execute(
+                    "UPDATE chats SET archived_at = COALESCE(archived_at, ?), pinned_at = NULL WHERE id = ? AND profile_id = ?",
+                    (_now(), chat_id, profile_id),
+                )
+            else:
+                cur = self._conn.execute(
+                    "UPDATE chats SET archived_at = NULL WHERE id = ? AND profile_id = ?", (chat_id, profile_id)
+                )
         return cur.rowcount == 1
 
     def move_chat(self, profile_id: str, chat_id: str, project_id: str | None) -> bool:
@@ -1821,7 +1965,9 @@ class Store:
 
     def share_sweep(self) -> int:
         with self._lock, self._conn:
-            return self._conn.execute("DELETE FROM chat_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (_now(),)).rowcount
+            now = _now()
+            gone = self._conn.execute("DELETE FROM chat_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (now,)).rowcount
+            return gone + self._conn.execute("DELETE FROM artifact_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (now,)).rowcount
 
     def import_chat(self, profile_id: str, title: str, messages: list[dict[str, str]]) -> dict[str, Any]:
         """Verlauf einer geteilten Unterhaltung als eigenen Chat anlegen (``imported``: Inhalt ist fremd, Änderungen fragen immer nach)."""
@@ -1929,6 +2075,76 @@ class Store:
             self._conn.execute("INSERT OR IGNORE INTO profiles (id) VALUES (?)", (profile_id,))
             self._conn.execute("UPDATE profiles SET default_model = ? WHERE id = ?", (model, profile_id))
         return model
+
+    # ------------------------------------------------- Schreibstile
+
+    def style_list(self, profile_id: str) -> list[dict[str, Any]]:
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, description, instructions, created_at FROM styles WHERE profile_id = ? ORDER BY name COLLATE NOCASE", (profile_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def style_get(self, profile_id: str, style_id: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, name, description, instructions, created_at FROM styles WHERE profile_id = ? AND id = ?", (profile_id, style_id)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def style_count(self, profile_id: str) -> int:
+        with self._lock:
+            return self._conn.execute("SELECT COUNT(*) AS n FROM styles WHERE profile_id = ?", (profile_id,)).fetchone()["n"]
+
+    def style_save(self, profile_id: str, style_id: str | None, name: str, description: str, instructions: str) -> dict[str, Any] | None:
+        """Neuen Stil anlegen (``style_id`` None) oder einen eigenen ändern; None, wenn er nicht zur Person gehört."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            if style_id is None:
+                style_id = uuid.uuid4().hex[:16]
+                self._conn.execute(
+                    "INSERT INTO styles (id, profile_id, name, description, instructions, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (style_id, profile_id, name, description, instructions, _now()),
+                )
+            else:
+                cur = self._conn.execute(
+                    "UPDATE styles SET name = ?, description = ?, instructions = ? WHERE id = ? AND profile_id = ?",
+                    (name, description, instructions, style_id, profile_id),
+                )
+                if cur.rowcount != 1:
+                    return None
+        return self.style_get(profile_id, style_id)
+
+    def style_delete(self, profile_id: str, style_id: str) -> bool:
+        """Eigenen Stil löschen; Chats und Standard, die ihn nutzten, fallen auf „Standard“ zurück."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM styles WHERE id = ? AND profile_id = ?", (style_id, profile_id))
+            if cur.rowcount == 1:
+                self._conn.execute("UPDATE chats SET style_id = '' WHERE profile_id = ? AND style_id = ?", (profile_id, style_id))
+                self._conn.execute("UPDATE profiles SET default_style = '' WHERE id = ? AND default_style = ?", (profile_id, style_id))
+        return cur.rowcount == 1
+
+    def profile_default_style(self, profile_id: str) -> str:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT default_style FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+        return (row["default_style"] if row else "") or ""
+
+    def set_profile_default_style(self, profile_id: str, style_id: str) -> str:
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute("INSERT OR IGNORE INTO profiles (id) VALUES (?)", (profile_id,))
+            self._conn.execute("UPDATE profiles SET default_style = ? WHERE id = ?", (style_id, profile_id))
+        return style_id
+
+    def set_chat_style(self, profile_id: str, chat_id: str, style_id: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("UPDATE chats SET style_id = ? WHERE id = ? AND profile_id = ?", (style_id, chat_id, profile_id))
+        return cur.rowcount == 1
 
     def memory_get(self, scope: str, profile_id: str, topic: str) -> dict[str, Any] | None:
         """Ein Eintrag mit Thema (Groß-/Kleinschreibung egal); der automatisch erfasste Überblick zählt nicht."""
@@ -2128,6 +2344,62 @@ class Store:
             ).fetchone()
         return int(row["tokens"])
 
+    def usage_add(
+        self, profile_id: str, provider: str, model: str = "", kind: str = "chat",
+        tokens_in: int = 0, tokens_out: int = 0, cost_usd: float = 0.0, images: int = 0, ts: int | None = None,
+    ) -> None:
+        """Einen Verbrauch ins Protokoll schreiben (ein Aufruf der KI oder ein Bild). Es werden nur Zahlen gespeichert."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO usage_events (ts, profile_id, provider, model, kind, tokens_in, tokens_out, cost_usd, images) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (int(ts if ts is not None else time.time()), profile_id, provider[:20], model[:60], kind[:20],
+                 max(0, int(tokens_in)), max(0, int(tokens_out)), max(0.0, float(cost_usd)), max(0, int(images))),
+            )
+
+    def usage_summary(self, start_ts: int, end_ts: int, start_day: str, end_day: str) -> list[dict]:
+        """Verbrauch je Person im Zeitraum: frische Einträge nach Zeit, verdichtete Tage nach Datum (``JJJJ-MM-TT``, beide Grenzen eingeschlossen)."""
+        rows: dict[str, dict] = {}
+
+        def add(pid: str, calls: int, tin: int, tout: int, cost: float, images: int) -> None:
+            row = rows.setdefault(pid, {"profile_id": pid, "calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "images": 0})
+            row["calls"] += calls
+            row["tokens_in"] += tin
+            row["tokens_out"] += tout
+            row["cost_usd"] += cost
+            row["images"] += images
+
+        with self._lock:
+            for r in self._conn.execute(
+                "SELECT profile_id, COUNT(*) AS n, SUM(tokens_in) AS ti, SUM(tokens_out) AS to_, SUM(cost_usd) AS c, SUM(images) AS im "
+                "FROM usage_events WHERE ts >= ? AND ts < ? GROUP BY profile_id", (start_ts, end_ts),
+            ):
+                add(r["profile_id"], r["n"], r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0)
+            for r in self._conn.execute(
+                "SELECT profile_id, SUM(calls) AS n, SUM(tokens_in) AS ti, SUM(tokens_out) AS to_, SUM(cost_usd) AS c, SUM(images) AS im "
+                "FROM usage_daily WHERE day >= ? AND day <= ? GROUP BY profile_id", (start_day, end_day),
+            ):
+                add(r["profile_id"], r["n"] or 0, r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0)
+        return list(rows.values())
+
+    def usage_compact(self, before_ts: int) -> int:
+        """Einträge vor ``before_ts`` zu Tagessummen (lokales Datum) verdichten und löschen; liefert die Zahl verdichteter Einträge."""
+        with self._lock, self._conn:
+            old = self._conn.execute(
+                "SELECT ts, profile_id, provider, kind, tokens_in, tokens_out, cost_usd, images FROM usage_events WHERE ts < ?", (int(before_ts),)
+            ).fetchall()
+            for r in old:
+                day = datetime.fromtimestamp(r["ts"]).strftime("%Y-%m-%d")
+                self._conn.execute(
+                    "INSERT INTO usage_daily (day, profile_id, provider, kind, calls, tokens_in, tokens_out, cost_usd, images) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?) "
+                    "ON CONFLICT(day, profile_id, provider, kind) DO UPDATE SET calls = calls + 1, tokens_in = tokens_in + excluded.tokens_in, "
+                    "tokens_out = tokens_out + excluded.tokens_out, cost_usd = cost_usd + excluded.cost_usd, images = images + excluded.images",
+                    (day, r["profile_id"], r["provider"], r["kind"], r["tokens_in"], r["tokens_out"], r["cost_usd"], r["images"]),
+                )
+            if old:
+                self._conn.execute("DELETE FROM usage_events WHERE ts < ?", (int(before_ts),))
+        return len(old)
+
     def outfile_sweep(self, grace_seconds: int = 900) -> int:
         """Abgelaufene Dateien entfernen sowie Dateien ohne Eintrag (Chat gelöscht); liefert die Anzahl entfernter Dateien."""
         removed = 0
@@ -2180,11 +2452,356 @@ class Store:
                 (chat_id, profile_id, role, content, now, files, actions),
             )
             self._conn.execute(
-                "UPDATE chats SET updated_at = ?, unread = CASE WHEN ? = 'assistant' THEN 1 ELSE unread END "
+                "UPDATE chats SET updated_at = ?, archived_at = NULL, unread = CASE WHEN ? = 'assistant' THEN 1 ELSE unread END "
                 "WHERE id = ? AND profile_id = ?",
                 (now, role, chat_id, profile_id),
             )
         return {"id": cur.lastrowid, "role": role, "content": content, "created_at": now}
+
+    # --- Artefakte: eigenständige Ergebnisse (Seite, Grafik, Dokument, Code) mit Versionen ---------------------------------
+
+    ARTIFACT_VERSIONS_MAX = 50
+
+    def artifact_create(self, profile_id: str, chat_id: str, kind: str, language: str, title: str, content: str, note: str = "", by: str = "ai") -> dict[str, Any] | None:
+        """Neues Artefakt (Version 1) im Chat anlegen; ``None``, wenn der Chat nicht dieser Person gehört."""
+        _require(profile_id)
+        now = _now()
+        with self._lock, self._conn:
+            if not self._conn.execute("SELECT 1 FROM chats WHERE id = ? AND profile_id = ?", (chat_id, profile_id)).fetchone():
+                return None
+            art_id = secrets.token_hex(6)
+            self._conn.execute(
+                "INSERT INTO artifacts (id, profile_id, chat_id, kind, language, title, current, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                (art_id, profile_id, chat_id, kind, language, title, now, now),
+            )
+            self._conn.execute(
+                "INSERT INTO artifact_versions (artifact_id, n, content, note, by, created_at) VALUES (?, 1, ?, ?, ?, ?)", (art_id, content, note[:200], by, now)
+            )
+        return {"id": art_id, "chat_id": chat_id, "kind": kind, "language": language, "title": title, "version": 1, "created_at": now, "updated_at": now}
+
+    def _artifact_row(self, profile_id: str, art_id: str) -> sqlite3.Row | None:
+        return self._conn.execute(
+            "SELECT a.*, (SELECT MAX(n) FROM artifact_versions v WHERE v.artifact_id = a.id) AS latest, c.title AS chat_title, c.project_id AS project_id "
+            "FROM artifacts a JOIN chats c ON c.id = a.chat_id AND c.profile_id = a.profile_id WHERE a.id = ? AND a.profile_id = ?", (art_id, profile_id)
+        ).fetchone()
+
+    def artifact_get(self, profile_id: str, art_id: str, version: int | None = None) -> dict[str, Any] | None:
+        """Ein Artefakt mit Inhalt (neueste oder gewünschte Version) und der Liste seiner Versionen."""
+        _require(profile_id)
+        with self._lock:
+            row = self._artifact_row(profile_id, art_id)
+            if row is None:
+                return None
+            versions = [dict(r) for r in self._conn.execute(
+                "SELECT n, note, by, created_at, LENGTH(content) AS size FROM artifact_versions WHERE artifact_id = ? ORDER BY n", (art_id,)
+            )]
+            n = version if version is not None else row["latest"]
+            found = self._conn.execute("SELECT content FROM artifact_versions WHERE artifact_id = ? AND n = ?", (art_id, n)).fetchone()
+        if found is None:
+            return None
+        return {
+            "id": row["id"], "chat_id": row["chat_id"], "chat_title": row["chat_title"], "project_id": row["project_id"], "kind": row["kind"],
+            "language": row["language"], "title": row["title"], "version": n, "latest": row["latest"], "versions": versions, "content": found["content"],
+            "created_at": row["created_at"], "updated_at": row["updated_at"],
+        }
+
+    def artifact_list(
+        self, profile_id: str, chat_id: str | None = None, *, query: str = "", kind: str = "", project: str | None = None, limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """Artefakte der Person (eines Chats oder alle), zuletzt geändert zuerst, ohne Inhalt.
+
+        ``query``: Wörter im Titel, im Chat-Titel oder im Inhalt der neuesten Version (alle müssen vorkommen); ``in_content`` meldet, dass nur der Inhalt trifft.
+        ``kind``: html, svg, markdown oder code. ``project``: Projektkennung oder ``none`` für Chats ohne Projekt.
+        """
+        _require(profile_id)
+        where, args = ["a.profile_id = ?"], [profile_id]
+        if chat_id:
+            where.append("a.chat_id = ?")
+            args.append(chat_id)
+        if kind:
+            where.append("a.kind = ?")
+            args.append(kind)
+        if project == "none":
+            where.append("c.project_id IS NULL")
+        elif project:
+            where.append("c.project_id = ?")
+            args.append(project)
+        words = [w for w in fold(query).split() if w][:6]
+        latest = "(SELECT content FROM artifact_versions v3 WHERE v3.artifact_id = a.id ORDER BY v3.n DESC LIMIT 1)"
+        for word in words:
+            where.append(f"(instr(fold(a.title), ?) > 0 OR instr(fold(c.title), ?) > 0 OR instr(fold({latest}), ?) > 0)")
+            args += [word, word, word]
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT a.id, a.chat_id, a.kind, a.language, a.title, a.created_at, a.updated_at, c.title AS chat_title, c.project_id AS project_id, "
+                "(SELECT MAX(n) FROM artifact_versions v WHERE v.artifact_id = a.id) AS version, "
+                "(SELECT v2.by FROM artifact_versions v2 WHERE v2.artifact_id = a.id ORDER BY v2.n DESC LIMIT 1) AS last_by "
+                f"FROM artifacts a JOIN chats c ON c.id = a.chat_id AND c.profile_id = a.profile_id WHERE {' AND '.join(where)} "
+                "ORDER BY a.updated_at DESC, a.created_at DESC LIMIT ?",
+                (*args, max(1, min(limit, 1000))),
+            ).fetchall()
+        out = [dict(r) for r in rows]
+        if words:
+            for item in out:
+                text = fold(f"{item['title']} {item['chat_title']}")
+                item["in_content"] = not all(w in text for w in words)
+        return out
+
+    def artifact_update(self, profile_id: str, art_id: str, content: str, note: str = "", by: str = "ai", title: str | None = None) -> dict[str, Any] | None:
+        """Neue Version ablegen (gleicher Inhalt: keine neue Version). Liefert ``{id, version, changed}``; ``None``, wenn es das Artefakt nicht gibt."""
+        _require(profile_id)
+        now = _now()
+        with self._lock, self._conn:
+            row = self._artifact_row(profile_id, art_id)
+            if row is None:
+                return None
+            latest = self._conn.execute("SELECT content FROM artifact_versions WHERE artifact_id = ? AND n = ?", (art_id, row["latest"])).fetchone()
+            changed = latest is None or latest["content"] != content
+            version = row["latest"]
+            if changed:
+                version += 1
+                self._conn.execute(
+                    "INSERT INTO artifact_versions (artifact_id, n, content, note, by, created_at) VALUES (?, ?, ?, ?, ?, ?)", (art_id, version, content, note[:200], by, now)
+                )
+                self._conn.execute(
+                    "DELETE FROM artifact_versions WHERE artifact_id = ? AND n <= ?", (art_id, version - self.ARTIFACT_VERSIONS_MAX)
+                )
+            if changed or (title and title != row["title"]):
+                self._conn.execute("UPDATE artifacts SET updated_at = ?, title = ? WHERE id = ?", (now, title or row["title"], art_id))
+        return {"id": art_id, "version": version, "changed": changed}
+
+    def artifact_delete(self, profile_id: str, art_id: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM artifacts WHERE id = ? AND profile_id = ?", (art_id, profile_id))
+        return cur.rowcount == 1
+
+    # --- Artefakte teilen: nur lesen, nur der Text (Code) – nie als Seite ausgeführt ------------------------------------------
+    # Wie bei Chats ein Stand vom Zeitpunkt des Teilens; eigene Tabellen, damit Chat-Freigaben unberührt bleiben.
+
+    _ASHARE_FIELDS = ("id", "artifact_id", "profile_id", "mode", "token", "title", "kind", "language", "version", "taken_at", "created_at", "expires_at", "opens")
+
+    def _ashare(self, row: sqlite3.Row, with_content: bool = False) -> dict[str, Any]:
+        data = {k: row[k] for k in self._ASHARE_FIELDS}
+        if with_content:
+            data["content"] = row["content"]
+        return data
+
+    def artifact_share_upsert(self, profile_id: str, art_id: str, mode: str, expires_days: int | None = None) -> dict[str, Any] | None:
+        """Aktuelle Version des Artefakts teilen oder den Stand einer Freigabe erneuern. ``expires_days``: 0 = nie, ``None`` = unverändert."""
+        _require(profile_id)
+        if mode not in ("instance", "public"):
+            raise ValueError("mode muss instance oder public sein")
+        now = _now()
+        with self._lock, self._conn:
+            row = self._artifact_row(profile_id, art_id)
+            if row is None:
+                return None
+            content = self._conn.execute("SELECT content FROM artifact_versions WHERE artifact_id = ? AND n = ?", (art_id, row["latest"])).fetchone()
+            if content is None:
+                return None
+            old = self._conn.execute("SELECT id, expires_at FROM artifact_shares WHERE artifact_id = ? AND mode = ?", (art_id, mode)).fetchone()
+            if expires_days is None and old is not None:
+                expires = old["expires_at"]
+            elif expires_days:
+                expires = (datetime.now(timezone.utc) + timedelta(days=expires_days)).isoformat(timespec="seconds")
+            else:
+                expires = None
+            if old is None:
+                self._conn.execute(
+                    "INSERT INTO artifact_shares (id, artifact_id, profile_id, mode, token, title, kind, language, content, version, taken_at, created_at, expires_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (uuid.uuid4().hex, art_id, profile_id, mode, secrets.token_urlsafe(32), row["title"], row["kind"], row["language"], content["content"], row["latest"], now, now, expires),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE artifact_shares SET title = ?, kind = ?, language = ?, content = ?, version = ?, taken_at = ?, expires_at = ? WHERE artifact_id = ? AND mode = ?",
+                    (row["title"], row["kind"], row["language"], content["content"], row["latest"], now, expires, art_id, mode),
+                )
+        return self.artifact_share_get(profile_id, art_id, mode)
+
+    def artifact_share_get(self, profile_id: str, art_id: str, mode: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM artifact_shares WHERE artifact_id = ? AND profile_id = ? AND mode = ?", (art_id, profile_id, mode)).fetchone()
+        return self._ashare(row) if row else None
+
+    def artifact_share_delete(self, profile_id: str, art_id: str, mode: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM artifact_shares WHERE artifact_id = ? AND profile_id = ? AND mode = ?", (art_id, profile_id, mode))
+        return cur.rowcount == 1
+
+    def artifact_share_read(self, share_id: str = "", token: str = "", mode: str = "instance") -> dict[str, Any] | None:
+        """Freigabe samt Text lesen (über Kennung oder Zeichen der Adresse); abgelaufene gibt es nicht mehr."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM artifact_shares WHERE mode = ? AND " + ("id = ?" if share_id else "token = ?"), (mode, share_id or token)
+            ).fetchone()
+            if row is None:
+                return None
+            if row["expires_at"] and row["expires_at"] <= _now():
+                with self._conn:
+                    self._conn.execute("DELETE FROM artifact_shares WHERE id = ?", (row["id"],))
+                return None
+        return self._ashare(row, with_content=True)
+
+    def artifact_share_open(self, profile_id: str, token: str) -> dict[str, Any] | None:
+        """Link zu einem geteilten Artefakt öffnen (merkt sich, wer ihn geöffnet hat). ``own`` = die eigene Freigabe."""
+        _require(profile_id)
+        row = self.artifact_share_read(token=token, mode="instance")
+        if row is None:
+            return None
+        row.pop("content", None)
+        row["own"] = row["profile_id"] == profile_id
+        if not row["own"]:
+            now = _now()
+            with self._lock, self._conn:
+                self._conn.execute(
+                    "INSERT INTO artifact_share_access (share_id, profile_id, first_at, last_at, opens) VALUES (?, ?, ?, ?, 1) "
+                    "ON CONFLICT (share_id, profile_id) DO UPDATE SET last_at = excluded.last_at, opens = opens + 1",
+                    (row["id"], profile_id, now, now),
+                )
+        return row
+
+    def artifact_share_has_access(self, profile_id: str, share_id: str) -> bool:
+        _require(profile_id)
+        with self._lock:
+            return self._conn.execute("SELECT 1 FROM artifact_share_access WHERE share_id = ? AND profile_id = ?", (share_id, profile_id)).fetchone() is not None
+
+    def artifact_shares_opened_by(self, profile_id: str) -> list[dict[str, Any]]:
+        """Geteilte Artefakte anderer Personen, deren Link diese Person geöffnet hat (zuletzt geöffnete zuerst), ohne Text."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT s.*, a.first_at AS opened_at FROM artifact_share_access a JOIN artifact_shares s ON s.id = a.share_id "
+                "WHERE a.profile_id = ? AND s.mode = 'instance' AND (s.expires_at IS NULL OR s.expires_at > ?) ORDER BY a.last_at DESC",
+                (profile_id, _now()),
+            ).fetchall()
+        out = []
+        for r in rows:
+            item = self._ashare(r)
+            item["opened_at"] = r["opened_at"]
+            out.append(item)
+        return out
+
+    def artifact_share_access_remove(self, profile_id: str, share_id: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM artifact_share_access WHERE share_id = ? AND profile_id = ?", (share_id, profile_id))
+        return cur.rowcount == 1
+
+    def artifact_share_viewers(self, share_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT profile_id, first_at, last_at, opens FROM artifact_share_access WHERE share_id = ? ORDER BY last_at DESC", (share_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def artifact_share_count_open(self, share_id: str) -> None:
+        with self._lock, self._conn:
+            self._conn.execute("UPDATE artifact_shares SET opens = opens + 1 WHERE id = ?", (share_id,))
+
+    def artifact_share_modes(self, profile_id: str) -> dict[str, list[str]]:
+        """Welche Artefakte der Person gerade geteilt sind: ``{artifact_id: ['instance', 'public']}``."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT artifact_id, mode FROM artifact_shares WHERE profile_id = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY mode", (profile_id, _now())
+            ).fetchall()
+        out: dict[str, list[str]] = {}
+        for row in rows:
+            out.setdefault(row["artifact_id"], []).append(row["mode"])
+        return out
+
+    # --- Fassungen der letzten Antwort (Antwort neu erzeugen, ``‹ 2/3 ›``) -------------------------------------------------
+
+    VERSIONS_MAX = 10
+
+    def _last_answer(self, profile_id: str, chat_id: str, after_id: int = 0) -> sqlite3.Row | None:
+        row = self._conn.execute(
+            "SELECT id, role, content, tools FROM messages WHERE chat_id = ? AND profile_id = ? ORDER BY id DESC LIMIT 1", (chat_id, profile_id)
+        ).fetchone()
+        return row if row and row["role"] == "assistant" and row["id"] > after_id else None
+
+    def versions_pin(self, profile_id: str, chat_id: str, question_id: int) -> bool:
+        """Vor dem Neu-Erzeugen: die jetzige letzte Antwort (gehört zu ``question_id``) als Fassung sichern.
+
+        Liefert ``False``, wenn ``question_id`` nicht die letzte Frage ist oder keine Antwort dazu steht; dann gibt es keine Fassungen.
+        """
+        _require(profile_id)
+        with self._lock, self._conn:
+            last = self._conn.execute(
+                "SELECT id, role FROM messages WHERE chat_id = ? AND profile_id = ? ORDER BY id DESC LIMIT 2", (chat_id, profile_id)
+            ).fetchall()
+            if len(last) != 2 or last[0]["role"] != "assistant" or last[1]["id"] != question_id or last[1]["role"] != "user":
+                self._conn.execute("DELETE FROM answer_versions WHERE chat_id = ? AND profile_id = ?", (chat_id, profile_id))
+                self._conn.execute("UPDATE chats SET answer_seq = NULL WHERE id = ? AND profile_id = ?", (chat_id, profile_id))
+                return False
+            have = self._conn.execute("SELECT COUNT(*) AS n FROM answer_versions WHERE chat_id = ? AND profile_id = ?", (chat_id, profile_id)).fetchone()["n"]
+            if have == 0:
+                answer = self._last_answer(profile_id, chat_id)
+                self._conn.execute(
+                    "INSERT INTO answer_versions (chat_id, profile_id, seq, content, tools, created_at) VALUES (?, ?, 1, ?, ?, ?)",
+                    (chat_id, profile_id, answer["content"], answer["tools"], _now()),
+                )
+                self._conn.execute("UPDATE chats SET answer_seq = 1 WHERE id = ? AND profile_id = ?", (chat_id, profile_id))
+        return True
+
+    def versions_add(self, profile_id: str, chat_id: str, content: str, tools: list[dict] | None) -> None:
+        """Die neue Antwort als weitere Fassung ablegen und auswählen (über ``VERSIONS_MAX`` fällt die älteste weg)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            top = self._conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) AS s FROM answer_versions WHERE chat_id = ? AND profile_id = ?", (chat_id, profile_id)
+            ).fetchone()["s"]
+            if top == 0:
+                return  # nichts gesichert: keine Fassungen
+            self._conn.execute(
+                "INSERT INTO answer_versions (chat_id, profile_id, seq, content, tools, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (chat_id, profile_id, top + 1, content, json.dumps(tools, ensure_ascii=False) if tools else None, _now()),
+            )
+            self._conn.execute("UPDATE chats SET answer_seq = ? WHERE id = ? AND profile_id = ?", (top + 1, chat_id, profile_id))
+            self._conn.execute(
+                "DELETE FROM answer_versions WHERE chat_id = ? AND profile_id = ? AND seq IN "
+                "(SELECT seq FROM answer_versions WHERE chat_id = ? AND profile_id = ? ORDER BY seq DESC LIMIT -1 OFFSET ?)",
+                (chat_id, profile_id, chat_id, profile_id, self.VERSIONS_MAX),
+            )
+
+    def versions_clear(self, profile_id: str, chat_id: str) -> None:
+        """Alle Fassungen verwerfen (es geht weiter mit einer neuen Frage: nur die letzte Antwort hat Fassungen)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute("DELETE FROM answer_versions WHERE chat_id = ? AND profile_id = ?", (chat_id, profile_id))
+            self._conn.execute("UPDATE chats SET answer_seq = NULL WHERE id = ? AND profile_id = ? AND answer_seq IS NOT NULL", (chat_id, profile_id))
+
+    def versions_state(self, profile_id: str, chat_id: str) -> dict[str, int] | None:
+        """``{index, total}`` (ab 1) der Fassungen der letzten Antwort; ``None`` bei weniger als zwei Fassungen."""
+        with self._lock:
+            return self._versions_state(profile_id, chat_id)
+
+    def _versions_state(self, profile_id: str, chat_id: str) -> dict[str, int] | None:
+        rows = [r["seq"] for r in self._conn.execute("SELECT seq FROM answer_versions WHERE chat_id = ? AND profile_id = ? ORDER BY seq", (chat_id, profile_id))]
+        if len(rows) < 2 or self._last_answer(profile_id, chat_id) is None:
+            return None
+        chat = self._conn.execute("SELECT answer_seq FROM chats WHERE id = ? AND profile_id = ?", (chat_id, profile_id)).fetchone()
+        current = chat["answer_seq"] if chat else None
+        return {"index": rows.index(current) + 1 if current in rows else len(rows), "total": len(rows)}
+
+    def versions_select(self, profile_id: str, chat_id: str, index: int) -> bool:
+        """Fassung Nr. ``index`` (ab 1) zur sichtbaren letzten Antwort machen; ``False``, wenn es sie nicht gibt."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            rows = self._conn.execute(
+                "SELECT seq, content, tools FROM answer_versions WHERE chat_id = ? AND profile_id = ? ORDER BY seq", (chat_id, profile_id)
+            ).fetchall()
+            answer = self._last_answer(profile_id, chat_id)
+            if answer is None or not 1 <= index <= len(rows):
+                return False
+            chosen = rows[index - 1]
+            self._conn.execute("UPDATE messages SET content = ?, tools = ? WHERE id = ?", (chosen["content"], chosen["tools"], answer["id"]))
+            self._conn.execute("UPDATE chats SET answer_seq = ? WHERE id = ? AND profile_id = ?", (chosen["seq"], chat_id, profile_id))
+        return True
 
     def delete_message(self, profile_id: str, chat_id: str, message_id: int) -> bool:
         """Eine Nachricht zurücknehmen (Frage ohne jede Antwort)."""
@@ -2275,7 +2892,7 @@ class Store:
                     )
             # Neue Antwort = ungelesen, bis eine Oberfläche sie angezeigt und den Status zurückgesetzt hat.
             self._conn.execute(
-                "UPDATE chats SET updated_at = ?, unread = CASE WHEN ? THEN 1 ELSE unread END "
+                "UPDATE chats SET updated_at = ?, archived_at = NULL, unread = CASE WHEN ? THEN 1 ELSE unread END "
                 "WHERE id = ? AND profile_id = ?",
                 (now, 1 if assistant_content else 0, chat_id, profile_id),
             )
@@ -2301,6 +2918,11 @@ class Store:
              "attachments": _attachments(r["attachments"]), "tools": _tools(r["tools"])}
             for r in rows
         ]
+        if messages and messages[-1]["role"] == "assistant":
+            with self._lock:
+                state = self._versions_state(profile_id, chat_id)
+            if state:
+                messages[-1]["variant"] = state  # Fassungen der letzten Antwort: {index, total}
         self._mark_files(profile_id, messages)
         return messages
 

@@ -553,18 +553,14 @@ def test_errors_become_tool_errors_with_event_and_never_leak_the_token():
 
 def test_github_config_options_and_validation():
     s = parse_settings(RAW, frozenset())
-    assert s.github_access_default == "none" and s.github_write_confirm == "ask"
+    assert s.github_write_confirm == "ask"
     assert not hasattr(s, "github_token") and not hasattr(s, "github_repos")  # ein gemeinsames Token gibt es seit 0.47.0 nicht mehr
-    s = parse_settings({**RAW, "github_token": TOKEN, "github_repos": "a/b", "github_access_default": "READ", "github_write_confirm": "always_allow"}, frozenset())
-    assert s.github_access_default == "read" and s.github_write_confirm == "ask"  # Rückfrage ist fest; alte Schlüssel stören nicht
+    assert not hasattr(s, "github_access_default")  # seit 0.57.3 darf jede Person GitHub nutzen (eigenes Konto)
+    # Alte Schlüssel stören nicht (Rückfrage ist fest, Stufen gibt es nicht mehr)
+    old = [{**RAW["profiles"][0], "github_access": "root"}, RAW["profiles"][1]]
+    s = parse_settings({**RAW, "github_token": TOKEN, "github_repos": "a/b", "github_access_default": "READ", "github_write_confirm": "always_allow", "profiles": old}, frozenset())
+    assert s.github_write_confirm == "ask" and not hasattr(s.profiles[0], "github_access")
     assert TOKEN not in repr(s)
-    for bad in ({"github_access_default": "admin"},):
-        with pytest.raises(ConfigError):
-            parse_settings({**RAW, **bad}, frozenset())
-    profiles = [{**RAW["profiles"][0], "github_access": "write"}, RAW["profiles"][1]]
-    assert parse_settings({**RAW, "profiles": profiles}, frozenset()).profiles[0].github_access == "write"
-    with pytest.raises(ConfigError):
-        parse_settings({**RAW, "profiles": [{**RAW["profiles"][0], "github_access": "root"}]}, frozenset())
 
 
 # --------------------------------------------------------------------- Einbindung in die App
@@ -594,36 +590,21 @@ def gh_app(store, script, connected=True, **options):
     return build_ingress_app(settings, store, ToolBackend(), github_accounts=accounts), seen, gh
 
 
-def test_me_reports_github_level_and_tools_follow_the_level(store):
+def test_me_reports_github_level_and_tools_follow_the_account(store):
     async def scenario():
-        app, seen, _gh = gh_app(store, [], github_access_default="read")
+        # Konto verbunden: jede Person darf lesen und (mit Rückfrage) ändern
+        app, seen, _gh = gh_app(store, [])
         me = jget(await asgi(app, "GET", "/api/me"))
-        assert me["github"] == "read"
+        assert me["github"] == "write" and "github_connect" not in me
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert "github_read_file" in seen["tools"] and "github_commit_files" not in seen["tools"] and "GitHub" in seen["note"] and "nur lesen" in seen["note"]
-        # ohne Konto oder Stufe „none“ gibt es nichts
-        app, seen, _gh = gh_app(store, [], github_access_default="none")
-        assert jget(await asgi(app, "GET", "/api/me"))["github"] == "none"
-        chat = await new_chat(app)
-        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert not [t for t in seen["tools"] if t.startswith("github_")] and "keine GitHub-Werkzeuge" in seen["note"]
-        assert "github_access" in seen["note"] and "verbinden" not in seen["note"]  # Stufe fehlt, Konto ist da
-        app, seen, _gh = gh_app(store, [], connected=False, github_access_default="write")
+        assert "github_read_file" in seen["tools"] and "github_commit_files" in seen["tools"] and "GitHub" in seen["note"]
+        # ohne Konto gibt es nichts
+        app, seen, _gh = gh_app(store, [], connected=False)
         assert jget(await asgi(app, "GET", "/api/me"))["github"] == "none"
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
         assert "Einstellungen" in seen["note"] and TOKEN not in seen["note"]  # Konto fehlt: Hinweis auf das Verbinden
-
-    run(scenario())
-
-
-def test_profile_level_overrides_default(store):
-    async def scenario():
-        profiles = [{**RAW["profiles"][0], "github_access": "write"}, RAW["profiles"][1]]
-        app, seen, _gh = gh_app(store, [], profiles=profiles, github_access_default="read")
-        assert jget(await asgi(app, "GET", "/api/me"))["github"] == "write"
-        assert jget(await asgi(app, "GET", "/api/me", user=DORA))["github"] == "read"
 
     run(scenario())
 
@@ -640,7 +621,7 @@ def test_commit_end_to_end_with_approval_topic_and_link(store):
     async def scenario():
         script = [("github_read_file", {"repo": "dora/smarthome", "path": "README.md"}),
                   ("github_commit_files", {"repo": "dora/smarthome", "message": "Docs", "branch": "docs", "create_branch_from": "main", "files": [{"path": "NEU.md", "content": "hallo"}]})]
-        app, seen, gh = gh_app(store, script, github_access_default="write")
+        app, seen, gh = gh_app(store, script)
         chat = await new_chat(app)
         post = asyncio.create_task(asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Lege eine Datei an"}))
 

@@ -26,6 +26,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from . import schedule as sched
+from . import styles as stylelib
+from . import usage as usagelib
 from .i18n import tr
 from .backend import BackendError
 from .config import Profile, Settings, provider_of
@@ -140,7 +142,7 @@ class Scheduler:
     def github_level(self, profile: Profile) -> str:
         if not self.github_api(profile).enabled:
             return "none"
-        return "none" if (profile.github_access or self.settings.github_access_default) == "none" else "read"
+        return "read"
 
     def model_for(self, row: dict) -> str | None:
         wanted = row.get("model") or ""
@@ -308,11 +310,18 @@ class Scheduler:
         store = self.store
         error: str | None = None
         cancelled = False
+        usagelib.bind(store, profile.id, "scheduled")
         try:
             extra: dict = {"on_limit": self.limits.update}
             personal = store.profile_instructions(profile.id)
             if personal:
                 extra["personal_instructions"] = personal
+            default_style = store.profile_default_style(profile.id)
+            if default_style and default_style != "none":
+                own = None if default_style.startswith(stylelib.PRESET_PREFIX) else store.style_get(profile.id, default_style)
+                text = stylelib.preset_rules(default_style) if own is None else own["instructions"]
+                if text:
+                    extra["style"] = text
             model = self.model_for(row)
             if model:
                 extra["model"] = model

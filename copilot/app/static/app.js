@@ -3,7 +3,8 @@
 // Alle Pfade sind relativ, damit die Seite unter dem Ingress-Pfad von Home Assistant funktioniert.
 const $ = (id) => document.getElementById(id);
 const state = { research: false, incognito: false, incognitoId: null, view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
-const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
+const ui = { projectsOpen: true, openProjects: new Set() };
+const SIDE_CHATS = 15; // so viele neueste Chats stehen in der Seitenleiste; alles andere unter „Alle Chats“
 
 // ---------------------------------------------------------------- Hilfen
 
@@ -24,6 +25,7 @@ const ICONS = {
   refresh: ["M19.5 12a7.5 7.5 0 1 1-2.2-5.3", "M19.5 4.5v4.5H15"],
   arrowDown: ["M12 5v14M6 13l6 6 6-6"],
   trash: ["M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"],
+  archive: ["M4 5h16v4H4z", "M5.5 9v8.5a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9", "M10 13h4"],
   arrowUp: ["M12 19V5M6 11l6-6 6 6"],
   stop: ["M7 7h10v10H7z"],
   copy: ["M9 9h10v10H9zM5 15V5h10"],
@@ -32,6 +34,7 @@ const ICONS = {
   pin: ["M9 4h6l-1 5 3 3v2H7v-2l3-3zM12 14v7"],
   plus: ["M12 5v14M5 12h14"],
   chevron: ["M9 6l6 6-6 6"],
+  "chevron-left": ["M15 6l-6 6 6 6"],
   folder: ["M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"],
   chat: ["M20 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"],
   fold: ["M4 8l4 4-4 4M12 6h8M12 12h8M12 18h8"],
@@ -718,7 +721,7 @@ function askMark() {
 }
 
 function chatRow(chat, meta = "") {
-  const item = node("div", "row chat-item" + (chat.id === state.activeId ? " active" : ""));
+  const item = node("div", "row chat-item" + (chat.id === state.activeId ? " active" : "") + (chat.archived ? " archived" : ""));
   if (chat.schedule_id) {
     const mark = icon("clock");
     mark.classList.add("sched-mark");
@@ -858,7 +861,7 @@ function renderProjects(root) {
     body.append(row);
     if (!open) continue;
     const kids = node("div", "project-children");
-    const inside = state.chats.filter((c) => c.project_id === project.id && !c.pinned);
+    const inside = state.chats.filter((c) => c.project_id === project.id && !c.pinned && !c.archived);
     for (const chat of inside) kids.append(chatRow(chat));
     if (inside.length === 0) kids.append(node("div", "hint", tr("Noch keine Chats.")));
     body.append(kids);
@@ -867,10 +870,8 @@ function renderProjects(root) {
 }
 
 function renderChats(root) {
-  const loose = state.chats.filter((c) => !c.project_id && !c.pinned);
-  const recent = loose.filter((c) => daysAgo(c.updated_at) <= 1);
-  const shown = ui.showAll ? loose : recent;
-  const hidden = loose.length - recent.length;
+  const loose = state.chats.filter((c) => !c.project_id && !c.pinned && !c.archived);
+  const shown = loose.slice(0, SIDE_CHATS);
 
   root.append(sectionHead(tr("Chats")));
   const body = node("div", "sec-body");
@@ -883,14 +884,11 @@ function renderChats(root) {
     }
     body.append(chatRow(chat));
   }
-  if (shown.length === 0) {
-    const none = state.chats.length === 0 ? tr("Noch keine Chats.") : tr("Keine Chats in den letzten 2 Tagen.");
-    body.append(node("div", "hint", none));
-  }
-  if (hidden > 0) {
-    const more = node("button", "show-all", ui.showAll ? tr("Weniger anzeigen") : tr("Alle anzeigen ({0} ältere)", hidden));
+  if (shown.length === 0) body.append(node("div", "hint", tr("Noch keine Chats.")));
+  if (state.chats.length) {
+    const more = node("button", "show-all", tr("Alle Chats"));
     more.type = "button";
-    more.addEventListener("click", () => { ui.showAll = !ui.showAll; renderSide(); });
+    more.addEventListener("click", () => { openAllChats().catch(() => {}); });
     body.append(more);
   }
   root.append(body);
@@ -921,6 +919,7 @@ async function loadAll() {
   syncBadge();
   syncCrumbs();
   syncSharedNav();
+  if (state.view === "allchats") allChatsDraw?.();
 }
 
 // „Geteilt“ steht in der Seitenleiste immer, solange das Teilen erlaubt ist (leer zeigt die Seite einen Hinweis).
@@ -1049,6 +1048,7 @@ async function chatMenu(chat, anchor) {
   };
   const pin = { value: "pin", icon: "pin", label: chat.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" };
   const rename = { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" };
+  const archive = { value: "archive", icon: "archive", label: chat.archived ? tr("Aus dem Archiv holen") : tr("Archivieren"), key: "A" };
   const exportMd = { value: "export", icon: "download", label: tr("Als Markdown exportieren") };
   const share = canShare() && !chat.kind ? [{ value: "share", icon: "share", label: tr("Teilen …") }] : [];
   const remove = { value: "delete", icon: "trash", label: tr("Löschen"), danger: true, key: "D" };
@@ -1062,23 +1062,25 @@ async function chatMenu(chat, anchor) {
     choice = await openPopover(anchor, [
       unread,
       { divider: true },
-      pin,
+      ...(chat.archived ? [] : [pin]),
       rename,
       { icon: "stack", label: tr("Projekt wechseln"), submenu: projects, search: tr("Projekt suchen") },
       ...(chat.project_id ? [{ value: "unproject", icon: "folderX", label: tr("Aus Projekt entfernen") }] : []),
       exportMd,
       ...share,
       { divider: true },
+      archive,
       remove,
     ]);
   } else {
     choice = await openSheet({
       title: chat.title,
       items: [
-        unread, pin, rename,
+        unread, ...(chat.archived ? [] : [pin]), rename,
         { value: "move", icon: "folder", label: chat.project_id ? tr("Projekt ändern") : tr("In Projekt verschieben") },
         exportMd,
         ...share,
+        archive,
         remove,
       ],
     });
@@ -1086,12 +1088,243 @@ async function chatMenu(chat, anchor) {
   if (choice === "unread") await setUnread(chat, !chat.unread);
   else if (choice === "pin") await changeChat(chat, { pinned: !chat.pinned }, tr("Anpinnen hat nicht geklappt."));
   else if (choice === "rename") await renameChat(chat);
+  else if (choice === "archive") await archiveChats([chat], !chat.archived);
   else if (choice === "move") await moveChat(chat);
   else if (choice === "unproject") await moveChatTo(chat, "");
   else if (choice === "export") await exportChat(chat);
   else if (choice === "share") await shareChat(chat);
   else if (typeof choice === "string" && choice.startsWith("move:")) await moveChatTo(chat, choice.slice(5));
   else if (choice === "delete") await deleteChat(chat);
+}
+
+// Ins Archiv legen oder zurückholen (ein Chat oder mehrere). Archivierte Chats stehen nicht mehr in den Listen,
+// bleiben aber unter „Alle Chats“, im Projekt („Archiviert (n)“) und in der Suche. Wer wieder hineinschreibt, holt sie zurück.
+async function archiveChats(chats, archived) {
+  let failed = 0;
+  for (const chat of chats) {
+    try { await patchChat(chat, { archived }); } catch { failed += 1; }
+  }
+  await loadAll();
+  allChatsDraw?.();
+  if (failed) toast(tr("Das hat nicht bei allen Chats geklappt."));
+  else if (chats.length === 1) toast(archived ? tr("Chat archiviert.") : tr("Chat aus dem Archiv geholt."));
+  else toast(archived ? tr("{0} Chats archiviert.", chats.length) : tr("{0} Chats aus dem Archiv geholt.", chats.length));
+  return failed === 0;
+}
+
+// „Alle Chats“: eine eigene Seite mit Reitern Aktiv / Geteilt / Archiviert, Suche und Mehrfachauswahl.
+const allChats = { tab: "active", query: "", selecting: false, chosen: new Set(), armed: false, hits: new Map(), incoming: null, seq: 0, timer: 0 };
+let allChatsDraw = null;
+
+async function openAllChats(tab = "active") {
+  if (!state.me) return;
+  setView("allchats");
+  rememberDetail(tab);
+  detachRun();
+  releaseRecent();
+  state.activeId = null;
+  rememberActive();
+  state.newProject = null;
+  state.heldUnread = null;
+  Object.assign(allChats, { tab, query: "", selecting: false, chosen: new Set(), armed: false, hits: new Map(), incoming: null });
+  renderSide();
+  closeMenu();
+  setTitle(tr("Alle Chats"));
+  buildAllChats();
+  $("allchats").scrollTop = 0;
+}
+
+function buildAllChats() {
+  const wrap = $("allchats-wrap");
+  wrap.replaceChildren();
+  const view = allChats;
+
+  const fresh = node("button", "pill primary");
+  fresh.type = "button";
+  fresh.append(icon("plus"), node("span", "", tr("Neuer Chat")));
+  fresh.addEventListener("click", () => startNew());
+  skillHead(wrap, tr("Alle Chats"), "", fresh);
+
+  const tabs = node("div", "skills-tabs");
+  tabs.setAttribute("role", "tablist");
+  const tabButtons = new Map();
+  for (const [id, label] of [["active", tr("Aktiv")], ["shared", tr("Geteilt")], ["archived", tr("Archiviert")]]) {
+    if (id === "shared" && !canShare()) continue;
+    const button = node("button", "skills-tab", label);
+    button.type = "button";
+    button.setAttribute("role", "tab");
+    button.addEventListener("click", () => {
+      view.tab = id;
+      rememberDetail(id);
+      view.selecting = false;
+      view.chosen.clear();
+      view.armed = false;
+      draw();
+      if (id === "shared" && view.incoming === null) loadIncoming();
+    });
+    tabButtons.set(id, button);
+    tabs.append(button);
+  }
+  const bar = node("div", "skills-bar");
+  bar.append(tabs);
+  wrap.append(bar);
+
+  const search = node("input", "field allchats-search");
+  search.type = "search";
+  search.placeholder = tr("Chats suchen");
+  search.setAttribute("aria-label", tr("Chats suchen"));
+  const pick = node("button", "allchats-pick", tr("Auswählen"));
+  pick.type = "button";
+  const tools = node("div", "allchats-tools");
+  tools.append(search, pick);
+  const list = node("div", "allchats-list");
+  const foot = node("div", "allchats-foot");
+  wrap.append(tools, list, foot);
+
+  const loadIncoming = async () => {
+    try { view.incoming = await api("api/shared"); } catch { view.incoming = []; }
+    draw();
+  };
+
+  const rowsFor = () => {
+    const match = (c) => !view.query || wordsMatch(view.query, c.title) || view.hits.has(c.id);
+    const chats = state.chats.filter((c) => (view.tab === "archived" ? c.archived : view.tab === "shared" ? c.shared?.length : !c.archived)).filter(match);
+    return chats.map((c) => {
+      const project = c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name : "";
+      const found = view.hits.get(c.id);
+      return {
+        chat: c,
+        sub: [project, searchDate(c.updated_at)].filter(Boolean).join(" · "),
+        snippet: found && !wordsMatch(view.query, c.title) ? found.snippet : "",
+      };
+    });
+  };
+
+  const empty = (iconName, text) => {
+    const box = node("div", "shared-empty");
+    box.append(icon(iconName), node("p", "", text));
+    return box;
+  };
+
+  const draw = () => {
+    if (state.view !== "allchats") return;
+    for (const [id, button] of tabButtons) button.setAttribute("aria-selected", String(id === view.tab));
+    const shared = view.tab === "shared";
+    pick.hidden = shared;
+    pick.textContent = view.selecting ? tr("Fertig") : tr("Auswählen");
+    const nodes = [];
+    for (const { chat, sub, snippet } of rowsFor()) {
+      const item = node("div", "shared-item allchats-item" + (view.chosen.has(chat.id) ? " chosen" : ""));
+      const open = node("button", "shared-open");
+      open.type = "button";
+      if (view.selecting) {
+        const box = node("span", "allchats-check" + (view.chosen.has(chat.id) ? " on" : ""));
+        if (view.chosen.has(chat.id)) box.append(icon("check"));
+        open.append(box);
+      } else open.append(icon(chat.schedule_id ? "clock" : "chat"));
+      const text = node("span", "share-text");
+      text.append(node("b", "", chat.title), node("span", "share-hint", sub));
+      if (snippet) text.append(node("span", "share-hint allchats-snippet", snippet));
+      open.append(text);
+      open.addEventListener("click", () => {
+        if (view.selecting) {
+          if (view.chosen.has(chat.id)) view.chosen.delete(chat.id); else view.chosen.add(chat.id);
+          view.armed = false;
+          draw();
+        } else selectChat(chat.id);
+      });
+      item.append(open);
+      if (!view.selecting && !shared) {
+        const flip = node("button", "shared-remove allchats-flip");
+        flip.type = "button";
+        const label = chat.archived ? tr("Aus dem Archiv holen") : tr("Archivieren");
+        flip.setAttribute("aria-label", label);
+        flip.title = label;
+        flip.append(icon("archive"));
+        flip.addEventListener("click", async () => { await archiveChats([chat], !chat.archived); });
+        item.append(flip);
+      }
+      nodes.push(item);
+    }
+    if (shared) {
+      for (const c of view.incoming || []) {
+        if (view.query && !wordsMatch(view.query, c.title)) continue;
+        const item = node("div", "shared-item");
+        const open = node("button", "shared-open");
+        open.type = "button";
+        const text = node("span", "share-text");
+        text.append(node("b", "", c.title), node("span", "share-hint", tr("Von {0} · Stand {1}", c.owner, exactTime(c.taken_at))));
+        open.append(icon("share"), text);
+        open.addEventListener("click", () => { openSharedChat(c.id).catch(() => {}); });
+        item.append(open);
+        nodes.push(item);
+      }
+    }
+    if (!nodes.length) {
+      nodes.push(view.query ? empty("search", tr("Nichts gefunden."))
+        : view.tab === "archived" ? empty("archive", tr("Das Archiv ist leer."))
+        : shared ? empty("share", tr("Es ist nichts geteilt."))
+        : empty("chat", tr("Noch keine Chats.")));
+    }
+    list.replaceChildren(...nodes);
+
+    foot.hidden = !view.selecting;
+    foot.replaceChildren();
+    if (!view.selecting) return;
+    const count = view.chosen.size;
+    foot.append(node("span", "allchats-count", tr("{0} ausgewählt", count)));
+    const chosen = () => state.chats.filter((c) => view.chosen.has(c.id));
+    const moveBtn = node("button", "pill", view.tab === "archived" ? tr("Zurückholen") : tr("Archivieren"));
+    moveBtn.type = "button";
+    moveBtn.disabled = count === 0;
+    moveBtn.addEventListener("click", async () => {
+      await archiveChats(chosen(), view.tab !== "archived");
+      view.chosen.clear();
+      draw();
+    });
+    const del = node("button", "pill danger" + (view.armed ? " armed" : ""), view.armed ? tr("Wirklich löschen?") : tr("Löschen"));
+    del.type = "button";
+    del.disabled = count === 0;
+    del.addEventListener("click", async () => {
+      if (!view.armed) { view.armed = true; draw(); return; }
+      const gone = chosen();
+      let failed = 0;
+      for (const chat of gone) {
+        try { await api(`api/chats/${encodeURIComponent(chat.id)}`, { method: "DELETE" }); } catch { failed += 1; }
+      }
+      view.chosen.clear();
+      view.armed = false;
+      await loadAll();
+      toast(failed ? tr("Das hat nicht bei allen Chats geklappt.") : tr("{0} Chats gelöscht.", gone.length));
+      draw();
+    });
+    foot.append(moveBtn, del);
+  };
+
+  pick.addEventListener("click", () => {
+    view.selecting = !view.selecting;
+    view.chosen.clear();
+    view.armed = false;
+    draw();
+  });
+  search.addEventListener("input", () => {
+    view.query = search.value.trim();
+    draw();
+    clearTimeout(view.timer);
+    if (view.query.length < 2) { view.hits = new Map(); return; }
+    const mine = ++view.seq;
+    view.timer = setTimeout(async () => {
+      try {
+        const hits = await api(`api/search?q=${encodeURIComponent(view.query)}`);
+        if (mine !== view.seq) return;
+        view.hits = new Map(hits.map((h) => [h.chat_id, h]));
+        draw();
+      } catch { /* die Titelsuche bleibt */ }
+    }, 250);
+  });
+  allChatsDraw = draw;
+  draw();
+  if (view.tab === "shared") loadIncoming();
 }
 
 async function changeChat(chat, body, failure) {
@@ -1637,6 +1870,177 @@ function memoryImportDone(body, result, back) {
   parts.push(back2);
   body.replaceChildren(...parts);
   body.scrollTop = 0;
+}
+
+// ------------------------------------------------- Schreibstile
+
+// Ein Stil legt Ton, Länge und Gliederung der Antworten fest. Er gilt je Chat (Menü unter dem Eingabefeld) oder als Standard der Person.
+async function loadStyles(force = false) {
+  if (state.styles && !force) return state.styles;
+  try { state.styles = await api("api/styles"); } catch { state.styles ||= { presets: [], own: [], default: "", max: 20, limits: {} }; }
+  return state.styles;
+}
+
+function styleById(id) {
+  const all = state.styles ? [...state.styles.presets, ...state.styles.own] : [];
+  return all.find((x) => x.id === id) || null;
+}
+
+// Name des Stils, der in diesem Chat gilt (leer = Standard der Person)
+function styleLabel(id) {
+  if (id === "none") return tr("Ohne Stil");
+  const found = styleById(id || state.styles?.default || "");
+  return found ? found.name : tr("Kein Stil");
+}
+
+function styleMenuEntries() {
+  const st = state.styles || { presets: [], own: [], default: "" };
+  const standard = styleById(st.default);
+  const entries = [
+    { value: "style:", label: tr("Standard"), detail: standard ? standard.name : tr("Kein Stil"), active: !state.style },
+    { value: "style:none", label: tr("Ohne Stil"), active: state.style === "none" },
+    { divider: true },
+    ...st.presets.map((x) => ({ value: `style:${x.id}`, label: x.name, active: state.style === x.id })),
+  ];
+  if (st.own.length) entries.push({ divider: true }, ...st.own.map((x) => ({ value: `style:${x.id}`, label: x.name, active: state.style === x.id })));
+  entries.push({ divider: true }, { value: "style:manage", label: tr("Stile verwalten …") });
+  return entries;
+}
+
+function chooseStyle(id) {
+  if (id === "manage") { openSettings("styles").catch(() => {}); return; }
+  state.style = id;
+  state.styleChanged = true;
+  toast(id === "none" ? tr("Ab der nächsten Nachricht antworte ich ohne besonderen Stil.") : tr("Ab der nächsten Nachricht antworte ich im Stil „{0}“.", styleLabel(id)));
+}
+
+// Eigenen Stil anlegen oder ändern. Mit „Aus Beispieltext lernen“ leite ich die Beschreibung aus eigenen Texten ab; sie lässt sich danach bearbeiten.
+async function editStyle(existing, learn = false) {
+  const limits = state.styles?.limits || {};
+  let saved = null;
+  await openSheet({
+    title: existing ? tr("Stil bearbeiten") : learn ? tr("Stil aus Beispieltext lernen") : tr("Neuer Stil"),
+    ok: tr("Speichern"),
+    panel: (body) => {
+      body.classList.add("tall");
+      const field = (label, el) => { const l = node("label", "sheet-label", label); el.setAttribute("aria-label", label); return [l, el]; };
+      const name = node("input", "field");
+      name.maxLength = limits.name || 40;
+      name.value = existing?.name || "";
+      const description = node("input", "field");
+      description.maxLength = limits.description || 160;
+      description.value = existing?.description || "";
+      description.placeholder = tr("Kurz, was den Stil ausmacht (optional)");
+      const text = node("textarea", "field area");
+      text.rows = 5;
+      text.maxLength = limits.instructions || 1500;
+      text.value = existing?.instructions || "";
+      text.placeholder = tr("Zum Beispiel: Schreibe knapp und sachlich, ohne Einleitung. Nutze Listen nur bei Schritten.");
+      const status = node("p", "mem-hint", "");
+      if (learn) {
+        const sample = node("textarea", "field area");
+        sample.rows = 5;
+        sample.maxLength = limits.learn || 12000;
+        sample.placeholder = tr("Füge hier Texte ein, die du selbst geschrieben hast (E-Mails, Notizen, Beiträge). Mindestens ein paar Absätze.");
+        const go = node("button", "pill ghost small", tr("Stil ableiten"));
+        go.type = "button";
+        go.addEventListener("click", async () => {
+          go.disabled = true;
+          status.textContent = tr("Ich lese deine Texte …");
+          try {
+            const found = await api("api/styles/learn", { method: "POST", body: JSON.stringify({ text: sample.value }) });
+            text.value = found.instructions;
+            status.textContent = tr("Das ist mein Vorschlag. Du kannst ihn ändern, bevor du speicherst. Deine Texte habe ich nicht gespeichert.");
+          } catch (err) { status.textContent = errorText(err, tr("Das hat nicht geklappt.")); }
+          go.disabled = false;
+        });
+        body.append(...field(tr("Beispieltexte"), sample), go, status);
+      }
+      body.append(...field(tr("Name"), name), ...field(tr("Kurzbeschreibung"), description), ...field(tr("Anweisung an mich"), text));
+      if (!learn) body.append(status);
+      saveStyle = async () => {
+        if (!name.value.trim() || !text.value.trim()) { status.textContent = tr("Der Stil braucht einen Namen und eine Anweisung."); return false; }
+        const payload = JSON.stringify({ name: name.value, description: description.value, instructions: text.value });
+        try {
+          saved = existing
+            ? await api(`api/styles/${encodeURIComponent(existing.id)}`, { method: "PUT", body: payload })
+            : await api("api/styles", { method: "POST", body: payload });
+          return true;
+        } catch (err) { status.textContent = errorText(err, tr("Das hat nicht geklappt.")); return false; }
+      };
+    },
+    onOk: () => saveStyle(),
+  });
+  $("sheet-panel").classList.remove("tall");
+  return saved;
+}
+let saveStyle = async () => false;
+
+function stylesPanel(body, alive) {
+  const draw = async () => {
+    const st = await loadStyles(true);
+    if (!alive()) return;
+    const parts = [];
+
+    const defaultRow = node("div", "set-row");
+    const text = node("div", "set-row-text");
+    text.append(node("b", "", tr("Standardstil")), node("span", "", tr("Gilt in jedem Chat, in dem du nichts anderes wählst. Im Chat wählst du den Stil unter dem Eingabefeld.")));
+    const select = node("select", "field set-select");
+    select.setAttribute("aria-label", tr("Standardstil"));
+    select.append(new Option(tr("Kein Stil"), ""));
+    for (const x of [...st.presets, ...st.own]) select.append(new Option(x.name, x.id));
+    select.value = st.default;
+    select.addEventListener("change", async () => {
+      try { await api("api/me/style", { method: "PUT", body: JSON.stringify({ style: select.value }) }); st.default = select.value; toast(tr("Standardstil gespeichert.")); }
+      catch { toast(tr("Das hat nicht geklappt.")); select.value = st.default; }
+    });
+    defaultRow.append(text, select);
+    parts.push(defaultRow);
+
+    const list = (title, hint, items, own) => {
+      const box = node("section", "mem-section");
+      box.append(node("h4", "", title), node("p", "mem-hint", hint));
+      if (!items.length) box.append(node("p", "mem-empty", tr("Noch keine eigenen Stile.")));
+      for (const x of items) {
+        const row = node("div", "mem-entry");
+        const t = node("div", "mem-entry-text");
+        t.append(node("b", "", x.name), node("span", "mem-hint", x.description || (own ? x.instructions.slice(0, 120) : "")));
+        row.append(t);
+        if (own) {
+          const edit = node("button", "pill ghost small", tr("Bearbeiten"));
+          edit.type = "button";
+          edit.addEventListener("click", async () => { if (await editStyle(x)) draw(); });
+          const del = node("button", "pill ghost small", tr("Löschen"));
+          del.type = "button";
+          del.addEventListener("click", async () => {
+            const yes = await openSheet({ title: tr("Stil löschen?"), sub: tr("„{0}“ wird gelöscht. Chats, die ihn nutzen, antworten danach im Standardstil.", x.name), ok: tr("Löschen"), danger: true });
+            if (!yes) return;
+            try { await api(`api/styles/${encodeURIComponent(x.id)}`, { method: "DELETE" }); } catch { toast(tr("Löschen hat nicht geklappt.")); }
+            draw();
+          });
+          row.append(edit, del);
+        }
+        box.append(row);
+      }
+      return box;
+    };
+    parts.push(list(tr("Vorgaben"), tr("Diese Stile bringe ich mit."), st.presets, false));
+    const mine = list(tr("Eigene Stile"), tr("Du kannst bis zu {0} eigene Stile anlegen.", st.max), st.own, true);
+    const bar = node("div", "mem-actions");
+    const add = node("button", "pill primary small", tr("Neuer Stil"));
+    add.type = "button";
+    add.disabled = st.own.length >= st.max;
+    add.addEventListener("click", async () => { if (await editStyle(null)) draw(); });
+    const learn = node("button", "pill ghost small", tr("Aus Beispieltext lernen"));
+    learn.type = "button";
+    learn.disabled = st.own.length >= st.max;
+    learn.addEventListener("click", async () => { if (await editStyle(null, true)) draw(); });
+    bar.append(add, learn);
+    mine.append(bar);
+    parts.push(mine);
+    body.replaceChildren(...parts);
+  };
+  draw();
 }
 
 function memoryPanel(body) {
@@ -3987,7 +4391,7 @@ function actionsEl(list = [], open = false) {
   box.append(head, node("ul", "act-list"));
   box.update = (all) => {
     // Gelungene Gedächtnis-Änderungen zeigt der Hinweis unter der Antwort (memoryNoteEl); hier stehen sie nicht doppelt.
-    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok"));
+    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok") && a.kind !== "artifact"); // Artefakte zeigen ihre Karten
     const ha = items.filter((a) => ["read", "execute", "write"].includes(a.kind));
     const changes = ha.filter((a) => a.kind !== "read").length;
     const wissen = items.filter((a) => a.kind === "knowledge").length;
@@ -4306,6 +4710,351 @@ function fileCardsEl(actions) {
   return box;
 }
 
+// ----------------------------------------------------------------------------------------------------------------
+// Artefakte: eigenständige Ergebnisse der KI (Seite, Grafik, Dokument, Code). Unter der Antwort steht eine Karte, daneben
+// öffnet sich ein Fenster mit Vorschau und Code. HTML läuft in der abgeschotteten Vorschau (kein Netzwerk), SVG nur als Bild.
+const artifactKinds = () => ({
+  html: [tr("Seite"), "globe"], svg: [tr("Grafik"), "picture"], markdown: [tr("Dokument"), "note"], code: [tr("Code"), "code"],
+});
+
+function artifactKindText(a) {
+  const [label] = artifactKinds()[a.kind] || [tr("Artefakt"), "code"];
+  return a.kind === "code" && a.language && a.language !== "text" ? `${label} · ${a.language}` : label;
+}
+
+const artifactUi = { id: null, data: null, tab: "preview", seen: new Set(), editing: false };
+
+function artifactCard(a) {
+  const [, ic] = artifactKinds()[a.kind] || [0, "code"];
+  const card = node("button", `out-card art-card${artifactUi.id === a.id ? " open" : ""}`);
+  card.type = "button";
+  card.dataset.artifact = a.id;
+  card.setAttribute("aria-label", tr("{0} öffnen", a.title));
+  const tile = node("span", "out-tile");
+  tile.append(icon(ic));
+  const meta = node("span", "out-meta");
+  meta.append(node("b", "", a.title), node("small", "", `${artifactKindText(a)} · ${tr("Version {0}", a.version)}`));
+  card.append(tile, meta);
+  card.addEventListener("click", () => openArtifact(a.id).catch(() => toast(tr("Das Artefakt konnte nicht geöffnet werden."))));
+  return card;
+}
+
+function artifactPendingCard(label) {
+  const card = node("div", "out-card art-card pending");
+  const tile = node("span", "out-tile");
+  tile.append(node("span", "run-spin"));
+  const meta = node("span", "out-meta");
+  meta.append(node("b", "", label), node("small", "", tr("Wird geschrieben …")));
+  card.append(tile, meta);
+  return card;
+}
+
+// Karten unter der Antwort: je Artefakt eine (zuletzt gemeldete Version), solange es entsteht eine Wartekarte
+function artifactCardsEl(actions) {
+  const box = node("div", "out-cards art-cards");
+  box.update = (items) => {
+    const done = new Map();
+    for (const a of items) if (a.kind === "artifact" && a.artifact && a.status === "ok") done.set(a.artifact.id, a.artifact);
+    const pending = items.filter((a) => a.kind === "artifact" && a.status === "running");
+    box.hidden = done.size === 0 && pending.length === 0;
+    box.replaceChildren(...[...done.values()].map(artifactCard), ...pending.map((a) => artifactPendingCard(a.label)));
+  };
+  box.update(actions);
+  return box;
+}
+
+function closeArtifact() {
+  const panel = $("artifact-panel");
+  artifactUi.id = null;
+  artifactUi.data = null;
+  panel.hidden = true;
+  panel.replaceChildren();
+  $("app").classList.remove("with-artifact");
+  document.querySelectorAll(".art-card.open").forEach((c) => c.classList.remove("open"));
+}
+
+async function openArtifact(id, version = null, tab = null) {
+  const data = await api(`api/artifacts/${encodeURIComponent(id)}${version ? `?version=${version}` : ""}`);
+  artifactUi.id = id;
+  artifactUi.data = data;
+  artifactUi.editing = false;
+  artifactUi.tab = tab || (data.kind === "code" ? "code" : "preview");
+  $("app").classList.add("with-artifact");
+  $("artifact-panel").hidden = false;
+  document.querySelectorAll(".art-card").forEach((c) => c.classList.toggle("open", c.dataset.artifact === id));
+  drawArtifact();
+}
+
+function artifactPreview(data) {
+  const wrap = node("div", "art-preview");
+  if (data.kind === "html") {
+    const frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("referrerpolicy", "no-referrer");
+    frame.title = data.title;
+    api("api/previews", { method: "POST", body: JSON.stringify({ html: data.content }) })
+      .then((r) => { frame.src = `preview/${encodeURIComponent(r.id)}`; })
+      .catch(() => wrap.replaceChildren(node("p", "mem-empty", tr("Die Vorschau konnte nicht erstellt werden (zu groß?)."))));
+    wrap.append(frame, node("p", "art-note", tr("Vorschau ohne Netzwerkzugriff")));
+  } else if (data.kind === "svg") {
+    const img = document.createElement("img");
+    img.alt = data.title;
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(data.content)}`;
+    wrap.classList.add("art-svg");
+    wrap.append(img);
+  } else {
+    const doc = node("div", "art-doc md");
+    doc.append(window.renderMarkdown(data.content));
+    wrap.append(doc);
+  }
+  return wrap;
+}
+
+function drawArtifact() {
+  const data = artifactUi.data;
+  const panel = $("artifact-panel");
+  if (!data) return;
+  const head = node("div", "art-head");
+  const titleBox = node("div", "art-titles");
+  titleBox.append(node("h2", "art-title", data.title), node("small", "art-sub", artifactKindText(data)));
+  const close = node("button", "icon-btn art-close");
+  close.type = "button";
+  close.title = tr("Schließen");
+  close.setAttribute("aria-label", tr("Schließen"));
+  close.append(icon("close"));
+  close.addEventListener("click", closeArtifact);
+  head.append(titleBox);
+  if (data.versions.length > 1) {
+    const select = node("select", "field art-versions");
+    select.setAttribute("aria-label", tr("Version"));
+    for (const v of [...data.versions].reverse()) {
+      const option = node("option", "", `${tr("Version {0}", v.n)}${v.n === data.latest ? ` (${tr("aktuell")})` : ""}`);
+      option.value = String(v.n);
+      option.selected = v.n === data.version;
+      select.append(option);
+    }
+    select.addEventListener("change", () => openArtifact(data.id, Number(select.value), artifactUi.tab).catch(() => {}));
+    head.append(select);
+  }
+  head.append(close);
+
+  const bar = node("div", "art-bar");
+  const tabs = node("div", "art-tabs");
+  tabs.setAttribute("role", "tablist");
+  const tabList = data.kind === "code" ? [["code", tr("Code")]] : [["preview", tr("Vorschau")], ["code", tr("Code")]];
+  for (const [key, label] of tabList) {
+    const tab = node("button", "skills-tab", label);
+    tab.type = "button";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(artifactUi.tab === key));
+    tab.addEventListener("click", () => { artifactUi.tab = key; drawArtifact(); });
+    tabs.append(tab);
+  }
+  const actions = node("div", "art-actions");
+  const copy = actionButton(tr("Code kopieren"), "copy", "msg-act", async () => {
+    try {
+      await navigator.clipboard.writeText(data.content);
+      copy.replaceChildren(icon("check"));
+      setTimeout(() => copy.replaceChildren(icon("copy")), 1600);
+    } catch { toast(tr("Kopieren nicht möglich.")); }
+  });
+  const download = actionButton(tr("Herunterladen"), "download", "msg-act", () => {
+    const link = document.createElement("a");
+    link.href = `api/artifacts/${encodeURIComponent(data.id)}/download?version=${data.version}`;
+    link.rel = "noopener";
+    document.body.append(link);
+    link.click();
+    link.remove();
+  });
+  const del = actionButton(tr("Artefakt löschen"), "trash", "msg-act", async () => {
+    if (!del.classList.contains("confirm")) {
+      del.classList.add("confirm");
+      del.title = tr("Wirklich löschen?");
+      setTimeout(() => { del.classList.remove("confirm"); del.title = tr("Artefakt löschen"); }, 4000);
+      return;
+    }
+    try {
+      await api(`api/artifacts/${encodeURIComponent(data.id)}`, { method: "DELETE" });
+      closeArtifact();
+      toast(tr("Artefakt gelöscht."));
+      if (state.activeId) { try { renderMessages(await api(`api/chats/${encodeURIComponent(state.activeId)}/messages`)); } catch { /* bleibt */ } }
+    } catch { toast(tr("Löschen hat nicht geklappt.")); }
+  });
+  const canEdit = artifactUi.tab === "code" && data.version === data.latest && !artifactUi.editing;
+  const edit = canEdit ? actionButton(tr("Selbst bearbeiten"), "edit", "msg-act", () => { artifactUi.editing = true; drawArtifact(); }) : null;
+  const toProject = data.project_id
+    ? actionButton(tr("Im Projekt ablegen"), "folder", "msg-act", async () => {
+      try {
+        const r = await api(`api/artifacts/${encodeURIComponent(data.id)}/to-project`, { method: "POST" });
+        toast(r.replaced ? tr("„{0}“ im Projekt aktualisiert.", r.name) : tr("„{0}“ im Projekt abgelegt.", r.name));
+      } catch (err) { toast(errorText(err, tr("Ablegen hat nicht geklappt."))); }
+    })
+    : null;
+  const shareBtn = canShare() ? actionButton(tr("Artefakt teilen"), "share", "msg-act", () => shareArtifact(data)) : null;
+  actions.append(...[edit, copy, download, toProject, shareBtn, del].filter(Boolean));
+  bar.append(tabs, actions);
+
+  const body = node("div", "art-body");
+  let foot;
+  if (artifactUi.editing) {
+    const area = node("textarea", "art-edit");
+    area.value = data.content;
+    area.spellcheck = false;
+    area.setAttribute("aria-label", tr("Inhalt bearbeiten"));
+    body.append(area);
+    foot = node("div", "art-foot art-foot-row");
+    const save = node("button", "pill primary small", tr("Speichern"));
+    save.type = "button";
+    save.addEventListener("click", async () => {
+      if (area.value === data.content) { artifactUi.editing = false; drawArtifact(); return; }
+      save.disabled = true;
+      try {
+        artifactUi.data = await api(`api/artifacts/${encodeURIComponent(data.id)}`, { method: "PUT", body: JSON.stringify({ content: area.value }) });
+        artifactUi.editing = false;
+        toast(tr("Gespeichert als neue Version."));
+        drawArtifact();
+        refreshArtifactCards(data.id);
+      } catch (err) { save.disabled = false; toast(errorText(err, tr("Speichern hat nicht geklappt."))); }
+    });
+    const cancel = node("button", "pill ghost small", tr("Abbrechen"));
+    cancel.type = "button";
+    cancel.addEventListener("click", () => { artifactUi.editing = false; drawArtifact(); });
+    foot.append(node("span", "art-foot-text", tr("Beim Speichern entsteht eine neue Version.")), cancel, save);
+  } else {
+    if (artifactUi.tab === "preview" && data.kind !== "code") body.append(artifactPreview(data));
+    else {
+      const pre = node("pre", "art-code");
+      pre.tabIndex = 0;
+      pre.append(node("code", "", data.content));
+      body.append(pre);
+    }
+    if (data.version < data.latest) {
+      foot = node("div", "art-foot art-foot-row");
+      const restore = node("button", "pill ghost small", tr("Diese Version wiederherstellen"));
+      restore.type = "button";
+      restore.addEventListener("click", async () => {
+        restore.disabled = true;
+        try {
+          artifactUi.data = await api(`api/artifacts/${encodeURIComponent(data.id)}`, { method: "PUT", body: JSON.stringify({ restore: data.version }) });
+          toast(tr("Version {0} ist wieder die aktuelle.", data.version));
+          drawArtifact();
+          refreshArtifactCards(data.id);
+        } catch (err) { restore.disabled = false; toast(errorText(err, tr("Wiederherstellen hat nicht geklappt."))); }
+      });
+      foot.append(node("span", "art-foot-text", tr("Das ist eine frühere Version.")), restore);
+    } else foot = node("p", "art-foot", tr("Aktuelle Version"));
+  }
+  panel.replaceChildren(head, bar, body, foot);
+}
+
+async function shareArtifact(data) {
+  await openSheet({
+    title: tr("Artefakt teilen"), sub: tr("Geteilt wird der Code in der jetzigen Version, nur zum Lesen"), plain: true,
+    panel: (body) => { body.classList.add("share-panel"); drawSharePanel(body, data, { open: false }, "artifact").catch(() => { body.textContent = tr("Das hat nicht geklappt."); }); },
+  });
+  $("sheet-panel").classList.remove("share-panel");
+}
+
+// Bibliothek: alle Artefakte der Person an einem Ort, mit Suche (Titel, Chat, Inhalt), Art und Projekt. Ein Klick öffnet den Chat samt Fenster.
+const artifactLibrary = { query: "", kind: "", project: "" };
+
+async function openArtifactLibrary() {
+  let picked = null;
+  await openSheet({
+    title: tr("Artefakte"), sub: tr("Alles, was die KI für dich gebaut hat"), plain: true, wide: true,
+    panel: (body) => {
+      body.classList.add("shared-panel", "art-lib");
+      const view = artifactLibrary;
+      const search = node("input", "field art-lib-search");
+      search.type = "search";
+      search.placeholder = tr("Artefakte suchen");
+      search.setAttribute("aria-label", tr("Artefakte suchen"));
+      search.value = view.query;
+      const project = node("select", "field art-lib-project");
+      project.setAttribute("aria-label", tr("Projekt"));
+      const tools = node("div", "art-lib-tools");
+      tools.append(search, project);
+      const tabs = node("div", "skills-tabs art-lib-kinds");
+      tabs.setAttribute("role", "tablist");
+      const tabButtons = new Map();
+      const kinds = [["", tr("Alle")], ["html", tr("Seiten")], ["svg", tr("Grafiken")], ["markdown", tr("Dokumente")], ["code", tr("Code")]];
+      for (const [id, label] of kinds) {
+        const button = node("button", "skills-tab", label);
+        button.type = "button";
+        button.setAttribute("role", "tab");
+        button.addEventListener("click", () => { view.kind = id; draw(); });
+        tabButtons.set(id, button);
+        tabs.append(button);
+      }
+      const list = node("div", "shared-list art-lib-list");
+      body.append(tools, tabs, list);
+
+      const fillProjects = () => {
+        const options = [["", tr("Alle Projekte")], ["none", tr("Ohne Projekt")], ...state.projects.map((p) => [p.id, p.name])];
+        project.replaceChildren(...options.map(([value, label]) => { const o = node("option", "", label); o.value = value; return o; }));
+        if (!options.some(([value]) => value === view.project)) view.project = "";
+        project.value = view.project;
+      };
+
+      let seq = 0;
+      const draw = async () => {
+        for (const [id, button] of tabButtons) button.setAttribute("aria-selected", String(id === view.kind));
+        const mine = ++seq;
+        const params = new URLSearchParams();
+        if (view.query.trim()) params.set("q", view.query.trim());
+        if (view.kind) params.set("kind", view.kind);
+        if (view.project) params.set("project", view.project);
+        let items;
+        try { items = await api(`api/artifacts${params.size ? `?${params}` : ""}`); } catch (err) { list.textContent = errorText(err, tr("Das hat nicht geklappt.")); return; }
+        if (mine !== seq) return; // eine neuere Anfrage läuft schon
+        if (!items.length) {
+          const filtered = view.query.trim() || view.kind || view.project;
+          const empty = node("div", "shared-empty");
+          empty.append(icon("code"), node("p", "", filtered ? tr("Keine passenden Artefakte.") : tr("Noch keine Artefakte. Bitte mich um eine Seite, Grafik, ein Dokument oder ein Skript.")));
+          if (filtered) {
+            const reset = node("button", "pill ghost small", tr("Filter zurücksetzen"));
+            reset.type = "button";
+            reset.addEventListener("click", () => { Object.assign(view, { query: "", kind: "", project: "" }); search.value = ""; fillProjects(); draw(); });
+            empty.append(reset);
+          }
+          list.replaceChildren(empty);
+          return;
+        }
+        list.replaceChildren(...items.map((a) => {
+          const [label, ic] = artifactKinds()[a.kind] || [tr("Artefakt"), "code"];
+          const item = node("div", "shared-item");
+          const open = node("button", "shared-open");
+          open.type = "button";
+          const where = [state.projects.find((p) => p.id === a.project_id)?.name, a.chat_title].filter(Boolean).join(" · ");
+          const bits = [a.kind === "code" && a.language ? `${label} · ${a.language}` : label, tr("Version {0}", a.version), where, searchDate(a.updated_at)];
+          if (a.in_content) bits.push(tr("Treffer im Inhalt"));
+          const text = node("span", "share-text");
+          text.append(node("b", "", a.title), node("span", "share-hint", bits.filter(Boolean).join(" · ")));
+          open.append(icon(ic), text);
+          if (a.shared?.length) { const mark = icon("share"); mark.classList.add("art-lib-shared"); open.append(mark); open.title = tr("Geteilt"); }
+          open.addEventListener("click", () => { picked = async () => { await selectChat(a.chat_id); await openArtifact(a.id).catch(() => {}); }; closeSheet(true); });
+          item.append(open);
+          return item;
+        }));
+      };
+      let timer = 0;
+      search.addEventListener("input", () => { view.query = search.value; clearTimeout(timer); timer = setTimeout(draw, 250); });
+      project.addEventListener("change", () => { view.project = project.value; draw(); });
+      fillProjects();
+      draw();
+    },
+  });
+  $("sheet-panel").classList.remove("shared-panel", "art-lib");
+  if (picked) await picked();
+}
+
+// Die Karte im Chat zeigt die Versionsnummer; nach einer eigenen Änderung wird sie nachgezogen.
+function refreshArtifactCards(id) {
+  const data = artifactUi.data;
+  if (!data || data.id !== id) return;
+  document.querySelectorAll(`.art-card[data-artifact="${id}"] small`).forEach((el) => { el.textContent = `${artifactKindText(data)} · ${tr("Version {0}", data.latest)}`; });
+}
+
 // Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude),
 // mit „Rückgängig“ für jede Änderung. Der Server prüft, ob der Eintrag noch so ist, wie die KI ihn hinterlassen hat.
 function memoryNoteEl(actions) {
@@ -4494,7 +5243,7 @@ async function stampMessages(chatId) {
 
 // Unter einer Antwort: Kopieren und „Als Datei“ als dezente Symbole (nur bei der letzten Antwort dauerhaft, sonst beim
 // Darüberfahren) und, nur beim Darüberfahren, wann die Antwort fertig wurde.
-function answerMeta(text, el) {
+function answerMeta(text, el, variant = null) {
   const bar = node("div", "msg-meta answer-meta");
   const copy = actionButton(tr("Antwort kopieren"), "copy", "msg-act", async () => {
     try {
@@ -4511,15 +5260,41 @@ function answerMeta(text, el) {
     const group = el.previousElementSibling;
     const retry = group?.retry;
     if (state.streaming || !retry || !group.dataset.id) return;
-    sendMessage({ id: Number(group.dataset.id), text: retry.text, el: group, quote: retry.quote, pasted: retry.pasted }).catch(() => {});
+    // Nur die letzte Antwort behält ihre bisherige Fassung (zum Blättern); bei einer früheren ersetzt die neue Antwort den Rest des Chats.
+    const last = el.classList.contains("last-answer");
+    sendMessage({ id: Number(group.dataset.id), text: retry.text, el: group, quote: retry.quote, pasted: retry.pasted, regenerate: last }).catch(() => {});
   });
   const time = node("span", "msg-time");
   const refresh = () => { time.textContent = sentAgo(el.dataset.at); time.title = exactTime(el.dataset.at); };
   refresh();
   el.addEventListener("pointerenter", refresh);
   el.addEventListener("focusin", refresh);
-  bar.append(copy, save, again, time);
+  bar.append(copy, save, again);
+  if (variant && variant.total > 1) bar.append(variantPager(variant));
+  bar.append(time);
   return bar;
+}
+
+// ``‹ 2/3 ›`` unter der letzten Antwort: zwischen den Fassungen blättern, die „Antwort neu erzeugen“ übrig gelassen hat.
+function variantPager(variant) {
+  const wrap = node("span", "variant-pager");
+  const go = async (index) => {
+    const chatId = state.activeId;
+    if (!chatId || state.streaming) return;
+    try {
+      await api(`api/chats/${encodeURIComponent(chatId)}/answer`, { method: "PUT", body: JSON.stringify({ index }) });
+      renderMessages(await api(`api/chats/${encodeURIComponent(chatId)}/messages`));
+      scrollDown(false);
+    } catch { toast(tr("Das hat nicht geklappt.")); }
+  };
+  const prev = actionButton(tr("Vorherige Fassung"), "chevron-left", "msg-act", () => go(variant.index - 1));
+  const next = actionButton(tr("Nächste Fassung"), "chevron", "msg-act", () => go(variant.index + 1));
+  prev.disabled = variant.index <= 1;
+  next.disabled = variant.index >= variant.total;
+  const count = node("span", "variant-count", `${variant.index}/${variant.total}`);
+  count.setAttribute("aria-live", "polite");
+  wrap.append(prev, count, next);
+  return wrap;
 }
 
 // Nur die letzte Antwort zeigt ihre Symbole dauerhaft.
@@ -4535,10 +5310,11 @@ function messageEl(role, text, files = [], actions = [], meta = {}) {
     if (actions.length) el.append(actionsEl(actions));
     el.append(window.renderMarkdown(text));
     if (actions.some((a) => a.file)) el.append(fileCardsEl(actions));
+    if (actions.some((a) => a.kind === "artifact" && a.artifact)) el.append(artifactCardsEl(actions));
     if (actions.some((a) => a.kind === "memory" && a.status === "ok")) el.append(memoryNoteEl(actions));
     const at = meta.at || new Date().toISOString();
     el.dataset.at = at;
-    el.append(answerMeta(text, el));
+    el.append(answerMeta(text, el, meta.variant || null));
     // Touchscreen: Antippen der Antwort blendet die Leiste mit dem Zeitpunkt ein oder aus.
     el.addEventListener("click", (event) => {
       if (!window.matchMedia("(hover: none)").matches || window.getSelection()?.toString() || event.target.closest("a, button, pre, table, summary")) return;
@@ -4701,13 +5477,14 @@ function renderMessages(messages) {
   for (const m of messages) {
     if (anySummarized && !seenLive && !m.summarized) { thread.append(compactNote()); }
     if (!m.summarized) seenLive = true;
-    thread.append(messageEl(m.role, m.content, m.attachments || [], m.tools || [], { id: m.id, at: m.created_at }));
+    thread.append(messageEl(m.role, m.content, m.attachments || [], m.tools || [], { id: m.id, at: m.created_at, variant: m.variant }));
   }
   markLastAnswer();
 }
 
 async function selectChat(id) {
   if (state.streaming && state.streaming.chatId === id) return; // läuft hier schon
+  if (artifactUi.data && artifactUi.data.chat_id !== id) closeArtifact(); // das Fenster gehört zum Chat des Artefakts
   setView("chat");
   detachRun(); // eine laufende Antwort bleibt auf dem Server und wird dort gespeichert
   releaseRecent();
@@ -4739,6 +5516,7 @@ async function selectChat(id) {
 }
 
 function startNew(projectId = null) {
+  closeArtifact();
   setView("chat");
   detachRun();
   releaseRecent();
@@ -5081,8 +5859,9 @@ async function consume(response, run, bubble) {
     parts.log.hidden = true;
     parts.text = node("div", "act-text");
     parts.files = fileCardsEl([]);
+    parts.arts = artifactCardsEl([]);
     parts.mem = memoryNoteEl([]);
-    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.mem, ...(run.busy ? [run.busy.el] : []));
+    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.arts, parts.mem, ...(run.busy ? [run.busy.el] : []));
   };
   // Was die Warteanzeige gerade zeigt: laufende Aktion, Rückfrage, Hinweistext oder (sobald Text kommt) nur das kleine Zeichen
   let statusText = "";
@@ -5111,9 +5890,16 @@ async function consume(response, run, bubble) {
       } else if (ev.type === "status") {
         statusText = ev.text.replace(/\s*…\s*$/, "");
       } else if (ev.type === "tool") {
-        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null });
+        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null, artifact: ev.artifact || null });
         out.actions = [...byId.values()];
-        if (!run.detached) { build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble); }
+        if (!run.detached) {
+          build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.arts.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble);
+          // Ein neues oder geändertes Artefakt öffnet sich am Laptop und Tablet gleich neben dem Chat (am Handy erst per Karte)
+          if (ev.artifact && ev.status === "ok" && window.matchMedia("(min-width: 1000px)").matches && (artifactUi.id === ev.artifact.id || !artifactUi.seen.has(ev.artifact.id + ":" + ev.id))) {
+            artifactUi.seen.add(ev.artifact.id + ":" + ev.id);
+            openArtifact(ev.artifact.id).catch(() => {});
+          }
+        }
       } else if (ev.type === "approval") {
         if (!run.detached) { build(); const card = approvalCard(run.chatId, ev); cards.set(ev.id, card); $("dock-asks").append(card); syncDock(); }
       } else if (ev.type === "approval_done") {
@@ -5394,6 +6180,10 @@ async function settleRun(run, bubble, out, view = {}) {
   if (finished) bubble.replaceWith(finished);
   else bubble.remove();
   markLastAnswer();
+  if (view.regenerate && out.answer && state.activeId === chatId) {
+    // Neu erzeugt: der Server kennt jetzt mehrere Fassungen, die Ansicht zeigt dann ``‹ 2/3 ›``
+    try { renderMessages(await api(`api/chats/${encodeURIComponent(chatId)}/messages`)); } catch { /* die Antwort steht auch so da */ }
+  }
   if (out.failure) {
     if (!out.answer) {
       // Nichts gespeichert: Frage samt Dateien zurück ins Eingabefeld.
@@ -5539,14 +6329,14 @@ function initQuotePicker() {
   let timer = 0;
 
   const hide = () => { pop.hidden = true; picked = ""; };
-  const hostOf = (n) => (n && (n.nodeType === 1 ? n : n.parentElement))?.closest(".msg.assistant:not(.pending)") || null;
+  const hostOf = (n) => (n && (n.nodeType === 1 ? n : n.parentElement))?.closest(".msg.assistant:not(.pending), #artifact-panel .art-code, #artifact-panel .art-doc") || null;
 
   function update() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) { hide(); return; }
     const range = sel.getRangeAt(0);
     const host = hostOf(range.startContainer);
-    if (!host || host !== hostOf(range.endContainer) || !host.closest("#thread")) { hide(); return; }
+    if (!host || host !== hostOf(range.endContainer) || !host.closest("#thread, #artifact-panel")) { hide(); return; }
     const text = cleanQuote(sel.toString());
     const rect = range.getBoundingClientRect();
     if (!text || (!rect.width && !rect.height)) { hide(); return; }
@@ -5570,6 +6360,7 @@ function initQuotePicker() {
   document.addEventListener("keyup", (event) => { if (event.key.startsWith("Arrow") || event.key === "Shift") later(30); });
   window.addEventListener("resize", hide);
   $("messages").addEventListener("scroll", () => { if (!pop.hidden) hide(); }, { passive: true });
+  $("artifact-panel").addEventListener("scroll", () => { if (!pop.hidden) hide(); }, { passive: true, capture: true });
   // Mausdruck auf den Knopf darf die Markierung nicht aufheben.
   pop.addEventListener("pointerdown", (event) => event.preventDefault());
   pop.addEventListener("mousedown", (event) => event.preventDefault());
@@ -5631,7 +6422,7 @@ async function sendMessage(edit = null, spoken = null) {
   if (spoken?.onText) run.onText = spoken.onText; // Sprachgespräch: der Text geht schon beim Eintreffen zum Vorlesen
   addBusy(run, bubble);
   // Beim Bearbeiten holt ein Fehler ohne Antwort den alten Stand vom Server zurück (kein ``userEl`` in der Ansicht).
-  const view = edit ? { text, sentFiles, first } : { userEl, text, sentFiles, first, quote };
+  const view = edit ? { text, sentFiles, first, regenerate: !!edit.regenerate } : { userEl, text, sentFiles, first, quote };
 
   let out;
   try {
@@ -5645,10 +6436,12 @@ async function sendMessage(edit = null, spoken = null) {
         content: text, effort: state.effort, files,
         ...(quote ? { quote } : {}),
         ...(edit ? { edit_message_id: edit.id } : {}),
+        ...(edit?.regenerate ? { regenerate: true } : {}),
         ...(spoken ? { voice: true } : {}),
         ...((state.me?.models?.length || 0) > 1 && validModel(state.model) ? { model: state.model } : {}),
         ...(state.me?.web && !state.web ? { web: false } : {}),
         ...(researchOn() ? { research: true } : {}),
+        ...(state.style ? { style: state.style } : state.styleChanged ? { style: "" } : {}),
       }),
     });
     if (!response.ok) throw await sendFailure(response);
@@ -5764,6 +6557,8 @@ function markTools() {
 // Modell des geöffneten Chats (gemerkt auf dem Server); ein neuer Chat startet ohne eigene Wahl, es gilt dann das Standardmodell der Person.
 function useChatModel(chat) {
   state.model = chat && validModel(chat.model) ? chat.model : "";
+  state.style = chat?.style_id || "";
+  state.styleChanged = false;
   markTools();
   refreshLimits().catch(() => {});
 }
@@ -5828,6 +6623,9 @@ async function phoneToolsMenu() {
           const effort = row("mm-link", node("span", "mm-name", tr("Aufwand")), node("span", "mm-detail", effortLabel(state.effort)), icon("chevron"));
           effort.addEventListener("click", effortPage);
           body.append(effort);
+          const styleRow = row("mm-link", node("span", "mm-name", tr("Stil")), node("span", "mm-detail", styleLabel(state.style)), icon("chevron"));
+          styleRow.addEventListener("click", stylePage);
+          body.append(styleRow);
           if (me.web) {
             const sw = node("span", "pop-switch" + (state.web ? " on" : ""));
             sw.setAttribute("aria-hidden", "true");
@@ -5846,6 +6644,21 @@ async function phoneToolsMenu() {
             research.addEventListener("click", pick("research"));
             body.append(research);
           }
+        };
+        const stylePage = async () => {
+          await loadStyles();
+          $("sheet-title").textContent = tr("Stil");
+          body.replaceChildren();
+          const back = row("mm-back", icon("chevron"), node("span", "", tr("Zurück")));
+          back.addEventListener("click", main);
+          const card = node("div", "mm-card");
+          for (const entry of styleMenuEntries()) {
+            if (entry.divider) continue;
+            const r = row("mm-row", node("span", "mm-text mm-name", entry.label), ...(entry.active ? [icon("check")] : []));
+            r.addEventListener("click", pick(entry.value));
+            card.append(r);
+          }
+          body.append(back, card);
         };
         const effortPage = () => {
           $("sheet-title").textContent = tr("Aufwand");
@@ -5891,6 +6704,8 @@ async function toolsMenu() {
       const gpt = openai.filter((m) => m.id !== current).map((m) => modelEntryFor(m.id));
       entries.push({ label: tr("Weitere Modelle"), submenu: [...others, ...(gpt.length ? [{ divider: true }, ...gpt] : [])] });
     }
+    await loadStyles();
+    entries.push({ label: tr("Stil"), detail: styleLabel(state.style), submenu: styleMenuEntries() });
     if (me.web) {
       entries.push({ divider: true });
       entries.push({ value: "web", icon: "globe", label: tr("Websuche"), active: state.web, toggle: state.web });
@@ -5924,6 +6739,8 @@ async function toolsMenu() {
   } else if (typeof choice === "string" && choice.startsWith("effort:")) {
     state.effort = choice.slice(7);
     try { localStorage.setItem("ki-effort", state.effort); } catch { /* optional */ }
+  } else if (typeof choice === "string" && choice.startsWith("style:")) {
+    chooseStyle(choice.slice(6));
   } else if (choice === "web") {
     state.web = !state.web;
     try { localStorage.setItem("ki-web", state.web ? "on" : "off"); } catch { /* optional */ }
@@ -5986,6 +6803,7 @@ function setView(view) {
   $("composer").hidden = view !== "chat";
   $("schedules").hidden = view !== "schedules";
   $("skills").hidden = view !== "skills";
+  $("allchats").hidden = view !== "allchats";
   $("settings").hidden = view !== "settings";
   rememberView(view);
   syncIncognito();
@@ -6313,14 +7131,35 @@ async function shareChat(chat) {
   await loadAll().catch(() => {});  // Symbol in der Chatliste
 }
 
-function shareLevels(data) {
+// Das Teilen-Fenster gilt für Chats und für Artefakte; nur Wege und Texte unterscheiden sich.
+function shareTexts(kind) {
+  if (kind === "artifact") {
+    return {
+      instance: tr("Wer den Link öffnet, findet das Artefakt unter „Geteilt“. Er oder sie kann den Code lesen und kopieren."),
+      public: tr("Lesen ohne Anmeldung, nur der Code. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du das Artefakt zeigen willst."),
+      private: tr("Niemand sonst sieht dieses Artefakt. Wähle oben, wie du es teilen willst."),
+      note: tr("Wer Zugriff hat, sieht den Code so, wie er jetzt ist, und nie eine ausgeführte Seite. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis."),
+      done: tr("Artefakt geteilt."),
+    };
+  }
+  return {
+    instance: tr("Wer den Link öffnet, findet den Chat unter „Geteilt“. Er oder sie kann ihn lesen und als eigene Kopie weiterführen."),
+    public: tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst."),
+    private: tr("Niemand sonst sieht diesen Chat. Wähle oben, wie du ihn teilen willst."),
+    note: tr("Wer Zugriff hat, sieht den Chat so, wie er jetzt ist. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis."),
+    done: tr("Chat geteilt."),
+  };
+}
+
+function shareLevels(data, kind = "chat") {
+  const texts = shareTexts(kind);
   const linkReady = data.sharing === "public" && data.public_available;
   return [
-    { value: "instance", icon: "users", label: tr("Personen dieser Instanz mit Link"), hint: tr("Wer den Link öffnet, findet den Chat unter „Geteilt“. Er oder sie kann ihn lesen und als eigene Kopie weiterführen.") },
+    { value: "instance", icon: "users", label: tr("Personen dieser Instanz mit Link"), hint: texts.instance },
     {
       value: "public", icon: "link", label: tr("Jede Person mit dem Link"), disabled: !linkReady,
       hint: linkReady
-        ? tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst.")
+        ? texts.public
         : data.sharing !== "public"
           ? tr("Nicht freigeschaltet: Der Admin muss in den Einstellungen bei „Chats teilen“ den Wert „public“ wählen.")
           : tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."),
@@ -6330,8 +7169,9 @@ function shareLevels(data) {
 
 const shareLinkOf = (row) => row.url || `${location.origin}${location.pathname}?share=${row.token}`;
 
-async function drawSharePanel(body, chat, view = { open: false }) {
-  const base = `api/chats/${encodeURIComponent(chat.id)}/share`;
+async function drawSharePanel(body, chat, view = { open: false }, kind = "chat") {
+  const base = kind === "artifact" ? `api/artifacts/${encodeURIComponent(chat.id)}/share` : `api/chats/${encodeURIComponent(chat.id)}/share`;
+  const texts = shareTexts(kind);
   const load = async () => render(await api(base));
   const post = (payload, path = "") => api(`${base}${path}`, { method: "POST", body: JSON.stringify(payload) });
   const del = (mode) => api(`${base}/${mode}`, { method: "DELETE" });
@@ -6359,7 +7199,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
   function render(data) {
     const shared = data.public || data.instance || null;
     const level = data.public ? "public" : data.instance ? "instance" : "private";
-    const levels = shareLevels(data);
+    const levels = shareLevels(data, kind);
     const current = levels.find((l) => l.value === level);
     const choose = async (next) => {
       view.open = false;
@@ -6367,7 +7207,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
       await run(async () => {
         if (next === "instance") { await post({ mode: "instance" }); if (data.public) await del("public"); }
         else { await post({ mode: "public", expires_days: 30 }); if (data.instance) await del("instance"); }
-      }, tr("Chat geteilt."));
+      }, texts.done);
     };
 
     const scroll = node("div", "share-scroll");
@@ -6398,7 +7238,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
       }
       nodes.push(list);
     } else if (!shared) {
-      nodes.push(node("p", "share-hint", tr("Niemand sonst sieht diesen Chat. Wähle oben, wie du ihn teilen willst.")));
+      nodes.push(node("p", "share-hint", texts.private));
     } else {
       nodes.push(node("p", "share-hint", current.hint));
       // Link: Ein Klick auf das Feld oder das Symbol kopiert ihn und meldet es im Feld.
@@ -6466,7 +7306,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
     const name = state.me?.label || "";
     owner.append(node("span", "share-avatar", (name || "?").slice(0, 1).toUpperCase()), node("span", "share-name", `${name} ${tr("(du)")}`.trim()), node("span", "share-role", tr("Besitzer")));
     nodes.push(owner);
-    nodes.push(node("p", "share-note", tr("Wer Zugriff hat, sieht den Chat so, wie er jetzt ist. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis.")));
+    nodes.push(node("p", "share-note", texts.note));
     scroll.append(...nodes);
 
     const foot = node("div", "share-foot");
@@ -6510,10 +7350,14 @@ async function openSharedChats() {
       body.classList.add("shared-panel");
       const draw = async () => {
         let incoming = [];
-        try { incoming = await api("api/shared"); } catch (err) { body.textContent = errorText(err, tr("Das hat nicht geklappt.")); return; }
+        let incomingArt = [];
+        let mineArt = [];
+        try {
+          [incoming, incomingArt, mineArt] = await Promise.all([api("api/shared"), api("api/shared-artifacts"), api("api/artifacts?shared=true")]);
+        } catch (err) { body.textContent = errorText(err, tr("Das hat nicht geklappt.")); return; }
         const mine = state.chats.filter((c) => c.shared?.length);
         const nodes = [];
-        const group = (heading, rows) => {
+        const group = (heading, rows, iconName = "chat", removePath = "api/shared") => {
           nodes.push(node("p", "share-h", heading));
           const list = node("div", "shared-list");
           for (const r of rows) {
@@ -6522,7 +7366,7 @@ async function openSharedChats() {
             open.type = "button";
             const t = node("span", "share-text");
             t.append(node("b", "", r.title), node("span", "share-hint", r.sub));
-            open.append(icon("chat"), t);
+            open.append(icon(iconName), t);
             open.addEventListener("click", () => { picked = r.open; closeSheet(true); });
             item.append(open);
             if (r.remove) {
@@ -6532,7 +7376,7 @@ async function openSharedChats() {
               rm.title = tr("Entfernen");
               rm.append(icon("trash"));
               rm.addEventListener("click", async () => {
-                try { await api(`api/shared/${encodeURIComponent(r.id)}`, { method: "DELETE" }); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); }
+                try { await api(`${removePath}/${encodeURIComponent(r.id)}`, { method: "DELETE" }); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); }
                 draw();
               });
               item.append(rm);
@@ -6541,19 +7385,32 @@ async function openSharedChats() {
           }
           nodes.push(list);
         };
+        const how = (modes) => (modes.includes("public") ? tr("Jede Person mit dem Link") : tr("Personen dieser Instanz mit Link"));
+        const projectOf = (id) => (id ? state.projects.find((p) => p.id === id)?.name || "" : "");
         if (incoming.length) {
-          group(tr("Mit mir geteilt"), incoming.map((c) => ({
+          group(tr("Chats mit mir geteilt"), incoming.map((c) => ({
             id: c.id, title: c.title, sub: tr("Von {0} · Stand {1}", c.owner, exactTime(c.taken_at)), open: () => openSharedChat(c.id), remove: true,
           })));
         }
+        if (incomingArt.length) {
+          group(tr("Artefakte mit mir geteilt"), incomingArt.map((a) => ({
+            id: a.id, title: a.title, sub: tr("Von {0} · Stand {1}", a.owner, exactTime(a.taken_at)), open: () => openSharedArtifact(a.id), remove: true,
+          })), "code", "api/shared-artifacts");
+        }
         if (mine.length) {
-          group(tr("Von mir geteilt"), mine.map((c) => {
-            const project = c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name : "";
-            const how = c.shared.includes("public") ? tr("Jede Person mit dem Link") : tr("Personen dieser Instanz mit Link");
-            return { id: c.id, title: c.title, sub: project ? `${project} · ${how}` : how, open: () => selectChat(c.id) };
+          group(tr("Chats von mir geteilt"), mine.map((c) => {
+            const project = projectOf(c.project_id);
+            return { id: c.id, title: c.title, sub: project ? `${project} · ${how(c.shared)}` : how(c.shared), open: () => selectChat(c.id) };
           }));
         }
-        if (!incoming.length) {
+        if (mineArt.length) {
+          group(tr("Artefakte von mir geteilt"), mineArt.map((a) => {
+            const project = projectOf(a.project_id);
+            const where = project ? `${project} · ${a.chat_title}` : a.chat_title;
+            return { id: a.id, title: a.title, sub: `${where} · ${how(a.shared)}`, open: async () => { await selectChat(a.chat_id); await openArtifact(a.id).catch(() => {}); } };
+          }), "code");
+        }
+        if (!incoming.length && !incomingArt.length) {
           const empty = node("div", "shared-empty");
           empty.append(icon("share"), node("p", "", tr("Es wurde nichts mit dir geteilt.")));
           nodes.unshift(empty);
@@ -6571,7 +7428,7 @@ async function openSharedChats() {
 async function takeSharedLink(text) {
   try {
     const found = await api("api/shared/open", { method: "POST", body: JSON.stringify({ token: text.trim().slice(0, 600) }) });
-    if (found.mine) toast(tr("Das ist dein eigener Chat."));
+    if (found.mine) toast(found.kind === "artifact" ? tr("Das ist dein eigenes Artefakt.") : tr("Das ist dein eigener Chat."));
     else toast(tr("„{0}“ steht jetzt unter „Geteilt“.", found.title));
     return found;
   } catch (err) {
@@ -6590,7 +7447,26 @@ async function openSharedFromAddress() {
   history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
   if (!canShare()) return;
   const found = await takeSharedLink(code);
-  if (found && !found.mine) await openSharedChat(found.id);
+  if (found && !found.mine) await (found.kind === "artifact" ? openSharedArtifact(found.id) : openSharedChat(found.id));
+}
+
+// Geteiltes Artefakt einer anderen Person: nur der Code, zum Lesen und Kopieren (nie als Seite ausgeführt).
+async function openSharedArtifact(id) {
+  let art;
+  try { art = await api(`api/shared-artifacts/${encodeURIComponent(id)}`); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); return; }
+  await openSheet({
+    title: art.title, sub: tr("Geteilt von {0}, Stand {1}. Du kannst nur lesen.", art.owner, exactTime(art.taken_at)), ok: tr("Code kopieren"),
+    panel: (body) => {
+      const pre = node("pre", "art-code share-code");
+      pre.tabIndex = 0;
+      pre.append(node("code", "", art.content));
+      body.append(pre, node("p", "mem-hint", tr("Das ist nur der Text. Er wird hier nie ausgeführt oder als Seite gezeigt.")));
+    },
+    onOk: async () => {
+      try { await navigator.clipboard.writeText(art.content); toast(tr("Code kopiert.")); } catch { toast(tr("Kopieren nicht möglich.")); }
+      return false;
+    },
+  });
 }
 
 async function openSharedChat(id) {
@@ -6649,6 +7525,7 @@ function searchActions() {
     { icon: "plus", label: tr("Neuer Chat"), run: () => startNew() },
     { icon: "folder", label: tr("Neues Projekt"), run: () => createProject() },
     { icon: "skill", label: tr("Anpassungen"), run: () => openSkills() },
+    { icon: "code", label: tr("Artefakte"), run: () => openArtifactLibrary() },
   ];
   if (state.me?.schedules) list.push({ icon: "clock", label: tr("Geplant"), run: () => openSchedules() });
   if (state.me?.memory) list.push({ icon: "memory", label: tr("Gedächtnis"), run: () => openMemory() });
@@ -6676,7 +7553,7 @@ function chatEntry(chat, hit = null) {
   else if (chat.unread) marks.push(unreadDot());
   return {
     id: `c-${chat.id}`, icon: chat.schedule_id ? "clock" : "chat", title: chat.title,
-    meta: searchDate(chat.updated_at), marks, snippet: hit?.snippet || "", hl: hit?.hl || [],
+    meta: chat.archived ? `${tr("Archiviert")} · ${searchDate(chat.updated_at)}` : searchDate(chat.updated_at), marks, snippet: hit?.snippet || "", hl: hit?.hl || [],
     run: () => selectChat(chat.id),
   };
 }
@@ -6789,7 +7666,7 @@ function searchPanel(body) {
   };
 
   const recents = () => {
-    const chats = state.chats;
+    const chats = state.chats.filter((c) => !c.archived);
     if (tab === "chats") {
       const out = [];
       let current = null;
@@ -7254,7 +8131,6 @@ function githubPanel(body, alive) {
     let info;
     try { info = await api("api/github/account"); } catch { show(hint(tr("GitHub ist gerade nicht abrufbar. Versuche es gleich noch einmal."))); return; }
     if (info.source === "personal") renderConnected(info);
-    else if (info.level === "none") show(hint(tr("Für dich ist GitHub nicht freigegeben. Der Administrator stellt das in der Add-on-Konfiguration ein (github_access).")));
     else renderStart(info);
   };
 
@@ -7560,7 +8436,52 @@ async function settingsUsage(body, alive) {
     pics.append(node("p", "mem-hint", tr("Fotos und Kunstbilder sind nicht eingerichtet. Einfache Grafiken zeichnet die KI kostenlos als SVG.")));
   }
   parts.push(pics);
+  if (state.me?.usage_all) parts.push(usageAllBlock(alive));
   body.replaceChildren(...parts);
+}
+
+// Nur für Administratoren: wer wie viel genutzt hat (Zahlen, keine Inhalte)
+const usageRanges = () => [["24h", tr("24 Stunden")], ["today", tr("Heute")], ["week", tr("Diese Woche")], ["month", tr("Dieser Monat")], ["lastmonth", tr("Letzter Monat")]];
+let usageAllRange = "month";
+
+function usageAllBlock(alive) {
+  const box = node("section", "set-block");
+  box.append(node("h4", "", tr("Alle Personen")));
+  const tabs = node("div", "usage-ranges");
+  const list = node("div", "usage-all");
+  const note = node("p", "mem-hint", tr("Nur für Administratoren. Es werden nur Zahlen gezählt, keine Inhalte. Der Wert ist der Preis, den Claude für die Aufrufe meldet; ChatGPT und Bilder haben keinen Wert und zählen nur als Token bzw. Bilder."));
+  const buttons = new Map();
+  const load = async () => {
+    list.replaceChildren(node("p", "mem-hint", tr("Wird geladen …")));
+    for (const [key, button] of buttons) button.setAttribute("aria-pressed", String(key === usageAllRange));
+    let data;
+    try { data = await api(`api/usage/all?range=${encodeURIComponent(usageAllRange)}`); } catch { if (alive()) list.replaceChildren(node("p", "mem-empty", tr("Die Übersicht ist gerade nicht erreichbar."))); return; }
+    if (!alive()) return;
+    const count = new Intl.NumberFormat(kiLocale, { notation: "compact", maximumFractionDigits: 1 });
+    const money = new Intl.NumberFormat(kiLocale, { style: "currency", currency: data.currency });
+    const line = (r) => [tr("{0} Token", count.format(r.tokens)), r.images ? trn(r.images, "{0} Bild", "{0} Bilder", r.images) : "", r.cost ? money.format(r.cost) : ""].filter(Boolean).join(" · ");
+    const rows = data.people.map((r) => {
+      const row = node("div", "usage-row");
+      const head = node("div", "usage-head");
+      head.append(node("b", "", r.label), node("span", "", r.tokens ? tr("{0} % der Token", String(r.share).replace(".", kiLocale.startsWith("de") ? "," : ".")) : tr("nichts genutzt")));
+      row.append(head);
+      if (r.tokens) row.append(usageBar(Math.min(1, r.share / 100)));
+      row.append(node("span", "usage-sub", r.tokens || r.images ? line(r) : ""));
+      return row;
+    });
+    const total = node("p", "set-lead", tr("Zusammen: {0}", line(data.total) || tr("noch nichts")));
+    list.replaceChildren(total, ...rows);
+  };
+  for (const [key, label] of usageRanges()) {
+    const button = node("button", "pill ghost small", label);
+    button.type = "button";
+    button.addEventListener("click", () => { usageAllRange = key; load(); });
+    buttons.set(key, button);
+    tabs.append(button);
+  }
+  box.append(tabs, list, note);
+  load();
+  return box;
 }
 
 // Meldungen aufs Handy: an/aus und auf welchen Geräten (Home-Assistant-App). Die Meldung kommt nur, wenn eine Antwort ungelesen bleibt.
@@ -7625,8 +8546,9 @@ function settingsGroups() {
     page("general", "sliders", tr("Allgemein"), "", settingsGeneral),
     page("usage", "gauge", tr("Nutzung"), tr("Wie viel vom Abo, von ChatGPT und von den Bildern verbraucht ist."), settingsUsage),
   ];
+  prefs.push(page("styles", "edit", tr("Schreibstile"), tr("Wie ich antworte: kurz, ausführlich, locker, formell oder in deinem eigenen Stil."), stylesPanel));
   if (me.memory) prefs.push(page("memory", "memory", tr("Gedächtnis"), tr("Die KI merkt sich, was du ihr sagst, und nutzt es in allen Chats. Du kannst jeden Eintrag löschen."), memoryPanel));
-  if (me.github_connect) prefs.push(page("github", "github", "GitHub", tr("Verbinde dein GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann."), githubPanel, { solid: true }));
+  prefs.push(page("github", "github", "GitHub", tr("Verbinde dein GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann."), githubPanel, { solid: true }));
   if (me.notify) prefs.push(page("notify", "bell", tr("Benachrichtigungen"), tr("Wann und wohin ich dir aufs Handy Bescheid gebe."), notifyPanel));
   prefs.push(page("data", "data", tr("Meine Daten"), tr("Nimm deine Daten mit oder räume auf. Es betrifft nur dein Profil."), dataPanel));
   const help = [
@@ -7905,6 +8827,7 @@ async function init() {
   $("nav-search").addEventListener("click", () => { openSearch().catch(() => {}); });
   $("nav-skills").addEventListener("click", () => { openSkills().catch(() => {}); });
   $("nav-shared").addEventListener("click", () => { openSharedChats().catch(() => {}); });
+  $("nav-artifacts").addEventListener("click", () => { openArtifactLibrary().catch(() => {}); });
   initCrumbs();
   initShortcuts();
   $("account").addEventListener("click", () => { accountMenu().catch(() => {}); });
@@ -7974,6 +8897,7 @@ async function init() {
     if (view === "settings" && narrowScreen()) await openSettings(detail);
     else if (view === "skills") await openSkills(["connectors", "plugins"].includes(detail) ? detail : "skills");
     else if (view === "schedules" && state.me.schedules) await openSchedules();
+    else if (view === "allchats") await openAllChats(["shared", "archived"].includes(detail) ? detail : "active");
     else if (again && state.chats.some((c) => c.id === again)) await selectChat(again);
     openSharedFromAddress().catch(() => {});
     showWelcome().catch(() => {});
