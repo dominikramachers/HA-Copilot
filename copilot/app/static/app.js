@@ -8151,6 +8151,22 @@ function githubPanel(body, alive) {
   const renderConnected = (info) => {
     const who = node("p", "gh-who");
     who.append(icon("github", true), node("span", "", tr("Verbunden als {0}", info.login || "GitHub")));
+    if (info.expired) {
+      const gone = node("p", "mem-hint gh-expired", tr("GitHub lehnt deinen Zugang ab: Er ist abgelaufen oder wurde widerrufen. Die KI kann dein GitHub gerade nicht nutzen. Verbinde dich neu."));
+      show(
+        who,
+        gone,
+        actions(
+          button(tr("Neu verbinden"), "primary", async (b) => {
+            b.disabled = true;
+            try { await api("api/github/account", { method: "DELETE" }); await refreshMe(); } catch (e) { b.disabled = false; fail(e, tr("Das Trennen hat nicht geklappt.")); return; }
+            startDevice(b);
+          }),
+          button(tr("Trennen"), "danger", () => renderDisconnect(info)),
+        ),
+      );
+      return;
+    }
     show(
       who,
       hint(githubLevelText(info.level)),

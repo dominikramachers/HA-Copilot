@@ -1197,8 +1197,9 @@ def register_chat_routes(
             raise HTTPException(status_code=429, detail=tr("Zu viele Versuche. Bitte in ein paar Minuten noch einmal."))
 
     @app.get("/api/github/account")
-    def github_account(profile: Profile = Depends(current_profile)) -> dict:
-        """Stand des GitHub-Zugangs dieser Person (das Token selbst verlässt das Add-on nie)."""
+    async def github_account(profile: Profile = Depends(current_profile)) -> dict:
+        """Stand des GitHub-Zugangs dieser Person (das Token selbst verlässt das Add-on nie); ``expired``: GitHub lehnt das Token ab."""
+        await accounts.check(profile.id)
         return {
             **accounts.info(profile.id),
             "level": "write",

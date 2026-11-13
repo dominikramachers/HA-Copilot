@@ -288,3 +288,64 @@ def test_a_wrong_token_gives_a_readable_error(store, vault, gh, clock):
     gh.user = (401, {"message": "Bad credentials"})
     bad = client.post("/api/github/token", json={"token": PERSONAL}, headers=headers(ADM01))
     assert bad.status_code == 400 and PERSONAL not in bad.text
+
+
+# ----------------------------------------------------------------------- Token wird später abgelehnt
+
+def connect(client, gh):
+    from conftest import ADM01  # noqa: PLC0415
+    assert client.post("/api/github/token", json={"token": PERSONAL}, headers=headers(ADM01)).status_code == 200
+    return ADM01
+
+
+def test_revoked_token_shows_as_expired_in_the_settings(store, vault, gh, clock):
+    client, _ = app_client(store, vault, gh, clock)
+    who = connect(client, gh)
+    assert client.get("/api/github/account", headers=headers(who)).json()["expired"] is False
+    gh.user = (401, {"message": "Bad credentials"})
+    clock.now += 700  # die letzte Prüfung ist älter als 10 Minuten
+    info = client.get("/api/github/account", headers=headers(who)).json()
+    assert info["source"] == "personal" and info["expired"] is True
+
+
+def test_the_check_is_not_repeated_within_ten_minutes(store, vault, gh, clock):
+    client, _ = app_client(store, vault, gh, clock)
+    who = connect(client, gh)
+    client.get("/api/github/account", headers=headers(who))
+    asked = len(gh.auth)
+    client.get("/api/github/account", headers=headers(who))
+    client.get("/api/github/account", headers=headers(who))
+    assert len(gh.auth) == asked
+    clock.now += 700
+    client.get("/api/github/account", headers=headers(who))
+    assert len(gh.auth) == asked + 1
+
+
+def test_a_rejection_during_a_tool_call_is_remembered(accounts, gh):
+    run(accounts._store_token("dora", PERSONAL, "token"))
+    assert accounts.info("dora")["expired"] is False
+    gh.user = (401, {"message": "Bad credentials"})
+    with pytest.raises(Exception, match="neu verbinden"):
+        run(accounts.api_for("dora").request("GET", "/user"))
+    assert accounts.info("dora")["expired"] is True
+
+
+def test_a_failed_check_without_rejection_changes_nothing(accounts, gh, clock):
+    run(accounts._store_token("dora", PERSONAL, "token"))
+    gh.user = (502, {"message": "Bad gateway"})
+    clock.now += 700
+    run(accounts.check("dora"))
+    assert accounts.info("dora")["expired"] is False
+
+
+def test_reconnecting_clears_the_expired_mark(accounts, gh, clock):
+    run(accounts._store_token("dora", PERSONAL, "token"))
+    gh.user = (401, {"message": "Bad credentials"})
+    clock.now += 700
+    run(accounts.check("dora"))
+    assert accounts.info("dora")["expired"] is True
+    gh.user = {"login": "dora-gh"}
+    run(accounts._store_token("dora", PERSONAL + "x", "token"))
+    assert accounts.info("dora")["expired"] is False
+    accounts.disconnect("dora")
+    assert accounts.info("dora")["expired"] is False and accounts.info("dora")["source"] == "none"

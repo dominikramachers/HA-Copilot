@@ -36,6 +36,7 @@ TOKEN_URL = "https://github.com/login/oauth/access_token"
 GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 DEFAULT_INTERVAL = 5
 MAX_PENDING_SECONDS = 900
+CHECK_SECONDS = 600  # so lange gilt eine Prüfung des Tokens bei GitHub, bevor die Einstellungen erneut nachfragen
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_]{20,255}$")
 
 
@@ -65,6 +66,8 @@ class GithubAccounts:
         self._clock = clock
         self._cache: dict[str, tuple[str, GithubApi]] = {}  # Person → (verschlüsselter Wert, Zugang)
         self._pending: dict[str, dict[str, Any]] = {}  # Person → laufende Anmeldung (nur Arbeitsspeicher)
+        self._expired: set[str] = set()  # Personen, deren Token GitHub abgelehnt hat (nur Arbeitsspeicher)
+        self._checked: dict[str, float] = {}  # Person → Zeitpunkt der letzten erfolgreichen Prüfung
 
     # ------------------------------------------------------------------ Zugang je Person
 
@@ -80,7 +83,7 @@ class GithubAccounts:
         if not token:
             log.warning("Das gespeicherte GitHub-Token einer Person ist nicht lesbar (Schlüssel passt nicht mehr)")
             return None
-        api = GithubApi(token, transport=self._transport, personal=True)
+        api = GithubApi(token, transport=self._transport, personal=True, on_unauthorized=lambda: self._expired.add(profile_id))
         self._cache[profile_id] = (row["token"], api)
         return api
 
@@ -107,7 +110,27 @@ class GithubAccounts:
             "via": (row or {}).get("via", ""),
             "connected_at": (row or {}).get("connected_at", ""),
             "pending": profile_id in self._pending and self._pending[profile_id]["expires"] > self._clock(),
+            "expired": row is not None and profile_id in self._expired,
         }
+
+    async def check(self, profile_id: str) -> None:
+        """Fragt bei GitHub nach, ob das Token noch gilt (höchstens alle ``CHECK_SECONDS``); ein Fehler außer „abgelehnt“ ändert nichts."""
+        api = self.personal(profile_id)
+        if api is None:
+            return
+        last = self._checked.get(profile_id)
+        if last is not None and self._clock() - last < CHECK_SECONDS:
+            return
+        try:
+            await api.request("GET", "/user")
+        except GithubError as exc:
+            if exc.status == 401:
+                self._expired.add(profile_id)
+                self._checked[profile_id] = self._clock()
+                log.warning("GitHub lehnt das gespeicherte Token einer Person ab (widerrufen oder abgelaufen)")
+            return
+        self._expired.discard(profile_id)
+        self._checked[profile_id] = self._clock()
 
     # ------------------------------------------------------------------ Verbinden
 
@@ -198,10 +221,14 @@ class GithubAccounts:
             raise AccountError(tr("GitHub hat das Konto zu diesem Token nicht genannt."), 502)
         self.store.github_account_save(profile_id, self.vault.seal(token), login, via)
         self._cache.pop(profile_id, None)
+        self._expired.discard(profile_id)
+        self._checked.pop(profile_id, None)
         log.info("GitHub verbunden: Person %s als %s (%s)", profile_id, login, via)
         return login
 
     def disconnect(self, profile_id: str) -> bool:
         self._pending.pop(profile_id, None)
         self._cache.pop(profile_id, None)
+        self._expired.discard(profile_id)
+        self._checked.pop(profile_id, None)
         return self.store.github_account_delete(profile_id)

@@ -8,7 +8,7 @@ from __future__ import annotations
 import fnmatch
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import httpx
@@ -61,8 +61,9 @@ class RepoPolicy:
 
 
 class GithubApi:
-    def __init__(self, token: str, transport: httpx.AsyncBaseTransport | None = None, timeout: float = 25.0, base_url: str = BASE_URL, personal: bool = False) -> None:
+    def __init__(self, token: str, transport: httpx.AsyncBaseTransport | None = None, timeout: float = 25.0, base_url: str = BASE_URL, personal: bool = False, on_unauthorized: Callable[[], None] | None = None) -> None:
         self._token = token
+        self._on_unauthorized = on_unauthorized  # GitHub lehnt das Token ab: das Konto merkt sich das für die Einstellungen
         self.personal = personal  # eigenes Konto der Person (nicht das Token des Add-ons): andere Hinweise bei Fehlern
         self._transport = transport
         self._timeout = timeout
@@ -124,8 +125,10 @@ class GithubApi:
             message, detail = response.text[:200], ""
         message = self._clean(message + (f" ({detail})" if detail else ""))[:300]
         if status == 401:
+            if self._on_unauthorized is not None:
+                self._on_unauthorized()
             if self.personal:
-                return GithubError("Dein GitHub-Zugang wurde abgelehnt (widerrufen oder abgelaufen). Die Person muss GitHub in den Einstellungen neu verbinden.", 401)
+                return GithubError("Dein GitHub-Zugang ist abgelaufen oder wurde widerrufen. Die Person muss GitHub in den Einstellungen unter „GitHub“ neu verbinden.", 401)
             return GithubError("Das GitHub-Token wurde abgelehnt (ungültig oder abgelaufen). Die Person muss GitHub in den Einstellungen neu verbinden.", 401)
         if status in (403, 429) and ("rate limit" in message.lower() or response.headers.get("x-ratelimit-remaining") == "0"):
             return GithubError("Das Anfragelimit von GitHub ist erreicht. Bitte später erneut versuchen.", status)

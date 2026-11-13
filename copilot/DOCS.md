@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.59.1.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.59.2.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -382,6 +382,7 @@ Die KI kann mit GitHub arbeiten (ab 0.46.0 mit dem eigenen Konto jeder Person): 
 1. **Mit GitHub verbinden** wählen. Es erscheint ein Code und der Knopf „GitHub öffnen“.
 2. Bei GitHub den Code eingeben und den Zugriff bestätigen. Die Seite wartet und meldet sich von selbst mit „Verbunden als …“; der Code gilt 15 Minuten.
 3. Alternativ **Token einfügen**: ein selbst erzeugtes Token (Fine-grained oder klassisch). Das Add-on prüft es bei GitHub, bevor es gespeichert wird.
+**Abgelaufener Zugang (ab 0.59.2).** Beim Öffnen der Seite fragt das Add-on bei GitHub nach, ob das Token noch gilt (`GET /user`, höchstens alle 10 Minuten je Person; ein Fehler außer „abgelehnt“, etwa keine Verbindung, ändert nichts). Lehnt GitHub es ab (widerrufen oder abgelaufen), oder lehnt GitHub es während einer Antwort ab, steht statt „Verbunden“ der Hinweis „GitHub lehnt deinen Zugang ab …“ mit dem Knopf **Neu verbinden**. Bis 0.59.1 zeigte die Seite dauerhaft „Verbunden als …“, obwohl GitHub das Token längst ablehnte; die KI bekam dann bei jedem Zugriff nur eine Fehlzeile.
 4. **Trennen** löscht das Token im Add-on. Der Zugang bei GitHub bleibt bestehen, bis die Person ihn dort unter Einstellungen → Anwendungen widerruft.
 
 Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connector.key` im Datenordner wie bei den Konnektoren), geht nur an `api.github.com` und nie an den Browser, ins Protokoll, in Fehlermeldungen oder in „Meine Daten“. Wer kein GitHub braucht oder haben soll, verbindet einfach nichts. Wer verbunden ist, arbeitet mit **seinem eigenen Konto** und sieht nur, was dieses Konto sieht. Die Anmeldung läuft über die OAuth-App „HA Copilot“ (Device Flow, nur die öffentliche Client-ID steckt im Add-on, kein Geheimnis) mit dem Recht `repo` (Repositories lesen und schreiben, auch private). Dateien im Ordner `.github/workflows/` kann die KI auf diesem Weg nicht ändern (dafür bräuchte die App das Recht `workflow`); bei Organisationen muss ein Besitzer die App eventuell erst freigeben.
