@@ -1792,9 +1792,10 @@ def register_chat_routes(
     def public_ready() -> bool:
         return settings.sharing == "public" and bool(settings.public_base_url)
 
-    def share_view(row: dict | None) -> dict | None:
+    def share_view(row: dict | None, viewers=None) -> dict | None:
         if row is None:
             return None
+        viewers = viewers or store.share_viewers
         out = {"mode": row["mode"], "taken_at": row["taken_at"], "created_at": row["created_at"], "expires_at": row["expires_at"], "token": row["token"]}
         if row["mode"] == "public":
             out["url"] = f"{settings.public_base_url}/s/{row['token']}"
@@ -1803,7 +1804,7 @@ def register_chat_routes(
             out["url"] = f"{settings.public_base_url}/?share={row['token']}" if settings.public_base_url else ""
             out["viewers"] = [
                 {"name": owner_label(v["profile_id"]), "first_at": v["first_at"], "last_at": v["last_at"], "opens": v["opens"]}
-                for v in store.share_viewers(row["id"])
+                for v in viewers(row["id"])
             ]
         return out
 
@@ -1881,6 +1882,10 @@ def register_chat_routes(
         sharing_or_404()
         found = SHARE_TOKEN.search(body.token)
         row = store.share_open(profile.id, found.group(0)) if found else None
+        if row is None and found:
+            shared = store.artifact_share_open(profile.id, found.group(0))
+            if shared is not None:
+                return {"id": shared["id"], "kind": "artifact", "title": shared["title"], "owner": owner_label(shared["profile_id"]), "taken_at": shared["taken_at"], "mine": shared["own"]}
         if row is None:
             raise HTTPException(status_code=404, detail=tr("Der Link gilt nicht (mehr)."))
         return {"id": row["id"], "title": row["title"], "owner": owner_label(row["profile_id"]), "taken_at": row["taken_at"], "mine": row["own"]}
@@ -1914,6 +1919,99 @@ def register_chat_routes(
         if not row["messages"]:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return store.import_chat(profile.id, _title_from(tr("Kopie: {title}", title=row["title"])), row["messages"])
+
+    # ------------------------------------------------------------ Artefakte teilen
+    # Wie Chats ein Stand vom Zeitpunkt des Teilens, aber nur als Text: Wer den Link öffnet, sieht den Code und kann ihn kopieren,
+    # nie eine ausgeführte Seite. Die Links liegen im selben Adressraum wie die der Chats (``/s/<Code>``, ``?share=<Code>``).
+
+    def owned_artifact(profile: Profile, art_id: str) -> dict:
+        found = store.artifact_get(profile.id, art_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return found
+
+    def artifact_share_view(row: dict | None) -> dict | None:
+        out = share_view(row, store.artifact_share_viewers)
+        if out is not None:
+            out["version"] = row["version"]
+        return out
+
+    @app.get("/api/artifacts/{artifact_id}/share")
+    def get_artifact_share(artifact_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        owned_artifact(profile, artifact_id)
+        return {
+            "sharing": settings.sharing, "public_available": public_ready(),
+            "instance": artifact_share_view(store.artifact_share_get(profile.id, artifact_id, "instance")),
+            "public": artifact_share_view(store.artifact_share_get(profile.id, artifact_id, "public")),
+        }
+
+    def take_artifact_share(profile: Profile, artifact_id: str, mode: str, expires_days: int | None) -> dict:
+        sharing_or_404()
+        owned_artifact(profile, artifact_id)
+        if mode == "public":
+            if settings.sharing != "public":
+                raise HTTPException(status_code=403, detail=tr("Öffentliche Links sind nicht erlaubt."))
+            if not settings.public_base_url:
+                raise HTTPException(status_code=409, detail=tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."))
+        row = store.artifact_share_upsert(profile.id, artifact_id, mode, expires_days)
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return artifact_share_view(row) or {}
+
+    @app.post("/api/artifacts/{artifact_id}/share", dependencies=[Depends(write_guard)])
+    def create_artifact_share(artifact_id: str, body: ShareBody, profile: Profile = Depends(current_profile)) -> dict:
+        fresh = body.expires_days is None and not store.artifact_share_get(profile.id, artifact_id, body.mode)
+        return take_artifact_share(profile, artifact_id, body.mode, (30 if body.mode == "public" else 0) if fresh else body.expires_days)
+
+    @app.post("/api/artifacts/{artifact_id}/share/refresh", dependencies=[Depends(write_guard)])
+    def refresh_artifact_share(artifact_id: str, body: ShareModeBody, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        if store.artifact_share_get(profile.id, artifact_id, body.mode) is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return take_artifact_share(profile, artifact_id, body.mode, None)
+
+    @app.delete("/api/artifacts/{artifact_id}/share/{mode}", status_code=204, dependencies=[Depends(write_guard)])
+    def revoke_artifact_share(artifact_id: str, mode: Literal["instance", "public"], profile: Profile = Depends(current_profile)) -> Response:
+        if not store.artifact_share_delete(profile.id, artifact_id, mode):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.get("/api/shared-artifacts")
+    def list_shared_artifacts(profile: Profile = Depends(current_profile)) -> list[dict]:
+        """Artefakte anderer Personen, deren Link diese Person geöffnet hat (ohne Text)."""
+        sharing_or_404()
+        return [
+            {"id": r["id"], "title": r["title"], "kind": r["kind"], "language": r["language"], "owner": owner_label(r["profile_id"]),
+             "taken_at": r["taken_at"], "opened_at": r["opened_at"]}
+            for r in store.artifact_shares_opened_by(profile.id)
+        ]
+
+    @app.get("/api/shared-artifacts/{share_id}")
+    def read_shared_artifact(share_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        sharing_or_404()
+        row = store.artifact_share_read(share_id=share_id)
+        if row is None or (row["profile_id"] != profile.id and not store.artifact_share_has_access(profile.id, share_id)):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {
+            "id": row["id"], "title": row["title"], "kind": row["kind"], "language": row["language"], "content": row["content"], "version": row["version"],
+            "owner": owner_label(row["profile_id"]), "taken_at": row["taken_at"], "mine": row["profile_id"] == profile.id,
+            "filename": artifactlib.filename(row["title"], row["kind"], row["language"]),
+        }
+
+    @app.delete("/api/shared-artifacts/{share_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def remove_shared_artifact(share_id: str, profile: Profile = Depends(current_profile)) -> Response:
+        sharing_or_404()
+        if not store.artifact_share_access_remove(profile.id, share_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.get("/api/artifacts")
+    def list_artifacts(shared: bool = False, profile: Profile = Depends(current_profile)) -> list[dict]:
+        """Alle Artefakte der Person (ohne Inhalt), mit ``shared`` = Wege, auf denen sie gerade geteilt sind; ``shared=true`` nur die geteilten."""
+        modes = store.artifact_share_modes(profile.id) if settings.sharing != "off" else {}
+        items = [{**a, "shared": modes.get(a["id"], [])} for a in store.artifact_list(profile.id)]
+        return [a for a in items if a["shared"]] if shared else items
 
     # ------------------------------------------------------------ Projektwissen
 
@@ -3479,7 +3577,7 @@ def build_public_app(
             raise HTTPException(status_code=429, detail=tr("Zu viele Versuche"))
         if settings.sharing != "public" or not SHARE_TOKEN.fullmatch(token):
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
-        row = store.share_read(token=token, mode="public")
+        row = store.share_read(token=token, mode="public") or store.artifact_share_read(token=token, mode="public")
         if row is None:
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return row
@@ -3499,6 +3597,14 @@ def build_public_app(
     @app.get("/s/{token}/data", include_in_schema=False)
     def shared_data(request: Request, token: str) -> JSONResponse:
         row = public_share(request, token)
+        headers = {"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow, noarchive"}
+        if "content" in row:  # Artefakt: nur der Text, nie eine ausgeführte Seite
+            store.artifact_share_count_open(row["id"])
+            return JSONResponse(
+                {"title": row["title"], "taken_at": row["taken_at"], "expires_at": row["expires_at"],
+                 "artifact": {"kind": row["kind"], "language": row["language"], "content": row["content"], "version": row["version"]}},
+                headers=headers,
+            )
         store.share_count_open(row["id"])
         return JSONResponse(
             {"title": row["title"], "taken_at": row["taken_at"], "expires_at": row["expires_at"], "messages": row["messages"]},

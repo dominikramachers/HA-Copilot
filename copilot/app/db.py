@@ -227,6 +227,34 @@ CREATE TABLE IF NOT EXISTS artifact_versions (
 );
 """
 
+ARTIFACT_SHARES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS artifact_shares (
+    id          TEXT PRIMARY KEY,
+    artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+    profile_id  TEXT NOT NULL,
+    mode        TEXT NOT NULL CHECK (mode IN ('instance', 'public')),
+    token       TEXT NOT NULL UNIQUE,
+    title       TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    language    TEXT NOT NULL DEFAULT '',
+    content     TEXT NOT NULL,
+    version     INTEGER NOT NULL,
+    taken_at    TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT,
+    opens       INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (artifact_id, mode)
+);
+CREATE TABLE IF NOT EXISTS artifact_share_access (
+    share_id    TEXT NOT NULL REFERENCES artifact_shares(id) ON DELETE CASCADE,
+    profile_id  TEXT NOT NULL,
+    first_at    TEXT NOT NULL,
+    last_at     TEXT NOT NULL,
+    opens       INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (share_id, profile_id)
+);
+"""
+
 VARIANTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS answer_versions (
     chat_id     TEXT NOT NULL,
@@ -442,7 +470,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 29  # 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 30  # 30: Artefakte teilen (artifact_shares, artifact_share_access); 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
 
@@ -672,6 +700,7 @@ class Store:
         self._conn.executescript(USAGE_SCHEMA)
         self._conn.executescript(VARIANTS_SCHEMA)
         self._conn.executescript(ARTIFACTS_SCHEMA)
+        self._conn.executescript(ARTIFACT_SHARES_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -1936,7 +1965,9 @@ class Store:
 
     def share_sweep(self) -> int:
         with self._lock, self._conn:
-            return self._conn.execute("DELETE FROM chat_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (_now(),)).rowcount
+            now = _now()
+            gone = self._conn.execute("DELETE FROM chat_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (now,)).rowcount
+            return gone + self._conn.execute("DELETE FROM artifact_shares WHERE expires_at IS NOT NULL AND expires_at <= ?", (now,)).rowcount
 
     def import_chat(self, profile_id: str, title: str, messages: list[dict[str, str]]) -> dict[str, Any]:
         """Verlauf einer geteilten Unterhaltung als eigenen Chat anlegen (``imported``: Inhalt ist fremd, Änderungen fragen immer nach)."""
@@ -2516,6 +2547,144 @@ class Store:
         with self._lock, self._conn:
             cur = self._conn.execute("DELETE FROM artifacts WHERE id = ? AND profile_id = ?", (art_id, profile_id))
         return cur.rowcount == 1
+
+    # --- Artefakte teilen: nur lesen, nur der Text (Code) – nie als Seite ausgeführt ------------------------------------------
+    # Wie bei Chats ein Stand vom Zeitpunkt des Teilens; eigene Tabellen, damit Chat-Freigaben unberührt bleiben.
+
+    _ASHARE_FIELDS = ("id", "artifact_id", "profile_id", "mode", "token", "title", "kind", "language", "version", "taken_at", "created_at", "expires_at", "opens")
+
+    def _ashare(self, row: sqlite3.Row, with_content: bool = False) -> dict[str, Any]:
+        data = {k: row[k] for k in self._ASHARE_FIELDS}
+        if with_content:
+            data["content"] = row["content"]
+        return data
+
+    def artifact_share_upsert(self, profile_id: str, art_id: str, mode: str, expires_days: int | None = None) -> dict[str, Any] | None:
+        """Aktuelle Version des Artefakts teilen oder den Stand einer Freigabe erneuern. ``expires_days``: 0 = nie, ``None`` = unverändert."""
+        _require(profile_id)
+        if mode not in ("instance", "public"):
+            raise ValueError("mode muss instance oder public sein")
+        now = _now()
+        with self._lock, self._conn:
+            row = self._artifact_row(profile_id, art_id)
+            if row is None:
+                return None
+            content = self._conn.execute("SELECT content FROM artifact_versions WHERE artifact_id = ? AND n = ?", (art_id, row["latest"])).fetchone()
+            if content is None:
+                return None
+            old = self._conn.execute("SELECT id, expires_at FROM artifact_shares WHERE artifact_id = ? AND mode = ?", (art_id, mode)).fetchone()
+            if expires_days is None and old is not None:
+                expires = old["expires_at"]
+            elif expires_days:
+                expires = (datetime.now(timezone.utc) + timedelta(days=expires_days)).isoformat(timespec="seconds")
+            else:
+                expires = None
+            if old is None:
+                self._conn.execute(
+                    "INSERT INTO artifact_shares (id, artifact_id, profile_id, mode, token, title, kind, language, content, version, taken_at, created_at, expires_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (uuid.uuid4().hex, art_id, profile_id, mode, secrets.token_urlsafe(32), row["title"], row["kind"], row["language"], content["content"], row["latest"], now, now, expires),
+                )
+            else:
+                self._conn.execute(
+                    "UPDATE artifact_shares SET title = ?, kind = ?, language = ?, content = ?, version = ?, taken_at = ?, expires_at = ? WHERE artifact_id = ? AND mode = ?",
+                    (row["title"], row["kind"], row["language"], content["content"], row["latest"], now, expires, art_id, mode),
+                )
+        return self.artifact_share_get(profile_id, art_id, mode)
+
+    def artifact_share_get(self, profile_id: str, art_id: str, mode: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM artifact_shares WHERE artifact_id = ? AND profile_id = ? AND mode = ?", (art_id, profile_id, mode)).fetchone()
+        return self._ashare(row) if row else None
+
+    def artifact_share_delete(self, profile_id: str, art_id: str, mode: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM artifact_shares WHERE artifact_id = ? AND profile_id = ? AND mode = ?", (art_id, profile_id, mode))
+        return cur.rowcount == 1
+
+    def artifact_share_read(self, share_id: str = "", token: str = "", mode: str = "instance") -> dict[str, Any] | None:
+        """Freigabe samt Text lesen (über Kennung oder Zeichen der Adresse); abgelaufene gibt es nicht mehr."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM artifact_shares WHERE mode = ? AND " + ("id = ?" if share_id else "token = ?"), (mode, share_id or token)
+            ).fetchone()
+            if row is None:
+                return None
+            if row["expires_at"] and row["expires_at"] <= _now():
+                with self._conn:
+                    self._conn.execute("DELETE FROM artifact_shares WHERE id = ?", (row["id"],))
+                return None
+        return self._ashare(row, with_content=True)
+
+    def artifact_share_open(self, profile_id: str, token: str) -> dict[str, Any] | None:
+        """Link zu einem geteilten Artefakt öffnen (merkt sich, wer ihn geöffnet hat). ``own`` = die eigene Freigabe."""
+        _require(profile_id)
+        row = self.artifact_share_read(token=token, mode="instance")
+        if row is None:
+            return None
+        row.pop("content", None)
+        row["own"] = row["profile_id"] == profile_id
+        if not row["own"]:
+            now = _now()
+            with self._lock, self._conn:
+                self._conn.execute(
+                    "INSERT INTO artifact_share_access (share_id, profile_id, first_at, last_at, opens) VALUES (?, ?, ?, ?, 1) "
+                    "ON CONFLICT (share_id, profile_id) DO UPDATE SET last_at = excluded.last_at, opens = opens + 1",
+                    (row["id"], profile_id, now, now),
+                )
+        return row
+
+    def artifact_share_has_access(self, profile_id: str, share_id: str) -> bool:
+        _require(profile_id)
+        with self._lock:
+            return self._conn.execute("SELECT 1 FROM artifact_share_access WHERE share_id = ? AND profile_id = ?", (share_id, profile_id)).fetchone() is not None
+
+    def artifact_shares_opened_by(self, profile_id: str) -> list[dict[str, Any]]:
+        """Geteilte Artefakte anderer Personen, deren Link diese Person geöffnet hat (zuletzt geöffnete zuerst), ohne Text."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT s.*, a.first_at AS opened_at FROM artifact_share_access a JOIN artifact_shares s ON s.id = a.share_id "
+                "WHERE a.profile_id = ? AND s.mode = 'instance' AND (s.expires_at IS NULL OR s.expires_at > ?) ORDER BY a.last_at DESC",
+                (profile_id, _now()),
+            ).fetchall()
+        out = []
+        for r in rows:
+            item = self._ashare(r)
+            item["opened_at"] = r["opened_at"]
+            out.append(item)
+        return out
+
+    def artifact_share_access_remove(self, profile_id: str, share_id: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM artifact_share_access WHERE share_id = ? AND profile_id = ?", (share_id, profile_id))
+        return cur.rowcount == 1
+
+    def artifact_share_viewers(self, share_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT profile_id, first_at, last_at, opens FROM artifact_share_access WHERE share_id = ? ORDER BY last_at DESC", (share_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def artifact_share_count_open(self, share_id: str) -> None:
+        with self._lock, self._conn:
+            self._conn.execute("UPDATE artifact_shares SET opens = opens + 1 WHERE id = ?", (share_id,))
+
+    def artifact_share_modes(self, profile_id: str) -> dict[str, list[str]]:
+        """Welche Artefakte der Person gerade geteilt sind: ``{artifact_id: ['instance', 'public']}``."""
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT artifact_id, mode FROM artifact_shares WHERE profile_id = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY mode", (profile_id, _now())
+            ).fetchall()
+        out: dict[str, list[str]] = {}
+        for row in rows:
+            out.setdefault(row["artifact_id"], []).append(row["mode"])
+        return out
 
     # --- Fassungen der letzten Antwort (Antwort neu erzeugen, ``‹ 2/3 ›``) -------------------------------------------------
 

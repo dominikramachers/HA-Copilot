@@ -4890,7 +4890,8 @@ function drawArtifact() {
       } catch (err) { toast(errorText(err, tr("Ablegen hat nicht geklappt."))); }
     })
     : null;
-  actions.append(...[edit, copy, download, toProject, del].filter(Boolean));
+  const shareBtn = canShare() ? actionButton(tr("Artefakt teilen"), "share", "msg-act", () => shareArtifact(data)) : null;
+  actions.append(...[edit, copy, download, toProject, shareBtn, del].filter(Boolean));
   bar.append(tabs, actions);
 
   const body = node("div", "art-body");
@@ -4944,6 +4945,14 @@ function drawArtifact() {
     } else foot = node("p", "art-foot", tr("Aktuelle Version"));
   }
   panel.replaceChildren(head, bar, body, foot);
+}
+
+async function shareArtifact(data) {
+  await openSheet({
+    title: tr("Artefakt teilen"), sub: tr("Geteilt wird der Code in der jetzigen Version, nur zum Lesen"), plain: true,
+    panel: (body) => { body.classList.add("share-panel"); drawSharePanel(body, data, { open: false }, "artifact").catch(() => { body.textContent = tr("Das hat nicht geklappt."); }); },
+  });
+  $("sheet-panel").classList.remove("share-panel");
 }
 
 // Die Karte im Chat zeigt die Versionsnummer; nach einer eigenen Änderung wird sie nachgezogen.
@@ -7029,14 +7038,35 @@ async function shareChat(chat) {
   await loadAll().catch(() => {});  // Symbol in der Chatliste
 }
 
-function shareLevels(data) {
+// Das Teilen-Fenster gilt für Chats und für Artefakte; nur Wege und Texte unterscheiden sich.
+function shareTexts(kind) {
+  if (kind === "artifact") {
+    return {
+      instance: tr("Wer den Link öffnet, findet das Artefakt unter „Geteilt“. Er oder sie kann den Code lesen und kopieren."),
+      public: tr("Lesen ohne Anmeldung, nur der Code. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du das Artefakt zeigen willst."),
+      private: tr("Niemand sonst sieht dieses Artefakt. Wähle oben, wie du es teilen willst."),
+      note: tr("Wer Zugriff hat, sieht den Code so, wie er jetzt ist, und nie eine ausgeführte Seite. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis."),
+      done: tr("Artefakt geteilt."),
+    };
+  }
+  return {
+    instance: tr("Wer den Link öffnet, findet den Chat unter „Geteilt“. Er oder sie kann ihn lesen und als eigene Kopie weiterführen."),
+    public: tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst."),
+    private: tr("Niemand sonst sieht diesen Chat. Wähle oben, wie du ihn teilen willst."),
+    note: tr("Wer Zugriff hat, sieht den Chat so, wie er jetzt ist. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis."),
+    done: tr("Chat geteilt."),
+  };
+}
+
+function shareLevels(data, kind = "chat") {
+  const texts = shareTexts(kind);
   const linkReady = data.sharing === "public" && data.public_available;
   return [
-    { value: "instance", icon: "users", label: tr("Personen dieser Instanz mit Link"), hint: tr("Wer den Link öffnet, findet den Chat unter „Geteilt“. Er oder sie kann ihn lesen und als eigene Kopie weiterführen.") },
+    { value: "instance", icon: "users", label: tr("Personen dieser Instanz mit Link"), hint: texts.instance },
     {
       value: "public", icon: "link", label: tr("Jede Person mit dem Link"), disabled: !linkReady,
       hint: linkReady
-        ? tr("Lesen ohne Anmeldung. Der Link ist lang und lässt sich nicht erraten. Leite ihn nur an Menschen weiter, denen du den Chat zeigen willst.")
+        ? texts.public
         : data.sharing !== "public"
           ? tr("Nicht freigeschaltet: Der Admin muss in den Einstellungen bei „Chats teilen“ den Wert „public“ wählen.")
           : tr("Dafür ist der Domain-Zugang nötig, und der ist nicht eingerichtet."),
@@ -7046,8 +7076,9 @@ function shareLevels(data) {
 
 const shareLinkOf = (row) => row.url || `${location.origin}${location.pathname}?share=${row.token}`;
 
-async function drawSharePanel(body, chat, view = { open: false }) {
-  const base = `api/chats/${encodeURIComponent(chat.id)}/share`;
+async function drawSharePanel(body, chat, view = { open: false }, kind = "chat") {
+  const base = kind === "artifact" ? `api/artifacts/${encodeURIComponent(chat.id)}/share` : `api/chats/${encodeURIComponent(chat.id)}/share`;
+  const texts = shareTexts(kind);
   const load = async () => render(await api(base));
   const post = (payload, path = "") => api(`${base}${path}`, { method: "POST", body: JSON.stringify(payload) });
   const del = (mode) => api(`${base}/${mode}`, { method: "DELETE" });
@@ -7075,7 +7106,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
   function render(data) {
     const shared = data.public || data.instance || null;
     const level = data.public ? "public" : data.instance ? "instance" : "private";
-    const levels = shareLevels(data);
+    const levels = shareLevels(data, kind);
     const current = levels.find((l) => l.value === level);
     const choose = async (next) => {
       view.open = false;
@@ -7083,7 +7114,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
       await run(async () => {
         if (next === "instance") { await post({ mode: "instance" }); if (data.public) await del("public"); }
         else { await post({ mode: "public", expires_days: 30 }); if (data.instance) await del("instance"); }
-      }, tr("Chat geteilt."));
+      }, texts.done);
     };
 
     const scroll = node("div", "share-scroll");
@@ -7114,7 +7145,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
       }
       nodes.push(list);
     } else if (!shared) {
-      nodes.push(node("p", "share-hint", tr("Niemand sonst sieht diesen Chat. Wähle oben, wie du ihn teilen willst.")));
+      nodes.push(node("p", "share-hint", texts.private));
     } else {
       nodes.push(node("p", "share-hint", current.hint));
       // Link: Ein Klick auf das Feld oder das Symbol kopiert ihn und meldet es im Feld.
@@ -7182,7 +7213,7 @@ async function drawSharePanel(body, chat, view = { open: false }) {
     const name = state.me?.label || "";
     owner.append(node("span", "share-avatar", (name || "?").slice(0, 1).toUpperCase()), node("span", "share-name", `${name} ${tr("(du)")}`.trim()), node("span", "share-role", tr("Besitzer")));
     nodes.push(owner);
-    nodes.push(node("p", "share-note", tr("Wer Zugriff hat, sieht den Chat so, wie er jetzt ist. Teile keine persönlichen Informationen oder Inhalte Dritter ohne Erlaubnis.")));
+    nodes.push(node("p", "share-note", texts.note));
     scroll.append(...nodes);
 
     const foot = node("div", "share-foot");
@@ -7226,10 +7257,14 @@ async function openSharedChats() {
       body.classList.add("shared-panel");
       const draw = async () => {
         let incoming = [];
-        try { incoming = await api("api/shared"); } catch (err) { body.textContent = errorText(err, tr("Das hat nicht geklappt.")); return; }
+        let incomingArt = [];
+        let mineArt = [];
+        try {
+          [incoming, incomingArt, mineArt] = await Promise.all([api("api/shared"), api("api/shared-artifacts"), api("api/artifacts?shared=true")]);
+        } catch (err) { body.textContent = errorText(err, tr("Das hat nicht geklappt.")); return; }
         const mine = state.chats.filter((c) => c.shared?.length);
         const nodes = [];
-        const group = (heading, rows) => {
+        const group = (heading, rows, iconName = "chat", removePath = "api/shared") => {
           nodes.push(node("p", "share-h", heading));
           const list = node("div", "shared-list");
           for (const r of rows) {
@@ -7238,7 +7273,7 @@ async function openSharedChats() {
             open.type = "button";
             const t = node("span", "share-text");
             t.append(node("b", "", r.title), node("span", "share-hint", r.sub));
-            open.append(icon("chat"), t);
+            open.append(icon(iconName), t);
             open.addEventListener("click", () => { picked = r.open; closeSheet(true); });
             item.append(open);
             if (r.remove) {
@@ -7248,7 +7283,7 @@ async function openSharedChats() {
               rm.title = tr("Entfernen");
               rm.append(icon("trash"));
               rm.addEventListener("click", async () => {
-                try { await api(`api/shared/${encodeURIComponent(r.id)}`, { method: "DELETE" }); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); }
+                try { await api(`${removePath}/${encodeURIComponent(r.id)}`, { method: "DELETE" }); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); }
                 draw();
               });
               item.append(rm);
@@ -7257,19 +7292,32 @@ async function openSharedChats() {
           }
           nodes.push(list);
         };
+        const how = (modes) => (modes.includes("public") ? tr("Jede Person mit dem Link") : tr("Personen dieser Instanz mit Link"));
+        const projectOf = (id) => (id ? state.projects.find((p) => p.id === id)?.name || "" : "");
         if (incoming.length) {
-          group(tr("Mit mir geteilt"), incoming.map((c) => ({
+          group(tr("Chats mit mir geteilt"), incoming.map((c) => ({
             id: c.id, title: c.title, sub: tr("Von {0} · Stand {1}", c.owner, exactTime(c.taken_at)), open: () => openSharedChat(c.id), remove: true,
           })));
         }
+        if (incomingArt.length) {
+          group(tr("Artefakte mit mir geteilt"), incomingArt.map((a) => ({
+            id: a.id, title: a.title, sub: tr("Von {0} · Stand {1}", a.owner, exactTime(a.taken_at)), open: () => openSharedArtifact(a.id), remove: true,
+          })), "code", "api/shared-artifacts");
+        }
         if (mine.length) {
-          group(tr("Von mir geteilt"), mine.map((c) => {
-            const project = c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name : "";
-            const how = c.shared.includes("public") ? tr("Jede Person mit dem Link") : tr("Personen dieser Instanz mit Link");
-            return { id: c.id, title: c.title, sub: project ? `${project} · ${how}` : how, open: () => selectChat(c.id) };
+          group(tr("Chats von mir geteilt"), mine.map((c) => {
+            const project = projectOf(c.project_id);
+            return { id: c.id, title: c.title, sub: project ? `${project} · ${how(c.shared)}` : how(c.shared), open: () => selectChat(c.id) };
           }));
         }
-        if (!incoming.length) {
+        if (mineArt.length) {
+          group(tr("Artefakte von mir geteilt"), mineArt.map((a) => {
+            const project = projectOf(a.project_id);
+            const where = project ? `${project} · ${a.chat_title}` : a.chat_title;
+            return { id: a.id, title: a.title, sub: `${where} · ${how(a.shared)}`, open: async () => { await selectChat(a.chat_id); await openArtifact(a.id).catch(() => {}); } };
+          }), "code");
+        }
+        if (!incoming.length && !incomingArt.length) {
           const empty = node("div", "shared-empty");
           empty.append(icon("share"), node("p", "", tr("Es wurde nichts mit dir geteilt.")));
           nodes.unshift(empty);
@@ -7287,7 +7335,7 @@ async function openSharedChats() {
 async function takeSharedLink(text) {
   try {
     const found = await api("api/shared/open", { method: "POST", body: JSON.stringify({ token: text.trim().slice(0, 600) }) });
-    if (found.mine) toast(tr("Das ist dein eigener Chat."));
+    if (found.mine) toast(found.kind === "artifact" ? tr("Das ist dein eigenes Artefakt.") : tr("Das ist dein eigener Chat."));
     else toast(tr("„{0}“ steht jetzt unter „Geteilt“.", found.title));
     return found;
   } catch (err) {
@@ -7306,7 +7354,26 @@ async function openSharedFromAddress() {
   history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
   if (!canShare()) return;
   const found = await takeSharedLink(code);
-  if (found && !found.mine) await openSharedChat(found.id);
+  if (found && !found.mine) await (found.kind === "artifact" ? openSharedArtifact(found.id) : openSharedChat(found.id));
+}
+
+// Geteiltes Artefakt einer anderen Person: nur der Code, zum Lesen und Kopieren (nie als Seite ausgeführt).
+async function openSharedArtifact(id) {
+  let art;
+  try { art = await api(`api/shared-artifacts/${encodeURIComponent(id)}`); } catch (err) { toast(errorText(err, tr("Das hat nicht geklappt."))); return; }
+  await openSheet({
+    title: art.title, sub: tr("Geteilt von {0}, Stand {1}. Du kannst nur lesen.", art.owner, exactTime(art.taken_at)), ok: tr("Code kopieren"),
+    panel: (body) => {
+      const pre = node("pre", "art-code share-code");
+      pre.tabIndex = 0;
+      pre.append(node("code", "", art.content));
+      body.append(pre, node("p", "mem-hint", tr("Das ist nur der Text. Er wird hier nie ausgeführt oder als Seite gezeigt.")));
+    },
+    onOk: async () => {
+      try { await navigator.clipboard.writeText(art.content); toast(tr("Code kopiert.")); } catch { toast(tr("Kopieren nicht möglich.")); }
+      return false;
+    },
+  });
 }
 
 async function openSharedChat(id) {

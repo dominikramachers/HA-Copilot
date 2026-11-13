@@ -1494,3 +1494,4 @@ body:has(#sheet.show) .popover { z-index: 52; }
 .share-thread { display: flex; flex-direction: column; gap: 12px; max-height: 52vh; overflow: auto; padding: 4px 2px 10px; }
 .share-thread .msg.user { align-self: flex-end; max-width: 85%; }
 .tools-btn.research #tools-effort { color: var(--accent); font-weight: 600; }
+.share-code { max-height: 52vh; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--panel-2); }
