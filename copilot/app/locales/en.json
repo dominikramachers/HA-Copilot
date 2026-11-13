@@ -150,6 +150,7 @@
  "Leere Nachricht": "Empty message",
  "In diesem Chat läuft bereits eine Antwort": "A reply is already in progress in this chat",
  "Unbekanntes Modell": "Unknown model",
+ "Unbekanntes Design": "Unknown design",
  "Unerwarteter Fehler beim Beantworten.": "Unexpected error while answering.",
  "_Die Aktionen wurden ausgeführt, die Antwort dazu fehlt. Das Protokoll steht oberhalb._": "_The actions were carried out, but the reply is missing. The log is above._",
  "Keine offene Rückfrage": "No open question",
