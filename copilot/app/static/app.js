@@ -8652,6 +8652,13 @@ function devicesPanel(body, alive) {
       parts.push(row);
     }
     parts.push(node("p", "mem-hint", tr("Hier stehen die Geräte, auf denen du dich mit der App angemeldet hast. Ein Gerät, das du nicht kennst, entfernst du hier sofort. Die Anmeldung wird dabei sofort ungültig.")));
+    if (window.ReactNativeWebView) { // nur im App-Fenster der mobilen App: deren eigene Einstellungen (App-Sperre, Abmelden)
+      const own = node("button", "pill");
+      own.type = "button";
+      own.append(icon("sliders"), node("span", "", tr("App-Einstellungen")));
+      own.addEventListener("click", () => { window.ReactNativeWebView.postMessage(JSON.stringify({ type: "settings" })); });
+      parts.push(own);
+    }
     if (list.some((d) => d.status === "active")) {
       const all = node("button", "pill ghost data-danger");
       all.type = "button";

@@ -1221,5 +1221,6 @@
  "Hier stehen die Geräte, auf denen du dich mit der App angemeldet hast. Ein Gerät, das du nicht kennst, entfernst du hier sofort. Die Anmeldung wird dabei sofort ungültig.": "These are the devices where you signed in with the app. If you do not recognise a device, remove it here right away. Its sign-in stops working immediately.",
  "Noch kein Gerät mit der App angemeldet.": "No device has signed in with the app yet.",
  "Zuletzt aktiv: {0}": "Last active: {0}",
- "{0} wird abgemeldet. Zum erneuten Anmelden öffnest du die App und meldest dich wieder an.": "{0} will be signed out. To sign in again, open the app and sign in once more."
+ "{0} wird abgemeldet. Zum erneuten Anmelden öffnest du die App und meldest dich wieder an.": "{0} will be signed out. To sign in again, open the app and sign in once more.",
+ "App-Einstellungen": "App settings"
 }
