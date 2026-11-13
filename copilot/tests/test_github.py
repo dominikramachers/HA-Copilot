@@ -555,7 +555,7 @@ def test_github_config_options_and_validation():
     s = parse_settings(RAW, frozenset())
     assert s.github_write_confirm == "ask"
     assert not hasattr(s, "github_token") and not hasattr(s, "github_repos")  # ein gemeinsames Token gibt es seit 0.47.0 nicht mehr
-    assert not hasattr(s, "github_access_default")  # seit 0.57.2 darf jede Person GitHub nutzen (eigenes Konto)
+    assert not hasattr(s, "github_access_default")  # seit 0.57.3 darf jede Person GitHub nutzen (eigenes Konto)
     # Alte Schlüssel stören nicht (Rückfrage ist fest, Stufen gibt es nicht mehr)
     old = [{**RAW["profiles"][0], "github_access": "root"}, RAW["profiles"][1]]
     s = parse_settings({**RAW, "github_token": TOKEN, "github_repos": "a/b", "github_access_default": "READ", "github_write_confirm": "always_allow", "profiles": old}, frozenset())

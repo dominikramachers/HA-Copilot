@@ -144,7 +144,7 @@ Einrichtung für dich:
 2. **Mit GitHub verbinden** wählen, den angezeigten Code bei GitHub eingeben und bestätigen. Alternativ **Token einfügen**.
 3. Fertig: Der Dialog zeigt „Verbunden als …“. **Trennen** löscht das Token wieder.
 
-Für den Administrator: Seit 0.57.2 braucht GitHub keine Freigabe mehr; die Optionen `github_access` und `chat.github_access_default` entfallen (alte Einträge werden ignoriert). Die Tokens der Personen liegen verschlüsselt im Add-on. Ein gemeinsames Token (`github_token`) und die Freigabeliste `github_repos` gibt es seit 0.47.0 nicht mehr; alte Einträge in der Konfiguration kannst du löschen.
+Für den Administrator: Seit 0.57.3 braucht GitHub keine Freigabe mehr; die Optionen `github_access` und `chat.github_access_default` entfallen (alte Einträge werden ignoriert). Die Tokens der Personen liegen verschlüsselt im Add-on. Ein gemeinsames Token (`github_token`) und die Freigabeliste `github_repos` gibt es seit 0.47.0 nicht mehr; alte Einträge in der Konfiguration kannst du löschen.
 
 Mehr: [GitHub](../copilot/DOCS.md#github-ab-0190).
 

@@ -1,6 +1,6 @@
 [
   {
-    "version": "0.57.2",
+    "version": "0.57.3",
     "items": [
       {
         "de": {
@@ -71,7 +71,12 @@
           "title": "GitHub for everyone",
           "text": "Everyone can now connect their own GitHub account. The administrator no longer has to allow it first."
         }
-      },
+      }
+    ]
+  },
+  {
+    "version": "0.57.2",
+    "items": [
       {
         "de": {
           "title": "Ruhigere Startseite",
