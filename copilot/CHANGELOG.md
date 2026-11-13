@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.57.2
+Startseite ruhiger. Nur Oberfläche, keine Änderung an Daten oder Schnittstellen.
+- **Handy (bis 800 px):** Die Begrüßung steht mittig (`.hello-start`, auch das Logo in Home Assistant), die Startkarten entfallen; Eingabefeld und Menü genügen. Etwas mehr Luft nach unten (`padding-bottom: 12vh`), damit die Begrüßung optisch in der Mitte über dem Eingabefeld sitzt.
+- **Laptop und Tablet:** drei statt vier Startkarten. „Text formulieren“ entfällt (passt am wenigsten zu Home Assistant); Texte dazu in `en-ui.json` entfernt.
+- Der Inkognito-Chat bleibt unverändert (linksbündig mit Hinweisen).
+
 ## 0.57.1
 Teilen-Fenster: unterer Bereich aufgeräumt. Keine Änderung an Daten oder Schnittstellen.
 - **Kopieren im Linkfeld.** Der Knopf **Link kopieren** und das Zahnrad entfallen. Rechts im Linkfeld sitzt ein Zwischenablage-Symbol (`.share-copy`, wird kurz zum Haken); ein Klick auf den Link kopiert weiterhin, beides meldet „Link wurde kopiert.“ im Feld. Die Auswahl im Feld wird danach aufgehoben, damit der Text nicht durch die grüne Meldung scheint.

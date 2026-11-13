@@ -3739,7 +3739,6 @@ const STARTERS = [
   { icon: "bolt", label: tr("Automatisierung planen"), hint: tr("Ablauf und YAML entwerfen"), prompt: tr("Hilf mir, eine Home-Assistant-Automatisierung zu planen. Das soll sie tun: ") },
   { icon: "bug", label: tr("Fehler eingrenzen"), hint: tr("Meldung oder Log einfügen"), prompt: tr("Ich habe einen Fehler und brauche Hilfe bei der Eingrenzung. Hier ist die Meldung:\n\n") },
   { icon: "code", label: tr("Skript schreiben"), hint: tr("Python, Bash, PowerShell"), prompt: tr("Schreib mir ein Skript, das ") },
-  { icon: "pen", label: tr("Text formulieren"), hint: tr("Mail, Notiz, Dokumentation"), prompt: tr("Formuliere mir einen Text. Worum es geht: ") },
 ];
 
 function showHello() {
@@ -3772,6 +3771,7 @@ function showHello() {
     thread.append(hello);
     return;
   }
+  hello.classList.add("hello-start");  // Handy: Begrüßung zentriert, ohne Vorschläge (siehe CSS)
   hello.append(
     mark,
     node("h2", "", greeting()),

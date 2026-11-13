@@ -672,8 +672,12 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   .share-top { width: 38px; height: 38px; padding: 0; justify-content: center; }
   .share-top span { display: none; }
   .thread { padding: 8px 16px 20px; }
-  .thread.empty { padding-bottom: 4vh; }
+  .thread.empty { padding-bottom: 12vh; }
   .hello h2 { font-size: 34px; }
+  /* Startseite auf dem Handy ruhig: Begrüßung mittig, die Vorschläge entfallen (Eingabefeld und Menü genügen) */
+  .hello-start { text-align: center; }
+  .hello-start .hello-mark { margin-left: auto; margin-right: auto; }
+  .hello-start .starters { display: none; }
 
   /* Im Web: ganz normales Seitenmenü von links */
   :root[data-embed="web"] .sidebar {

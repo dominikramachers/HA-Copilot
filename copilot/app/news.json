@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.57.2",
+    "items": [
+      {
+        "de": {
+          "title": "Ruhigere Startseite",
+          "text": "Auf dem Handy begrüße ich dich jetzt mittig und ohne Vorschläge. Am Computer sind es nur noch drei Vorschläge."
+        },
+        "en": {
+          "title": "Calmer start page",
+          "text": "On your phone I now greet you in the middle, without suggestions. On a computer there are just three suggestions left."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.57.1",
     "items": [
       {
