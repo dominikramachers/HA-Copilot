@@ -1238,6 +1238,16 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .set-block { display: grid; gap: 10px; margin: 0 0 26px; }
 .set-block h4 { margin: 0; font-size: 15px; font-weight: 600; }
 .set-lead { margin: 0; font-size: 15px; }
+.usage-fresh { margin: -8px 0 22px; font-size: 12.5px; }
+/* Schreibstile: mehr Luft nach dem Standardstil, die Listen darunter als kompakte Zeilen (Name links, Beschreibung rechts daneben) */
+.mem-section.style-sec { margin: 28px 0 0; }
+.mem-section.style-sec + .mem-section.style-sec { margin-top: 24px; }
+.style-sec .mem-hint { margin: 2px 0 6px; }
+.style-sec .mem-entry { align-items: center; padding: 6px 0; }
+.style-sec .mem-entry-text { grid-template-columns: minmax(110px, 170px) 1fr; column-gap: 14px; align-items: baseline; gap: 0 14px; }
+.style-sec .mem-entry-text b { font-size: 14px; font-weight: 500; }
+.style-sec .mem-entry-text .mem-hint { font-size: 13px; line-height: 1.35; }
+@media (max-width: 560px) { .style-sec .mem-entry-text { grid-template-columns: 1fr; } }
 .usage-row { display: grid; gap: 6px; }
 .usage-head { display: flex; justify-content: space-between; gap: 12px; font-size: 14.5px; }
 .usage-head span, .usage-sub { color: var(--text-2); font-size: 13.5px; }

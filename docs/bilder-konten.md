@@ -59,10 +59,10 @@ Wichtig: Bei OpenAI gehen deine **Aufnahmen** an OpenAI (bei der Stimme auch die
 
 ## Kosten im Griff behalten
 
-- Das Add-on führt die **Anzahl** der Bilder je Person und Monat (`images.limit_month`, Standard 30, 0 = unbegrenzt). Erst darüber fragt der Chat vor jedem weiteren Bild nach. Preise kennt das Add-on nicht.
+- Das Add-on führt die **Anzahl** der Bilder im Monat für alle Personen zusammen (`images.limit_month`, Standard 30, 0 = unbegrenzt). Erst darüber fragt der Chat vor jedem weiteren Bild nach. Preise kennt das Add-on nicht.
 - Setze zusätzlich beim Anbieter ein **Ausgabenlimit** (Google: *Spend*, OpenAI: Limits bzw. Billing) und lade lieber kleine Beträge auf, statt automatisches Aufladen mit hohem Betrag zu nutzen.
 - Die Kosten siehst du im jeweiligen Konto. Jede neue Fassung eines Bildes ist ein weiteres bezahltes Bild.
-- ChatGPT im Chat zählt das Add-on in Token je Person und Monat (`chat.openai_limit_month`, Standard 3000 = 3 Millionen, 0 = unbegrenzt); die Kosten stehen im selben OpenAI-Konto unter Usage ([Details](chatgpt.md#token-limit-je-person)).
+- ChatGPT im Chat zählt das Add-on in Token im Monat für alle Personen zusammen (`chat.openai_limit_month`, Standard 3000 = 3 Millionen, 0 = unbegrenzt); die Kosten stehen im selben OpenAI-Konto unter Usage ([Details](chatgpt.md#token-limit-für-alle)).
 - Die Sprache zählt das Add-on nicht mit; sie läuft bei OpenAI über denselben Schlüssel (oder `voice.openai_api_key`) und erscheint im OpenAI-Konto unter Usage.
 
 Einzelheiten zu Limit, Rückfragen und Datenschutz: [Bilder in der Referenz](../copilot/DOCS.md#bilder-ab-0280). Zurück zur [Übersicht](README.md).

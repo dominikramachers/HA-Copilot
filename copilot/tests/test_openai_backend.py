@@ -607,6 +607,26 @@ def test_monthly_token_limit_asks_before_the_next_answer(store):
     run(scenario())
 
 
+def test_monthly_token_limit_counts_everyone_together(store):
+    async def scenario():
+        app, backend = gpt_app(store, openai_limit_month=1)  # 1 Tausend Token
+        month = __import__("datetime").datetime.now().strftime("%Y-%m")
+        store.token_usage_add("dora", month, 1000, "openai")  # eine andere Person hat das gemeinsame Limit erreicht
+        chat = await new_chat(app)
+
+        async def waiting():
+            return next(c for c in jget(await asgi(app, "GET", "/api/chats")) if c["id"] == chat)["needs_approval"]
+
+        post = asyncio.create_task(asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Teuer", "model": "gpt-5.6-terra"}))
+        await until(waiting)
+        await asgi(app, "POST", f"/api/chats/{chat}/approve", {"id": 1, "decision": "deny"})
+        events = sse(await post)
+        approval = next(e for e in events if e["type"] == "approval")
+        assert approval["topic"] == "tokens" and "alle Personen zusammen" in approval["details"] and backend.calls == []
+
+    run(scenario())
+
+
 def test_limit_zero_means_unlimited(store):
     async def scenario():
         app, backend = gpt_app(store, openai_limit_month=0)

@@ -59,7 +59,7 @@ In der Konfigurationsdatei: `chat:` mit den Feldern darunter.
 | `chat.openai_api_key` | Text (geheim) | leer | **OpenAI-API-Schlüssel (Chat).** Schlüssel von platform.openai.com (API keys) für die ChatGPT-Modelle; ein ChatGPT-Abo reicht dafür nicht, das API-Konto braucht eigenes Guthaben. Leer: der Schlüssel aus „Bilder“ wird mitbenutzt. |
 | `chat.openai_key_expires` | Text | leer | **OpenAI-Schlüssel (Chat) läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App; 30 Tage vorher erscheint ein Hinweis im Chat. |
 | `chat.openai_models` | Text | `gpt-5.6-terra, gpt-5.6-luna, gpt-5.6-sol` | **ChatGPT-Modelle.** Modelle, die im Chat zur Wahl stehen (höchstens 6), durch Komma getrennt. Standard: gpt-5.6-terra, gpt-5.6-luna, gpt-5.6-sol. Der erste Eintrag ist die erste Wahl der Liste. Leer: Standardliste. |
-| `chat.openai_limit_month` | Zahl 0 bis 100000 | `3000` | **ChatGPT-Token je Person und Monat (in Tausend).** Wie viele Token (Eingabe plus Ausgabe) jede Person im Monat mit ChatGPT-Modellen verbrauchen darf, in Tausend (Standard 3000 = 3 Millionen, 0 = kein Limit). Darüber fragt der Chat vor jeder weiteren Antwort nach (Zulassen oder Ablehnen). |
+| `chat.openai_limit_month` | Zahl 0 bis 100000 | `3000` | **ChatGPT-Token im Monat, alle zusammen (in Tausend).** Wie viele Token (Eingabe plus Ausgabe) alle Personen zusammen im Monat mit ChatGPT-Modellen verbrauchen dürfen, in Tausend (Standard 3000 = 3 Millionen, 0 = kein Limit). Darüber fragt der Chat vor jeder weiteren Antwort nach (Zulassen oder Ablehnen). |
 
 ## Bilder (`images`)
 
@@ -74,7 +74,7 @@ In der Konfigurationsdatei: `images:` mit den Feldern darunter.
 | `images.openai_key_expires` | Text | leer | **OpenAI-Schlüssel läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. Bei platform.openai.com unter „API keys“ steht, ob und wann der Schlüssel abläuft; 30 Tage vorher erscheint ein Hinweis im Chat. |
 | `images.google_key_expires` | Text | leer | **Google-Schlüssel läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. Bei aistudio.google.com unter „API keys“ bzw. in der Google Cloud Console steht, ob und wann der Schlüssel abläuft; 30 Tage vorher erscheint ein Hinweis im Chat. |
 | `images.provider` | `auto` \| `openai` \| `google` | `auto` | **Bildanbieter.** auto (Standard): Die KI wählt je Bild, Google für Entwürfe und Änderungen (günstiger), OpenAI für Bilder mit Schrift oder höchster Qualität. openai oder google: immer dieser Anbieter. Ist nur ein Schlüssel eingetragen, wird dieser genommen. |
-| `images.limit_month` | Zahl 0 bis 10000 | `30` | **Bilder je Person und Monat.** Wie viele Bilder von OpenAI oder Google jede Person im Monat erzeugen darf (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts. |
+| `images.limit_month` | Zahl 0 bis 10000 | `30` | **Bilder im Monat, alle zusammen.** Wie viele Bilder von OpenAI oder Google alle Personen zusammen im Monat erzeugen dürfen (Standard 30, 0 = kein Limit). Darüber fragt der Chat vor jedem weiteren Bild nach (Zulassen oder Ablehnen). SVG-Zeichnungen der KI zählen nicht, sie kosten nichts. |
 
 ## Sprechen mit der KI (`voice`)
 

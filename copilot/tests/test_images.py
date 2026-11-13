@@ -281,6 +281,22 @@ def test_below_limit_no_question_then_ask_every_image_over_it(store, chat):
     assert store.image_usage("adm01", "2026-11") == 3
 
 
+def test_limit_is_shared_by_all_people(store, chat):
+    fake = FakeProviders()
+    asked = []
+
+    async def ask(*args):
+        asked.append(args)
+        return "deny"
+
+    store.image_usage_add("dora", "2026-11")  # eine andere Person hat das gemeinsame Limit schon ausgeschöpft
+    tools = toolbox(store, chat, fake.service(**KEYS), limit=1, ask=ask)
+    with pytest.raises(ImageError, match="abgelehnt"):
+        run(tools.image_generate({"prompt": "Ein Haus", "title": "Noch eins"}))
+    assert len(asked) == 1
+    assert "allen Personen zusammen" in tools.usage_note() and "1 von 1" in tools.usage_note()
+
+
 def test_limit_counts_per_person_and_month_and_zero_means_unlimited(store, chat):
     fake = FakeProviders()
     asked = []

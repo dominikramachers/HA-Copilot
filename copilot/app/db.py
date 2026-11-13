@@ -2283,6 +2283,12 @@ class Store:
             row = self._conn.execute("SELECT count FROM image_usage WHERE profile_id = ? AND month = ?", (profile_id, month)).fetchone()
         return int(row["count"]) if row else 0
 
+    def image_usage_total(self, month: str) -> int:
+        """Bilder von OpenAI oder Google, die alle Personen zusammen in diesem Monat (``JJJJ-MM``) erzeugt haben."""
+        with self._lock:
+            row = self._conn.execute("SELECT COALESCE(SUM(count), 0) AS n FROM image_usage WHERE month = ?", (month,)).fetchone()
+        return int(row["n"])
+
     def image_usage_add(self, profile_id: str, month: str) -> int:
         _require(profile_id)
         with self._lock, self._conn:
@@ -2329,6 +2335,12 @@ class Store:
                 "SELECT tokens FROM token_usage WHERE profile_id = ? AND month = ? AND provider = ?", (profile_id, month, provider)
             ).fetchone()
         return int(row["tokens"]) if row else 0
+
+    def token_usage_total(self, month: str, provider: str = "openai") -> int:
+        """Token (Eingabe plus Ausgabe) aller Personen zusammen in diesem Monat (``JJJJ-MM``) bei diesem Anbieter."""
+        with self._lock:
+            row = self._conn.execute("SELECT COALESCE(SUM(tokens), 0) AS n FROM token_usage WHERE month = ? AND provider = ?", (month, provider)).fetchone()
+        return int(row["n"])
 
     def token_usage_add(self, profile_id: str, month: str, tokens: int, provider: str = "openai") -> int:
         _require(profile_id)

@@ -1998,7 +1998,7 @@ function stylesPanel(body, alive) {
     parts.push(defaultRow);
 
     const list = (title, hint, items, own) => {
-      const box = node("section", "mem-section");
+      const box = node("section", "mem-section style-sec");
       box.append(node("h4", "", title), node("p", "mem-hint", hint));
       if (!items.length) box.append(node("p", "mem-empty", tr("Noch keine eigenen Stile.")));
       for (const x of items) {
@@ -8368,11 +8368,11 @@ function usageBar(fraction, tone = "") {
   return bar;
 }
 
-async function settingsUsage(body, alive) {
-  body.append(node("p", "mem-hint", tr("Wird geladen …")));
-  let data;
-  try { data = await api("api/usage"); } catch { if (alive()) body.replaceChildren(node("p", "mem-empty", tr("Die Nutzung ist gerade nicht erreichbar."))); return; }
-  if (!alive()) return;
+// Bausteine der Seite „Nutzung“. Alles gilt für alle Personen im Add-on zusammen: jede Person sieht dieselben Zahlen.
+// „Jetzt prüfen“ (nur mit Claude-Abo): Zustand bleibt hier, weil die Seite sich beim Abfragen neu aufbaut
+const usageProbe = { busy: false, note: "", run: null };
+
+function usageBlocks(data) {
   const parts = [];
 
   const plan = node("section", "set-block");
@@ -8397,20 +8397,26 @@ async function settingsUsage(body, alive) {
     const head = node("div", "usage-head");
     const title = node("b", "", name);
     if (hint) title.title = hint;
-    head.append(title, node("span", "", w.expired ? tr("zurückgesetzt") : rejected ? tr("erreicht") : pct !== null ? tr("{0} % verwendet", pct) : tr("kein Wert gemeldet")));
+    head.append(title, node("span", "", rejected ? tr("erreicht") : pct !== null ? tr("{0} % verwendet", pct) : tr("kein Wert gemeldet")));
     row.append(head);
-    if (!w.expired && (pct !== null || rejected)) row.append(usageBar(rejected ? 1 : pct / 100, rejected ? "bad" : w.status === "allowed_warning" ? "warn" : ""));
+    if (pct !== null || rejected) row.append(usageBar(rejected ? 1 : pct / 100, rejected ? "bad" : w.status === "allowed_warning" ? "warn" : ""));
     const info = [];
-    if (w.expired) info.push(tr("Das Fenster wurde zurückgesetzt. Der neue Stand erscheint mit der nächsten Antwort der KI."));
-    else {
-      if (pct !== null && !rejected) info.push(tr("Noch {0} % übrig", 100 - pct));
-      if (w.resets_at) info.push(tr("Zurücksetzung {0}", whenText(w.resets_at)));
-    }
-    if (w.seen_at) info.push(tr("Stand: {0}", stampText(w.seen_at)));
+    if (pct !== null && !rejected) info.push(tr("Noch {0} % übrig", 100 - pct));
+    if (w.resets_at) info.push(w.expired ? tr("Zurückgesetzt {0}", whenText(w.resets_at)) : tr("Zurücksetzung {0}", whenText(w.resets_at)));
+    if (w.seen_at && !w.expired) info.push(tr("Stand: {0}", ago(w.seen_at)));
     row.append(node("span", "usage-sub", info.join(" · ")));
     plan.append(row);
   }
-  plan.append(node("p", "mem-hint", tr("Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Die Werte meldet Claude mit jeder Antwort der KI; die Seite zeigt den letzten gemeldeten Stand.")));
+  if (data.subscription && usageProbe.run) {
+    const check = node("button", "pill ghost small", usageProbe.busy ? tr("Prüfe …") : tr("Jetzt prüfen"));
+    check.type = "button";
+    check.disabled = usageProbe.busy;
+    check.title = tr("Schickt eine winzige Anfrage an Claude, damit der aktuelle Stand gemeldet wird.");
+    check.addEventListener("click", () => usageProbe.run());
+    plan.append(check);
+    if (usageProbe.note) plan.append(node("p", "mem-hint", usageProbe.note));
+  }
+  plan.append(node("p", "mem-hint", tr("Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Claude meldet den Stand mit jeder Antwort der KI, egal an wen; die Seite holt ihn alle paar Sekunden ab. Was außerhalb des Add-ons verbraucht wird (zum Beispiel in der Claude-App), erscheint erst mit der nächsten Antwort.")));
   parts.push(plan);
 
   const gpt = data.openai;
@@ -8420,7 +8426,7 @@ async function settingsUsage(body, alive) {
     const fmt = (n) => n.toLocaleString(kiLocale);
     box.append(node("p", "set-lead", gpt.limit ? tr("{0} von {1} Token verbraucht.", fmt(gpt.used), fmt(gpt.limit)) : tr("{0} Token verbraucht (kein Limit).", fmt(gpt.used))));
     if (gpt.limit) box.append(usageBar(Math.min(1, gpt.used / gpt.limit), gpt.used >= gpt.limit ? "bad" : gpt.used >= gpt.limit * 0.8 ? "warn" : ""));
-    box.append(node("p", "mem-hint", tr("Zählt Eingabe und Ausgabe aller deiner Chats mit ChatGPT-Modellen. Titel und Zusammenfassungen zählen nicht mit. Ist das Limit erreicht, fragt der Chat vor jeder weiteren Antwort nach. Der Zähler beginnt jeden Monat neu.")));
+    box.append(node("p", "mem-hint", tr("Zählt Eingabe und Ausgabe aller Chats mit ChatGPT-Modellen, von allen Personen zusammen. Titel und Zusammenfassungen zählen nicht mit. Ist das Limit erreicht, fragt der Chat vor jeder weiteren Antwort nach. Der Zähler beginnt jeden Monat neu.")));
     parts.push(box);
   }
 
@@ -8431,13 +8437,69 @@ async function settingsUsage(body, alive) {
     const used = img.used;
     pics.append(node("p", "set-lead", img.limit ? tr("{0} von {1} Bildern erzeugt.", used, img.limit) : trn(used, "{0} Bild erzeugt (kein Limit).", "{0} Bilder erzeugt (kein Limit).", used)));
     if (img.limit) pics.append(usageBar(Math.min(1, used / img.limit), used >= img.limit ? "bad" : ""));
-    pics.append(node("p", "mem-hint", tr("Zählt Fotos und Kunstbilder von OpenAI oder Google. Einfache Grafiken (SVG) kosten nichts und zählen nicht.")));
+    pics.append(node("p", "mem-hint", tr("Zählt Fotos und Kunstbilder von OpenAI oder Google, von allen Personen zusammen. Einfache Grafiken (SVG) kosten nichts und zählen nicht.")));
   } else {
     pics.append(node("p", "mem-hint", tr("Fotos und Kunstbilder sind nicht eingerichtet. Einfache Grafiken zeichnet die KI kostenlos als SVG.")));
   }
   parts.push(pics);
-  if (state.me?.usage_all) parts.push(usageAllBlock(alive));
-  body.replaceChildren(...parts);
+  return parts;
+}
+
+// Die Seite fragt selbst nach, solange sie offen ist (``alive()`` wird falsch, sobald das Fenster geschlossen wurde): Jede Antwort der KI
+// und jedes erzeugte Bild, auch von anderen Personen, steht damit ohne eigene Nachricht und ohne Neuladen da.
+const USAGE_POLL_MS = 8000;
+
+async function settingsUsage(body, alive) {
+  body.append(node("p", "mem-hint", tr("Wird geladen …")));
+  const live = node("div", "usage-live");
+  const fresh = node("p", "mem-hint usage-fresh");
+  let admin = null;
+  let ready = false;
+  let busy = false;
+  let signature = "";
+  let latest = null;
+  usageProbe.run = async () => {
+    if (usageProbe.busy) return;
+    usageProbe.busy = true;
+    usageProbe.note = "";
+    if (latest) live.replaceChildren(...usageBlocks(latest));
+    try {
+      const result = await api("api/usage/refresh", { method: "POST" });
+      if (!result.checked) usageProbe.note = tr("Der Stand wurde gerade erst geprüft. Nächste Prüfung in {0} s.", result.retry_in);
+      else if (!result.reported) usageProbe.note = tr("Claude hat diesmal keinen neuen Stand gemeldet. Er erscheint mit der nächsten Antwort der KI.");
+      else usageProbe.note = tr("Der Stand ist aktuell.");
+    } catch (err) {
+      usageProbe.note = errorText(err, tr("Die Prüfung hat nicht geklappt."));
+    }
+    usageProbe.busy = false;
+    signature = "";
+    if (alive()) await pull();
+  };
+  const pull = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const data = await api("api/usage");
+      if (!alive()) return;
+      // „Stand: vor 3 Min.“ ändert sich mit der Zeit, deshalb zählt die Minute zur Unterscheidung
+      latest = data;
+      const sig = JSON.stringify({ ...data, server_time: 0, minute: Math.floor(Date.now() / 60000), probe: [usageProbe.busy, usageProbe.note] });
+      if (sig !== signature) { signature = sig; live.replaceChildren(...usageBlocks(data)); }
+      fresh.textContent = tr("Aktualisiert sich automatisch · zuletzt abgefragt um {0} Uhr", new Date().toLocaleTimeString(kiLocale, { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      if (!ready) {
+        ready = true;
+        const parts = [live, fresh];
+        if (state.me?.usage_all) { admin = usageAllBlock(alive); parts.push(admin); }
+        body.replaceChildren(...parts);
+      } else admin?.refresh();
+    } catch {
+      if (!alive()) return;
+      if (!ready) body.replaceChildren(node("p", "mem-empty", tr("Die Nutzung ist gerade nicht erreichbar.")));
+      else fresh.textContent = tr("Die Nutzung ist gerade nicht erreichbar. Ich versuche es weiter.");
+    } finally { busy = false; }
+  };
+  await pull();
+  const timer = setInterval(() => { if (!alive()) clearInterval(timer); else if (!document.hidden) pull(); }, USAGE_POLL_MS);
 }
 
 // Nur für Administratoren: wer wie viel genutzt hat (Zahlen, keine Inhalte)
@@ -8451,12 +8513,14 @@ function usageAllBlock(alive) {
   const list = node("div", "usage-all");
   const note = node("p", "mem-hint", tr("Nur für Administratoren. Es werden nur Zahlen gezählt, keine Inhalte. Der Wert ist der Preis, den Claude für die Aufrufe meldet; ChatGPT und Bilder haben keinen Wert und zählen nur als Token bzw. Bilder."));
   const buttons = new Map();
-  const load = async () => {
-    list.replaceChildren(node("p", "mem-hint", tr("Wird geladen …")));
+  let seq = 0;
+  const load = async (quiet = false) => {
+    const mine = ++seq;
+    if (!quiet) list.replaceChildren(node("p", "mem-hint", tr("Wird geladen …")));
     for (const [key, button] of buttons) button.setAttribute("aria-pressed", String(key === usageAllRange));
     let data;
-    try { data = await api(`api/usage/all?range=${encodeURIComponent(usageAllRange)}`); } catch { if (alive()) list.replaceChildren(node("p", "mem-empty", tr("Die Übersicht ist gerade nicht erreichbar."))); return; }
-    if (!alive()) return;
+    try { data = await api(`api/usage/all?range=${encodeURIComponent(usageAllRange)}`); } catch { if (alive() && !quiet) list.replaceChildren(node("p", "mem-empty", tr("Die Übersicht ist gerade nicht erreichbar."))); return; }
+    if (!alive() || mine !== seq) return;
     const count = new Intl.NumberFormat(kiLocale, { notation: "compact", maximumFractionDigits: 1 });
     const money = new Intl.NumberFormat(kiLocale, { style: "currency", currency: data.currency });
     const line = (r) => [tr("{0} Token", count.format(r.tokens)), r.images ? trn(r.images, "{0} Bild", "{0} Bilder", r.images) : "", r.cost ? money.format(r.cost) : ""].filter(Boolean).join(" · ");
@@ -8480,6 +8544,7 @@ function usageAllBlock(alive) {
     tabs.append(button);
   }
   box.append(tabs, list, note);
+  box.refresh = () => load(true);
   load();
   return box;
 }

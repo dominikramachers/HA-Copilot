@@ -553,6 +553,31 @@ class ClaudeSdkBackend:
                         raise BackendError(map_error(error_code, msg.api_error_status))
         return text
 
+    @property
+    def subscription(self) -> bool:
+        """Läuft der Zugang über das Claude-Abo? Mit einem API-Schlüssel (hat Vorrang) gibt es keine Abo-Fenster, sondern Abrechnung nach Verbrauch."""
+        return bool(self._token) and not self._api_key
+
+    async def probe_limits(self, on_limit: Callable[[dict], None]) -> bool:
+        """Winzige Anfrage an das kleine Modell, nur um den aktuellen Stand der Abo-Fenster zu erfahren.
+
+        Das Programm meldet den Stand (``RateLimitEvent``) nur während einer Anfrage; eine direkte Abfrage gibt es für den
+        langlebigen Anmelde-Token nicht. Liefert ``True``, wenn dabei ein Stand gemeldet wurde."""
+        from claude_agent_sdk import RateLimitEvent, ResultMessage, query
+
+        got = False
+        stream = query(prompt="ok", options=self._options("low", model=self._title_model, system="Antworte nur mit: ok"))
+        async with contextlib.aclosing(stream) as messages:
+            async for msg in messages:
+                if isinstance(msg, RateLimitEvent):
+                    got = True
+                    on_limit(limit_info(msg.rate_limit_info))
+                elif isinstance(msg, ResultMessage):
+                    usagelib.report_claude(msg)
+                    if msg.is_error:
+                        raise BackendError(map_error(None, msg.api_error_status))
+        return got
+
     async def title(self, user_text: str, answer: str) -> str | None:
         prompt = (
             "Nachricht des Nutzers:\n" + user_text[:1500]

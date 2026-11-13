@@ -108,8 +108,8 @@ configuration:
         name: ChatGPT models
         description: 'Models offered in the chat (at most 6), separated by commas. Default: gpt-5.6-terra, gpt-5.6-luna, gpt-5.6-sol. Empty: the default list.'
       openai_limit_month:
-        name: ChatGPT tokens per person and month (thousands)
-        description: How many tokens (input plus output) each person may use per month with ChatGPT models, in thousands (default 3000 = 3 million, 0 = no limit). Above that the chat asks before every further answer (allow or decline).
+        name: ChatGPT tokens per month, everyone together (thousands)
+        description: How many tokens (input plus output) all people together may use per month with ChatGPT models, in thousands (default 3000 = 3 million, 0 = no limit). Above that the chat asks before every further answer (allow or decline).
   images:
     name: Images
     description: The AI creates images by itself. It draws SVG graphics for free; photos and artwork need a key from OpenAI or Google (both optional).
@@ -130,8 +130,8 @@ configuration:
         name: Image provider
         description: 'auto (default): the AI chooses per image, Google for drafts and edits (cheaper), OpenAI for images with text or top quality. openai or google: always this provider. If only one key is entered, that one is used.'
       limit_month:
-        name: Images per person and month
-        description: How many images from OpenAI or Google each person may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.
+        name: Images per month, everyone together
+        description: How many images from OpenAI or Google all people together may create per month (default 30, 0 = no limit). Beyond that the chat asks before every further image (allow or deny). SVG drawings by the AI do not count, they are free.
   voice:
     name: Talking to the AI
     description: Everything about talking to the AI (microphone button in the chat) in one group. Who may talk is set here as the default and per user with “Talking to the AI” (voice_access).
