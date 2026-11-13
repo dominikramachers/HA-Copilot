@@ -45,6 +45,7 @@ const ICONS = {
   quote: ["M5 5v6a3 3 0 0 0 3 3h11", "M15 10l4 4-4 4"],
   info: ["M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z", "M12 11v5.5", "M12 7.8h.01"],
   bolt: ["M13 3L5 13.5h6L10 21l8-10.5h-6z"],
+  phone: ["M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3z", "M11 18h2"],
   bell: ["M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z", "M10 20.5h4"],
   bug: ["M9 7a3 3 0 0 1 6 0M8 9h8v5a4 4 0 0 1-8 0zM4 10l4 1.5M20 10l-4 1.5M4 18l4-2M20 18l-4-2M12 9v10"],
   code: ["M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"],
@@ -8604,6 +8605,68 @@ function notifyPanel(body, alive) {
   });
 }
 
+// ------------------------------------------------- Geräte der mobilen App
+
+function devicesPanel(body, alive) {
+  const box = node("div", "dev-box");
+  body.append(box);
+  let list = [];
+  const remove = async (device) => {
+    const go = await openSheet({
+      title: tr("Gerät entfernen?"),
+      sub: tr("{0} wird abgemeldet. Zum erneuten Anmelden öffnest du die App und meldest dich wieder an.", device.name),
+      ok: tr("Entfernen"),
+      danger: true,
+    });
+    if (!go) return;
+    try { await api(`api/devices/${encodeURIComponent(device.id)}`, { method: "DELETE" }); } catch { toast(tr("Das hat nicht geklappt.")); }
+    if (alive()) load();
+  };
+  const removeAll = async () => {
+    const go = await openSheet({
+      title: tr("Alle Geräte entfernen?"),
+      sub: tr("Alle Geräte mit der App werden abgemeldet, auch dieses, falls du gerade in der App bist."),
+      ok: tr("Alle entfernen"),
+      danger: true,
+    });
+    if (!go) return;
+    try { await api("api/devices", { method: "DELETE" }); } catch { toast(tr("Das hat nicht geklappt.")); }
+    if (alive()) load();
+  };
+  const draw = () => {
+    const parts = [];
+    if (!list.length) {
+      parts.push(node("p", "mem-empty", tr("Noch kein Gerät mit der App angemeldet.")));
+    }
+    for (const device of list) {
+      const row = node("div", "dev-row");
+      const text = node("div", "dev-text");
+      const status = device.status === "revoked" ? (device.reason === "reuse" ? tr("Gesperrt (Anmeldung wurde doppelt verwendet)") : tr("Entfernt")) : tr("Zuletzt aktiv: {0}", dayText(device.last_seen_at));
+      text.append(node("b", "", device.name), node("span", "", `${device.platform === "ios" ? "iOS" : "Android"}${device.app_version ? ` · ${device.app_version}` : ""} · ${status}`));
+      const drop = node("button", "pill ghost");
+      drop.type = "button";
+      drop.setAttribute("aria-label", tr("{0} entfernen", device.name));
+      drop.append(icon("trash"), node("span", "", tr("Entfernen")));
+      drop.addEventListener("click", () => { remove(device).catch(() => {}); });
+      row.append(icon("phone"), text, drop);
+      parts.push(row);
+    }
+    parts.push(node("p", "mem-hint", tr("Hier stehen die Geräte, auf denen du dich mit der App angemeldet hast. Ein Gerät, das du nicht kennst, entfernst du hier sofort. Die Anmeldung wird dabei sofort ungültig.")));
+    if (list.some((d) => d.status === "active")) {
+      const all = node("button", "pill ghost data-danger");
+      all.type = "button";
+      all.append(icon("trash"), node("span", "", tr("Alle Geräte entfernen …")));
+      all.addEventListener("click", () => { removeAll().catch(() => {}); });
+      parts.push(all);
+    }
+    box.replaceChildren(...parts);
+  };
+  const load = () => api("api/devices").then((value) => { if (alive()) { list = value.devices; draw(); } }).catch(() => {
+    if (alive()) box.replaceChildren(node("p", "mem-empty", tr("Die Geräte sind gerade nicht abrufbar.")));
+  });
+  load();
+}
+
 function settingsGroups() {
   const me = state.me || {};
   const page = (id, iconName, label, sub, render, extra = {}) => ({ id, icon: iconName, label, sub, render, ...extra });
@@ -8615,6 +8678,7 @@ function settingsGroups() {
   if (me.memory) prefs.push(page("memory", "memory", tr("Gedächtnis"), tr("Die KI merkt sich, was du ihr sagst, und nutzt es in allen Chats. Du kannst jeden Eintrag löschen."), memoryPanel));
   prefs.push(page("github", "github", "GitHub", tr("Verbinde dein GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann."), githubPanel, { solid: true }));
   if (me.notify) prefs.push(page("notify", "bell", tr("Benachrichtigungen"), tr("Wann und wohin ich dir aufs Handy Bescheid gebe."), notifyPanel));
+  if (me.app_access) prefs.push(page("devices", "phone", tr("Geräte (App)"), tr("Die Geräte, auf denen du dich mit der HA-Copilot-App angemeldet hast."), devicesPanel));
   prefs.push(page("data", "data", tr("Meine Daten"), tr("Nimm deine Daten mit oder räume auf. Es betrifft nur dein Profil."), dataPanel));
   const help = [
     page("guide", "info", tr("Kurzanleitung"), tr("Kurz erklärt, wie du mit mir arbeitest."), introPanel),

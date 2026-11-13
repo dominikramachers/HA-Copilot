@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.58.0"
+version: "0.59.0"
 slug: copilot
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -86,6 +86,8 @@ options:
     entra_secret_expires: ""
     session_days: 30
     public_trusted_proxies: []
+    app_access: false
+    device_days: 90
   look:
     app_name: HA Copilot
     language: de
@@ -161,6 +163,8 @@ schema:
     session_days: int(1,90)?
     public_trusted_proxies:
       - str
+    app_access: bool?
+    device_days: int(1,180)?
   look:
     app_name: str?
     language: list(de|en)?

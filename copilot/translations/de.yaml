@@ -185,6 +185,12 @@ configuration:
       public_trusted_proxies:
         name: Vertrauenswürdige Proxys
         description: Adressen von Reverse-Proxys (z. B. Cloudflare-Tunnel-Container), deren Weiterleitungs-Header gelten dürfen.
+      app_access:
+        name: Mobile App zulassen
+        description: Erlaubt der App „HA Copilot“ für iPhone und iPad, sich über die Domain anzumelden. Aus ist der Standard; die Geräte siehst und sperrst du in den Einstellungen unter „Geräte“.
+      device_days:
+        name: Gültigkeit eines App-Geräts (Tage)
+        description: Wie lange ein Gerät ohne Erneuerung angemeldet bleibt (1–180). Die App erneuert sich bei Nutzung selbst.
   look:
     name: Personalisierung
     description: 'Alles optional: Name, Sprache, Anmeldeseite, Logo und Farben.'

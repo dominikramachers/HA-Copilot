@@ -1208,5 +1208,18 @@
  "Der Stand wurde gerade erst geprüft. Nächste Prüfung in {0} s.": "The status was just checked. Next check in {0} s.",
  "Claude hat diesmal keinen neuen Stand gemeldet. Er erscheint mit der nächsten Antwort der KI.": "Claude did not report a new status this time. It will appear with the next answer from the AI.",
  "Der Stand ist aktuell.": "The status is up to date.",
- "Die Prüfung hat nicht geklappt.": "The check did not work."
+ "Die Prüfung hat nicht geklappt.": "The check did not work.",
+ "Alle Geräte entfernen …": "Remove all devices …",
+ "Alle Geräte entfernen?": "Remove all devices?",
+ "Alle Geräte mit der App werden abgemeldet, auch dieses, falls du gerade in der App bist.": "All devices using the app will be signed out, including this one if you are in the app right now.",
+ "Alle entfernen": "Remove all",
+ "Die Geräte, auf denen du dich mit der HA-Copilot-App angemeldet hast.": "The devices where you signed in with the HA Copilot app.",
+ "Entfernt": "Removed",
+ "Gerät entfernen?": "Remove device?",
+ "Geräte (App)": "Devices (app)",
+ "Gesperrt (Anmeldung wurde doppelt verwendet)": "Blocked (sign-in was used twice)",
+ "Hier stehen die Geräte, auf denen du dich mit der App angemeldet hast. Ein Gerät, das du nicht kennst, entfernst du hier sofort. Die Anmeldung wird dabei sofort ungültig.": "These are the devices where you signed in with the app. If you do not recognise a device, remove it here right away. Its sign-in stops working immediately.",
+ "Noch kein Gerät mit der App angemeldet.": "No device has signed in with the app yet.",
+ "Zuletzt aktiv: {0}": "Last active: {0}",
+ "{0} wird abgemeldet. Zum erneuten Anmelden öffnest du die App und meldest dich wieder an.": "{0} will be signed out. To sign in again, open the app and sign in once more."
 }

@@ -83,6 +83,8 @@ Der Knopf führt zur Anmeldung von Home Assistant selbst, mit allem, was dort ei
 
 Im Handy-Browser über **Zum Home-Bildschirm** ablegen. Name (`look.app_name`) und Symbol (`icon.png`) kommen aus der Konfiguration, die App öffnet im Vollbild ohne Browserleiste. Auf dem iPhone hat die App einen eigenen Speicher, die Anmeldung ist dort einmal neu nötig.
 
+Eine echte App für iPhone und iPad gibt es ab 0.59.0 als eigenes Projekt (`HA-Copilot-Mobile`); das Add-on stellt dafür die Anmeldung bereit, siehe [App-Zugang](app.md).
+
 ## Sicherheit
 
 - Entra: OpenID Connect mit PKCE. Geprüft werden Signatur, Aussteller, Zielgruppe, Ablauf, Nonce und Mandant; die Anmeldung ist an den startenden Browser gebunden und nur einmal einlösbar.

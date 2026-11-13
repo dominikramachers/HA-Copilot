@@ -109,6 +109,8 @@ In der Konfigurationsdatei: `domain:` mit den Feldern darunter.
 | `domain.entra_secret_expires` | Text | leer | **Entra-Schlüssel läuft ab am.** Datum (JJJJ-MM-TT) für die Erinnerung in der App. |
 | `domain.session_days` | Zahl 1 bis 90 | `30` | **Anmeldedauer (Tage).** Wie lange eine Anmeldung über die Domain gültig bleibt (1–90). |
 | `domain.public_trusted_proxies` | Liste | leer | **Vertrauenswürdige Proxys.** Adressen von Reverse-Proxys (z. B. Cloudflare-Tunnel-Container), deren Weiterleitungs-Header gelten dürfen. |
+| `domain.app_access` | an/aus | aus | **Mobile App zulassen.** Erlaubt der App „HA Copilot“ für iPhone und iPad, sich über die Domain anzumelden. Aus ist der Standard; die Geräte siehst und sperrst du in den Einstellungen unter „Geräte“. |
+| `domain.device_days` | Zahl 1 bis 180 | `90` | **Gültigkeit eines App-Geräts (Tage).** Wie lange ein Gerät ohne Erneuerung angemeldet bleibt (1–180). Die App erneuert sich bei Nutzung selbst. |
 
 ## Personalisierung (`look`)
 

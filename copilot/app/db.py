@@ -8,6 +8,7 @@ anderen Profil gehört als ihr Chat.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 import secrets
@@ -21,6 +22,8 @@ from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger("copilot.db")
 
 
 class _FoldTable(dict):
@@ -386,6 +389,27 @@ CREATE TABLE IF NOT EXISTS plugins (
 );
 """
 
+DEVICES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS devices (
+    id               TEXT PRIMARY KEY,
+    profile_id       TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    token_hash       TEXT NOT NULL UNIQUE,
+    prev_hash        TEXT,
+    prev_valid_until TEXT,
+    name             TEXT NOT NULL,
+    platform         TEXT NOT NULL,
+    app_version      TEXT NOT NULL DEFAULT '',
+    created_at       TEXT NOT NULL,
+    rotated_at       TEXT NOT NULL,
+    last_seen_at     TEXT NOT NULL,
+    expires_at       TEXT NOT NULL,
+    revoked_at       TEXT,
+    revoked_reason   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_devices_profile ON devices(profile_id);
+CREATE INDEX IF NOT EXISTS idx_devices_prev ON devices(prev_hash);
+"""
+
 STYLES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS styles (
     id           TEXT PRIMARY KEY,
@@ -470,7 +494,12 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 30  # 30: Artefakte teilen (artifact_shares, artifact_share_access); 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+APP_SESSION_DAYS = 7  # Sitzungs-Cookie im WebView der App: kurz, wird still über das Gerätetoken erneuert
+DEVICE_MAX_DAYS = 180  # harte Obergrenze für ein Gerät seit dem Anlegen, danach neue Anmeldung
+DEVICE_GRACE_SECONDS = 300  # nach einer Erneuerung gilt das alte Token noch kurz (verlorene Antwort, Doppelaufruf)
+DEVICE_KEEP_DAYS = 30  # gesperrte oder abgelaufene Geräte bleiben so lange in der Liste
+DEVICE_PREFIX = "hcd_"
+SCHEMA_VERSION = 31  # 31: App-Zugang (devices: Geräte der mobilen App mit Token-Hash, sessions.device_id); 30: Artefakte teilen (artifact_shares, artifact_share_access); 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
 
@@ -697,6 +726,11 @@ class Store:
         self._conn.executescript(PLUGINS_SCHEMA)
         self._conn.executescript(GITHUB_SCHEMA)
         self._conn.executescript(STYLES_SCHEMA)
+        self._conn.executescript(DEVICES_SCHEMA)
+        session_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(sessions)")}
+        if "device_id" not in session_columns:
+            self._conn.execute("ALTER TABLE sessions ADD COLUMN device_id TEXT")  # gesetzt bei Sitzungen, die ein App-Gerät erzeugt hat
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions(device_id)")
         self._conn.executescript(USAGE_SCHEMA)
         self._conn.executescript(VARIANTS_SCHEMA)
         self._conn.executescript(ARTIFACTS_SCHEMA)
@@ -773,16 +807,16 @@ class Store:
     def _hash(token: str) -> str:
         return hashlib.sha256(token.encode()).hexdigest()
 
-    def create_session(self, profile_id: str, days: int) -> str:
-        """Neue Sitzung anlegen. Gespeichert wird nur der Hash des Tokens."""
+    def create_session(self, profile_id: str, days: int, device_id: str | None = None) -> str:
+        """Neue Sitzung anlegen. Gespeichert wird nur der Hash des Tokens. ``device_id``: Sitzung eines App-Geräts."""
         _require(profile_id)
         token = secrets.token_urlsafe(32)
         now = datetime.now(timezone.utc)
         with self._lock, self._conn:
             self._conn.execute(
-                "INSERT INTO sessions (token_hash, profile_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+                "INSERT INTO sessions (token_hash, profile_id, created_at, expires_at, device_id) VALUES (?, ?, ?, ?, ?)",
                 (self._hash(token), profile_id, now.isoformat(timespec="seconds"),
-                 (now + timedelta(days=days)).isoformat(timespec="seconds")),
+                 (now + timedelta(days=days)).isoformat(timespec="seconds"), device_id),
             )
             self._conn.execute(
                 "DELETE FROM sessions WHERE expires_at < ?", (now.isoformat(timespec="seconds"),)
@@ -790,13 +824,17 @@ class Store:
         return token
 
     def session_profile(self, token: str, days: int) -> str | None:
-        """Profil-ID zur Sitzung, solange sie gültig ist. Verlängert sie höchstens täglich."""
+        """Profil-ID zur Sitzung, solange sie gültig ist. Verlängert sie höchstens täglich.
+
+        Sitzungen eines App-Geräts gelten nur, solange das Gerät nicht gesperrt oder abgelaufen ist, und werden höchstens
+        auf ``APP_SESSION_DAYS`` verlängert.
+        """
         if not token:
             return None
         now = datetime.now(timezone.utc)
         with self._lock, self._conn:
             row = self._conn.execute(
-                "SELECT profile_id, created_at, expires_at FROM sessions WHERE token_hash = ?",
+                "SELECT profile_id, created_at, expires_at, device_id FROM sessions WHERE token_hash = ?",
                 (self._hash(token),),
             ).fetchone()
             if not row:
@@ -805,6 +843,14 @@ class Store:
             if row["expires_at"] < now.isoformat(timespec="seconds") or now - created > timedelta(days=SESSION_MAX_DAYS):
                 self._conn.execute("DELETE FROM sessions WHERE token_hash = ?", (self._hash(token),))
                 return None
+            if row["device_id"]:
+                device = self._conn.execute(
+                    "SELECT expires_at, revoked_at FROM devices WHERE id = ?", (row["device_id"],)
+                ).fetchone()
+                if device is None or device["revoked_at"] or device["expires_at"] < now.isoformat(timespec="seconds"):
+                    self._conn.execute("DELETE FROM sessions WHERE token_hash = ?", (self._hash(token),))
+                    return None
+                days = min(days, APP_SESSION_DAYS)
             new_expiry = min(now + timedelta(days=days), created + timedelta(days=SESSION_MAX_DAYS))
             if datetime.fromisoformat(row["expires_at"]) < new_expiry - timedelta(days=1):
                 self._conn.execute(
@@ -817,6 +863,132 @@ class Store:
         if token:
             with self._lock, self._conn:
                 self._conn.execute("DELETE FROM sessions WHERE token_hash = ?", (self._hash(token),))
+
+    # ------------------------------------------------------------------ Geräte der mobilen App
+
+    @staticmethod
+    def _iso(moment: datetime) -> str:
+        return moment.isoformat(timespec="seconds")
+
+    def device_create(self, profile_id: str, name: str, platform: str, app_version: str, days: int) -> tuple[str, str]:
+        """Neues Gerät anlegen. Gibt (Kennung, Token) zurück; gespeichert wird nur der Hash des Tokens."""
+        _require(profile_id)
+        device_id = secrets.token_hex(8)
+        token = DEVICE_PREFIX + secrets.token_urlsafe(32)
+        now = datetime.now(timezone.utc)
+        keep = self._iso(now - timedelta(days=DEVICE_KEEP_DAYS))
+        with self._lock, self._conn:
+            self._conn.execute(
+                "DELETE FROM devices WHERE COALESCE(revoked_at, expires_at) < ?", (keep,)
+            )
+            self._conn.execute(
+                "INSERT INTO devices (id, profile_id, token_hash, name, platform, app_version, created_at, rotated_at, "
+                "last_seen_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (device_id, profile_id, self._hash(token), name, platform, app_version, self._iso(now), self._iso(now),
+                 self._iso(now), self._iso(min(now + timedelta(days=days), now + timedelta(days=DEVICE_MAX_DAYS)))),
+            )
+        return device_id, token
+
+    def device_auth(self, token: str) -> dict[str, Any] | None:
+        """Gerät zum Token, solange es gilt. Das vorherige Token gilt nur kurz nach einer Erneuerung (``DEVICE_GRACE_SECONDS``);
+        wird es danach noch einmal gezeigt, gilt das als Diebstahl und das Gerät wird gesperrt."""
+        if not token or not token.startswith(DEVICE_PREFIX) or len(token) > 200:
+            return None
+        now = datetime.now(timezone.utc)
+        now_iso = self._iso(now)
+        digest = self._hash(token)
+        with self._lock, self._conn:
+            row = self._conn.execute("SELECT * FROM devices WHERE token_hash = ?", (digest,)).fetchone()
+            if row is None:
+                row = self._conn.execute("SELECT * FROM devices WHERE prev_hash = ?", (digest,)).fetchone()
+                if row is None:
+                    return None
+                if row["revoked_at"]:
+                    return None
+                if not row["prev_valid_until"] or row["prev_valid_until"] < now_iso:
+                    self._conn.execute(
+                        "UPDATE devices SET revoked_at = ?, revoked_reason = 'reuse' WHERE id = ?", (now_iso, row["id"])
+                    )
+                    self._conn.execute("DELETE FROM sessions WHERE device_id = ?", (row["id"],))
+                    log.warning("App-Gerät %s gesperrt: ein bereits erneuertes Token wurde noch einmal verwendet", row["id"])
+                    return None
+            if row["revoked_at"]:
+                return None
+            created = datetime.fromisoformat(row["created_at"])
+            if row["expires_at"] < now_iso or now - created > timedelta(days=DEVICE_MAX_DAYS):
+                return None
+            if row["last_seen_at"] < self._iso(now - timedelta(minutes=1)):
+                self._conn.execute("UPDATE devices SET last_seen_at = ? WHERE id = ?", (now_iso, row["id"]))
+        return {k: row[k] for k in ("id", "profile_id", "name", "platform", "app_version", "created_at", "rotated_at", "expires_at")}
+
+    def device_rotate(self, device_id: str, days: int) -> tuple[str, str]:
+        """Neues Token für das Gerät; das bisherige gilt noch ``DEVICE_GRACE_SECONDS``. Gibt (Token, Ablauf) zurück."""
+        token = DEVICE_PREFIX + secrets.token_urlsafe(32)
+        now = datetime.now(timezone.utc)
+        with self._lock, self._conn:
+            row = self._conn.execute(
+                "SELECT token_hash, created_at FROM devices WHERE id = ? AND revoked_at IS NULL", (device_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(device_id)
+            created = datetime.fromisoformat(row["created_at"])
+            expires = self._iso(min(now + timedelta(days=days), created + timedelta(days=DEVICE_MAX_DAYS)))
+            self._conn.execute(
+                "UPDATE devices SET token_hash = ?, prev_hash = ?, prev_valid_until = ?, rotated_at = ?, last_seen_at = ?, "
+                "expires_at = ? WHERE id = ?",
+                (self._hash(token), row["token_hash"], self._iso(now + timedelta(seconds=DEVICE_GRACE_SECONDS)),
+                 self._iso(now), self._iso(now), expires, device_id),
+            )
+        return token, expires
+
+    def device_list(self, profile_id: str) -> list[dict[str, Any]]:
+        _require(profile_id)
+        now_iso = self._iso(datetime.now(timezone.utc))
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, platform, app_version, created_at, last_seen_at, expires_at, revoked_at, revoked_reason "
+                "FROM devices WHERE profile_id = ? ORDER BY last_seen_at DESC", (profile_id,)
+            ).fetchall()
+        out = []
+        for r in rows:
+            status = "revoked" if r["revoked_at"] else "expired" if r["expires_at"] < now_iso else "active"
+            out.append({
+                "id": r["id"], "name": r["name"], "platform": r["platform"], "app_version": r["app_version"],
+                "created_at": r["created_at"], "last_seen_at": r["last_seen_at"], "expires_at": r["expires_at"],
+                "status": status, "reason": r["revoked_reason"] if r["revoked_at"] else "",
+            })
+        return out
+
+    def device_active(self, device_id: str, profile_id: str) -> bool:
+        """Gilt das Gerät noch (nicht gesperrt, nicht abgelaufen) und gehört es dieser Person?"""
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT created_at, expires_at, revoked_at FROM devices WHERE id = ? AND profile_id = ?", (device_id, profile_id)
+            ).fetchone()
+        if row is None or row["revoked_at"] or row["expires_at"] < self._iso(now):
+            return False
+        return now - datetime.fromisoformat(row["created_at"]) <= timedelta(days=DEVICE_MAX_DAYS)
+
+    def device_revoke(self, profile_id: str, device_id: str) -> bool:
+        """Gerät der Person entfernen (und alle seine Sitzungen). Nur eigene Geräte."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            gone = self._conn.execute(
+                "DELETE FROM devices WHERE id = ? AND profile_id = ?", (device_id, profile_id)
+            ).rowcount
+            if gone:
+                self._conn.execute("DELETE FROM sessions WHERE device_id = ?", (device_id,))
+        return bool(gone)
+
+    def device_revoke_all(self, profile_id: str) -> int:
+        _require(profile_id)
+        with self._lock, self._conn:
+            ids = [r["id"] for r in self._conn.execute("SELECT id FROM devices WHERE profile_id = ?", (profile_id,))]
+            for device_id in ids:
+                self._conn.execute("DELETE FROM sessions WHERE device_id = ?", (device_id,))
+            self._conn.execute("DELETE FROM devices WHERE profile_id = ?", (profile_id,))
+        return len(ids)
 
     # ------------------------------------------------------------------ Chats
 

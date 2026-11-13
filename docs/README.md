@@ -9,6 +9,7 @@
 | [ChatGPT (OpenAI)](chatgpt.md) | ChatGPT-Modelle neben Claude: Einrichtung, Modellwahl und Standardmodell, Token-Limit, Datenschutz, Grenzen |
 | [API-Konto für Bilder und Sprache](bilder-konten.md) | Schlüssel bei Google (Gemini) und OpenAI anlegen, Guthaben, Limits; OpenAI auch für die Spracherkennung und Stimme |
 | [Domain-Zugang](domain-zugang.md) | Entra-ID-Anmeldung und Cloudflare Tunnel |
+| [App-Zugang](app.md) | Anmeldung und Geräte der mobilen App „HA Copilot“ (iPhone/iPad), Sicherheit |
 | [Betrieb](betrieb.md) | Sicherung, Update, Umzug, Fehlerbehebung |
 | [Screenshots](screenshots/README.md) | Woher die Bilder stammen |
 | [Ausführliche Referenz](../copilot/DOCS.md) | Die vollständige Add-on-Dokumentation |

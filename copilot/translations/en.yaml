@@ -182,6 +182,12 @@ configuration:
       session_days:
         name: Sign-in duration (days)
         description: How long a sign-in via the domain stays valid (1–90).
+      app_access:
+        name: Allow the mobile app
+        description: Lets the "HA Copilot" app for iPhone and iPad sign in through the domain. Off by default; you can see and block devices under Settings → Devices.
+      device_days:
+        name: App device validity (days)
+        description: How long a device stays signed in without renewal (1–180). The app renews itself while it is used.
       public_trusted_proxies:
         name: Trusted proxies
         description: Addresses of reverse proxies (e.g. a Cloudflare tunnel container) whose forwarding headers may be trusted.
