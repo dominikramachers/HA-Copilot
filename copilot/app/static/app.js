@@ -8295,10 +8295,10 @@ function rememberedView() {
 function themeRow() {
   const row = node("div", "set-row");
   const text = node("div", "set-row-text");
-  text.append(node("b", "", tr("Design")), node("span", "", tr("Hell, dunkel oder wie dein Gerät.")));
+  text.append(node("b", "", tr("Darstellung")), node("span", "", tr("Hell, dunkel oder wie dein Gerät.")));
   const seg = node("div", "seg");
   seg.setAttribute("role", "group");
-  seg.setAttribute("aria-label", tr("Design"));
+  seg.setAttribute("aria-label", tr("Darstellung"));
   const current = () => window.kiTheme.get();
   const draw = () => seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.value === current())));
   for (const [value, label] of THEMES) {
@@ -8314,6 +8314,52 @@ function themeRow() {
 }
 
 // „Standardmodell“: gilt in jedem neuen Chat. Auto = das in der App eingestellte Modell. Im Chat selbst lässt es sich jederzeit ändern.
+// Hintergrund-Muster (Design): gilt für die Person auf jedem Gerät. Die Farben kommen immer vom aktiven Home-Assistant-Theme.
+const DESIGN_CHOICES = [
+  ["dots", tr("Punktraster")],
+  ["hex", tr("Mikro-Wabe")],
+  ["plus", tr("Plus-Raster")],
+  ["plain", tr("Schlicht")],
+];
+
+function designRow() {
+  const row = node("div", "set-row design-row");
+  const text = node("div", "set-row-text");
+  text.append(node("b", "", tr("Design")), node("span", "", tr("Ein feines Muster im Hintergrund. Die Farben kommen vom Theme aus Home Assistant, hell und dunkel.")));
+  const pick = node("div", "design-pick");
+  pick.setAttribute("role", "group");
+  pick.setAttribute("aria-label", tr("Design"));
+  const current = () => window.kiDesign?.get() || "dots";
+  const draw = () => pick.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.value === current())));
+  for (const [value, label] of DESIGN_CHOICES) {
+    const b = node("button", "design-opt");
+    b.type = "button";
+    b.dataset.value = value;
+    const swatch = node("span", "design-swatch");
+    swatch.dataset.d = value;
+    swatch.setAttribute("aria-hidden", "true");
+    b.append(swatch, node("span", "", label));
+    b.addEventListener("click", async () => {
+      const before = current();
+      if (value === before) return;
+      window.kiDesign?.set(value);
+      draw();
+      try {
+        await api("api/me/design", { method: "PUT", body: JSON.stringify({ design: value }) });
+        if (state.me) state.me.design = value;
+      } catch {
+        window.kiDesign?.set(before);
+        draw();
+        toast(tr("Das hat nicht geklappt."));
+      }
+    });
+    pick.append(b);
+  }
+  draw();
+  row.append(text, pick);
+  return row;
+}
+
 function defaultModelRow() {
   const row = node("div", "set-row");
   const text = node("div", "set-row-text");
@@ -8355,7 +8401,8 @@ function defaultModelRow() {
 function settingsGeneral(body) {
   const list = node("div", "set-rows");
   if (document.documentElement.dataset.themeSource !== "ha") list.append(themeRow());
-  else list.append(node("p", "mem-hint", tr("Das Design übernimmt der HA Copilot von Home Assistant (Profil → Design).")));
+  else list.append(node("p", "mem-hint", tr("Das Theme übernimmt der HA Copilot von Home Assistant (Profil → Theme).")));
+  list.append(designRow());
   const lang = node("div", "set-row");
   const text = node("div", "set-row-text");
   text.append(node("b", "", tr("Sprache")), node("span", "", tr("Der Administrator legt sie in der Add-on-Konfiguration fest (language).")));
@@ -9007,6 +9054,7 @@ async function init() {
 
   try {
     state.me = await api("api/me");
+    window.kiDesign?.set(state.me.design);
     syncIncognito();
     initVoiceButton();
     $("who").textContent = state.me.label;

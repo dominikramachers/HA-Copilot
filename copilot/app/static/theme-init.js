@@ -81,6 +81,27 @@
     root.dataset.themeSource = "own";
   };
 
+  // Hintergrund-Muster (Einstellungen → Allgemein → Design). Die Wahl gehört der Person und liegt im Add-on (gilt auf jedem Gerät);
+  // hier steht nur die letzte bekannte Wahl dieses Geräts, damit das Muster ohne Aufblitzen sofort da ist. Gezeichnet wird es in style.css.
+  const DESIGN_KEY = "ki-design";
+  const DESIGNS = ["dots", "hex", "plus", "plain"];
+  const storedDesign = () => {
+    try {
+      const v = localStorage.getItem(DESIGN_KEY);
+      return DESIGNS.includes(v) ? v : "dots";
+    } catch { return "dots"; }
+  };
+  root.dataset.design = storedDesign();
+  window.kiDesign = {
+    options: DESIGNS,
+    get: () => root.dataset.design,
+    set(value) {
+      const v = DESIGNS.includes(value) ? value : "dots";
+      try { localStorage.setItem(DESIGN_KEY, v); } catch { /* optional */ }
+      root.dataset.design = v;
+    },
+  };
+
   window.kiTheme = {
     get: stored,
     set(mode) {

@@ -199,6 +199,39 @@ Bleibt eine Antwort ungelesen, weil der Chat auf keinem Gerät offen ist, bekomm
 
 Mehr: [Geplante Aufgaben](../copilot/DOCS.md#geplante-aufgaben-ab-0210).
 
+## Design: Hintergrund-Muster und Themes
+
+Hinter dem Chat liegt ein feines, ruhiges Muster, das nicht von den Texten ablenkt. Unter **Einstellungen → Allgemein → Design** wählt jede Person für sich, welches. Die Wahl gilt auf jedem Gerät der Person.
+
+![Einstellungen → Allgemein → Design mit vier Mustern](screenshots/design-einstellung.png)
+
+| Muster | Aussehen |
+|---|---|
+| **Punktraster** (Standard) | Sehr feine Punkte, nur in zwei Ecken sichtbar und zur Mitte hin ausgeblendet |
+| **Mikro-Wabe** | Dünne Sechsecke |
+| **Plus-Raster** | Kleine Pluszeichen |
+| **Schlicht** | Kein Muster, nur die Farbe des Themes |
+
+Punktraster:
+
+![Punktraster, hell und dunkel](screenshots/design-punktraster.png)
+
+Mikro-Wabe:
+
+![Mikro-Wabe, hell und dunkel](screenshots/design-mikro-wabe.png)
+
+Plus-Raster:
+
+![Plus-Raster, hell und dunkel](screenshots/design-plus-raster.png)
+
+### Die Farben kommen aus Home Assistant
+
+**Das Theme übernimmt der HA Copilot von Home Assistant.** Muster und das leise Leuchten dahinter sind aus dem Akzent, dem Hintergrund und der Schriftfarbe des aktiven Themes gemischt (Profil → Theme, hell oder dunkel). Es gibt keine eigenen Farbwerte: Wer in Home Assistant das Theme wechselt, sieht das Muster sofort in den neuen Farben. Das Muster steht still und stört weder Lesen noch Akku.
+
+Als Beispiele liegen vier weitere Themes bereit, die zu den Mustern passen. Die Datei [`themes/doralab-weitere.yaml`](themes/doralab-weitere.yaml) kommt nach `/homeassistant/themes/` (wie jede Theme-Datei in Home Assistant, mit `themes: !include_dir_merge_named themes` in der `configuration.yaml`); danach in den Entwicklerwerkzeugen unter YAML „Themes neu laden“ (`frontend.reload_themes`) und im Profil unter **Theme** auswählen. Oben jeweils hell, unten dunkel: *Nordlicht*, *Dämmerung*, *Bernstein*, *Smaragd*.
+
+![Die vier weiteren Themes, oben hell, unten dunkel](screenshots/themes-weitere.png)
+
 ## Aussehen und Sprache
 
 - **Theme:** Im Home-Assistant-Panel übernimmt die App live die Farben und Hell/Dunkel von Home Assistant (`look.follow_ha_theme`). Über die Domain gilt das Standard-Theme oder ein eigenes (`look.theme_name`).

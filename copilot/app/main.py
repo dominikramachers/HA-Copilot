@@ -284,6 +284,15 @@ class StyleDefaultBody(BaseModel):
     style: str = Field(default="", max_length=40)
 
 
+# Hintergrund-Muster der Oberfläche (Einstellungen → Allgemein → Design); die Muster selbst zeichnet das Stylesheet.
+DESIGNS = ("dots", "hex", "plus", "plain")
+DEFAULT_DESIGN = "dots"
+
+
+class DesignBody(BaseModel):
+    design: str = Field(default=DEFAULT_DESIGN, max_length=16)
+
+
 class DefaultModelBody(BaseModel):
     model: str = Field(default="", max_length=64)  # '' oder "auto" = das in der App eingestellte Modell
 
@@ -980,6 +989,7 @@ def register_chat_routes(
             "models": settings.model_choices(),
             "default_model": settings.model,
             "user_model": user_default_model(profile.id),
+            "design": store.profile_design(profile.id) or DEFAULT_DESIGN,
             "openai": settings.openai_active,
             "limits": limits.current(),
             "schedules": settings.schedules_enabled and scheduler is not None,
@@ -1102,6 +1112,14 @@ def register_chat_routes(
         if not style_known(profile, body.style):
             raise HTTPException(status_code=422, detail=tr("Unbekannter Stil"))
         return {"style": store.set_profile_default_style(profile.id, body.style)}
+
+    @app.put("/api/me/design", dependencies=[Depends(write_guard)])
+    def save_design(body: DesignBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Hintergrund-Muster der Person (Einstellungen → Allgemein → Design); gilt auf jedem Gerät."""
+        wanted = body.design.strip()
+        if wanted not in DESIGNS:
+            raise HTTPException(status_code=422, detail=tr("Unbekanntes Design"))
+        return {"design": store.set_profile_design(profile.id, "" if wanted == DEFAULT_DESIGN else wanted) or DEFAULT_DESIGN}
 
     @app.put("/api/me/model", dependencies=[Depends(write_guard)])
     def save_default_model(body: DefaultModelBody, profile: Profile = Depends(current_profile)) -> dict:
