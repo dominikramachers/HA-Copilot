@@ -297,11 +297,12 @@ class OpenAIBackend:
         record: Callable[[dict], None] | None = None,
         next_id: Callable[[], int] | None = None,
         personal_instructions: str | None = None,
+        style: str | None = None,
         on_usage: Callable[[int], None] | None = None,
         **_: object,
     ) -> AsyncIterator[str]:
         model = model or self._model
-        system = compose_system(instructions, note, bool(tools), web, personal_instructions).replace("WebSearch", "web_search")
+        system = compose_system(instructions, note, bool(tools), web, personal_instructions, style).replace("WebSearch", "web_search")
         prompt = with_inline_text(message, attachments or [])
         items = history_items(history, len(message))
         items.append({"role": "user", "content": user_content(prompt, attachments or [])})

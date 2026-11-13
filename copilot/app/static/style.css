@@ -848,6 +848,10 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .mem-entry, .know-file { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line-2); }
 .mem-section h4 + .mem-hint + .mem-entry, .mem-section .mem-hint + .mem-entry { border-top: 1px solid var(--line-2); }
 .mem-text { flex: 1; min-width: 0; }
+.mem-entry-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.mem-entry-text .mem-hint { margin: 0; overflow-wrap: anywhere; }
+.mem-entry .pill.small { flex: none; height: 32px; padding: 0 12px; font-size: 13px; }
+.mem-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .mem-topic { display: block; font-size: 14.5px; }
 .mem-text p { margin: 2px 0 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mem-meta { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }

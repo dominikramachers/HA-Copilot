@@ -4,6 +4,16 @@
     "items": [
       {
         "de": {
+          "title": "Eigene Schreibstile",
+          "text": "Ich kann jetzt in verschiedenen Stilen antworten: kurz, ausführlich, locker oder so, wie du schreibst. Wähle ihn unter dem Eingabefeld."
+        },
+        "en": {
+          "title": "Your own writing styles",
+          "text": "I can now answer in different styles: short, detailed, casual or the way you write. Pick one below the input field."
+        }
+      },
+      {
+        "de": {
           "title": "Chats archivieren",
           "text": "Chats, die du nicht mehr brauchst, kannst du jetzt archivieren. Sie verschwinden aus der Liste und stehen unter „Alle Chats“."
         },

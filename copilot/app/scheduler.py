@@ -26,6 +26,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from . import schedule as sched
+from . import styles as stylelib
 from .i18n import tr
 from .backend import BackendError
 from .config import Profile, Settings, provider_of
@@ -313,6 +314,12 @@ class Scheduler:
             personal = store.profile_instructions(profile.id)
             if personal:
                 extra["personal_instructions"] = personal
+            default_style = store.profile_default_style(profile.id)
+            if default_style and default_style != "none":
+                own = None if default_style.startswith(stylelib.PRESET_PREFIX) else store.style_get(profile.id, default_style)
+                text = stylelib.preset_rules(default_style) if own is None else own["instructions"]
+                if text:
+                    extra["style"] = text
             model = self.model_for(row)
             if model:
                 extra["model"] = model

@@ -292,6 +292,18 @@ CREATE TABLE IF NOT EXISTS plugins (
 );
 """
 
+STYLES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS styles (
+    id           TEXT PRIMARY KEY,
+    profile_id   TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    instructions TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_styles_profile ON styles(profile_id);
+"""
+
 GITHUB_SCHEMA = """
 CREATE TABLE IF NOT EXISTS github_accounts (
     profile_id    TEXT PRIMARY KEY,
@@ -364,9 +376,9 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 25  # 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 26  # 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
-CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, schedule_id, kind, imported"
+CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
 
 
 def _chat(row: sqlite3.Row) -> dict[str, Any]:
@@ -530,6 +542,8 @@ class Store:
             self._conn.execute("ALTER TABLE chats ADD COLUMN summary_upto INTEGER")
         if "imported" not in columns:  # Verlauf aus einem geteilten Chat übernommen: fremder Inhalt, Änderungen fragen immer nach
             self._conn.execute("ALTER TABLE chats ADD COLUMN imported INTEGER NOT NULL DEFAULT 0")
+        if "style_id" not in columns:  # Schreibstil dieses Chats ('' = Standard der Person, 'none' = ohne Stil)
+            self._conn.execute("ALTER TABLE chats ADD COLUMN style_id TEXT NOT NULL DEFAULT ''")
         if "archived_at" not in columns:  # Archiv: aus den Listen genommen, aber weiter auffindbar (Suche, „Alle Chats“, Projekt)
             self._conn.execute("ALTER TABLE chats ADD COLUMN archived_at TEXT")
         if "kind" not in columns:
@@ -543,6 +557,8 @@ class Store:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")  # „Meine Anweisungen“ für alle Chats der Person
         if "default_model" not in profile_columns:
             self._conn.execute("ALTER TABLE profiles ADD COLUMN default_model TEXT NOT NULL DEFAULT ''")  # Standardmodell der Person für neue Chats ('' = Auto)
+        if "default_style" not in profile_columns:
+            self._conn.execute("ALTER TABLE profiles ADD COLUMN default_style TEXT NOT NULL DEFAULT ''")  # Standardstil der Person für Chats ohne eigene Wahl
         project_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(projects)")}
         if "instructions" not in project_columns:
             self._conn.execute("ALTER TABLE projects ADD COLUMN instructions TEXT NOT NULL DEFAULT ''")
@@ -578,6 +594,7 @@ class Store:
         self._conn.executescript(CONNECTORS_SCHEMA)
         self._conn.executescript(PLUGINS_SCHEMA)
         self._conn.executescript(GITHUB_SCHEMA)
+        self._conn.executescript(STYLES_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -719,7 +736,7 @@ class Store:
             )
         return {
             "id": chat_id, "title": title, "created_at": now, "updated_at": now,
-            "pinned": False, "archived": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind, "imported": False,
+            "pinned": False, "archived": False, "project_id": project_id, "unread": False, "model": "", "style_id": "", "schedule_id": schedule_id, "kind": kind, "imported": False,
         }
 
     def list_chats(self, profile_id: str, kind: str = "") -> list[dict[str, Any]]:
@@ -1950,6 +1967,76 @@ class Store:
             self._conn.execute("INSERT OR IGNORE INTO profiles (id) VALUES (?)", (profile_id,))
             self._conn.execute("UPDATE profiles SET default_model = ? WHERE id = ?", (model, profile_id))
         return model
+
+    # ------------------------------------------------- Schreibstile
+
+    def style_list(self, profile_id: str) -> list[dict[str, Any]]:
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, description, instructions, created_at FROM styles WHERE profile_id = ? ORDER BY name COLLATE NOCASE", (profile_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def style_get(self, profile_id: str, style_id: str) -> dict[str, Any] | None:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, name, description, instructions, created_at FROM styles WHERE profile_id = ? AND id = ?", (profile_id, style_id)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def style_count(self, profile_id: str) -> int:
+        with self._lock:
+            return self._conn.execute("SELECT COUNT(*) AS n FROM styles WHERE profile_id = ?", (profile_id,)).fetchone()["n"]
+
+    def style_save(self, profile_id: str, style_id: str | None, name: str, description: str, instructions: str) -> dict[str, Any] | None:
+        """Neuen Stil anlegen (``style_id`` None) oder einen eigenen ändern; None, wenn er nicht zur Person gehört."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            if style_id is None:
+                style_id = uuid.uuid4().hex[:16]
+                self._conn.execute(
+                    "INSERT INTO styles (id, profile_id, name, description, instructions, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (style_id, profile_id, name, description, instructions, _now()),
+                )
+            else:
+                cur = self._conn.execute(
+                    "UPDATE styles SET name = ?, description = ?, instructions = ? WHERE id = ? AND profile_id = ?",
+                    (name, description, instructions, style_id, profile_id),
+                )
+                if cur.rowcount != 1:
+                    return None
+        return self.style_get(profile_id, style_id)
+
+    def style_delete(self, profile_id: str, style_id: str) -> bool:
+        """Eigenen Stil löschen; Chats und Standard, die ihn nutzten, fallen auf „Standard“ zurück."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM styles WHERE id = ? AND profile_id = ?", (style_id, profile_id))
+            if cur.rowcount == 1:
+                self._conn.execute("UPDATE chats SET style_id = '' WHERE profile_id = ? AND style_id = ?", (profile_id, style_id))
+                self._conn.execute("UPDATE profiles SET default_style = '' WHERE id = ? AND default_style = ?", (profile_id, style_id))
+        return cur.rowcount == 1
+
+    def profile_default_style(self, profile_id: str) -> str:
+        _require(profile_id)
+        with self._lock:
+            row = self._conn.execute("SELECT default_style FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+        return (row["default_style"] if row else "") or ""
+
+    def set_profile_default_style(self, profile_id: str, style_id: str) -> str:
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute("INSERT OR IGNORE INTO profiles (id) VALUES (?)", (profile_id,))
+            self._conn.execute("UPDATE profiles SET default_style = ? WHERE id = ?", (style_id, profile_id))
+        return style_id
+
+    def set_chat_style(self, profile_id: str, chat_id: str, style_id: str) -> bool:
+        _require(profile_id)
+        with self._lock, self._conn:
+            cur = self._conn.execute("UPDATE chats SET style_id = ? WHERE id = ? AND profile_id = ?", (style_id, chat_id, profile_id))
+        return cur.rowcount == 1
 
     def memory_get(self, scope: str, profile_id: str, topic: str) -> dict[str, Any] | None:
         """Ein Eintrag mit Thema (Groß-/Kleinschreibung egal); der automatisch erfasste Überblick zählt nicht."""

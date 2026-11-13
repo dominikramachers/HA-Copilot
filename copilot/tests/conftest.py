@@ -39,8 +39,8 @@ class FakeBackend:
         self.fail_after = fail_after  # Fehler erst nach so vielen Stücken
         self.calls = []
 
-    async def stream(self, history, message, effort, attachments=None, instructions=None, tools=None, note="", personal_instructions=None, **_):
-        self.calls.append({"personal_instructions": personal_instructions, "history": history, "message": message, "effort": effort, "attachments": list(attachments) if attachments is not None else None, "live": attachments, "instructions": instructions, "tools": tools, "note": note})
+    async def stream(self, history, message, effort, attachments=None, instructions=None, tools=None, note="", personal_instructions=None, style=None, **_):
+        self.calls.append({"style": style, "personal_instructions": personal_instructions, "history": history, "message": message, "effort": effort, "attachments": list(attachments) if attachments is not None else None, "live": attachments, "instructions": instructions, "tools": tools, "note": note})
         for i, piece in enumerate(self.pieces):
             if self.error and self.fail_after is not None and i == self.fail_after:
                 raise BackendError(self.error)

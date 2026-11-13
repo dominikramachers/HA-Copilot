@@ -42,6 +42,7 @@ from . import attachments as filelib, compact, safety
 from . import news as newslib
 from . import quotes
 from . import research as researchlib
+from . import styles as stylelib
 from . import i18n
 from .i18n import tr
 from .previews import MAX_CHARS as PREVIEW_MAX_CHARS, PREVIEW_HEADERS, PreviewStore
@@ -245,10 +246,26 @@ class SendBody(BaseModel):
     voice: bool = False
     # Deep Research für diese Nachricht (mehrstufige Recherche mit Quellenbericht, siehe research.py)
     research: bool = False
+    # Schreibstil dieses Chats: '' = Standard der Person, "none" = ohne Stil, "preset:…" oder Kennung eines eigenen Stils; None = unverändert
+    style: str | None = Field(default=None, max_length=40)
 
 
 class _Declined(Exception):
     """Die Person hat eine Rückfrage vor dem Start der Antwort abgelehnt (z. B. Monatslimit für ChatGPT)."""
+
+
+class StyleBody(BaseModel):
+    name: str = Field(min_length=1, max_length=stylelib.NAME_MAX)
+    description: str = Field(default="", max_length=stylelib.DESC_MAX)
+    instructions: str = Field(min_length=1, max_length=stylelib.STYLE_MAX)
+
+
+class StyleLearnBody(BaseModel):
+    text: str = Field(min_length=1, max_length=stylelib.LEARN_MAX)
+
+
+class StyleDefaultBody(BaseModel):
+    style: str = Field(default="", max_length=40)
 
 
 class DefaultModelBody(BaseModel):
@@ -956,6 +973,78 @@ def register_chat_routes(
         if not found:
             raise HTTPException(status_code=404, detail="kein Profilbild")
         return Response(found[0], media_type=found[1], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
+    def style_known(profile: Profile, style_id: str) -> bool:
+        return style_id in ("", stylelib.NONE) or stylelib.is_preset(style_id) or store.style_get(profile.id, style_id) is not None
+
+    def style_text(profile: Profile, style_id: str) -> str:
+        """Anweisungstext des Stils, der in diesem Chat gilt ('' = Standard der Person, 'none' = keiner)."""
+        sid = style_id or store.profile_default_style(profile.id)
+        if not sid or sid == stylelib.NONE:
+            return ""
+        if stylelib.is_preset(sid):
+            return stylelib.preset_rules(sid)
+        own = store.style_get(profile.id, sid)
+        return own["instructions"] if own else ""
+
+    @app.get("/api/styles")
+    def list_styles(profile: Profile = Depends(current_profile)) -> dict:
+        default = store.profile_default_style(profile.id)
+        if default and not style_known(profile, default):
+            default = ""
+        return {
+            "presets": stylelib.presets(),
+            "own": [{**s, "preset": False} for s in store.style_list(profile.id)],
+            "default": default,
+            "max": stylelib.MAX_OWN, "limits": {"name": stylelib.NAME_MAX, "description": stylelib.DESC_MAX, "instructions": stylelib.STYLE_MAX, "learn": stylelib.LEARN_MAX},
+        }
+
+    def clean_style(body: StyleBody) -> tuple[str, str, str]:
+        name = " ".join(body.name.split())
+        text = body.instructions.strip()
+        if not name or not text:
+            raise HTTPException(status_code=422, detail=tr("Name und Beschreibung des Stils dürfen nicht leer sein."))
+        return name, " ".join(body.description.split()), text
+
+    @app.post("/api/styles", status_code=201, dependencies=[Depends(write_guard)])
+    def create_style(body: StyleBody, profile: Profile = Depends(current_profile)) -> dict:
+        name, description, text = clean_style(body)
+        if store.style_count(profile.id) >= stylelib.MAX_OWN:
+            raise HTTPException(status_code=409, detail=tr("Du hast schon {n} eigene Stile. Lösche einen, bevor du einen neuen anlegst.", n=stylelib.MAX_OWN))
+        return {**(store.style_save(profile.id, None, name, description, text) or {}), "preset": False}
+
+    @app.put("/api/styles/{style_id}", dependencies=[Depends(write_guard)])
+    def update_style(style_id: str, body: StyleBody, profile: Profile = Depends(current_profile)) -> dict:
+        name, description, text = clean_style(body)
+        saved = store.style_save(profile.id, style_id, name, description, text)
+        if saved is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {**saved, "preset": False}
+
+    @app.delete("/api/styles/{style_id}", status_code=204, dependencies=[Depends(write_guard)])
+    def delete_style(style_id: str, profile: Profile = Depends(current_profile)) -> Response:
+        if not store.style_delete(profile.id, style_id):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return Response(status_code=204)
+
+    @app.post("/api/styles/learn", dependencies=[Depends(write_guard)])
+    async def learn_style(body: StyleLearnBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Schreibstil aus Beispieltexten der Person ableiten. Der Text geht einmal an das Titelmodell und wird nicht gespeichert."""
+        text = body.text.strip()
+        if len(text) < 200:
+            raise HTTPException(status_code=422, detail=tr("Der Beispieltext ist zu kurz. Füge mindestens ein paar Absätze deiner eigenen Texte ein."))
+        describe = getattr(backend, "describe_style", None)
+        found = await describe(text) if describe else None
+        if not found:
+            raise HTTPException(status_code=502, detail=tr("Den Stil konnte ich gerade nicht ableiten. Versuche es gleich noch einmal."))
+        return {"instructions": found}
+
+    @app.put("/api/me/style", dependencies=[Depends(write_guard)])
+    def save_default_style(body: StyleDefaultBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Standardstil der Person für alle Chats ohne eigene Wahl ('' = keiner)."""
+        if not style_known(profile, body.style):
+            raise HTTPException(status_code=422, detail=tr("Unbekannter Stil"))
+        return {"style": store.set_profile_default_style(profile.id, body.style)}
 
     @app.put("/api/me/model", dependencies=[Depends(write_guard)])
     def save_default_model(body: DefaultModelBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -2422,6 +2511,9 @@ def register_chat_routes(
         requested_model = (body.model or "").strip()
         if requested_model and requested_model != AUTO_MODEL and requested_model not in model_ids:
             raise HTTPException(status_code=422, detail=tr("Unbekanntes Modell"))
+        requested_style = body.style.strip() if body.style is not None else None
+        if requested_style is not None and not style_known(profile, requested_style):
+            raise HTTPException(status_code=422, detail=tr("Unbekannter Stil"))
         # Vorrang: Wahl in diesem Chat, dann Standardmodell der Person, dann das in der App eingestellte Modell („Auto“)
         saved_model = chat.get("model") if chat.get("model") == AUTO_MODEL or chat.get("model") in model_ids else ""
         chosen_model = concrete_model(requested_model or saved_model or user_default_model(profile.id))
@@ -2462,6 +2554,9 @@ def register_chat_routes(
         personal = store.profile_instructions(profile.id)
         if personal:
             extra["personal_instructions"] = personal
+        wanted_style = style_text(profile, requested_style if requested_style is not None else (chat.get("style_id") or ""))
+        if wanted_style and not spoken:
+            extra["style"] = wanted_style
         summarize = getattr(backend, "summarize", None)
         # Zusammenfassungen erzeugt der Anbieter, bei dem der Chat läuft
         summary_args = {"model": chosen_model, "on_usage": extra["on_usage"]} if provider == "openai" else {}
@@ -2486,6 +2581,8 @@ def register_chat_routes(
         provisional = _title_from(_title_source(text, metas))
         if first_exchange:
             store.rename_chat(profile.id, chat_id, provisional)
+        if requested_style is not None and requested_style != (chat.get("style_id") or ""):
+            store.set_chat_style(profile.id, chat_id, requested_style)
         if requested_model:
             # Entspricht die Wahl dem, was ohnehin gilt (Standardmodell der Person), wird nichts gemerkt
             same = concrete_model(requested_model) == concrete_model(user_default_model(profile.id))
@@ -2733,7 +2830,7 @@ def register_chat_routes(
                             if phase in ("plan", "report"):
                                 history_here = context
                             if phase == "report":
-                                for key in ("instructions", "personal_instructions"):
+                                for key in ("instructions", "personal_instructions", "style"):
                                     if key in extra:
                                         opts[key] = extra[key]
                         parts: list[str] = []

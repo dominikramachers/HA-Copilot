@@ -647,5 +647,20 @@
  "*Hinweis: Die Recherche wurde wegen der Zeitgrenze vorzeitig beendet; nicht alle Teilfragen sind abgedeckt.*": "*Note: The research was ended early because of the time limit; not all questions are covered.*",
  "*Der Bericht konnte nicht fertig geschrieben werden. Das sind die Notizen der Recherche:*": "*The report could not be finished. These are the notes from the research:*",
  "Der Link gilt nicht (mehr).": "The link is not valid (any more).",
- "Die KI darf damit so viel, wie dein GitHub-Konto selbst darf; jede Änderung fragt im Chat vorher nach.": "The AI may do as much as your GitHub account itself may; every change asks in the chat first."
+ "Die KI darf damit so viel, wie dein GitHub-Konto selbst darf; jede Änderung fragt im Chat vorher nach.": "The AI may do as much as your GitHub account itself may; every change asks in the chat first.",
+ "Kurz und klar": "Short and clear",
+ "Wenig Text, sofort zur Sache.": "Little text, straight to the point.",
+ "Ausführlich erklärend": "Detailed and explanatory",
+ "Schritt für Schritt, mit Hintergrund und Beispielen.": "Step by step, with background and examples.",
+ "Locker": "Casual",
+ "Wie ein Gespräch unter Bekannten.": "Like a chat between friends.",
+ "Formell": "Formal",
+ "Sachlich, höflich, vollständige Sätze.": "Objective, polite, complete sentences.",
+ "Technisch": "Technical",
+ "Befehle und Konfiguration zuerst, kaum Fließtext.": "Commands and configuration first, hardly any prose.",
+ "Name und Beschreibung des Stils dürfen nicht leer sein.": "The style needs a name and a description.",
+ "Du hast schon {n} eigene Stile. Lösche einen, bevor du einen neuen anlegst.": "You already have {n} styles of your own. Delete one before you add a new one.",
+ "Der Beispieltext ist zu kurz. Füge mindestens ein paar Absätze deiner eigenen Texte ein.": "The sample text is too short. Paste at least a few paragraphs of your own writing.",
+ "Den Stil konnte ich gerade nicht ableiten. Versuche es gleich noch einmal.": "I could not work out the style just now. Please try again in a moment.",
+ "Unbekannter Stil": "Unknown style"
 }

@@ -411,6 +411,17 @@ Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connect
 - **Sichtbarkeit:** Unter der Antwort steht einklappbar „N Aktionen bei GitHub, davon M Änderungen“ mit jedem Schritt; bei Commits, Pull Requests und Issues gibt es einen Link „Öffnen“ (nur Adressen auf github.com werden angezeigt).
 - GitHub begrenzt Anfragen (bei Tokens 5 000 je Stunde, die Code-Suche deutlich weniger); wird das Limit erreicht, sagt die KI das.
 
+## Schreibstile (ab 0.57.2)
+
+Ein Stil legt fest, **wie** die KI antwortet: Ton, Länge und Gliederung. Er ändert nie die Regeln des Add-ons (Rechte, Rückfragen, Umgang mit Werkzeugen und fremden Inhalten). Abgrenzung: „Meine Anweisungen“ gelten immer, ein Stil lässt sich je Chat umschalten, Skills geben der KI zusätzliche Fähigkeiten.
+
+- **Vorgaben:** Kurz und klar, Ausführlich erklärend, Locker, Formell, Technisch.
+- **Wählen:** Im Menü unter dem Eingabefeld (dort, wo Modell und Aufwand stehen) steht der Eintrag **Stil**: „Standard“ (der Standardstil der Person), „Ohne Stil“, die Vorgaben, die eigenen Stile und „Stile verwalten …“. Die Wahl gilt für diesen Chat ab der nächsten Nachricht und wird im Chat gemerkt (`chats.style_id`).
+- **Standardstil:** Unter **Einstellungen → Schreibstile** (`profiles.default_style`). Er gilt in allen Chats ohne eigene Wahl und in geplanten Aufgaben. In Sprachgesprächen gilt kein Stil (dort zählt die Sprechanweisung).
+- **Eigene Stile:** Bis zu 20 je Person (Tabelle `styles`, Schema 26), jeweils Name, Kurzbeschreibung und eine Anweisung bis 1500 Zeichen. **Aus Beispieltext lernen:** Die Person fügt eigene Texte ein (bis 12 000 Zeichen); das kleine Modell (das auch die Titel schreibt) leitet daraus eine Beschreibung ab, die sich vor dem Speichern bearbeiten lässt. Die Beispieltexte werden nicht gespeichert und gehen dafür einmal an Anthropic. Ein Stil, den eine Person löscht, fällt in Chats und im Standard auf „Standard“ zurück.
+- **Wirkung:** Ein zusätzlicher Absatz in der Systemanweisung („Antwortstil …“) hinter den persönlichen Anweisungen. Er gilt für Claude und für ChatGPT-Modelle.
+- Schnittstellen: `GET/POST /api/styles`, `PUT/DELETE /api/styles/{id}`, `POST /api/styles/learn`, `PUT /api/me/style`; das Senden nimmt `style` an (`""` = Standard, `none` = ohne Stil).
+
 ## Web, Modell und Nutzungslimit (ab 0.20.0)
 
 **Websuche.** Die KI kann im Web suchen und Seiten lesen, wenn es nötig ist (Preise, Versionen, Nachrichten, Regeln) oder wenn du sie darum bittest („Recherchiere …“, „Schau nach, ob …“). Unter der Antwort steht einklappbar „Recherche im Web (2 Suchen, 3 Seiten gelesen)“ mit jedem Schritt; am Ende nennt die KI ihre Quellen.

@@ -66,6 +66,11 @@ Mehr: [Inkognito-Chat](../copilot/DOCS.md#inkognito-chat-ab-0560), [Chats teilen
 
 Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigene-daten-ab-0220).
 
+## Schreibstile
+
+- Im Menü unter dem Eingabefeld wählst du den **Stil** der Antworten: Kurz und klar, Ausführlich erklärend, Locker, Formell oder Technisch, oder „Ohne Stil“. Die Wahl gilt für den Chat.
+- Unter **Einstellungen → Schreibstile** legst du einen **Standardstil** fest und eigene Stile an, auf Wunsch **aus eigenen Beispieltexten gelernt** (die Texte werden nicht gespeichert). Ein Stil ändert nur Ton, Länge und Gliederung, nie die Regeln und Rückfragen.
+
 ## Zugriff auf Home Assistant
 
 Die KI kann Home Assistant benutzen: Zustände ansehen, Verlauf und Logbuch lesen, Geräte schalten und, mit der höchsten Stufe, Automationen, Skripte, Szenen, Dashboards und Helfer bauen. Beispiele:

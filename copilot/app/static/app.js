@@ -1871,6 +1871,177 @@ function memoryImportDone(body, result, back) {
   body.scrollTop = 0;
 }
 
+// ------------------------------------------------- Schreibstile
+
+// Ein Stil legt Ton, Länge und Gliederung der Antworten fest. Er gilt je Chat (Menü unter dem Eingabefeld) oder als Standard der Person.
+async function loadStyles(force = false) {
+  if (state.styles && !force) return state.styles;
+  try { state.styles = await api("api/styles"); } catch { state.styles ||= { presets: [], own: [], default: "", max: 20, limits: {} }; }
+  return state.styles;
+}
+
+function styleById(id) {
+  const all = state.styles ? [...state.styles.presets, ...state.styles.own] : [];
+  return all.find((x) => x.id === id) || null;
+}
+
+// Name des Stils, der in diesem Chat gilt (leer = Standard der Person)
+function styleLabel(id) {
+  if (id === "none") return tr("Ohne Stil");
+  const found = styleById(id || state.styles?.default || "");
+  return found ? found.name : tr("Kein Stil");
+}
+
+function styleMenuEntries() {
+  const st = state.styles || { presets: [], own: [], default: "" };
+  const standard = styleById(st.default);
+  const entries = [
+    { value: "style:", label: tr("Standard"), detail: standard ? standard.name : tr("Kein Stil"), active: !state.style },
+    { value: "style:none", label: tr("Ohne Stil"), active: state.style === "none" },
+    { divider: true },
+    ...st.presets.map((x) => ({ value: `style:${x.id}`, label: x.name, active: state.style === x.id })),
+  ];
+  if (st.own.length) entries.push({ divider: true }, ...st.own.map((x) => ({ value: `style:${x.id}`, label: x.name, active: state.style === x.id })));
+  entries.push({ divider: true }, { value: "style:manage", label: tr("Stile verwalten …") });
+  return entries;
+}
+
+function chooseStyle(id) {
+  if (id === "manage") { openSettings("styles").catch(() => {}); return; }
+  state.style = id;
+  state.styleChanged = true;
+  toast(id === "none" ? tr("Ab der nächsten Nachricht antworte ich ohne besonderen Stil.") : tr("Ab der nächsten Nachricht antworte ich im Stil „{0}“.", styleLabel(id)));
+}
+
+// Eigenen Stil anlegen oder ändern. Mit „Aus Beispieltext lernen“ leite ich die Beschreibung aus eigenen Texten ab; sie lässt sich danach bearbeiten.
+async function editStyle(existing, learn = false) {
+  const limits = state.styles?.limits || {};
+  let saved = null;
+  await openSheet({
+    title: existing ? tr("Stil bearbeiten") : learn ? tr("Stil aus Beispieltext lernen") : tr("Neuer Stil"),
+    ok: tr("Speichern"),
+    panel: (body) => {
+      body.classList.add("tall");
+      const field = (label, el) => { const l = node("label", "sheet-label", label); el.setAttribute("aria-label", label); return [l, el]; };
+      const name = node("input", "field");
+      name.maxLength = limits.name || 40;
+      name.value = existing?.name || "";
+      const description = node("input", "field");
+      description.maxLength = limits.description || 160;
+      description.value = existing?.description || "";
+      description.placeholder = tr("Kurz, was den Stil ausmacht (optional)");
+      const text = node("textarea", "field area");
+      text.rows = 5;
+      text.maxLength = limits.instructions || 1500;
+      text.value = existing?.instructions || "";
+      text.placeholder = tr("Zum Beispiel: Schreibe knapp und sachlich, ohne Einleitung. Nutze Listen nur bei Schritten.");
+      const status = node("p", "mem-hint", "");
+      if (learn) {
+        const sample = node("textarea", "field area");
+        sample.rows = 5;
+        sample.maxLength = limits.learn || 12000;
+        sample.placeholder = tr("Füge hier Texte ein, die du selbst geschrieben hast (E-Mails, Notizen, Beiträge). Mindestens ein paar Absätze.");
+        const go = node("button", "pill ghost small", tr("Stil ableiten"));
+        go.type = "button";
+        go.addEventListener("click", async () => {
+          go.disabled = true;
+          status.textContent = tr("Ich lese deine Texte …");
+          try {
+            const found = await api("api/styles/learn", { method: "POST", body: JSON.stringify({ text: sample.value }) });
+            text.value = found.instructions;
+            status.textContent = tr("Das ist mein Vorschlag. Du kannst ihn ändern, bevor du speicherst. Deine Texte habe ich nicht gespeichert.");
+          } catch (err) { status.textContent = errorText(err, tr("Das hat nicht geklappt.")); }
+          go.disabled = false;
+        });
+        body.append(...field(tr("Beispieltexte"), sample), go, status);
+      }
+      body.append(...field(tr("Name"), name), ...field(tr("Kurzbeschreibung"), description), ...field(tr("Anweisung an mich"), text));
+      if (!learn) body.append(status);
+      saveStyle = async () => {
+        if (!name.value.trim() || !text.value.trim()) { status.textContent = tr("Der Stil braucht einen Namen und eine Anweisung."); return false; }
+        const payload = JSON.stringify({ name: name.value, description: description.value, instructions: text.value });
+        try {
+          saved = existing
+            ? await api(`api/styles/${encodeURIComponent(existing.id)}`, { method: "PUT", body: payload })
+            : await api("api/styles", { method: "POST", body: payload });
+          return true;
+        } catch (err) { status.textContent = errorText(err, tr("Das hat nicht geklappt.")); return false; }
+      };
+    },
+    onOk: () => saveStyle(),
+  });
+  $("sheet-panel").classList.remove("tall");
+  return saved;
+}
+let saveStyle = async () => false;
+
+function stylesPanel(body, alive) {
+  const draw = async () => {
+    const st = await loadStyles(true);
+    if (!alive()) return;
+    const parts = [];
+
+    const defaultRow = node("div", "set-row");
+    const text = node("div", "set-row-text");
+    text.append(node("b", "", tr("Standardstil")), node("span", "", tr("Gilt in jedem Chat, in dem du nichts anderes wählst. Im Chat wählst du den Stil unter dem Eingabefeld.")));
+    const select = node("select", "field set-select");
+    select.setAttribute("aria-label", tr("Standardstil"));
+    select.append(new Option(tr("Kein Stil"), ""));
+    for (const x of [...st.presets, ...st.own]) select.append(new Option(x.name, x.id));
+    select.value = st.default;
+    select.addEventListener("change", async () => {
+      try { await api("api/me/style", { method: "PUT", body: JSON.stringify({ style: select.value }) }); st.default = select.value; toast(tr("Standardstil gespeichert.")); }
+      catch { toast(tr("Das hat nicht geklappt.")); select.value = st.default; }
+    });
+    defaultRow.append(text, select);
+    parts.push(defaultRow);
+
+    const list = (title, hint, items, own) => {
+      const box = node("section", "mem-section");
+      box.append(node("h4", "", title), node("p", "mem-hint", hint));
+      if (!items.length) box.append(node("p", "mem-empty", tr("Noch keine eigenen Stile.")));
+      for (const x of items) {
+        const row = node("div", "mem-entry");
+        const t = node("div", "mem-entry-text");
+        t.append(node("b", "", x.name), node("span", "mem-hint", x.description || (own ? x.instructions.slice(0, 120) : "")));
+        row.append(t);
+        if (own) {
+          const edit = node("button", "pill ghost small", tr("Bearbeiten"));
+          edit.type = "button";
+          edit.addEventListener("click", async () => { if (await editStyle(x)) draw(); });
+          const del = node("button", "pill ghost small", tr("Löschen"));
+          del.type = "button";
+          del.addEventListener("click", async () => {
+            const yes = await openSheet({ title: tr("Stil löschen?"), sub: tr("„{0}“ wird gelöscht. Chats, die ihn nutzen, antworten danach im Standardstil.", x.name), ok: tr("Löschen"), danger: true });
+            if (!yes) return;
+            try { await api(`api/styles/${encodeURIComponent(x.id)}`, { method: "DELETE" }); } catch { toast(tr("Löschen hat nicht geklappt.")); }
+            draw();
+          });
+          row.append(edit, del);
+        }
+        box.append(row);
+      }
+      return box;
+    };
+    parts.push(list(tr("Vorgaben"), tr("Diese Stile bringe ich mit."), st.presets, false));
+    const mine = list(tr("Eigene Stile"), tr("Du kannst bis zu {0} eigene Stile anlegen.", st.max), st.own, true);
+    const bar = node("div", "mem-actions");
+    const add = node("button", "pill primary small", tr("Neuer Stil"));
+    add.type = "button";
+    add.disabled = st.own.length >= st.max;
+    add.addEventListener("click", async () => { if (await editStyle(null)) draw(); });
+    const learn = node("button", "pill ghost small", tr("Aus Beispieltext lernen"));
+    learn.type = "button";
+    learn.disabled = st.own.length >= st.max;
+    learn.addEventListener("click", async () => { if (await editStyle(null, true)) draw(); });
+    bar.append(add, learn);
+    mine.append(bar);
+    parts.push(mine);
+    body.replaceChildren(...parts);
+  };
+  draw();
+}
+
 function memoryPanel(body) {
   const draw = async () => {
     body.classList.remove("tall");
@@ -5881,6 +6052,7 @@ async function sendMessage(edit = null, spoken = null) {
         ...((state.me?.models?.length || 0) > 1 && validModel(state.model) ? { model: state.model } : {}),
         ...(state.me?.web && !state.web ? { web: false } : {}),
         ...(researchOn() ? { research: true } : {}),
+        ...(state.style ? { style: state.style } : state.styleChanged ? { style: "" } : {}),
       }),
     });
     if (!response.ok) throw await sendFailure(response);
@@ -5996,6 +6168,8 @@ function markTools() {
 // Modell des geöffneten Chats (gemerkt auf dem Server); ein neuer Chat startet ohne eigene Wahl, es gilt dann das Standardmodell der Person.
 function useChatModel(chat) {
   state.model = chat && validModel(chat.model) ? chat.model : "";
+  state.style = chat?.style_id || "";
+  state.styleChanged = false;
   markTools();
   refreshLimits().catch(() => {});
 }
@@ -6060,6 +6234,9 @@ async function phoneToolsMenu() {
           const effort = row("mm-link", node("span", "mm-name", tr("Aufwand")), node("span", "mm-detail", effortLabel(state.effort)), icon("chevron"));
           effort.addEventListener("click", effortPage);
           body.append(effort);
+          const styleRow = row("mm-link", node("span", "mm-name", tr("Stil")), node("span", "mm-detail", styleLabel(state.style)), icon("chevron"));
+          styleRow.addEventListener("click", stylePage);
+          body.append(styleRow);
           if (me.web) {
             const sw = node("span", "pop-switch" + (state.web ? " on" : ""));
             sw.setAttribute("aria-hidden", "true");
@@ -6078,6 +6255,21 @@ async function phoneToolsMenu() {
             research.addEventListener("click", pick("research"));
             body.append(research);
           }
+        };
+        const stylePage = async () => {
+          await loadStyles();
+          $("sheet-title").textContent = tr("Stil");
+          body.replaceChildren();
+          const back = row("mm-back", icon("chevron"), node("span", "", tr("Zurück")));
+          back.addEventListener("click", main);
+          const card = node("div", "mm-card");
+          for (const entry of styleMenuEntries()) {
+            if (entry.divider) continue;
+            const r = row("mm-row", node("span", "mm-text mm-name", entry.label), ...(entry.active ? [icon("check")] : []));
+            r.addEventListener("click", pick(entry.value));
+            card.append(r);
+          }
+          body.append(back, card);
         };
         const effortPage = () => {
           $("sheet-title").textContent = tr("Aufwand");
@@ -6123,6 +6315,8 @@ async function toolsMenu() {
       const gpt = openai.filter((m) => m.id !== current).map((m) => modelEntryFor(m.id));
       entries.push({ label: tr("Weitere Modelle"), submenu: [...others, ...(gpt.length ? [{ divider: true }, ...gpt] : [])] });
     }
+    await loadStyles();
+    entries.push({ label: tr("Stil"), detail: styleLabel(state.style), submenu: styleMenuEntries() });
     if (me.web) {
       entries.push({ divider: true });
       entries.push({ value: "web", icon: "globe", label: tr("Websuche"), active: state.web, toggle: state.web });
@@ -6156,6 +6350,8 @@ async function toolsMenu() {
   } else if (typeof choice === "string" && choice.startsWith("effort:")) {
     state.effort = choice.slice(7);
     try { localStorage.setItem("ki-effort", state.effort); } catch { /* optional */ }
+  } else if (typeof choice === "string" && choice.startsWith("style:")) {
+    chooseStyle(choice.slice(6));
   } else if (choice === "web") {
     state.web = !state.web;
     try { localStorage.setItem("ki-web", state.web ? "on" : "off"); } catch { /* optional */ }
@@ -7857,6 +8053,7 @@ function settingsGroups() {
     page("general", "sliders", tr("Allgemein"), "", settingsGeneral),
     page("usage", "gauge", tr("Nutzung"), tr("Wie viel vom Abo, von ChatGPT und von den Bildern verbraucht ist."), settingsUsage),
   ];
+  prefs.push(page("styles", "edit", tr("Schreibstile"), tr("Wie ich antworte: kurz, ausführlich, locker, formell oder in deinem eigenen Stil."), stylesPanel));
   if (me.memory) prefs.push(page("memory", "memory", tr("Gedächtnis"), tr("Die KI merkt sich, was du ihr sagst, und nutzt es in allen Chats. Du kannst jeden Eintrag löschen."), memoryPanel));
   prefs.push(page("github", "github", "GitHub", tr("Verbinde dein GitHub-Konto, damit die KI mit deinen Repositories arbeiten kann."), githubPanel, { solid: true }));
   if (me.notify) prefs.push(page("notify", "bell", tr("Benachrichtigungen"), tr("Wann und wohin ich dir aufs Handy Bescheid gebe."), notifyPanel));
