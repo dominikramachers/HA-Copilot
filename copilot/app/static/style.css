@@ -45,6 +45,7 @@
 @media (pointer: coarse) { .nav-item { height: 42px; } }
 .pill.ghost { background: var(--chip); color: var(--text); }
 .pill.danger { background: var(--danger); color: #fff; }
+.gh-expired { color: var(--danger); }
 .pill:disabled { opacity: .5; cursor: default; }
 
 .side-scroll { flex: 1; overflow-y: auto; padding: 4px 10px 14px; overscroll-behavior: contain; }
@@ -1113,6 +1114,7 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .skill-badge { padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--text-2); font-size: 11.5px; font-weight: 600; }
 .skill-badge.ext { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 .skill-badge.off { color: var(--muted); }
+.conn-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: auto; padding-top: 8px; }
 .skill-add { display: flex; align-items: center; margin-top: auto; padding-top: 4px; }
 .skill-added { color: var(--muted); font-size: 13px; }
 .skill-card .skill-add .pill { height: 34px; padding: 0 16px; font-size: 14px; }

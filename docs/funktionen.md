@@ -142,7 +142,7 @@ Einrichtung für dich:
 
 1. Unten links im Konto-Menü **Einstellungen** öffnen und dort **GitHub** wählen (der Eintrag erscheint, wenn der Administrator dir `read` oder `write` gegeben hat).
 2. **Mit GitHub verbinden** wählen, den angezeigten Code bei GitHub eingeben und bestätigen. Alternativ **Token einfügen**.
-3. Fertig: Der Dialog zeigt „Verbunden als …“. **Trennen** löscht das Token wieder.
+3. Fertig: Der Dialog zeigt „Verbunden als …“. **Trennen** löscht das Token wieder. Ist der Zugang bei GitHub widerrufen oder abgelaufen (ab 0.59.2), steht dort ein Hinweis und der Knopf **Neu verbinden**.
 
 Für den Administrator: Seit 0.57.3 braucht GitHub keine Freigabe mehr; die Optionen `github_access` und `chat.github_access_default` entfallen (alte Einträge werden ignoriert). Die Tokens der Personen liegen verschlüsselt im Add-on. Ein gemeinsames Token (`github_token`) und die Freigabeliste `github_repos` gibt es seit 0.47.0 nicht mehr; alte Einträge in der Konfiguration kannst du löschen.
 

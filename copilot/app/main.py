@@ -1197,8 +1197,9 @@ def register_chat_routes(
             raise HTTPException(status_code=429, detail=tr("Zu viele Versuche. Bitte in ein paar Minuten noch einmal."))
 
     @app.get("/api/github/account")
-    def github_account(profile: Profile = Depends(current_profile)) -> dict:
-        """Stand des GitHub-Zugangs dieser Person (das Token selbst verlässt das Add-on nie)."""
+    async def github_account(profile: Profile = Depends(current_profile)) -> dict:
+        """Stand des GitHub-Zugangs dieser Person (das Token selbst verlässt das Add-on nie); ``expired``: GitHub lehnt das Token ab."""
+        await accounts.check(profile.id)
         return {
             **accounts.info(profile.id),
             "level": "write",
@@ -1649,6 +1650,8 @@ def register_chat_routes(
 
     @app.get("/preview/{preview_id}", response_class=HTMLResponse)
     def show_preview(preview_id: str, profile: Profile = Depends(current_profile)) -> HTMLResponse:
+        # Absichtlich: das HTML-Artefakt der eigenen Person wird als Vorschau gezeigt. Schutz sind die Kopfzeilen
+        # (``sandbox`` ohne ``allow-same-origin``, ``default-src 'none'``; siehe previews.py), die zufällige, nur für diese Person gültige Adresse und das Ablaufen nach einer Stunde.
         page = previews.get(profile.id, preview_id)
         if page is None:
             raise HTTPException(status_code=404, detail=tr("Die Vorschau ist abgelaufen."))

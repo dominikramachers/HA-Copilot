@@ -523,3 +523,13 @@ def test_scheduled_tasks_have_no_image_tools():
     from pathlib import Path
 
     assert "ImageToolbox" not in (Path(__file__).parent.parent / "app" / "scheduler.py").read_text(encoding="utf-8")
+
+
+def test_svg_with_entities_or_doctype_is_refused_by_the_parser_too():
+    import pytest as _pytest  # noqa: PLC0415
+    from app.images import ImageError, check_svg  # noqa: PLC0415
+    bomb = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><text>&lol;</text></svg>'
+    with _pytest.raises(ImageError):
+        check_svg('<!DOCTYPE svg [<!ENTITY lol "lol">]>' + bomb)
+    with _pytest.raises(ImageError, match="kein gültiges XML"):
+        check_svg(bomb)  # undefinierte Entität: weiter ein gewöhnlicher Fehler, kein Absturz

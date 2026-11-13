@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.59.2",
+    "items": [
+      {
+        "de": {
+          "title": "Ich merke, wenn GitHub nicht mehr geht",
+          "text": "Wenn dein GitHub-Zugang abgelaufen ist oder widerrufen wurde, sage ich es dir jetzt in den Einstellungen und du kannst mit einem Knopf neu verbinden."
+        },
+        "en": {
+          "title": "I notice when GitHub stops working",
+          "text": "If your GitHub access has expired or was revoked, I now tell you in the settings, and you can reconnect with one button."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.59.1",
     "items": [
       {

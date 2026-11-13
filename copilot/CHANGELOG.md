@@ -1,5 +1,18 @@
 # Änderungen
 
+## 0.59.2
+GitHub: ein abgelehnter Zugang wird in den Einstellungen sichtbar; Abhängigkeiten und zwei Sicherheitsmeldungen.
+- **Anlass:** Die KI bekam bei GitHub dreimal `401 Unauthorized` (Repository, Ordner, Datei), während die Einstellungen weiter „Verbunden als …“ zeigten. Das Add-on prüfte das Token nur beim Verbinden (`GET /user` in `_store_token`) und nie wieder.
+- **Prüfung beim Öffnen:** `GithubAccounts.check(profile_id)` fragt `GET /user` ab, höchstens alle `CHECK_SECONDS` = 600 s je Person (Zeit der Prüfung, auch bei „abgelehnt“). Nur `401` gilt als abgelaufen; Zeitüberschreitung, Rate-Limit oder 5xx ändern nichts. `GET /api/github/account` ist dafür `async` und liefert zusätzlich `expired`.
+- **Merker aus dem Chat:** `GithubApi` hat den Rückruf `on_unauthorized`; das persönliche Konto setzt damit `expired`, sobald GitHub bei einem Werkzeugaufruf `401` meldet (nur Arbeitsspeicher, `_expired`). Neu Verbinden, Token ersetzen und Trennen löschen den Merker.
+- **Oberfläche:** Bei `expired` zeigt die Seite GitHub „GitHub lehnt deinen Zugang ab: …“ (rot) mit **Neu verbinden** (trennt und startet den Code-Ablauf) und **Trennen**. Die Fehlermeldung für die KI sagt jetzt klar „abgelaufen oder widerrufen … unter „GitHub“ neu verbinden“.
+- Die Zeile „GitHub“ in der Einrichtungsprüfung kannte `401` schon; sie bleibt unverändert.
+- **Konnektor-Kacheln:** „Privat“/„Für alle“ und der Stand („Verbunden“ …) stehen jetzt unten in der Kachel, vor der Zahl der Werkzeuge (`.conn-foot`, bei allen Kacheln auf einer Linie), nicht mehr direkt unter dem Namen. Die Detailansicht ist unverändert.
+- **Abhängigkeiten (ersetzt den Dependabot-PR #100):** `fastapi` ≥ 0.162.4, `claude-agent-sdk` ≥ 0.2.180, `pypdf` ≥ 7.0.1 (Sicherheitskorrektur zu Bildgrößen) und `pypdfium2` 5.15.2 (Korrektur beim Schließen am Programmende). Die volle Testsuite läuft mit diesen Ständen.
+- **Sicherheit: XML-Auswertung (CodeQL `py/xml-bomb`, Meldung #16).** SVG-Bilder der KI (`images.check_svg`) und die XML-Teile hochgeladener Office-Dateien (`office._xml`) werden jetzt mit `defusedxml` gelesen (`forbid_dtd=True`); DOCTYPE und Entitäten sind damit schon im Parser verboten, nicht nur durch die vorherige Textprüfung. Neue Abhängigkeit `defusedxml` (reines Python, hängt ohnehin an `cairosvg`).
+- **Sicherheit: HTML-Vorschau (CodeQL `py/reflective-xss`, Meldung #17).** Kein Codefehler, sondern gewollt: `GET /preview/{id}` liefert das HTML-Artefakt der eigenen Person aus. Es ist durch die Kopfzeilen abgeschirmt (`sandbox allow-scripts` ohne `allow-same-origin`, also eigene Herkunft ohne Zugriff auf die Oberfläche; `default-src 'none'`, kein Netzwerk, keine Formulare), die Adresse ist zufällig, nur für diese Person gültig und läuft nach einer Stunde ab (`tests/test_previews.py`). Nur ein Kommentar im Code erklärt das jetzt; die Meldung gehört in GitHub als „Falsch positiv“ geschlossen.
+- Tests (`tests/test_github_accounts.py`): abgelehntes Token wird als `expired` gemeldet, Prüfung höchstens alle 10 Minuten, Merker aus Werkzeugaufruf, Fehler ohne `401` ändern nichts, Neu Verbinden und Trennen löschen den Merker.
+
 ## 0.59.1
 Konnektoren: keine Begrenzung der Werkzeuge mehr.
 - **Alle Werkzeuge eines Konnektors sind nutzbar.** Bisher las das Add-on höchstens 40 Werkzeuge je Konnektor ein (`MAX_TOOLS`, der Rest erschien als „weitere wurden ausgelassen“) und bot höchstens 80 je Antwort an (`MAX_TOOLS_PER_ANSWER`). Beide Grenzen entfallen; `MAX_TOOLS` ist nur noch eine Schutzgrenze von 1000 gegen fehlerhafte Server. Eigener Stand: Lesende Werkzeuge sind weiter an, schreibende aus, bis sie eingeschaltet werden; ein Neu-Einlesen behält die Auswahl.

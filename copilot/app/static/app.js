@@ -3305,10 +3305,15 @@ function connCard(c) {
     connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ enabled: on }) }));
     renderSkills();
   }));
-  card.append(top, connBadges(c));
+  card.append(top);
   if (c.description) card.append(node("p", "skill-desc", c.description));
+  // Unten in der Kachel (bei allen auf einer Linie): Art und Stand als Marken, danach die Zahl der Werkzeuge
   const on = c.tools.filter((t) => t.enabled).length;
-  card.append(node("small", "mem-meta", c.status === "ok" ? tr("{0} von {1} Werkzeugen an", on, c.tools.length) : c.message || tr("Noch nicht verbunden.")));
+  if (c.status !== "ok") card.append(node("small", "mem-meta", c.message || tr("Noch nicht verbunden.")));
+  const foot = node("div", "conn-foot");
+  foot.append(connBadges(c));
+  if (c.status === "ok") foot.append(node("small", "mem-meta", tr("{0} von {1} Werkzeugen an", on, c.tools.length)));
+  card.append(foot);
   card.addEventListener("click", (event) => { if (!event.target.closest("button")) connOpen(c.id); });
   return card;
 }
@@ -8151,6 +8156,22 @@ function githubPanel(body, alive) {
   const renderConnected = (info) => {
     const who = node("p", "gh-who");
     who.append(icon("github", true), node("span", "", tr("Verbunden als {0}", info.login || "GitHub")));
+    if (info.expired) {
+      const gone = node("p", "mem-hint gh-expired", tr("GitHub lehnt deinen Zugang ab: Er ist abgelaufen oder wurde widerrufen. Die KI kann dein GitHub gerade nicht nutzen. Verbinde dich neu."));
+      show(
+        who,
+        gone,
+        actions(
+          button(tr("Neu verbinden"), "primary", async (b) => {
+            b.disabled = true;
+            try { await api("api/github/account", { method: "DELETE" }); await refreshMe(); } catch (e) { b.disabled = false; fail(e, tr("Das Trennen hat nicht geklappt.")); return; }
+            startDevice(b);
+          }),
+          button(tr("Trennen"), "danger", () => renderDisconnect(info)),
+        ),
+      );
+      return;
+    }
     show(
       who,
       hint(githubLevelText(info.level)),

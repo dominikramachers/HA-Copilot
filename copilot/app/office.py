@@ -12,6 +12,8 @@ import zipfile
 from datetime import datetime, timedelta
 from xml.etree import ElementTree as ET
 
+from defusedxml import DefusedXmlException, ElementTree as SafeET
+
 from .i18n import tr
 
 MAX_ENTRIES = 3000
@@ -105,7 +107,9 @@ def _xml(zf: zipfile.ZipFile, name: str, required: bool = True) -> ET.Element | 
     if b"<!doctype" in head or b"<!entity" in raw[:65536].lower():
         raise OfficeError(tr("enthält unzulässige XML-Deklarationen und wird nicht gelesen."))
     try:
-        return ET.fromstring(raw)
+        return SafeET.fromstring(raw, forbid_dtd=True)
+    except DefusedXmlException:
+        raise OfficeError(tr("enthält unzulässige XML-Deklarationen und wird nicht gelesen.")) from None
     except ET.ParseError:
         raise OfficeError(tr("ist beschädigt (XML nicht lesbar).")) from None
 

@@ -1230,5 +1230,7 @@
  "{0} wird abgemeldet. Zum erneuten Anmelden öffnest du die App und meldest dich wieder an.": "{0} will be signed out. To sign in again, open the app and sign in once more.",
  "App-Einstellungen": "App settings",
  "Alle Änderungs-Werkzeuge einschalten": "Switch on all change tools",
- "Alle Änderungs-Werkzeuge ausschalten": "Switch off all change tools"
+ "Alle Änderungs-Werkzeuge ausschalten": "Switch off all change tools",
+ "GitHub lehnt deinen Zugang ab: Er ist abgelaufen oder wurde widerrufen. Die KI kann dein GitHub gerade nicht nutzen. Verbinde dich neu.": "GitHub rejects your access: it has expired or was revoked. I can’t use your GitHub right now. Please reconnect.",
+ "Neu verbinden": "Reconnect"
 }
