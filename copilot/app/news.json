@@ -4,6 +4,16 @@
     "items": [
       {
         "de": {
+          "title": "Alle Artefakte an einem Ort",
+          "text": "Unter „Artefakte“ in der Seitenleiste findest du alles, was ich für dich gebaut habe. Such nach Titel oder Inhalt, filtere nach Projekt oder Art und öffne es mit einem Klick."
+        },
+        "en": {
+          "title": "All artifacts in one place",
+          "text": "Under “Artifacts” in the sidebar you find everything I have built for you. Search by title or content, filter by project or type, and open it with one click."
+        }
+      },
+      {
+        "de": {
           "title": "Artefakte neben dem Chat",
           "text": "Wenn ich dir eine Seite, Zeichnung, ein Dokument oder ein Skript baue, öffne ich es neben dem Chat. Du kannst es selbst ändern, im Projekt ablegen, herunterladen und den Text per Link teilen."
         },

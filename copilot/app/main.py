@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Literal
 
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from starlette.datastructures import Headers
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -2007,10 +2007,15 @@ def register_chat_routes(
         return Response(status_code=204)
 
     @app.get("/api/artifacts")
-    def list_artifacts(shared: bool = False, profile: Profile = Depends(current_profile)) -> list[dict]:
-        """Alle Artefakte der Person (ohne Inhalt), mit ``shared`` = Wege, auf denen sie gerade geteilt sind; ``shared=true`` nur die geteilten."""
+    def list_artifacts(
+        shared: bool = False, q: str = Query(default="", max_length=100), kind: Literal["", "html", "svg", "markdown", "code"] = "",
+        project: str = Query(default="", max_length=64), profile: Profile = Depends(current_profile),
+    ) -> list[dict]:
+        """Alle Artefakte der Person (ohne Inhalt) für die Bibliothek: Suche in Titel und Inhalt (`q`), Filter nach Art und Projekt (`none` = ohne Projekt);
+        `shared` = Wege, auf denen sie gerade geteilt sind, mit `shared=true` nur die geteilten."""
         modes = store.artifact_share_modes(profile.id) if settings.sharing != "off" else {}
-        items = [{**a, "shared": modes.get(a["id"], [])} for a in store.artifact_list(profile.id)]
+        found = store.artifact_list(profile.id, query=q.strip(), kind=kind, project=project or None)
+        items = [{**a, "shared": modes.get(a["id"], [])} for a in found]
         return [a for a in items if a["shared"]] if shared else items
 
     # ------------------------------------------------------------ Projektwissen

@@ -4955,6 +4955,99 @@ async function shareArtifact(data) {
   $("sheet-panel").classList.remove("share-panel");
 }
 
+// Bibliothek: alle Artefakte der Person an einem Ort, mit Suche (Titel, Chat, Inhalt), Art und Projekt. Ein Klick öffnet den Chat samt Fenster.
+const artifactLibrary = { query: "", kind: "", project: "" };
+
+async function openArtifactLibrary() {
+  let picked = null;
+  await openSheet({
+    title: tr("Artefakte"), sub: tr("Alles, was die KI für dich gebaut hat"), plain: true, wide: true,
+    panel: (body) => {
+      body.classList.add("shared-panel", "art-lib");
+      const view = artifactLibrary;
+      const search = node("input", "field art-lib-search");
+      search.type = "search";
+      search.placeholder = tr("Artefakte suchen");
+      search.setAttribute("aria-label", tr("Artefakte suchen"));
+      search.value = view.query;
+      const project = node("select", "field art-lib-project");
+      project.setAttribute("aria-label", tr("Projekt"));
+      const tools = node("div", "art-lib-tools");
+      tools.append(search, project);
+      const tabs = node("div", "skills-tabs art-lib-kinds");
+      tabs.setAttribute("role", "tablist");
+      const tabButtons = new Map();
+      const kinds = [["", tr("Alle")], ["html", tr("Seiten")], ["svg", tr("Grafiken")], ["markdown", tr("Dokumente")], ["code", tr("Code")]];
+      for (const [id, label] of kinds) {
+        const button = node("button", "skills-tab", label);
+        button.type = "button";
+        button.setAttribute("role", "tab");
+        button.addEventListener("click", () => { view.kind = id; draw(); });
+        tabButtons.set(id, button);
+        tabs.append(button);
+      }
+      const list = node("div", "shared-list art-lib-list");
+      body.append(tools, tabs, list);
+
+      const fillProjects = () => {
+        const options = [["", tr("Alle Projekte")], ["none", tr("Ohne Projekt")], ...state.projects.map((p) => [p.id, p.name])];
+        project.replaceChildren(...options.map(([value, label]) => { const o = node("option", "", label); o.value = value; return o; }));
+        if (!options.some(([value]) => value === view.project)) view.project = "";
+        project.value = view.project;
+      };
+
+      let seq = 0;
+      const draw = async () => {
+        for (const [id, button] of tabButtons) button.setAttribute("aria-selected", String(id === view.kind));
+        const mine = ++seq;
+        const params = new URLSearchParams();
+        if (view.query.trim()) params.set("q", view.query.trim());
+        if (view.kind) params.set("kind", view.kind);
+        if (view.project) params.set("project", view.project);
+        let items;
+        try { items = await api(`api/artifacts${params.size ? `?${params}` : ""}`); } catch (err) { list.textContent = errorText(err, tr("Das hat nicht geklappt.")); return; }
+        if (mine !== seq) return; // eine neuere Anfrage läuft schon
+        if (!items.length) {
+          const filtered = view.query.trim() || view.kind || view.project;
+          const empty = node("div", "shared-empty");
+          empty.append(icon("code"), node("p", "", filtered ? tr("Keine passenden Artefakte.") : tr("Noch keine Artefakte. Bitte mich um eine Seite, Grafik, ein Dokument oder ein Skript.")));
+          if (filtered) {
+            const reset = node("button", "pill ghost small", tr("Filter zurücksetzen"));
+            reset.type = "button";
+            reset.addEventListener("click", () => { Object.assign(view, { query: "", kind: "", project: "" }); search.value = ""; fillProjects(); draw(); });
+            empty.append(reset);
+          }
+          list.replaceChildren(empty);
+          return;
+        }
+        list.replaceChildren(...items.map((a) => {
+          const [label, ic] = artifactKinds()[a.kind] || [tr("Artefakt"), "code"];
+          const item = node("div", "shared-item");
+          const open = node("button", "shared-open");
+          open.type = "button";
+          const where = [state.projects.find((p) => p.id === a.project_id)?.name, a.chat_title].filter(Boolean).join(" · ");
+          const bits = [a.kind === "code" && a.language ? `${label} · ${a.language}` : label, tr("Version {0}", a.version), where, searchDate(a.updated_at)];
+          if (a.in_content) bits.push(tr("Treffer im Inhalt"));
+          const text = node("span", "share-text");
+          text.append(node("b", "", a.title), node("span", "share-hint", bits.filter(Boolean).join(" · ")));
+          open.append(icon(ic), text);
+          if (a.shared?.length) { const mark = icon("share"); mark.classList.add("art-lib-shared"); open.append(mark); open.title = tr("Geteilt"); }
+          open.addEventListener("click", () => { picked = async () => { await selectChat(a.chat_id); await openArtifact(a.id).catch(() => {}); }; closeSheet(true); });
+          item.append(open);
+          return item;
+        }));
+      };
+      let timer = 0;
+      search.addEventListener("input", () => { view.query = search.value; clearTimeout(timer); timer = setTimeout(draw, 250); });
+      project.addEventListener("change", () => { view.project = project.value; draw(); });
+      fillProjects();
+      draw();
+    },
+  });
+  $("sheet-panel").classList.remove("shared-panel", "art-lib");
+  if (picked) await picked();
+}
+
 // Die Karte im Chat zeigt die Versionsnummer; nach einer eigenen Änderung wird sie nachgezogen.
 function refreshArtifactCards(id) {
   const data = artifactUi.data;
@@ -7432,6 +7525,7 @@ function searchActions() {
     { icon: "plus", label: tr("Neuer Chat"), run: () => startNew() },
     { icon: "folder", label: tr("Neues Projekt"), run: () => createProject() },
     { icon: "skill", label: tr("Anpassungen"), run: () => openSkills() },
+    { icon: "code", label: tr("Artefakte"), run: () => openArtifactLibrary() },
   ];
   if (state.me?.schedules) list.push({ icon: "clock", label: tr("Geplant"), run: () => openSchedules() });
   if (state.me?.memory) list.push({ icon: "memory", label: tr("Gedächtnis"), run: () => openMemory() });
@@ -8733,6 +8827,7 @@ async function init() {
   $("nav-search").addEventListener("click", () => { openSearch().catch(() => {}); });
   $("nav-skills").addEventListener("click", () => { openSkills().catch(() => {}); });
   $("nav-shared").addEventListener("click", () => { openSharedChats().catch(() => {}); });
+  $("nav-artifacts").addEventListener("click", () => { openArtifactLibrary().catch(() => {}); });
   initCrumbs();
   initShortcuts();
   $("account").addEventListener("click", () => { accountMenu().catch(() => {}); });

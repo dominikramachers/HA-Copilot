@@ -68,7 +68,7 @@ Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigen
 
 ## Artefakte
 
-- Größere eigenständige Ergebnisse (HTML-Seite, Zeichnung, Dokument, Code-Datei) legt die KI als **Artefakt** an: unter der Antwort steht eine Karte, daneben öffnet sich ein Fenster mit **Vorschau** und **Code**, mit Versionen, Kopieren und Herunterladen. Änderungen („Mach den Titel größer“) erzeugen eine neue Version, die alte bleibt auswählbar. Seiten laufen abgeschottet und ohne Netzwerk. Den Text kannst du selbst ändern (neue Version), eine frühere Version wiederherstellen, das Artefakt im Projekt ablegen oder eine markierte Stelle als Zitat für die nächste Frage nehmen. Mit dem Teilen-Symbol im Fenster gibst du den **Code** (nur lesen, nie als Seite ausgeführt) per Link weiter; **Geteilt** zeigt Artefakte getrennt von Chats.
+- Größere eigenständige Ergebnisse (HTML-Seite, Zeichnung, Dokument, Code-Datei) legt die KI als **Artefakt** an: unter der Antwort steht eine Karte, daneben öffnet sich ein Fenster mit **Vorschau** und **Code**, mit Versionen, Kopieren und Herunterladen. Änderungen („Mach den Titel größer“) erzeugen eine neue Version, die alte bleibt auswählbar. Seiten laufen abgeschottet und ohne Netzwerk. Den Text kannst du selbst ändern (neue Version), eine frühere Version wiederherstellen, das Artefakt im Projekt ablegen oder eine markierte Stelle als Zitat für die nächste Frage nehmen. Mit dem Teilen-Symbol im Fenster gibst du den **Code** (nur lesen, nie als Seite ausgeführt) per Link weiter; **Geteilt** zeigt Artefakte getrennt von Chats. Der Eintrag **Artefakte** in der Seitenleiste ist die Bibliothek: alle Artefakte an einem Ort, mit Suche (Titel, Chat, Inhalt) und Filtern nach Art und Projekt.
 
 ## Mehrere Fassungen einer Antwort
 

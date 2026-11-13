@@ -240,3 +240,51 @@ def test_without_a_project_nothing_is_put_away(client, store):
     chat = store.create_chat("adm01", "Chat", None)["id"]
     made = store.artifact_create("adm01", chat, "markdown", "", "A", "x")
     assert client.post(f"/api/artifacts/{made['id']}/to-project", headers=H).status_code == 409
+
+
+# --- Paket E4: Bibliothek (Suche, Filter) --------------------------------------------------------------------------------
+
+@pytest.fixture()
+def library(store):
+    haus = store.create_project("adm01", "Haus")["id"]
+    c1 = store.create_chat("adm01", "Lichtplan Küche", haus)["id"]
+    c2 = store.create_chat("adm01", "Skripte", None)["id"]
+    a = store.artifact_create("adm01", c1, "html", "", "Abendstimmung", "<h1>Guten Abend</h1>")
+    b = store.artifact_create("adm01", c2, "code", "python", "Backup", "import shutil\nshutil.copy('a', 'b')")
+    d = store.artifact_create("adm01", c1, "markdown", "", "Notizen", "# Über das Dimmen\nImmer Küche zuerst")
+    return {"haus": haus, "c1": c1, "c2": c2, "a": a["id"], "b": b["id"], "d": d["id"]}
+
+
+def test_library_lists_everything_newest_first(client, library):
+    got = client.get("/api/artifacts", headers=as_user(ADM01)).json()
+    assert {x["id"] for x in got} == {library["a"], library["b"], library["d"]}
+    assert all("content" not in x and "in_content" not in x for x in got)
+    assert client.get("/api/artifacts", headers=as_user(DORA)).json() == []
+
+
+def test_library_search_in_title_chat_and_content(client, library):
+    def ids(**params):
+        return [x["id"] for x in client.get("/api/artifacts", params=params, headers=as_user(ADM01)).json()]
+    assert ids(q="backup") == [library["b"]]
+    assert set(ids(q="lichtplan")) == {library["a"], library["d"]}  # Titel des Chats
+    hit = client.get("/api/artifacts", params={"q": "shutil"}, headers=as_user(ADM01)).json()
+    assert [x["id"] for x in hit] == [library["b"]] and hit[0]["in_content"] is True
+    assert client.get("/api/artifacts", params={"q": "backup"}, headers=as_user(ADM01)).json()[0]["in_content"] is False
+    assert ids(q="UBER dimmen") == [library["d"]] and ids(q="KUCHE zuerst") == [library["d"]]  # Umlaute und Groß-/Kleinschreibung egal
+    assert ids(q="gibtesnicht") == [] and ids(q="100%") == [] and ids(q="_") == []  # Sonderzeichen sind keine Platzhalter
+
+
+def test_library_filters_by_kind_and_project(client, library):
+    def ids(**params):
+        return {x["id"] for x in client.get("/api/artifacts", params=params, headers=as_user(ADM01)).json()}
+    assert ids(kind="code") == {library["b"]} and ids(kind="html") == {library["a"]}
+    assert ids(project=library["haus"]) == {library["a"], library["d"]} and ids(project="none") == {library["b"]}
+    assert ids(project=library["haus"], kind="markdown", q="dimmen") == {library["d"]}
+    assert client.get("/api/artifacts", params={"kind": "pdf"}, headers=as_user(ADM01)).status_code == 422
+    assert client.get("/api/artifacts", params={"project": library["haus"]}, headers=as_user(DORA)).json() == []  # fremdes Projekt
+
+
+def test_library_search_sees_only_the_newest_version(client, store, library):
+    store.artifact_update("adm01", library["b"], "print('neu')")
+    assert client.get("/api/artifacts", params={"q": "shutil"}, headers=as_user(ADM01)).json() == []
+    assert [x["id"] for x in client.get("/api/artifacts", params={"q": "print"}, headers=as_user(ADM01)).json()] == [library["b"]]

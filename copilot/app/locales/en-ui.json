@@ -1187,5 +1187,18 @@
  "Das ist dein eigenes Artefakt.": "That is your own artifact.",
  "Das ist nur der Text. Er wird hier nie ausgeführt oder als Seite gezeigt.": "This is only text. It is never run or shown as a page here.",
  "Code kopiert.": "Code copied.",
- "Das ist ein geteiltes Artefakt. Du siehst nur den Text und kannst ihn kopieren. Er zeigt den Stand vom Zeitpunkt des Teilens.": "This is a shared artifact. You only see the text and can copy it. It shows the state at the time it was shared."
+ "Das ist ein geteiltes Artefakt. Du siehst nur den Text und kannst ihn kopieren. Er zeigt den Stand vom Zeitpunkt des Teilens.": "This is a shared artifact. You only see the text and can copy it. It shows the state at the time it was shared.",
+ "Artefakte": "Artifacts",
+ "Alles, was die KI für dich gebaut hat": "Everything the AI has built for you",
+ "Artefakte suchen": "Search artifacts",
+ "Projekt": "Project",
+ "Alle Projekte": "All projects",
+ "Ohne Projekt": "No project",
+ "Seiten": "Pages",
+ "Grafiken": "Graphics",
+ "Dokumente": "Documents",
+ "Treffer im Inhalt": "Match in content",
+ "Keine passenden Artefakte.": "No matching artifacts.",
+ "Filter zurücksetzen": "Reset filters",
+ "Noch keine Artefakte. Bitte mich um eine Seite, Grafik, ein Dokument oder ein Skript.": "No artifacts yet. Ask me for a page, a graphic, a document or a script."
 }

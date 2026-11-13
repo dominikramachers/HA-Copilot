@@ -1495,3 +1495,10 @@ body:has(#sheet.show) .popover { z-index: 52; }
 .share-thread .msg.user { align-self: flex-end; max-width: 85%; }
 .tools-btn.research #tools-effort { color: var(--accent); font-weight: 600; }
 .share-code { max-height: 52vh; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--panel-2); }
+.art-lib-tools { display: flex; gap: 8px; margin: 2px 0 10px; }
+.art-lib-search { flex: 1; min-width: 0; margin: 0; height: 40px; }
+select.art-lib-project { flex: none; width: auto; min-width: 150px; max-width: 42%; height: 40px; margin: 0; padding-right: 40px; }
+.art-lib-kinds { margin-bottom: 8px; overflow-x: auto; }
+.art-lib-list { max-height: 52vh; overflow: auto; }
+.art-lib-shared { flex: none; width: 16px; height: 16px; margin-left: 8px; color: var(--text-2); }
+.art-lib .shared-empty .pill { margin-top: 4px; }

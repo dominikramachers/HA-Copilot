@@ -2505,19 +2505,47 @@ class Store:
             "created_at": row["created_at"], "updated_at": row["updated_at"],
         }
 
-    def artifact_list(self, profile_id: str, chat_id: str | None = None) -> list[dict[str, Any]]:
-        """Artefakte der Person (eines Chats oder alle), zuletzt geändert zuerst, ohne Inhalt."""
+    def artifact_list(
+        self, profile_id: str, chat_id: str | None = None, *, query: str = "", kind: str = "", project: str | None = None, limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """Artefakte der Person (eines Chats oder alle), zuletzt geändert zuerst, ohne Inhalt.
+
+        ``query``: Wörter im Titel, im Chat-Titel oder im Inhalt der neuesten Version (alle müssen vorkommen); ``in_content`` meldet, dass nur der Inhalt trifft.
+        ``kind``: html, svg, markdown oder code. ``project``: Projektkennung oder ``none`` für Chats ohne Projekt.
+        """
         _require(profile_id)
-        where, args = ("AND a.chat_id = ?", (profile_id, chat_id)) if chat_id else ("", (profile_id,))
+        where, args = ["a.profile_id = ?"], [profile_id]
+        if chat_id:
+            where.append("a.chat_id = ?")
+            args.append(chat_id)
+        if kind:
+            where.append("a.kind = ?")
+            args.append(kind)
+        if project == "none":
+            where.append("c.project_id IS NULL")
+        elif project:
+            where.append("c.project_id = ?")
+            args.append(project)
+        words = [w for w in fold(query).split() if w][:6]
+        latest = "(SELECT content FROM artifact_versions v3 WHERE v3.artifact_id = a.id ORDER BY v3.n DESC LIMIT 1)"
+        for word in words:
+            where.append(f"(instr(fold(a.title), ?) > 0 OR instr(fold(c.title), ?) > 0 OR instr(fold({latest}), ?) > 0)")
+            args += [word, word, word]
         with self._lock:
             rows = self._conn.execute(
                 "SELECT a.id, a.chat_id, a.kind, a.language, a.title, a.created_at, a.updated_at, c.title AS chat_title, c.project_id AS project_id, "
                 "(SELECT MAX(n) FROM artifact_versions v WHERE v.artifact_id = a.id) AS version, "
                 "(SELECT v2.by FROM artifact_versions v2 WHERE v2.artifact_id = a.id ORDER BY v2.n DESC LIMIT 1) AS last_by "
-                f"FROM artifacts a JOIN chats c ON c.id = a.chat_id AND c.profile_id = a.profile_id WHERE a.profile_id = ? {where} ORDER BY a.updated_at DESC, a.created_at DESC",
-                args,
+                f"FROM artifacts a JOIN chats c ON c.id = a.chat_id AND c.profile_id = a.profile_id WHERE {' AND '.join(where)} "
+                "ORDER BY a.updated_at DESC, a.created_at DESC LIMIT ?",
+                (*args, max(1, min(limit, 1000))),
             ).fetchall()
-        return [dict(r) for r in rows]
+        out = [dict(r) for r in rows]
+        if words:
+            for item in out:
+                text = fold(f"{item['title']} {item['chat_title']}")
+                item["in_content"] = not all(w in text for w in words)
+        return out
 
     def artifact_update(self, profile_id: str, art_id: str, content: str, note: str = "", by: str = "ai", title: str | None = None) -> dict[str, Any] | None:
         """Neue Version ablegen (gleicher Inhalt: keine neue Version). Liefert ``{id, version, changed}``; ``None``, wenn es das Artefakt nicht gibt."""
