@@ -66,6 +66,10 @@ Mehr: [Inkognito-Chat](../copilot/DOCS.md#inkognito-chat-ab-0560), [Chats teilen
 
 Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigene-daten-ab-0220).
 
+## Mehrere Fassungen einer Antwort
+
+- Mit „Antwort neu erzeugen“ geht die bisherige Antwort nicht verloren: unter der letzten Antwort blätterst du mit `‹ 2/3 ›` zwischen den Fassungen (bis zu 10). Mit einer neuen Frage bleibt nur die gezeigte Fassung. Jede Fassung zählt wie ein eigener Aufruf.
+
 ## Verbrauch im Blick
 
 - Administratoren sehen unter **Einstellungen → Nutzung → Alle Personen**, wer wie viel der KI genutzt hat: Anteil an den Token, Bilder und Wert in Euro (bei englischer Sprache Dollar), für 24 Stunden, heute, diese Woche, diesen Monat oder den letzten Monat. Es werden nur Zahlen gezählt, nie Inhalte. Administrator ist, wer in Home Assistant Administrator ist, oder wer im Benutzer-Eintrag `admin: true` hat.

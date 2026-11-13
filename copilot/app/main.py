@@ -241,6 +241,8 @@ class SendBody(BaseModel):
     files: list[FileBody] = Field(default_factory=list, max_length=filelib.MAX_FILES)
     # Eine frühere eigene Frage bearbeiten: sie und alles danach werden durch diese Nachricht und die neue Antwort ersetzt.
     edit_message_id: int | None = Field(default=None, ge=1)
+    # Mit ``edit_message_id``: dieselbe letzte Frage noch einmal stellen, die bisherige Antwort bleibt als Fassung erhalten (bis 10)
+    regenerate: bool = False
     # Markierter Ausschnitt einer früheren Antwort, auf den sich die Nachricht bezieht (wird als Zitatblock vorangestellt, siehe quotes.py)
     quote: str | None = Field(default=None, max_length=quotes.QUOTE_MAX * 2)
     # Gesprochene Nachricht: schnelles Modell, kurze Antwort zum Vorlesen, weniger Werkzeuge, Rückfragen werden abgelehnt
@@ -253,6 +255,10 @@ class SendBody(BaseModel):
 
 class _Declined(Exception):
     """Die Person hat eine Rückfrage vor dem Start der Antwort abgelehnt (z. B. Monatslimit für ChatGPT)."""
+
+
+class AnswerVersionBody(BaseModel):
+    index: int = Field(ge=1, le=Store.VERSIONS_MAX)
 
 
 class StyleBody(BaseModel):
@@ -1575,6 +1581,16 @@ def register_chat_routes(
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
         return result
 
+    @app.put("/api/chats/{chat_id}/answer", dependencies=[Depends(write_guard)])
+    def choose_answer_version(chat_id: str, body: AnswerVersionBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Eine andere Fassung der letzten Antwort anzeigen (``index`` ab 1, wie ``‹ 2/3 ›`` zählt)."""
+        run = runs.get((profile.id, chat_id))
+        if run and not run.finished:
+            raise HTTPException(status_code=409, detail=tr("Die Antwort läuft noch."))
+        if not store.versions_select(profile.id, chat_id, body.index):
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return store.versions_state(profile.id, chat_id) or {"index": 1, "total": 1}
+
     @app.patch("/api/chats/{chat_id}", dependencies=[Depends(write_guard)])
     async def update_chat(
         chat_id: str, body: PatchChatBody, profile: Profile = Depends(current_profile)
@@ -2593,7 +2609,10 @@ def register_chat_routes(
 
         # Frage bearbeiten: die alte Frage und alles danach wird entfernt (bei einem Fehler ohne Antwort kommt es zurück).
         cut = None
+        regenerate = False
         if body.edit_message_id is not None:
+            if body.regenerate:
+                regenerate = store.versions_pin(profile.id, chat_id, body.edit_message_id)  # nur bei der letzten Antwort
             cut = store.cut_from(profile.id, chat_id, body.edit_message_id)
             if cut is None:
                 raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
@@ -2605,6 +2624,8 @@ def register_chat_routes(
             if cut:
                 store.restore_cut(profile.id, chat_id, cut)
             raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if not regenerate:
+            store.versions_clear(profile.id, chat_id)  # es geht mit einer neuen Frage weiter: nur die letzte Antwort hat Fassungen
         provisional = _title_from(_title_source(text, metas))
         if first_exchange:
             store.rename_chat(profile.id, chat_id, provisional)
@@ -2924,6 +2945,8 @@ def register_chat_routes(
                 if answer:
                     # Auch eine abgebrochene Teilantwort wird behalten (setzt den Chat auf ungelesen).
                     store.add_message(profile.id, chat_id, "assistant", answer, tools=actions)
+                    if regenerate:
+                        store.versions_add(profile.id, chat_id, answer, actions)
                 else:
                     withdraw_question()
                 run.error = error

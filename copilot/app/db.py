@@ -202,6 +202,19 @@ CREATE TABLE IF NOT EXISTS skill_files (
 );
 """
 
+VARIANTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS answer_versions (
+    chat_id     TEXT NOT NULL,
+    profile_id  TEXT NOT NULL,
+    seq         INTEGER NOT NULL,
+    content     TEXT NOT NULL,
+    tools       TEXT,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (chat_id, profile_id, seq),
+    FOREIGN KEY (chat_id, profile_id) REFERENCES chats(id, profile_id) ON DELETE CASCADE
+);
+"""
+
 IMAGE_USAGE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS image_usage (
     profile_id  TEXT NOT NULL,
@@ -404,7 +417,7 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 27  # 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 28  # 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
 
@@ -572,6 +585,8 @@ class Store:
             self._conn.execute("ALTER TABLE chats ADD COLUMN imported INTEGER NOT NULL DEFAULT 0")
         if "style_id" not in columns:  # Schreibstil dieses Chats ('' = Standard der Person, 'none' = ohne Stil)
             self._conn.execute("ALTER TABLE chats ADD COLUMN style_id TEXT NOT NULL DEFAULT ''")
+        if "answer_seq" not in columns:  # welche Fassung der letzten Antwort gerade angezeigt wird (answer_versions.seq)
+            self._conn.execute("ALTER TABLE chats ADD COLUMN answer_seq INTEGER")
         if "archived_at" not in columns:  # Archiv: aus den Listen genommen, aber weiter auffindbar (Suche, „Alle Chats“, Projekt)
             self._conn.execute("ALTER TABLE chats ADD COLUMN archived_at TEXT")
         if "kind" not in columns:
@@ -624,6 +639,7 @@ class Store:
         self._conn.executescript(GITHUB_SCHEMA)
         self._conn.executescript(STYLES_SCHEMA)
         self._conn.executescript(USAGE_SCHEMA)
+        self._conn.executescript(VARIANTS_SCHEMA)
         self._conn.executescript(SCHEDULES_SCHEMA)
         self._conn.executescript(MIGRATION_OBJECTS)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -2379,6 +2395,95 @@ class Store:
             )
         return {"id": cur.lastrowid, "role": role, "content": content, "created_at": now}
 
+    # --- Fassungen der letzten Antwort (Antwort neu erzeugen, ``‹ 2/3 ›``) -------------------------------------------------
+
+    VERSIONS_MAX = 10
+
+    def _last_answer(self, profile_id: str, chat_id: str, after_id: int = 0) -> sqlite3.Row | None:
+        row = self._conn.execute(
+            "SELECT id, role, content, tools FROM messages WHERE chat_id = ? AND profile_id = ? ORDER BY id DESC LIMIT 1", (chat_id, profile_id)
+        ).fetchone()
+        return row if row and row["role"] == "assistant" and row["id"] > after_id else None
+
+    def versions_pin(self, profile_id: str, chat_id: str, question_id: int) -> bool:
+        """Vor dem Neu-Erzeugen: die jetzige letzte Antwort (gehört zu ``question_id``) als Fassung sichern.
+
+        Liefert ``False``, wenn ``question_id`` nicht die letzte Frage ist oder keine Antwort dazu steht; dann gibt es keine Fassungen.
+        """
+        _require(profile_id)
+        with self._lock, self._conn:
+            last = self._conn.execute(
+                "SELECT id, role FROM messages WHERE chat_id = ? AND profile_id = ? ORDER BY id DESC LIMIT 2", (chat_id, profile_id)
+            ).fetchall()
+            if len(last) != 2 or last[0]["role"] != "assistant" or last[1]["id"] != question_id or last[1]["role"] != "user":
+                self._conn.execute("DELETE FROM answer_versions WHERE chat_id = ? AND profile_id = ?", (chat_id, profile_id))
+                self._conn.execute("UPDATE chats SET answer_seq = NULL WHERE id = ? AND profile_id = ?", (chat_id, profile_id))
+                return False
+            have = self._conn.execute("SELECT COUNT(*) AS n FROM answer_versions WHERE chat_id = ? AND profile_id = ?", (chat_id, profile_id)).fetchone()["n"]
+            if have == 0:
+                answer = self._last_answer(profile_id, chat_id)
+                self._conn.execute(
+                    "INSERT INTO answer_versions (chat_id, profile_id, seq, content, tools, created_at) VALUES (?, ?, 1, ?, ?, ?)",
+                    (chat_id, profile_id, answer["content"], answer["tools"], _now()),
+                )
+                self._conn.execute("UPDATE chats SET answer_seq = 1 WHERE id = ? AND profile_id = ?", (chat_id, profile_id))
+        return True
+
+    def versions_add(self, profile_id: str, chat_id: str, content: str, tools: list[dict] | None) -> None:
+        """Die neue Antwort als weitere Fassung ablegen und auswählen (über ``VERSIONS_MAX`` fällt die älteste weg)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            top = self._conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) AS s FROM answer_versions WHERE chat_id = ? AND profile_id = ?", (chat_id, profile_id)
+            ).fetchone()["s"]
+            if top == 0:
+                return  # nichts gesichert: keine Fassungen
+            self._conn.execute(
+                "INSERT INTO answer_versions (chat_id, profile_id, seq, content, tools, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (chat_id, profile_id, top + 1, content, json.dumps(tools, ensure_ascii=False) if tools else None, _now()),
+            )
+            self._conn.execute("UPDATE chats SET answer_seq = ? WHERE id = ? AND profile_id = ?", (top + 1, chat_id, profile_id))
+            self._conn.execute(
+                "DELETE FROM answer_versions WHERE chat_id = ? AND profile_id = ? AND seq IN "
+                "(SELECT seq FROM answer_versions WHERE chat_id = ? AND profile_id = ? ORDER BY seq DESC LIMIT -1 OFFSET ?)",
+                (chat_id, profile_id, chat_id, profile_id, self.VERSIONS_MAX),
+            )
+
+    def versions_clear(self, profile_id: str, chat_id: str) -> None:
+        """Alle Fassungen verwerfen (es geht weiter mit einer neuen Frage: nur die letzte Antwort hat Fassungen)."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            self._conn.execute("DELETE FROM answer_versions WHERE chat_id = ? AND profile_id = ?", (chat_id, profile_id))
+            self._conn.execute("UPDATE chats SET answer_seq = NULL WHERE id = ? AND profile_id = ? AND answer_seq IS NOT NULL", (chat_id, profile_id))
+
+    def versions_state(self, profile_id: str, chat_id: str) -> dict[str, int] | None:
+        """``{index, total}`` (ab 1) der Fassungen der letzten Antwort; ``None`` bei weniger als zwei Fassungen."""
+        with self._lock:
+            return self._versions_state(profile_id, chat_id)
+
+    def _versions_state(self, profile_id: str, chat_id: str) -> dict[str, int] | None:
+        rows = [r["seq"] for r in self._conn.execute("SELECT seq FROM answer_versions WHERE chat_id = ? AND profile_id = ? ORDER BY seq", (chat_id, profile_id))]
+        if len(rows) < 2 or self._last_answer(profile_id, chat_id) is None:
+            return None
+        chat = self._conn.execute("SELECT answer_seq FROM chats WHERE id = ? AND profile_id = ?", (chat_id, profile_id)).fetchone()
+        current = chat["answer_seq"] if chat else None
+        return {"index": rows.index(current) + 1 if current in rows else len(rows), "total": len(rows)}
+
+    def versions_select(self, profile_id: str, chat_id: str, index: int) -> bool:
+        """Fassung Nr. ``index`` (ab 1) zur sichtbaren letzten Antwort machen; ``False``, wenn es sie nicht gibt."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            rows = self._conn.execute(
+                "SELECT seq, content, tools FROM answer_versions WHERE chat_id = ? AND profile_id = ? ORDER BY seq", (chat_id, profile_id)
+            ).fetchall()
+            answer = self._last_answer(profile_id, chat_id)
+            if answer is None or not 1 <= index <= len(rows):
+                return False
+            chosen = rows[index - 1]
+            self._conn.execute("UPDATE messages SET content = ?, tools = ? WHERE id = ?", (chosen["content"], chosen["tools"], answer["id"]))
+            self._conn.execute("UPDATE chats SET answer_seq = ? WHERE id = ? AND profile_id = ?", (chosen["seq"], chat_id, profile_id))
+        return True
+
     def delete_message(self, profile_id: str, chat_id: str, message_id: int) -> bool:
         """Eine Nachricht zurücknehmen (Frage ohne jede Antwort)."""
         _require(profile_id)
@@ -2494,6 +2599,11 @@ class Store:
              "attachments": _attachments(r["attachments"]), "tools": _tools(r["tools"])}
             for r in rows
         ]
+        if messages and messages[-1]["role"] == "assistant":
+            with self._lock:
+                state = self._versions_state(profile_id, chat_id)
+            if state:
+                messages[-1]["variant"] = state  # Fassungen der letzten Antwort: {index, total}
         self._mark_files(profile_id, messages)
         return messages
 

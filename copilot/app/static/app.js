@@ -34,6 +34,7 @@ const ICONS = {
   pin: ["M9 4h6l-1 5 3 3v2H7v-2l3-3zM12 14v7"],
   plus: ["M12 5v14M5 12h14"],
   chevron: ["M9 6l6 6-6 6"],
+  "chevron-left": ["M15 6l-6 6 6 6"],
   folder: ["M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"],
   chat: ["M20 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"],
   fold: ["M4 8l4 4-4 4M12 6h8M12 12h8M12 18h8"],
@@ -4897,7 +4898,7 @@ async function stampMessages(chatId) {
 
 // Unter einer Antwort: Kopieren und „Als Datei“ als dezente Symbole (nur bei der letzten Antwort dauerhaft, sonst beim
 // Darüberfahren) und, nur beim Darüberfahren, wann die Antwort fertig wurde.
-function answerMeta(text, el) {
+function answerMeta(text, el, variant = null) {
   const bar = node("div", "msg-meta answer-meta");
   const copy = actionButton(tr("Antwort kopieren"), "copy", "msg-act", async () => {
     try {
@@ -4914,15 +4915,41 @@ function answerMeta(text, el) {
     const group = el.previousElementSibling;
     const retry = group?.retry;
     if (state.streaming || !retry || !group.dataset.id) return;
-    sendMessage({ id: Number(group.dataset.id), text: retry.text, el: group, quote: retry.quote, pasted: retry.pasted }).catch(() => {});
+    // Nur die letzte Antwort behält ihre bisherige Fassung (zum Blättern); bei einer früheren ersetzt die neue Antwort den Rest des Chats.
+    const last = el.classList.contains("last-answer");
+    sendMessage({ id: Number(group.dataset.id), text: retry.text, el: group, quote: retry.quote, pasted: retry.pasted, regenerate: last }).catch(() => {});
   });
   const time = node("span", "msg-time");
   const refresh = () => { time.textContent = sentAgo(el.dataset.at); time.title = exactTime(el.dataset.at); };
   refresh();
   el.addEventListener("pointerenter", refresh);
   el.addEventListener("focusin", refresh);
-  bar.append(copy, save, again, time);
+  bar.append(copy, save, again);
+  if (variant && variant.total > 1) bar.append(variantPager(variant));
+  bar.append(time);
   return bar;
+}
+
+// ``‹ 2/3 ›`` unter der letzten Antwort: zwischen den Fassungen blättern, die „Antwort neu erzeugen“ übrig gelassen hat.
+function variantPager(variant) {
+  const wrap = node("span", "variant-pager");
+  const go = async (index) => {
+    const chatId = state.activeId;
+    if (!chatId || state.streaming) return;
+    try {
+      await api(`api/chats/${encodeURIComponent(chatId)}/answer`, { method: "PUT", body: JSON.stringify({ index }) });
+      renderMessages(await api(`api/chats/${encodeURIComponent(chatId)}/messages`));
+      scrollDown(false);
+    } catch { toast(tr("Das hat nicht geklappt.")); }
+  };
+  const prev = actionButton(tr("Vorherige Fassung"), "chevron-left", "msg-act", () => go(variant.index - 1));
+  const next = actionButton(tr("Nächste Fassung"), "chevron", "msg-act", () => go(variant.index + 1));
+  prev.disabled = variant.index <= 1;
+  next.disabled = variant.index >= variant.total;
+  const count = node("span", "variant-count", `${variant.index}/${variant.total}`);
+  count.setAttribute("aria-live", "polite");
+  wrap.append(prev, count, next);
+  return wrap;
 }
 
 // Nur die letzte Antwort zeigt ihre Symbole dauerhaft.
@@ -4941,7 +4968,7 @@ function messageEl(role, text, files = [], actions = [], meta = {}) {
     if (actions.some((a) => a.kind === "memory" && a.status === "ok")) el.append(memoryNoteEl(actions));
     const at = meta.at || new Date().toISOString();
     el.dataset.at = at;
-    el.append(answerMeta(text, el));
+    el.append(answerMeta(text, el, meta.variant || null));
     // Touchscreen: Antippen der Antwort blendet die Leiste mit dem Zeitpunkt ein oder aus.
     el.addEventListener("click", (event) => {
       if (!window.matchMedia("(hover: none)").matches || window.getSelection()?.toString() || event.target.closest("a, button, pre, table, summary")) return;
@@ -5104,7 +5131,7 @@ function renderMessages(messages) {
   for (const m of messages) {
     if (anySummarized && !seenLive && !m.summarized) { thread.append(compactNote()); }
     if (!m.summarized) seenLive = true;
-    thread.append(messageEl(m.role, m.content, m.attachments || [], m.tools || [], { id: m.id, at: m.created_at }));
+    thread.append(messageEl(m.role, m.content, m.attachments || [], m.tools || [], { id: m.id, at: m.created_at, variant: m.variant }));
   }
   markLastAnswer();
 }
@@ -5797,6 +5824,10 @@ async function settleRun(run, bubble, out, view = {}) {
   if (finished) bubble.replaceWith(finished);
   else bubble.remove();
   markLastAnswer();
+  if (view.regenerate && out.answer && state.activeId === chatId) {
+    // Neu erzeugt: der Server kennt jetzt mehrere Fassungen, die Ansicht zeigt dann ``‹ 2/3 ›``
+    try { renderMessages(await api(`api/chats/${encodeURIComponent(chatId)}/messages`)); } catch { /* die Antwort steht auch so da */ }
+  }
   if (out.failure) {
     if (!out.answer) {
       // Nichts gespeichert: Frage samt Dateien zurück ins Eingabefeld.
@@ -6034,7 +6065,7 @@ async function sendMessage(edit = null, spoken = null) {
   if (spoken?.onText) run.onText = spoken.onText; // Sprachgespräch: der Text geht schon beim Eintreffen zum Vorlesen
   addBusy(run, bubble);
   // Beim Bearbeiten holt ein Fehler ohne Antwort den alten Stand vom Server zurück (kein ``userEl`` in der Ansicht).
-  const view = edit ? { text, sentFiles, first } : { userEl, text, sentFiles, first, quote };
+  const view = edit ? { text, sentFiles, first, regenerate: !!edit.regenerate } : { userEl, text, sentFiles, first, quote };
 
   let out;
   try {
@@ -6048,6 +6079,7 @@ async function sendMessage(edit = null, spoken = null) {
         content: text, effort: state.effort, files,
         ...(quote ? { quote } : {}),
         ...(edit ? { edit_message_id: edit.id } : {}),
+        ...(edit?.regenerate ? { regenerate: true } : {}),
         ...(spoken ? { voice: true } : {}),
         ...((state.me?.models?.length || 0) > 1 && validModel(state.model) ? { model: state.model } : {}),
         ...(state.me?.web && !state.web ? { web: false } : {}),

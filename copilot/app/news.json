@@ -4,6 +4,16 @@
     "items": [
       {
         "de": {
+          "title": "Mehrere Fassungen",
+          "text": "Wenn du mich bittest, eine Antwort neu zu schreiben, behalte ich die alte. Unter der Antwort kannst du zwischen den Fassungen blättern und die beste behalten."
+        },
+        "en": {
+          "title": "Several versions",
+          "text": "When you ask me to write an answer again, I keep the old one. Below the answer you can flip between the versions and keep the one you like best."
+        }
+      },
+      {
+        "de": {
           "title": "Verbrauch im Blick",
           "text": "Wer die App verwaltet, sieht jetzt, wie viel jede Person von mir genutzt hat: als Anteil, mit Bildern und Wert. Es werden nur Zahlen gezählt, nie Inhalte."
         },

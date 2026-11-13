@@ -1147,5 +1147,7 @@
  "Zusammen: {0}": "Total: {0}",
  "noch nichts": "nothing yet",
  "{0} Bild": "{0} image",
- "{0} Bilder": "{0} images"
+ "{0} Bilder": "{0} images",
+ "Vorherige Fassung": "Previous version",
+ "Nächste Fassung": "Next version"
 }

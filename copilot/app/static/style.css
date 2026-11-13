@@ -1241,6 +1241,9 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .usage-row { display: grid; gap: 6px; }
 .usage-head { display: flex; justify-content: space-between; gap: 12px; font-size: 14.5px; }
 .usage-head span, .usage-sub { color: var(--text-2); font-size: 13.5px; }
+.variant-pager { display: inline-flex; align-items: center; gap: 2px; }
+.variant-count { min-width: 30px; text-align: center; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.variant-pager .msg-act:disabled { opacity: .35; cursor: default; }
 .usage-ranges { display: flex; flex-wrap: wrap; gap: 6px; }
 .usage-ranges .pill[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .usage-all { display: grid; gap: 14px; }

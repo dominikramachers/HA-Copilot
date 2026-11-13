@@ -411,6 +411,10 @@ Das Token liegt **verschlüsselt** in der Datenbank (Fernet, Schlüssel `connect
 - **Sichtbarkeit:** Unter der Antwort steht einklappbar „N Aktionen bei GitHub, davon M Änderungen“ mit jedem Schritt; bei Commits, Pull Requests und Issues gibt es einen Link „Öffnen“ (nur Adressen auf github.com werden angezeigt).
 - GitHub begrenzt Anfragen (bei Tokens 5 000 je Stunde, die Code-Suche deutlich weniger); wird das Limit erreicht, sagt die KI das.
 
+## Mehrere Fassungen einer Antwort (ab 0.57.2)
+
+„Antwort neu erzeugen“ (Symbol unter der Antwort) behält die bisherige Antwort. Unter der **letzten** Antwort erscheint dann `‹ 2/3 ›`: mit den Pfeilen blätterst du zwischen den Fassungen, die gezeigte Fassung ist die, mit der das Gespräch weitergeht. Es sind höchstens 10 Fassungen; kommt eine elfte, fällt die älteste weg. Sobald du eine neue Frage stellst oder eine Frage bearbeitest, bleibt nur die gezeigte Antwort. Bei früheren Antworten ersetzt „neu erzeugen“ wie bisher alles danach. Jede neue Fassung ist ein eigener Aufruf der KI und zählt im Verbrauch (auch bei ChatGPT-Limit und in der Übersicht der Administratoren).
+
 ## Schreibstile (ab 0.57.2)
 
 Ein Stil legt fest, **wie** die KI antwortet: Ton, Länge und Gliederung. Er ändert nie die Regeln des Add-ons (Rechte, Rückfragen, Umgang mit Werkzeugen und fremden Inhalten). Abgrenzung: „Meine Anweisungen“ gelten immer, ein Stil lässt sich je Chat umschalten, Skills geben der KI zusätzliche Fähigkeiten.

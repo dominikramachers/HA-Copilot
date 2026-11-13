@@ -662,5 +662,6 @@
  "Du hast schon {n} eigene Stile. Lösche einen, bevor du einen neuen anlegst.": "You already have {n} styles of your own. Delete one before you add a new one.",
  "Der Beispieltext ist zu kurz. Füge mindestens ein paar Absätze deiner eigenen Texte ein.": "The sample text is too short. Paste at least a few paragraphs of your own writing.",
  "Den Stil konnte ich gerade nicht ableiten. Versuche es gleich noch einmal.": "I could not work out the style just now. Please try again in a moment.",
- "Unbekannter Stil": "Unknown style"
+ "Unbekannter Stil": "Unknown style",
+ "Die Antwort läuft noch.": "The answer is still running."
 }
