@@ -1,7 +1,12 @@
 # Änderungen
 
 ## 0.57.2
-Startseite ruhiger. Nur Oberfläche, keine Änderung an Daten oder Schnittstellen.
+Archiv und „Alle Chats“, Startseite ruhiger, GitHub-Text berichtigt. (Weitere Pakete dieser Version folgen unten.)
+- **Chats archivieren.** Neue Spalte `chats.archived_at` (Schema 25, `Store._migrate`), im Chat als `archived`. `PATCH /api/chats/{id}` nimmt `archived: true|false`. Archivieren nimmt die Anheftung weg, Anpinnen holt den Chat aus dem Archiv (beides zugleich gibt es nicht). Jede neue Nachricht in einem archivierten Chat (`add_message` und das Speichern einer Antwort) holt ihn zurück in die Liste. Die Suche findet archivierte Chats weiter (`archived` im Treffer, in der Suche mit „Archiviert“ vor dem Datum).
+- **Seitenleiste.** Archivierte Chats stehen weder bei „Chats“ noch in den Projekten. Bei „Chats“ stehen die 15 neuesten (statt der Chats der letzten zwei Tage mit „Alle anzeigen“), darunter der Eintrag **Alle Chats**. In jedem Projekt gibt es bei Bedarf eine einklappbare Zeile **Archiviert (n)**.
+- **Alle Chats** (`openAllChats`, Fenster): Reiter **Aktiv / Geteilt / Archiviert**, Suche (Titel sofort, Inhalte über `GET /api/search`), **Auswählen** für Mehrfachauswahl (Archivieren bzw. Zurückholen, Löschen mit zweitem Klick „Wirklich löschen?“) und **Neuer Chat**. Je Zeile ein Knopf zum Archivieren bzw. Zurückholen. Unter „Geteilt“ stehen auch die mit mir geteilten Chats.
+- **Menü eines Chats** (Seitenleiste und Kopfzeile): neuer Punkt **Archivieren** / **Aus dem Archiv holen** (Taste A).
+- **GitHub-Zugriff je Benutzer:** Die Option bleibt, sie ist die Obergrenze (none/read/write) für das GitHub-Konto, das jede Person selbst verbindet. Der veraltete Satz „Das Token gehört dir als Betreiber …“ ist in der Beschreibung (de/en, `docs/einstellungen.md`) ersetzt.
 - **Handy (bis 800 px):** Die Begrüßung steht mittig (`.hello-start`, auch das Logo in Home Assistant), die Startkarten entfallen; Eingabefeld und Menü genügen. Etwas mehr Luft nach unten (`padding-bottom: 12vh`), damit die Begrüßung optisch in der Mitte über dem Eingabefeld sitzt.
 - **Laptop und Tablet:** drei statt vier Startkarten. „Text formulieren“ entfällt (passt am wenigsten zu Home Assistant); Texte dazu in `en-ui.json` entfernt.
 - Der Inkognito-Chat bleibt unverändert (linksbündig mit Hinweisen).

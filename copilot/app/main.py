@@ -307,6 +307,7 @@ class PatchChatBody(BaseModel):
 
     title: str | None = Field(default=None, min_length=1, max_length=120)
     pinned: bool | None = None
+    archived: bool | None = None  # True = ins Archiv (nimmt die Anheftung weg), False = zurück in die Liste
     unread: bool | None = None
     project_id: str | None = Field(default=None, max_length=64)
     keep: bool | None = None  # True = Sprachgespräch als normalen Chat behalten (erscheint in der Chatliste)
@@ -1489,7 +1490,9 @@ def register_chat_routes(
             if not title:
                 raise HTTPException(status_code=422, detail=tr("Titel fehlt"))
             store.rename_chat(profile.id, chat_id, title)
-        if body.pinned is not None:
+        if body.archived is not None:
+            store.set_chat_archived(profile.id, chat_id, body.archived)
+        if body.pinned is not None:  # Anpinnen holt den Chat aus dem Archiv
             store.set_chat_pinned(profile.id, chat_id, body.pinned)
         if body.keep:
             store.set_chat_kind(profile.id, chat_id, "")

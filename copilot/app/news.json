@@ -4,6 +4,16 @@
     "items": [
       {
         "de": {
+          "title": "Chats archivieren",
+          "text": "Chats, die du nicht mehr brauchst, kannst du jetzt archivieren. Sie verschwinden aus der Liste, bleiben aber unter „Alle Chats“ und im Projekt zu finden."
+        },
+        "en": {
+          "title": "Archive chats",
+          "text": "You can now archive chats you no longer need. They leave your list but stay under “All chats” and in their project."
+        }
+      },
+      {
+        "de": {
           "title": "Ruhigere Startseite",
           "text": "Auf dem Handy begrüße ich dich jetzt mittig und ohne Vorschläge. Am Computer sind es nur noch drei Vorschläge."
         },

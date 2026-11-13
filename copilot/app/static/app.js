@@ -3,7 +3,8 @@
 // Alle Pfade sind relativ, damit die Seite unter dem Ingress-Pfad von Home Assistant funktioniert.
 const $ = (id) => document.getElementById(id);
 const state = { research: false, incognito: false, incognitoId: null, view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
-const ui = { projectsOpen: true, openProjects: new Set(), showAll: false };
+const ui = { projectsOpen: true, openProjects: new Set(), openArchived: new Set() };
+const SIDE_CHATS = 15; // so viele neueste Chats stehen in der Seitenleiste; alles andere unter „Alle Chats“
 
 // ---------------------------------------------------------------- Hilfen
 
@@ -24,6 +25,7 @@ const ICONS = {
   refresh: ["M19.5 12a7.5 7.5 0 1 1-2.2-5.3", "M19.5 4.5v4.5H15"],
   arrowDown: ["M12 5v14M6 13l6 6 6-6"],
   trash: ["M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"],
+  archive: ["M4 5h16v4H4z", "M5.5 9v8.5a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9", "M10 13h4"],
   arrowUp: ["M12 19V5M6 11l6-6 6 6"],
   stop: ["M7 7h10v10H7z"],
   copy: ["M9 9h10v10H9zM5 15V5h10"],
@@ -718,7 +720,7 @@ function askMark() {
 }
 
 function chatRow(chat, meta = "") {
-  const item = node("div", "row chat-item" + (chat.id === state.activeId ? " active" : ""));
+  const item = node("div", "row chat-item" + (chat.id === state.activeId ? " active" : "") + (chat.archived ? " archived" : ""));
   if (chat.schedule_id) {
     const mark = icon("clock");
     mark.classList.add("sched-mark");
@@ -858,19 +860,29 @@ function renderProjects(root) {
     body.append(row);
     if (!open) continue;
     const kids = node("div", "project-children");
-    const inside = state.chats.filter((c) => c.project_id === project.id && !c.pinned);
+    const mine = state.chats.filter((c) => c.project_id === project.id);
+    const inside = mine.filter((c) => !c.pinned && !c.archived);
+    const archived = mine.filter((c) => c.archived);
     for (const chat of inside) kids.append(chatRow(chat));
-    if (inside.length === 0) kids.append(node("div", "hint", tr("Noch keine Chats.")));
+    if (inside.length === 0 && archived.length === 0) kids.append(node("div", "hint", tr("Noch keine Chats.")));
+    if (archived.length) {
+      const shown = ui.openArchived.has(project.id);
+      const toggle = node("button", "archive-toggle");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", String(shown));
+      toggle.append(icon("chevron"), icon("archive"), node("span", "", tr("Archiviert ({0})", archived.length)));
+      toggle.addEventListener("click", () => { if (shown) ui.openArchived.delete(project.id); else ui.openArchived.add(project.id); renderSide(); });
+      kids.append(toggle);
+      if (shown) for (const chat of archived) kids.append(chatRow(chat));
+    }
     body.append(kids);
   }
   root.append(body);
 }
 
 function renderChats(root) {
-  const loose = state.chats.filter((c) => !c.project_id && !c.pinned);
-  const recent = loose.filter((c) => daysAgo(c.updated_at) <= 1);
-  const shown = ui.showAll ? loose : recent;
-  const hidden = loose.length - recent.length;
+  const loose = state.chats.filter((c) => !c.project_id && !c.pinned && !c.archived);
+  const shown = loose.slice(0, SIDE_CHATS);
 
   root.append(sectionHead(tr("Chats")));
   const body = node("div", "sec-body");
@@ -883,14 +895,11 @@ function renderChats(root) {
     }
     body.append(chatRow(chat));
   }
-  if (shown.length === 0) {
-    const none = state.chats.length === 0 ? tr("Noch keine Chats.") : tr("Keine Chats in den letzten 2 Tagen.");
-    body.append(node("div", "hint", none));
-  }
-  if (hidden > 0) {
-    const more = node("button", "show-all", ui.showAll ? tr("Weniger anzeigen") : tr("Alle anzeigen ({0} ältere)", hidden));
+  if (shown.length === 0) body.append(node("div", "hint", tr("Noch keine Chats.")));
+  if (state.chats.length) {
+    const more = node("button", "show-all", tr("Alle Chats"));
     more.type = "button";
-    more.addEventListener("click", () => { ui.showAll = !ui.showAll; renderSide(); });
+    more.addEventListener("click", () => { openAllChats().catch(() => {}); });
     body.append(more);
   }
   root.append(body);
@@ -1049,6 +1058,7 @@ async function chatMenu(chat, anchor) {
   };
   const pin = { value: "pin", icon: "pin", label: chat.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" };
   const rename = { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" };
+  const archive = { value: "archive", icon: "archive", label: chat.archived ? tr("Aus dem Archiv holen") : tr("Archivieren"), key: "A" };
   const exportMd = { value: "export", icon: "download", label: tr("Als Markdown exportieren") };
   const share = canShare() && !chat.kind ? [{ value: "share", icon: "share", label: tr("Teilen …") }] : [];
   const remove = { value: "delete", icon: "trash", label: tr("Löschen"), danger: true, key: "D" };
@@ -1062,23 +1072,25 @@ async function chatMenu(chat, anchor) {
     choice = await openPopover(anchor, [
       unread,
       { divider: true },
-      pin,
+      ...(chat.archived ? [] : [pin]),
       rename,
       { icon: "stack", label: tr("Projekt wechseln"), submenu: projects, search: tr("Projekt suchen") },
       ...(chat.project_id ? [{ value: "unproject", icon: "folderX", label: tr("Aus Projekt entfernen") }] : []),
       exportMd,
       ...share,
       { divider: true },
+      archive,
       remove,
     ]);
   } else {
     choice = await openSheet({
       title: chat.title,
       items: [
-        unread, pin, rename,
+        unread, ...(chat.archived ? [] : [pin]), rename,
         { value: "move", icon: "folder", label: chat.project_id ? tr("Projekt ändern") : tr("In Projekt verschieben") },
         exportMd,
         ...share,
+        archive,
         remove,
       ],
     });
@@ -1086,12 +1098,231 @@ async function chatMenu(chat, anchor) {
   if (choice === "unread") await setUnread(chat, !chat.unread);
   else if (choice === "pin") await changeChat(chat, { pinned: !chat.pinned }, tr("Anpinnen hat nicht geklappt."));
   else if (choice === "rename") await renameChat(chat);
+  else if (choice === "archive") await archiveChats([chat], !chat.archived);
   else if (choice === "move") await moveChat(chat);
   else if (choice === "unproject") await moveChatTo(chat, "");
   else if (choice === "export") await exportChat(chat);
   else if (choice === "share") await shareChat(chat);
   else if (typeof choice === "string" && choice.startsWith("move:")) await moveChatTo(chat, choice.slice(5));
   else if (choice === "delete") await deleteChat(chat);
+}
+
+// Ins Archiv legen oder zurückholen (ein Chat oder mehrere). Archivierte Chats stehen nicht mehr in den Listen,
+// bleiben aber unter „Alle Chats“, im Projekt („Archiviert (n)“) und in der Suche. Wer wieder hineinschreibt, holt sie zurück.
+async function archiveChats(chats, archived) {
+  let failed = 0;
+  for (const chat of chats) {
+    try { await patchChat(chat, { archived }); } catch { failed += 1; }
+  }
+  await loadAll();
+  if (failed) toast(tr("Das hat nicht bei allen Chats geklappt."));
+  else if (chats.length === 1) toast(archived ? tr("Chat archiviert.") : tr("Chat aus dem Archiv geholt."));
+  else toast(archived ? tr("{0} Chats archiviert.", chats.length) : tr("{0} Chats aus dem Archiv geholt.", chats.length));
+  return failed === 0;
+}
+
+const allChats = { tab: "active" };
+
+// „Alle Chats“: die ganze Liste mit Reitern Aktiv / Geteilt / Archiviert, Suche und Mehrfachauswahl.
+async function openAllChats(tab = null) {
+  if (tab) allChats.tab = tab;
+  let picked = null;
+  await openSheet({
+    title: tr("Alle Chats"), plain: true, wide: true,
+    panel: (body) => {
+      body.classList.add("allchats-panel");
+      const view = { query: "", selecting: false, chosen: new Set(), hits: new Map(), incoming: null, armed: false };
+      let seq = 0;
+
+      const bar = node("div", "allchats-bar");
+      const tabs = node("div", "skills-tabs");
+      tabs.setAttribute("role", "tablist");
+      const tabButtons = new Map();
+      for (const [id, label] of [["active", tr("Aktiv")], ["shared", tr("Geteilt")], ["archived", tr("Archiviert")]]) {
+        if (id === "shared" && !canShare()) continue;
+        const button = node("button", "skills-tab", label);
+        button.type = "button";
+        button.setAttribute("role", "tab");
+        button.addEventListener("click", () => {
+          allChats.tab = id;
+          view.selecting = false;
+          view.chosen.clear();
+          view.armed = false;
+          draw();
+          if (id === "shared" && view.incoming === null) loadIncoming();
+        });
+        tabButtons.set(id, button);
+        tabs.append(button);
+      }
+      const fresh = node("button", "pill primary small", tr("Neuer Chat"));
+      fresh.type = "button";
+      fresh.addEventListener("click", () => { picked = () => startNew(); closeSheet(true); });
+      bar.append(tabs, fresh);
+
+      const search = node("input", "field allchats-search");
+      search.type = "search";
+      search.placeholder = tr("Chats suchen");
+      search.setAttribute("aria-label", tr("Chats suchen"));
+      const pick = node("button", "allchats-pick", tr("Auswählen"));
+      pick.type = "button";
+      const tools = node("div", "allchats-tools");
+      tools.append(search, pick);
+
+      const list = node("div", "allchats-list");
+      const foot = node("div", "allchats-foot");
+      body.append(bar, tools, list, foot);
+
+      const loadIncoming = async () => {
+        try { view.incoming = await api("api/shared"); } catch { view.incoming = []; }
+        draw();
+      };
+
+      const rowsFor = () => {
+        const tab = allChats.tab;
+        const hit = (c) => view.hits.get(c.id);
+        const match = (c) => !view.query || wordsMatch(view.query, c.title) || view.hits.has(c.id);
+        let chats = state.chats.filter((c) => (tab === "archived" ? c.archived : tab === "shared" ? c.shared?.length : !c.archived));
+        chats = chats.filter(match);
+        return chats.map((c) => {
+          const project = c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name : "";
+          const found = hit(c);
+          const sub = [project, searchDate(c.updated_at)].filter(Boolean).join(" · ");
+          return { chat: c, sub, snippet: found && !wordsMatch(view.query, c.title) ? found.snippet : "" };
+        });
+      };
+
+      const draw = () => {
+        for (const [id, button] of tabButtons) button.setAttribute("aria-selected", String(id === allChats.tab));
+        const shared = allChats.tab === "shared";
+        pick.hidden = shared;
+        pick.textContent = view.selecting ? tr("Fertig") : tr("Auswählen");
+        const rows = rowsFor();
+        const nodes = [];
+        const empty = (iconName, text) => {
+          const box = node("div", "shared-empty");
+          box.append(icon(iconName), node("p", "", text));
+          return box;
+        };
+        for (const { chat, sub, snippet } of rows) {
+          const item = node("div", "shared-item allchats-item" + (view.chosen.has(chat.id) ? " chosen" : ""));
+          const open = node("button", "shared-open");
+          open.type = "button";
+          if (view.selecting) {
+            const box = node("span", "allchats-check" + (view.chosen.has(chat.id) ? " on" : ""));
+            if (view.chosen.has(chat.id)) box.append(icon("check"));
+            open.append(box);
+          } else open.append(icon(chat.schedule_id ? "clock" : "chat"));
+          const text = node("span", "share-text");
+          text.append(node("b", "", chat.title), node("span", "share-hint", sub));
+          if (snippet) text.append(node("span", "share-hint allchats-snippet", snippet));
+          open.append(text);
+          open.addEventListener("click", () => {
+            if (view.selecting) {
+              if (view.chosen.has(chat.id)) view.chosen.delete(chat.id); else view.chosen.add(chat.id);
+              view.armed = false;
+              draw();
+            } else { picked = () => selectChat(chat.id); closeSheet(true); }
+          });
+          item.append(open);
+          if (!view.selecting && !shared) {
+            const flip = node("button", "shared-remove allchats-flip");
+            flip.type = "button";
+            const label = chat.archived ? tr("Aus dem Archiv holen") : tr("Archivieren");
+            flip.setAttribute("aria-label", label);
+            flip.title = label;
+            flip.append(icon("archive"));
+            flip.addEventListener("click", async () => { await archiveChats([chat], !chat.archived); draw(); });
+            item.append(flip);
+          }
+          nodes.push(item);
+        }
+        if (shared) {
+          for (const c of view.incoming || []) {
+            if (view.query && !wordsMatch(view.query, c.title)) continue;
+            const item = node("div", "shared-item");
+            const open = node("button", "shared-open");
+            open.type = "button";
+            const text = node("span", "share-text");
+            text.append(node("b", "", c.title), node("span", "share-hint", tr("Von {0} · Stand {1}", c.owner, exactTime(c.taken_at))));
+            open.append(icon("share"), text);
+            open.addEventListener("click", () => { picked = () => openSharedChat(c.id); closeSheet(true); });
+            item.append(open);
+            nodes.push(item);
+          }
+        }
+        if (!nodes.length) {
+          nodes.push(view.query ? empty("search", tr("Nichts gefunden."))
+            : allChats.tab === "archived" ? empty("archive", tr("Das Archiv ist leer."))
+            : shared ? empty("share", tr("Es ist nichts geteilt."))
+            : empty("chat", tr("Noch keine Chats.")));
+        }
+        list.replaceChildren(...nodes);
+
+        foot.hidden = !view.selecting;
+        foot.replaceChildren();
+        if (view.selecting) {
+          const count = view.chosen.size;
+          foot.append(node("span", "allchats-count", tr("{0} ausgewählt", count)));
+          const chosen = () => state.chats.filter((c) => view.chosen.has(c.id));
+          const moveBtn = node("button", "pill", allChats.tab === "archived" ? tr("Zurückholen") : tr("Archivieren"));
+          moveBtn.type = "button";
+          moveBtn.disabled = count === 0;
+          moveBtn.addEventListener("click", async () => {
+            await archiveChats(chosen(), allChats.tab !== "archived");
+            view.chosen.clear();
+            draw();
+          });
+          const del = node("button", "pill danger" + (view.armed ? " armed" : ""), view.armed ? tr("Wirklich löschen?") : tr("Löschen"));
+          del.type = "button";
+          del.disabled = count === 0;
+          del.addEventListener("click", async () => {
+            if (!view.armed) { view.armed = true; draw(); return; }
+            const gone = chosen();
+            let failed = 0;
+            for (const chat of gone) {
+              if (state.streaming?.chatId === chat.id) detachRun();
+              try { await api(`api/chats/${encodeURIComponent(chat.id)}`, { method: "DELETE" }); } catch { failed += 1; }
+            }
+            view.chosen.clear();
+            view.armed = false;
+            const wasOpen = gone.some((c) => c.id === state.activeId);
+            if (wasOpen && !failed) startNew();
+            await loadAll();
+            toast(failed ? tr("Das hat nicht bei allen Chats geklappt.") : tr("{0} Chats gelöscht.", gone.length));
+            draw();
+          });
+          foot.append(moveBtn, del);
+        }
+      };
+
+      pick.addEventListener("click", () => {
+        view.selecting = !view.selecting;
+        view.chosen.clear();
+        view.armed = false;
+        draw();
+      });
+      let timer = 0;
+      search.addEventListener("input", () => {
+        view.query = search.value.trim();
+        draw();
+        clearTimeout(timer);
+        if (view.query.length < 2) { view.hits = new Map(); return; }
+        const mine = ++seq;
+        timer = setTimeout(async () => {
+          try {
+            const hits = await api(`api/search?q=${encodeURIComponent(view.query)}`);
+            if (mine !== seq) return;
+            view.hits = new Map(hits.map((h) => [h.chat_id, h]));
+            draw();
+          } catch { /* die Titelsuche bleibt */ }
+        }, 250);
+      });
+      draw();
+      if (allChats.tab === "shared") loadIncoming();
+    },
+  });
+  $("sheet-panel").classList.remove("allchats-panel");
+  if (picked) await picked();
 }
 
 async function changeChat(chat, body, failure) {
@@ -6676,7 +6907,7 @@ function chatEntry(chat, hit = null) {
   else if (chat.unread) marks.push(unreadDot());
   return {
     id: `c-${chat.id}`, icon: chat.schedule_id ? "clock" : "chat", title: chat.title,
-    meta: searchDate(chat.updated_at), marks, snippet: hit?.snippet || "", hl: hit?.hl || [],
+    meta: chat.archived ? `${tr("Archiviert")} · ${searchDate(chat.updated_at)}` : searchDate(chat.updated_at), marks, snippet: hit?.snippet || "", hl: hit?.hl || [],
     run: () => selectChat(chat.id),
   };
 }
@@ -6789,7 +7020,7 @@ function searchPanel(body) {
   };
 
   const recents = () => {
-    const chats = state.chats;
+    const chats = state.chats.filter((c) => !c.archived);
     if (tab === "chats") {
       const out = [];
       let current = null;

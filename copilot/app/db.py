@@ -364,14 +364,15 @@ END;
 """
 
 SESSION_MAX_DAYS = 90
-SCHEMA_VERSION = 24  # 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 25  # 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
-CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, project_id, unread, model, schedule_id, kind, imported"
+CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, schedule_id, kind, imported"
 
 
 def _chat(row: sqlite3.Row) -> dict[str, Any]:
     data = dict(row)
     data["pinned"] = data.pop("pinned_at") is not None
+    data["archived"] = data.pop("archived_at", None) is not None
     data["unread"] = bool(data.get("unread"))
     data["imported"] = bool(data.get("imported"))
     return data
@@ -529,6 +530,8 @@ class Store:
             self._conn.execute("ALTER TABLE chats ADD COLUMN summary_upto INTEGER")
         if "imported" not in columns:  # Verlauf aus einem geteilten Chat übernommen: fremder Inhalt, Änderungen fragen immer nach
             self._conn.execute("ALTER TABLE chats ADD COLUMN imported INTEGER NOT NULL DEFAULT 0")
+        if "archived_at" not in columns:  # Archiv: aus den Listen genommen, aber weiter auffindbar (Suche, „Alle Chats“, Projekt)
+            self._conn.execute("ALTER TABLE chats ADD COLUMN archived_at TEXT")
         if "kind" not in columns:
             self._conn.execute("ALTER TABLE chats ADD COLUMN kind TEXT NOT NULL DEFAULT ''")  # 'voice' = Sprachgespräch außerhalb eines Chats (nicht in der Liste)
         profile_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(profiles)")}
@@ -716,7 +719,7 @@ class Store:
             )
         return {
             "id": chat_id, "title": title, "created_at": now, "updated_at": now,
-            "pinned": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind, "imported": False,
+            "pinned": False, "archived": False, "project_id": project_id, "unread": False, "model": "", "schedule_id": schedule_id, "kind": kind, "imported": False,
         }
 
     def list_chats(self, profile_id: str, kind: str = "") -> list[dict[str, Any]]:
@@ -780,7 +783,7 @@ class Store:
             params += [term, term]
         with self._lock:
             chats = self._conn.execute(
-                f"SELECT c.id, c.title, c.updated_at, c.project_id, c.schedule_id FROM chats c WHERE c.profile_id = ? AND c.kind = '' AND {clauses} "
+                f"SELECT c.id, c.title, c.updated_at, c.project_id, c.schedule_id, c.archived_at FROM chats c WHERE c.profile_id = ? AND c.kind = '' AND {clauses} "
                 "ORDER BY c.updated_at DESC, c.created_at DESC LIMIT ?",
                 (*params, max(1, min(limit, 100))),
             ).fetchall()
@@ -792,7 +795,8 @@ class Store:
                 found.append((chat, texts))
         return [
             {"chat_id": chat["id"], "title": chat["title"], "updated_at": chat["updated_at"],
-             "project_id": chat["project_id"], "schedule_id": chat["schedule_id"], **_snippet(texts, terms)}
+             "project_id": chat["project_id"], "schedule_id": chat["schedule_id"],
+             "archived": chat["archived_at"] is not None, **_snippet(texts, terms)}
             for chat, texts in found
         ]
 
@@ -992,12 +996,29 @@ class Store:
         return cur.rowcount == 1
 
     def set_chat_pinned(self, profile_id: str, chat_id: str, pinned: bool) -> bool:
+        """Anpinnen holt den Chat aus dem Archiv (beides zugleich gibt es nicht)."""
         _require(profile_id)
         with self._lock, self._conn:
             cur = self._conn.execute(
-                "UPDATE chats SET pinned_at = ? WHERE id = ? AND profile_id = ?",
-                (_now() if pinned else None, chat_id, profile_id),
+                "UPDATE chats SET pinned_at = ?, archived_at = CASE WHEN ? THEN NULL ELSE archived_at END "
+                "WHERE id = ? AND profile_id = ?",
+                (_now() if pinned else None, 1 if pinned else 0, chat_id, profile_id),
             )
+        return cur.rowcount == 1
+
+    def set_chat_archived(self, profile_id: str, chat_id: str, archived: bool) -> bool:
+        """Chat archivieren (nimmt zugleich die Anheftung weg) oder aus dem Archiv holen."""
+        _require(profile_id)
+        with self._lock, self._conn:
+            if archived:
+                cur = self._conn.execute(
+                    "UPDATE chats SET archived_at = COALESCE(archived_at, ?), pinned_at = NULL WHERE id = ? AND profile_id = ?",
+                    (_now(), chat_id, profile_id),
+                )
+            else:
+                cur = self._conn.execute(
+                    "UPDATE chats SET archived_at = NULL WHERE id = ? AND profile_id = ?", (chat_id, profile_id)
+                )
         return cur.rowcount == 1
 
     def move_chat(self, profile_id: str, chat_id: str, project_id: str | None) -> bool:
@@ -2180,7 +2201,7 @@ class Store:
                 (chat_id, profile_id, role, content, now, files, actions),
             )
             self._conn.execute(
-                "UPDATE chats SET updated_at = ?, unread = CASE WHEN ? = 'assistant' THEN 1 ELSE unread END "
+                "UPDATE chats SET updated_at = ?, archived_at = NULL, unread = CASE WHEN ? = 'assistant' THEN 1 ELSE unread END "
                 "WHERE id = ? AND profile_id = ?",
                 (now, role, chat_id, profile_id),
             )
@@ -2275,7 +2296,7 @@ class Store:
                     )
             # Neue Antwort = ungelesen, bis eine Oberfläche sie angezeigt und den Status zurückgesetzt hat.
             self._conn.execute(
-                "UPDATE chats SET updated_at = ?, unread = CASE WHEN ? THEN 1 ELSE unread END "
+                "UPDATE chats SET updated_at = ?, archived_at = NULL, unread = CASE WHEN ? THEN 1 ELSE unread END "
                 "WHERE id = ? AND profile_id = ?",
                 (now, 1 if assistant_content else 0, chat_id, profile_id),
             )

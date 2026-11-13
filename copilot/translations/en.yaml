@@ -24,7 +24,7 @@ configuration:
             description: 'What the AI may do in Home Assistant for this user: none, read, execute (read and operate devices) or write (read, execute and change automations, scripts, dashboards, helpers). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
           github_access:
             name: GitHub access (optional)
-            description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies. The token belongs to you as the operator: every user with read or write can see your private repositories through it (unless the allow-list restricts it).'
+            description: 'What the AI may do on GitHub for this user: none, read (read repositories) or write (read and change: commit files, pull requests, issues, create repositories). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies. This is the upper limit: the AI works with the GitHub account the person connects themselves in the settings; without a connected account nothing happens.'
           connector_access:
             name: Connectors (optional)
             description: 'What the AI may do with connectors (MCP servers such as Microsoft 365, Google Workspace or Zabbix) for this user: none, use (use shared/global connectors), own (also create their own), global (also create and change global connectors for everyone, including home-network addresses). Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
