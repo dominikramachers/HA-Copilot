@@ -33,18 +33,44 @@ class LimitState:
             log.warning("Gespeicherter Limit-Stand unlesbar, wird verworfen")
 
     def update(self, info: dict) -> None:
-        """Neuer Stand einer Limitart; ``allowed`` räumt eine frühere Warnung ab."""
+        """Neuer Stand: je Fenster aus ``windows`` (falls das Programm sie meldet), sonst nur die genannte Limitart.
+
+        Der Verbrauch aller Fenster kommt so mit jeder Meldung an, auch das Wochenlimit, wenn das Programm das 5-Stunden-Fenster
+        nennt. ``allowed`` räumt eine frühere Warnung ab."""
         kind = str(info.get("type") or "unknown")[:30]
         status = str(info.get("status") or "allowed")
         if status not in ("allowed", "allowed_warning", "rejected"):
             return
+        windows = info.get("windows") if isinstance(info.get("windows"), dict) else {}
+        for name, window in windows.items():
+            own = window.get("status")
+            if own is None:
+                # ohne eigene Angabe: das genannte Fenster übernimmt den Gesamtstatus, ein anderes behält eine noch gültige Warnung
+                previous = self._items.get(name, {})
+                if name == kind:
+                    own = status
+                elif previous.get("status") in SEVERITY and previous.get("resets_at") == window.get("resets_at"):
+                    own = previous["status"]
+                else:
+                    own = "allowed"
+            self._set(name, own, window.get("resets_at"), window.get("utilization"))
+        if kind not in windows:
+            self._set(kind, status, info.get("resets_at"), info.get("utilization"))
+        self._save()
+
+    def _set(self, kind: str, status: str, resets_at, utilization) -> None:
+        previous = self._items.get(kind, {})
+        if utilization is None and resets_at and previous.get("resets_at") == resets_at:
+            utilization = previous.get("utilization")  # dasselbe Fenster, nur ohne Zahl gemeldet: der letzte Wert bleibt der beste
         self._items[kind] = {
             "type": kind,
             "status": status,
-            "resets_at": info.get("resets_at"),
-            "utilization": info.get("utilization"),
+            "resets_at": resets_at,
+            "utilization": utilization,
             "seen_at": int(self._clock()),
         }
+
+    def _save(self) -> None:
         try:
             self._store.state_set(STATE_KEY, json.dumps(self._items))
         except Exception:

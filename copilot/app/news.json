@@ -21,6 +21,16 @@
           "title": "A new look behind the chat",
           "text": "My chat gets a fine, calm pattern in the background. Under Settings, General, Design you choose dots, honeycomb, plus signs or no pattern at all. The colors come from your theme."
         }
+      },
+      {
+        "de": {
+          "title": "Limit stimmt jetzt",
+          "text": "Unter „Nutzung“ zeige ich dein Sitzungs- und Wochenlimit jetzt mit dem echten Stand. Er aktualisiert sich nach jeder Antwort und mit „Jetzt prüfen“, auch das Wochenlimit."
+        },
+        "en": {
+          "title": "Limit is now correct",
+          "text": "Under “Usage” I now show your session and weekly limit with the real status. It updates after every answer and with “Check now”, including the weekly limit."
+        }
       }
     ]
   },
