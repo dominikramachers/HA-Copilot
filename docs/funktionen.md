@@ -106,7 +106,7 @@ Die KI merkt sich dauerhafte Dinge in kurzen Einträgen und entscheidet selbst, 
 
 ![Gedächtnis mit Projektbereich und Herkunft](screenshots/gedaechtnis-projekt.png)
 
-Die Ansicht ist wie bei Claude aufgebaut (ab 0.60.0): Oben **Suche** und **Hinzufügen**, darunter **einklappbare Gruppen** (Meine Anweisungen, Mein Gedächtnis, Haushalt, Projekte, Smarthome-Überblick, Aus Claude übernehmen) mit der Anzahl der Einträge. Jede Zeile zeigt Thema, Vorschau und Datum; ein Klick zeigt den ganzen Text, beim Darüberfahren erscheinen **Bearbeiten** und **Löschen**. So findest du auch bei vielen Einträgen schnell etwas und musst zum Hinzufügen nicht ans Ende scrollen.
+Die Ansicht ist wie bei Claude aufgebaut (ab 0.59.5): Oben **Suche** und **Hinzufügen**, darunter **einklappbare Gruppen** (Meine Anweisungen, Mein Gedächtnis, Haushalt, Projekte, Smarthome-Überblick, Aus Claude übernehmen) mit der Anzahl der Einträge. Jede Zeile zeigt Thema, Vorschau und Datum; ein Klick zeigt den ganzen Text, beim Darüberfahren erscheinen **Bearbeiten** und **Löschen**. So findest du auch bei vielen Einträgen schnell etwas und musst zum Hinzufügen nicht ans Ende scrollen.
 
 Im selben Fenster stehen **Meine Anweisungen** (ein Text, der in all deinen Chats mitgeht, etwa „Antworte kurz und duze mich“) und **Aus Claude übernehmen**: Du exportierst dein Gedächtnis bei Claude als ZIP mit Markdown, wählst die Datei hier aus, siehst jeden Fund mit Haken und übernimmst nur, was du willst. Die Vorlieben aus Claude werden zu deinen Anweisungen.
 
@@ -228,7 +228,7 @@ Plus-Raster:
 
 ### Die Farben kommen aus Home Assistant
 
-**Das Theme übernimmt der HA Copilot von Home Assistant.** Muster und das leise Leuchten dahinter sind aus dem Akzent, dem Hintergrund und der Schriftfarbe des aktiven Themes gemischt (Profil → Theme, hell oder dunkel). Es gibt keine eigenen Farbwerte: Wer in Home Assistant das Theme wechselt, sieht das Muster sofort in den neuen Farben. Das Muster steht still und stört weder Lesen noch Akku.
+**Das Theme übernimmt der HA Copilot von Home Assistant.** Muster und das leise Leuchten dahinter sind aus dem Akzent, dem Hintergrund und der Schriftfarbe des aktiven Themes gemischt (Profil → Theme, hell oder dunkel). Es gibt keine eigenen Farbwerte: Wer in Home Assistant das Theme wechselt, sieht das Muster sofort in den neuen Farben; auch über die Domain, sobald der Copilot das Theme der Person einmal in HA gesehen hat (Darstellung „Wie Home Assistant“). Das Muster steht still und stört weder Lesen noch Akku.
 
 Als Beispiele liegen vier weitere Themes bereit, die zu den Mustern passen. Die Datei [`themes/doralab-weitere.yaml`](themes/doralab-weitere.yaml) kommt nach `/homeassistant/themes/` (wie jede Theme-Datei in Home Assistant, mit `themes: !include_dir_merge_named themes` in der `configuration.yaml`); danach in den Entwicklerwerkzeugen unter YAML „Themes neu laden“ (`frontend.reload_themes`) und im Profil unter **Theme** auswählen. Oben jeweils hell, unten dunkel: *Nordlicht*, *Dämmerung*, *Bernstein*, *Smaragd*.
 
@@ -236,7 +236,7 @@ Als Beispiele liegen vier weitere Themes bereit, die zu den Mustern passen. Die 
 
 ## Aussehen und Sprache
 
-- **Theme:** Im Home-Assistant-Panel übernimmt die App live die Farben und Hell/Dunkel von Home Assistant (`look.follow_ha_theme`). Über die Domain gilt das Standard-Theme oder ein eigenes (`look.theme_name`).
+- **Theme:** Im Home-Assistant-Panel übernimmt die App live die Farben und Hell/Dunkel von Home Assistant (`look.follow_ha_theme`). Über die Domain gilt das zuletzt in HA gesehene Theme der Person („Wie Home Assistant“, ab 0.59.5), sonst das Standard-Theme oder ein eigenes (`look.theme_name`).
 - **Name, Logo, Texte, Farben:** `look.app_name`, `look.login_text`, `look.login_placeholder`, die Farboptionen (`accent_color` …), eigene Dateien `logo.png`, `icon.png` und `custom.css` im Ordner `addon_config` des Add-ons. Eine eigene Seitenleisten-Beschriftung („HA Copilot“) steht dagegen fest in der Add-on-Konfiguration von Home Assistant.
 - **Sprache:** `language: de` (Standard) oder `en`. Gilt für Oberfläche, Meldungen, Einrichtungsprüfung, Export und Benachrichtigungen.
 

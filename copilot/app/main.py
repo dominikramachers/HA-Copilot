@@ -293,6 +293,20 @@ class DesignBody(BaseModel):
     design: str = Field(default=DEFAULT_DESIGN, max_length=16)
 
 
+# Zuletzt gesehenes Home-Assistant-Theme einer Person: nur diese Variablen und nur Farbwerte werden gemerkt
+# (siehe static/theme-init.js, HA_VARS). Gilt beim Zugriff ohne Home Assistant, z. B. über die Domain.
+HA_LOOK_VARS = (
+    "primary-color", "primary-background-color", "card-background-color", "sidebar-background-color",
+    "primary-text-color", "secondary-text-color", "text-primary-color", "error-color", "warning-color",
+)
+_COLOR_VALUE = re.compile(r"^(#[0-9a-fA-F]{3,8}|(?:rgb|hsl)a?\([0-9a-zA-Z .,%/+-]{3,60}\)|[a-zA-Z]{3,24})$")
+
+
+class HaLookBody(BaseModel):
+    mode: str = Field(max_length=8)
+    vars: dict[str, str] = Field(default_factory=dict, max_length=len(HA_LOOK_VARS))
+
+
 class DefaultModelBody(BaseModel):
     model: str = Field(default="", max_length=64)  # '' oder "auto" = das in der App eingestellte Modell
 
@@ -990,6 +1004,7 @@ def register_chat_routes(
             "default_model": settings.model,
             "user_model": user_default_model(profile.id),
             "design": store.profile_design(profile.id) or DEFAULT_DESIGN,
+            "ha_look": store.profile_ha_look(profile.id),
             "openai": settings.openai_active,
             "limits": limits.current(),
             "schedules": settings.schedules_enabled and scheduler is not None,
@@ -1120,6 +1135,20 @@ def register_chat_routes(
         if wanted not in DESIGNS:
             raise HTTPException(status_code=422, detail=tr("Unbekanntes Design"))
         return {"design": store.set_profile_design(profile.id, "" if wanted == DEFAULT_DESIGN else wanted) or DEFAULT_DESIGN}
+
+    @app.put("/api/me/ha-look", dependencies=[Depends(write_guard)])
+    def save_ha_look(body: HaLookBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Merkt sich das Home-Assistant-Theme, das die Person zuletzt gesehen hat (der eingebettete Copilot meldet es).
+        Beim Zugriff ohne Home Assistant (Domain) übernimmt die Oberfläche es, wenn die Person „Wie Home Assistant“ wählt."""
+        if body.mode not in ("light", "dark"):
+            raise HTTPException(status_code=422, detail=tr("Unbekanntes Design"))
+        clean = {k: v.strip() for k, v in body.vars.items() if k in HA_LOOK_VARS and _COLOR_VALUE.match(v.strip())}
+        if "primary-background-color" not in clean:
+            raise HTTPException(status_code=422, detail=tr("Unbekanntes Design"))
+        look = {"mode": body.mode, "vars": clean}
+        if store.profile_ha_look(profile.id) != look:
+            store.set_profile_ha_look(profile.id, look)
+        return {"ok": True}
 
     @app.put("/api/me/model", dependencies=[Depends(write_guard)])
     def save_default_model(body: DefaultModelBody, profile: Profile = Depends(current_profile)) -> dict:

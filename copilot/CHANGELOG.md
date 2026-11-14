@@ -1,6 +1,17 @@
 # Änderungen
 
-## 0.60.0
+## 0.59.5
+Zwei Änderungen: das Theme aus Home Assistant gilt auch über die Domain, und das Gedächtnis hat eine neue, übersichtlichere Ansicht.
+
+### Theme über die Domain
+Das Theme, das eine Person in Home Assistant gewählt hat, gilt auch beim Zugriff über die Domain.
+- **Anlass:** Im Home-Assistant-Panel folgt der Copilot dem Theme der Person schon live (eigenes Profil-Theme, Hell/Dunkel, ohne Neuladen; geprüft mit `settheme` wie im Profil). Über die Domain sieht die Seite Home Assistant nicht und zeigte nur das Standard-Theme, sodass dort nach einem Theme-Wechsel in HA die alten Farben blieben.
+- **Neu:** Der eingebettete Copilot meldet das Aussehen (`mode` plus die neun Farbvariablen aus `HA_VARS`) bei jeder Änderung mit 0,8 s Verzögerung an `PUT /api/me/ha-look`. Der Server nimmt nur bekannte Variablen mit Farbwerten an (Hex, `rgb()`, `hsl()`, Farbnamen) und speichert sie je Person (Datenbankschema 34, Spalte `profiles.ha_look`, JSON); `GET /api/me` liefert sie als `ha_look`.
+- **Anzeige ohne HA:** `theme-init.js` kennt dafür die neue Darstellung „Wie Home Assistant“ (`data-theme-source="saved"`). Sie gilt, solange die Person nichts anderes gewählt hat und ein gemerktes Aussehen existiert; eine eigene Wahl (Auto/Hell/Dunkel) hat Vorrang. Das gemerkte Aussehen liegt zusätzlich als `ki-ha-look` im Browser, damit die Seite ohne Aufblitzen startet; beim Start wird es aus `/api/me` aktualisiert.
+- **Grenzen:** Die Domain-Seite erfährt das Theme erst, wenn die Person den Copilot einmal in HA geöffnet hat; danach folgt jede Änderung. Ohne Einbettung (`look.follow_ha_theme` aus) wird nichts gemeldet.
+- Tests: `tests/test_ha_look.py`.
+
+### Gedächtnis: neue Ansicht
 Gedächtnis: neue Ansicht nach dem Vorbild von Claude, damit man bei vielen Einträgen nicht mehr bis ans Ende scrollen muss.
 - **Anlass:** Das Formular „Selbst etwas eintragen“ stand ganz unten. Bei vielen Erinnerungen musste man lang scrollen, um etwas hinzuzufügen.
 - **Oben:** Suche (Thema und Text, ohne Beachtung von Groß-/Kleinschreibung und Akzenten, über alle Gruppen) und „Hinzufügen“. Das Formular klappt direkt darunter auf; das „+“ in einer Gruppe öffnet es mit vorgewähltem Bereich. Nach dem Speichern öffnet sich die Gruppe des neuen Eintrags.
