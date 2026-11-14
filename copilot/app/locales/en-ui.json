@@ -897,6 +897,8 @@
  "Einstellungen": "Settings",
  "Fotos und Kunstbilder sind nicht eingerichtet. Einfache Grafiken zeichnet die KI kostenlos als SVG.": "Photos and artwork are not set up. The AI draws simple graphics for free as SVG.",
  "Hell, dunkel oder wie dein Gerät.": "Light, dark or like your device.",
+ "Hell, dunkel, wie dein Gerät oder wie in Home Assistant.": "Light, dark, like your device or like in Home Assistant.",
+ "Wie Home Assistant": "Like Home Assistant",
  "Hilfe": "Help",
  "Kurz erklärt, wie du mit mir arbeitest.": "A short guide to working with me.",
  "Nutzung": "Usage",
