@@ -8340,16 +8340,36 @@ function rememberedView() {
   try { return [sessionStorage.getItem("ki-view") || "", sessionStorage.getItem("ki-view-detail") || ""]; } catch { return ["", ""]; }
 }
 
+// Das Theme aus Home Assistant gilt auch außerhalb von HA: Eingebettet meldet der Copilot dem Add-on, was die Person gerade sieht
+// (bei jeder Änderung des Themes in HA); beim Zugriff über die Domain übernimmt er das zuletzt gemeldete.
+function syncHaLook() {
+  const theme = window.kiTheme;
+  if (!theme) return;
+  let timer = 0;
+  let sent = JSON.stringify(state.me?.ha_look || null);
+  const send = (look) => {
+    const key = JSON.stringify(look);
+    if (!look || key === sent) return;
+    sent = key;
+    api("api/me/ha-look", { method: "PUT", body: JSON.stringify(look) }).catch(() => { sent = ""; });
+  };
+  theme.onLook = (look) => { clearTimeout(timer); timer = setTimeout(() => send(look), 800); };
+  const now = theme.look();
+  if (now) send(now);
+  else theme.remember(state.me?.ha_look);
+}
+
 function themeRow() {
   const row = node("div", "set-row");
   const text = node("div", "set-row-text");
-  text.append(node("b", "", tr("Darstellung")), node("span", "", tr("Hell, dunkel oder wie dein Gerät.")));
+  text.append(node("b", "", tr("Darstellung")), node("span", "", window.kiTheme.hasSaved() ? tr("Hell, dunkel, wie dein Gerät oder wie in Home Assistant.") : tr("Hell, dunkel oder wie dein Gerät.")));
   const seg = node("div", "seg");
   seg.setAttribute("role", "group");
   seg.setAttribute("aria-label", tr("Darstellung"));
   const current = () => window.kiTheme.get();
   const draw = () => seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.value === current())));
-  for (const [value, label] of THEMES) {
+  const choices = window.kiTheme.hasSaved() ? [["ha", tr("Wie Home Assistant")], ...THEMES] : THEMES;
+  for (const [value, label] of choices) {
     const b = node("button", "", label);
     b.type = "button";
     b.dataset.value = value;
@@ -9103,6 +9123,7 @@ async function init() {
   try {
     state.me = await api("api/me");
     window.kiDesign?.set(state.me.design);
+    syncHaLook();
     syncIncognito();
     initVoiceButton();
     $("who").textContent = state.me.label;

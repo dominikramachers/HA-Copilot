@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.59.5
+Das Theme, das eine Person in Home Assistant gewählt hat, gilt auch beim Zugriff über die Domain.
+- **Anlass:** Im Home-Assistant-Panel folgt der Copilot dem Theme der Person schon live (eigenes Profil-Theme, Hell/Dunkel, ohne Neuladen; geprüft mit `settheme` wie im Profil). Über die Domain sieht die Seite Home Assistant nicht und zeigte nur das Standard-Theme, sodass dort nach einem Theme-Wechsel in HA die alten Farben blieben.
+- **Neu:** Der eingebettete Copilot meldet das Aussehen (`mode` plus die neun Farbvariablen aus `HA_VARS`) bei jeder Änderung mit 0,8 s Verzögerung an `PUT /api/me/ha-look`. Der Server nimmt nur bekannte Variablen mit Farbwerten an (Hex, `rgb()`, `hsl()`, Farbnamen) und speichert sie je Person (Datenbankschema 34, Spalte `profiles.ha_look`, JSON); `GET /api/me` liefert sie als `ha_look`.
+- **Anzeige ohne HA:** `theme-init.js` kennt dafür die neue Darstellung „Wie Home Assistant“ (`data-theme-source="saved"`). Sie gilt, solange die Person nichts anderes gewählt hat und ein gemerktes Aussehen existiert; eine eigene Wahl (Auto/Hell/Dunkel) hat Vorrang. Das gemerkte Aussehen liegt zusätzlich als `ki-ha-look` im Browser, damit die Seite ohne Aufblitzen startet; beim Start wird es aus `/api/me` aktualisiert.
+- **Grenzen:** Die Domain-Seite erfährt das Theme erst, wenn die Person den Copilot einmal in HA geöffnet hat; danach folgt jede Änderung. Ohne Einbettung (`look.follow_ha_theme` aus) wird nichts gemeldet.
+- Tests: `tests/test_ha_look.py`.
+
 ## 0.59.4
 GitHub: abgelaufene Tokens werden von selbst erneuert, statt dass man alle paar Stunden neu verbinden muss.
 - **Anlass:** Nach dem Neu-Verbinden zeigte die KI schon wenige Stunden später wieder `401` („Dein GitHub-Zugang ist abgelaufen …“), obwohl die OAuth-App bei GitHub weiter freigegeben war. Das Protokoll zeigte: Am Vorabend gingen alle GitHub-Aufrufe mit 200 durch, am nächsten Mittag kamen nur noch 401. Das passt zu Tokens, die GitHub nach 8 Stunden ablaufen lässt (Einstellung der OAuth-App oder `offline_access`). Das Add-on warf bisher alles weg, was GitHub dazu mitschickt (`refresh_token`, `expires_in`).

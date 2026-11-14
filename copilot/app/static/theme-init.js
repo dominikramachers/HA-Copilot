@@ -5,13 +5,12 @@
 // Eingebettet in Home Assistant (Ingress, gleiche Herkunft) übernimmt die Seite live die Farben des aktiven HA-Themes
 // (Profil des Benutzers, Hell/Dunkel von HA) und blendet den eigenen Hell/Dunkel-Umschalter aus. Ohne Einbettung
 // (Domain) oder wenn der Zugriff auf HA nicht klappt, gilt der eigene Umschalter (Auto/Hell/Dunkel) und das
-// Standard-Theme, das der Server als branding/theme.css liefert.
+// Standard-Theme, das der Server als branding/theme.css liefert. Dabei merkt sich der eingebettete Copilot das HA-Theme der Person
+// im Add-on; beim Zugriff über die Domain gilt dann „Wie Home Assistant“ (das zuletzt gesehene Theme), solange die Person nichts anderes wählt.
 (function () {
   const KEY = "ki-theme";
+  const LOOK_KEY = "ki-ha-look";
   const dark = window.matchMedia("(prefers-color-scheme: dark)");
-  const stored = () => {
-    try { return localStorage.getItem(KEY) || "auto"; } catch { return "auto"; }
-  };
   const root = document.documentElement;
   const embedded = root.dataset.embed === "ha";
   const follow = root.dataset.followHa !== "false";
@@ -22,6 +21,20 @@
     "primary-text-color", "secondary-text-color", "text-primary-color", "error-color", "warning-color",
   ];
   let applied = [];
+
+  // Zuletzt gesehenes HA-Theme dieser Person (vom Add-on, hier nur als Abbild für ein Zeichnen ohne Aufblitzen).
+  function savedLook() {
+    try {
+      const look = JSON.parse(localStorage.getItem(LOOK_KEY) || "null");
+      return look && (look.mode === "dark" || look.mode === "light") && look.vars && look.vars["primary-background-color"] ? look : null;
+    } catch { return null; }
+  }
+  // Ohne eigene Wahl und ohne Einbettung gilt das gemerkte HA-Theme, wenn es eines gibt.
+  const stored = () => {
+    let value = null;
+    try { value = localStorage.getItem(KEY); } catch { /* optional */ }
+    return value || (!embedded && savedLook() ? "ha" : "auto");
+  };
 
   function luminance(color) {
     let m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color);
@@ -61,21 +74,34 @@
     }
   }
 
+  let reported = "";
+  const paint = (look, source) => {
+    for (const [name, value] of Object.entries(look.vars)) {
+      root.style.setProperty("--" + name, value);
+      applied.push(name);
+    }
+    root.dataset.theme = look.mode;
+    root.dataset.mode = "ha";
+    root.dataset.themeSource = source;
+  };
+
   const apply = () => {
     const look = follow ? haLook() : null;
     for (const name of applied) root.style.removeProperty("--" + name);
     applied = [];
     if (look) {
-      for (const [name, value] of Object.entries(look.vars)) {
-        root.style.setProperty("--" + name, value);
-        applied.push(name);
-      }
-      root.dataset.theme = look.mode;
-      root.dataset.mode = "ha";
-      root.dataset.themeSource = "ha";
+      paint(look, "ha");
+      // Dem Add-on melden, was die Person in Home Assistant gerade sieht (nur bei Änderung), damit es auch außerhalb von HA gilt.
+      const key = JSON.stringify(look);
+      if (key !== reported && window.kiTheme?.onLook) { reported = key; window.kiTheme.onLook(look); }
       return;
     }
     const mode = stored();
+    const saved = mode === "ha" ? savedLook() : null;
+    if (saved) {
+      paint(saved, "saved");
+      return;
+    }
     root.dataset.theme = mode === "auto" ? (dark.matches ? "dark" : "light") : mode;
     root.dataset.mode = mode;
     root.dataset.themeSource = "own";
@@ -108,6 +134,15 @@
       try { localStorage.setItem(KEY, mode); } catch { /* optional */ }
       apply();
     },
+    // Aussehen, das Home Assistant gerade hat (nur eingebettet), und das gemerkte aus dem Add-on (beim Zugriff ohne HA).
+    look: () => (follow ? haLook() : null),
+    remember(look) {
+      if (embedded || !look) return;
+      try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* optional */ }
+      apply();
+    },
+    hasSaved: () => !!savedLook(),
+    onLook: null,
   };
   dark.addEventListener("change", apply);
   if (embedded && follow) {
