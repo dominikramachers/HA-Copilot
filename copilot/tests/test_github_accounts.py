@@ -32,6 +32,7 @@ class FakeGithub:
         self.answers: list[dict] = []  # Antworten auf das Nachfragen, der Reihe nach
         self.start_error: str | None = None
         self.user: dict | tuple = {"login": "dora-gh"}
+        self.valid: set[str] | None = None  # gesetzt: nur diese Token akzeptiert /user, alle anderen bekommen 401
         self.auth: list[str] = []
         self.sent: list[dict[str, str]] = []
 
@@ -51,6 +52,8 @@ class FakeGithub:
                 return httpx.Response(200, json=self.answers.pop(0) if self.answers else {"error": "authorization_pending"})
             if request.url.path == "/user":
                 self.auth.append(request.headers.get("authorization", ""))
+                if self.valid is not None and request.headers.get("authorization", "").removeprefix("Bearer ") not in self.valid:
+                    return httpx.Response(401, json={"message": "Bad credentials"})
                 if isinstance(self.user, tuple):
                     return httpx.Response(self.user[0], json=self.user[1])
                 return httpx.Response(200, json=self.user)
@@ -73,9 +76,24 @@ def clock():
     return FakeClock()
 
 
+class FakeWall:
+    """Uhrzeit (Unix-Zeit) für den Ablauf der Tokens."""
+
+    def __init__(self):
+        self.now = 1_700_000_000.0
+
+    def __call__(self):
+        return self.now
+
+
 @pytest.fixture()
-def accounts(store, vault, gh, clock):
-    return GithubAccounts(store, vault, transport=gh.transport(), clock=clock)
+def wall():
+    return FakeWall()
+
+
+@pytest.fixture()
+def accounts(store, vault, gh, clock, wall):
+    return GithubAccounts(store, vault, transport=gh.transport(), clock=clock, wall=wall)
 
 
 def run(coro):
@@ -349,3 +367,116 @@ def test_reconnecting_clears_the_expired_mark(accounts, gh, clock):
     assert accounts.info("dora")["expired"] is False
     accounts.disconnect("dora")
     assert accounts.info("dora")["expired"] is False and accounts.info("dora")["source"] == "none"
+
+
+# ----------------------------------------------------------------------- Token läuft ab und wird erneuert
+
+OLD, NEW, NEWER = "gho_altes_token_abcdefghijklmno", "ghu_neues_token_abcdefghijklmno", "ghu_noch_neueres_token_abcdefghij"
+
+
+def connect_expiring(accounts, gh, clock, expires_in=28800):
+    run(accounts.device_start("dora"))
+    gh.answers.append({"access_token": OLD, "token_type": "bearer", "scope": "repo", "refresh_token": "ghr_erneuern_eins", "expires_in": expires_in, "refresh_token_expires_in": 15897600})
+    clock.now += 6
+    assert run(accounts.device_poll("dora"))["status"] == "ok"
+
+
+def test_expiring_token_keeps_an_encrypted_refresh_token_and_the_expiry(accounts, store, vault, gh, clock, wall):
+    connect_expiring(accounts, gh, clock)
+    row = store.github_account_get("dora")
+    assert row["refresh"] != "ghr_erneuern_eins" and "ghr_erneuern_eins" not in str(row) and vault.unseal(row["refresh"]) == "ghr_erneuern_eins"
+    assert row["expires_at"] == wall.now + 28800
+
+
+def test_a_token_without_expiry_stays_as_before(accounts, store, gh, clock):
+    run(accounts.device_start("dora"))
+    gh.answers.append({"access_token": OLD, "token_type": "bearer", "scope": "repo"})
+    clock.now += 6
+    run(accounts.device_poll("dora"))
+    row = store.github_account_get("dora")
+    assert row["refresh"] == "" and row["expires_at"] == 0
+
+
+def test_rejected_token_is_renewed_and_the_request_repeated(accounts, store, vault, gh, clock, wall):
+    connect_expiring(accounts, gh, clock)
+    gh.valid = {NEW}  # GitHub kennt das alte Token nicht mehr
+    gh.answers.append({"access_token": NEW, "refresh_token": "ghr_erneuern_zwei", "expires_in": 28800})
+    gh.sent.clear()
+    assert run(accounts.api_for("dora").request("GET", "/user")) == {"login": "dora-gh"}
+    refresh = [f for f in gh.sent if f.get("grant_type") == "refresh_token"]
+    assert len(refresh) == 1 and refresh[0]["refresh_token"] == "ghr_erneuern_eins" and refresh[0]["client_id"] and "client_secret" not in refresh[0]
+    assert gh.auth[-2:] == [f"Bearer {OLD}", f"Bearer {NEW}"]
+    row = store.github_account_get("dora")
+    assert vault.unseal(row["token"]) == NEW and vault.unseal(row["refresh"]) == "ghr_erneuern_zwei" and row["login"] == "dora-gh" and row["via"] == "device"
+    assert accounts.info("dora")["expired"] is False and accounts.api_for("dora")._token == NEW
+
+
+def test_token_close_to_expiry_is_renewed_before_the_request(accounts, gh, clock, wall):
+    connect_expiring(accounts, gh, clock)
+    gh.valid = {NEW}
+    gh.answers.append({"access_token": NEW, "refresh_token": "ghr_erneuern_zwei", "expires_in": 28800})
+    gh.auth.clear()
+    wall.now += 28800 - 60  # weniger als zwei Minuten Rest
+    run(accounts.api_for("dora").request("GET", "/user"))
+    assert gh.auth == [f"Bearer {NEW}"]  # GitHub bekam das alte Token gar nicht erst zu sehen
+
+
+def test_parallel_requests_renew_only_once(accounts, gh, clock):
+    connect_expiring(accounts, gh, clock)
+    gh.valid = {NEW}
+    gh.answers.append({"access_token": NEW, "refresh_token": "ghr_erneuern_zwei", "expires_in": 28800})
+    gh.answers.append({"error": "bad_refresh_token"})  # ein zweites Erneuern wäre ein Fehler
+    gh.sent.clear()
+
+    async def three():
+        api = accounts.api_for("dora")
+        return await asyncio.gather(*(api.request("GET", "/user") for _ in range(3)))
+
+    assert run(three()) == [{"login": "dora-gh"}] * 3
+    assert len([f for f in gh.sent if f.get("grant_type") == "refresh_token"]) == 1
+    assert accounts.info("dora")["expired"] is False
+
+
+def test_refused_renewal_marks_the_account_as_expired(accounts, store, gh, clock):
+    connect_expiring(accounts, gh, clock)
+    gh.valid = set()
+    gh.answers.append({"error": "bad_refresh_token", "error_description": "The refresh token passed is incorrect or expired."})
+    with pytest.raises(Exception, match="abgelaufen"):
+        run(accounts.api_for("dora").request("GET", "/user"))
+    assert accounts.info("dora")["expired"] is True
+
+
+def test_github_unreachable_during_renewal_changes_nothing(store, vault, gh, clock, wall):
+    ok = GithubAccounts(store, vault, transport=gh.transport(), clock=clock, wall=wall)
+    connect_expiring(ok, gh, clock)
+
+    def down(request):
+        raise httpx.ConnectError("offline")
+
+    broken = GithubAccounts(store, vault, transport=httpx.MockTransport(down), clock=clock, wall=wall)
+    assert run(broken.renew("dora", OLD)) is None
+    assert vault.unseal(store.github_account_get("dora")["token"]) == OLD and broken.info("dora")["expired"] is False
+
+
+def test_no_refresh_token_means_no_renewal_attempt(accounts, gh):
+    run(accounts.connect_token("dora", PERSONAL))
+    gh.valid = set()
+    gh.sent.clear()
+    with pytest.raises(Exception, match="abgelaufen"):
+        run(accounts.api_for("dora").request("GET", "/user"))
+    assert gh.sent == []
+
+
+def test_old_database_gets_the_new_columns(tmp_path):
+    import sqlite3
+
+    from app.db import Store
+
+    path = tmp_path / "alt.db"
+    old = sqlite3.connect(path)
+    old.execute("CREATE TABLE github_accounts (profile_id TEXT PRIMARY KEY, token TEXT NOT NULL, login TEXT NOT NULL DEFAULT '', via TEXT NOT NULL DEFAULT '', connected_at TEXT NOT NULL DEFAULT '')")
+    old.execute("INSERT INTO github_accounts VALUES ('dora', 'x', 'dora-gh', 'device', 'jetzt')")
+    old.commit()
+    old.close()
+    row = Store(path).github_account_get("dora")
+    assert row["refresh"] == "" and row["expires_at"] == 0 and row["login"] == "dora-gh"

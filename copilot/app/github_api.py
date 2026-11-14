@@ -8,7 +8,8 @@ from __future__ import annotations
 import fnmatch
 import logging
 import re
-from collections.abc import Callable, Iterable
+import time
+from collections.abc import Awaitable, Callable, Iterable
 from typing import Any
 
 import httpx
@@ -18,6 +19,7 @@ log = logging.getLogger("copilot.github")
 BASE_URL = "https://api.github.com"
 API_VERSION = "2022-11-28"
 MAX_RESPONSE_BYTES = 3_000_000
+RENEW_MARGIN_SECONDS = 120  # so kurz vor dem Ablauf wird das Token schon erneuert
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 PATTERN_RE = re.compile(r"^[A-Za-z0-9_.-]{1,100}/([A-Za-z0-9_.-]{1,100}|\*)$")
 _URL_RE = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?(?:/.*)?$")
@@ -61,8 +63,11 @@ class RepoPolicy:
 
 
 class GithubApi:
-    def __init__(self, token: str, transport: httpx.AsyncBaseTransport | None = None, timeout: float = 25.0, base_url: str = BASE_URL, personal: bool = False, on_unauthorized: Callable[[], None] | None = None) -> None:
+    def __init__(self, token: str, transport: httpx.AsyncBaseTransport | None = None, timeout: float = 25.0, base_url: str = BASE_URL, personal: bool = False, on_unauthorized: Callable[[], None] | None = None, renew: Callable[[str], Awaitable[str | None]] | None = None, expires_at: float = 0.0, wall: Callable[[], float] = time.time) -> None:
         self._token = token
+        self._renew_token = renew  # holt ein neues Token (bekommt das alte); ``None`` = nicht erneuerbar
+        self._wall = wall
+        self._expires_at = expires_at  # Unix-Zeit, zu der GitHub das Token ablaufen lässt (0 = unbekannt oder läuft nicht ab)
         self._on_unauthorized = on_unauthorized  # GitHub lehnt das Token ab: das Konto merkt sich das für die Einstellungen
         self.personal = personal  # eigenes Konto der Person (nicht das Token des Add-ons): andere Hinweise bei Fehlern
         self._transport = transport
@@ -88,20 +93,11 @@ class GithubApi:
         """Eine Anfrage; liefert JSON (Liste/Objekt) oder, bei Rohdaten, Text. Wirft :class:`GithubError`."""
         if not self.enabled:
             raise GithubError("GitHub ist nicht eingerichtet (die Person hat kein Konto verbunden).")
-        headers = {
-            "Authorization": f"Bearer {self._token}",
-            "Accept": accept,
-            "X-GitHub-Api-Version": API_VERSION,
-            "User-Agent": "ha-copilot-addon",
-        }
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport, follow_redirects=False) as client:
-                response = await client.request(method, self._base + path, params=params, json=json, headers=headers)
-        except httpx.TimeoutException:
-            raise GithubError("GitHub antwortet nicht (Zeitüberschreitung).") from None
-        except httpx.HTTPError as exc:
-            log.info("GitHub nicht erreichbar: %s", type(exc).__name__)
-            raise GithubError("GitHub ist nicht erreichbar.") from None
+        if self._renew_token is not None and self._expires_at and self._wall() >= self._expires_at - RENEW_MARGIN_SECONDS:
+            await self._renew()  # läuft gleich ab oder ist abgelaufen: vorher erneuern; klappt das nicht, geht die Anfrage mit dem alten Token raus
+        response = await self._send(method, path, params, json, accept)
+        if response.status_code == 401 and self._renew_token is not None and await self._renew():
+            response = await self._send(method, path, params, json, accept)  # GitHub hat das Token abgelehnt, das neue klappt vielleicht
         if response.status_code >= 400:
             raise self._error(response)
         if response.status_code == 204 or not response.content:
@@ -114,6 +110,36 @@ class GithubApi:
             except ValueError:
                 pass
         return response.text
+
+    async def _renew(self) -> bool:
+        """Token erneuern lassen; ``True``, wenn jetzt ein anderes Token gilt."""
+        old = self._token
+        try:
+            new = await self._renew_token(old) if self._renew_token else None
+        except Exception:  # Erneuern darf eine Anfrage nie abstürzen lassen
+            log.warning("Das GitHub-Token konnte nicht erneuert werden", exc_info=False)
+            return False
+        if not new or new == old:
+            return False
+        self._token = new
+        self._expires_at = 0.0  # den neuen Ablauf kennt das Konto; bis zur nächsten Anfrage zählt nur noch die Ablehnung durch GitHub
+        return True
+
+    async def _send(self, method: str, path: str, params: dict[str, Any] | None, json: Any, accept: str) -> httpx.Response:
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Accept": accept,
+            "X-GitHub-Api-Version": API_VERSION,
+            "User-Agent": "ha-copilot-addon",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport, follow_redirects=False) as client:
+                return await client.request(method, self._base + path, params=params, json=json, headers=headers)
+        except httpx.TimeoutException:
+            raise GithubError("GitHub antwortet nicht (Zeitüberschreitung).") from None
+        except httpx.HTTPError as exc:
+            log.info("GitHub nicht erreichbar: %s", type(exc).__name__)
+            raise GithubError("GitHub ist nicht erreichbar.") from None
 
     def _error(self, response: httpx.Response) -> GithubError:
         status = response.status_code
