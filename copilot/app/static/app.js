@@ -244,7 +244,7 @@ function openSheet({ title, sub = "", label = "", value = null, placeholder = ""
       $("sheet-scrim").classList.add("show");
       if (items) list.querySelector("button")?.focus();
       else if (panel && onOk) { if (window.matchMedia("(pointer: fine)").matches) body.querySelector("input, textarea")?.focus(); }
-      else if (panel) (body.querySelector("input[type=search]") || okBtn).focus();
+      else if (panel) (body.querySelector("input[type=search]") || okBtn).focus({ preventScroll: true }); // nicht nach unten springen: bei langen Listen (Gedächtnis) soll oben die Suche stehen
       else if (value === null) (danger ? $("sheet-cancel") : okBtn).focus(); // Löschen nie als Vorauswahl
       else input.focus();
       if (value !== null && !multiline && !panel) input.select();
@@ -1471,24 +1471,121 @@ function confirmButton(label, onConfirm) {
   return b;
 }
 
-function memoryEntry(entry, scope, canDelete, refresh, url = "") {
-  const row = node("div", "mem-entry");
-  const text = node("div", "mem-text");
-  text.append(node("b", "mem-topic", entry.topic), node("p", "", entry.content));
+// Gedächtnis wie bei Claude: Gruppen zum Auf- und Zuklappen, Suche und „Hinzufügen“ oben, Zeilen mit Vorschau und Datum.
+// Welche Gruppen offen sind, gilt, solange die Seite offen ist (zu ist der Standard, nur „Mein Gedächtnis“ ist am Anfang offen).
+const memUi = { open: new Set(["person"]), query: "" };
+
+const lowerFirst = (text) => (text ? text[0].toLowerCase() + text.slice(1) : text);
+
+function memoryOrigin(entry, scope) {
   const shared = scope === "household" && entry.by;  // im Haushalt kann ein Eintrag von jemand anderem stammen
   const origin = { said: shared ? tr("gesagt") : tr("von dir gesagt"), inferred: tr("von der KI abgeleitet"), manual: shared ? tr("eingetragen") : tr("von dir eingetragen"), import: tr("importiert") }[entry.origin] || "";
-  const meta = [origin, entry.by ? tr("von {0}", entry.by) : "", dayText(entry.updated_at)].filter(Boolean).join(" · ");
-  if (meta) text.append(node("small", "mem-meta", meta));
-  row.append(text);
-  if (canDelete) {
-    row.append(confirmButton(tr("Eintrag löschen"), async () => {
-      try {
-        await api(url || `api/memory/${scope}/${entry.id}`, { method: "DELETE" });
-        refresh();
-      } catch (err) { toast(errorText(err, tr("Löschen hat nicht geklappt."))); }
-    }));
+  return [origin, entry.by ? tr("von {0}", entry.by) : "", dayText(entry.updated_at)].filter(Boolean).join(" · ");
+}
+
+// Eine Zeile: Thema, Vorschau, „Aktualisiert …“. Ein Klick zeigt den ganzen Text; Bearbeiten und Löschen erscheinen beim Darüberfahren.
+function memoryRow(entry, group, redraw) {
+  const row = node("div", "mem-row");
+  const main = node("button", "mem-row-main");
+  main.type = "button";
+  main.setAttribute("aria-expanded", "false");
+  main.append(
+    node("span", "mem-row-topic", entry.topic),
+    node("span", "mem-row-preview", entry.content.replace(/\s+/g, " ")),
+    node("span", "mem-row-date", tr("Aktualisiert {0}", lowerFirst(sentAgo(entry.updated_at)))),
+  );
+  const detail = node("div", "mem-row-detail");
+  detail.hidden = true;
+  detail.append(node("p", "", entry.content));
+  const meta = memoryOrigin(entry, group.scope);
+  if (meta) detail.append(node("small", "mem-meta", meta));
+  main.addEventListener("click", () => {
+    const open = detail.hidden;
+    detail.hidden = !open;
+    row.classList.toggle("open", open);
+    main.setAttribute("aria-expanded", String(open));
+  });
+  const line = node("div", "mem-row-line");
+  line.append(main);
+  if (group.canWrite) {
+    const actions = node("div", "mem-row-actions");
+    actions.append(
+      actionButton(tr("Eintrag bearbeiten"), "edit", "", () => row.replaceWith(memoryEditor(entry, group, redraw))),
+      confirmButton(tr("Eintrag löschen"), async () => {
+        try {
+          await api(group.deleteUrl(entry), { method: "DELETE" });
+          redraw();
+        } catch (err) { toast(errorText(err, tr("Löschen hat nicht geklappt."))); }
+      }),
+    );
+    line.append(actions);
   }
+  row.append(line, detail);
   return row;
+}
+
+// Eintrag bearbeiten: Thema und Text direkt in der Zeile. Ein geändertes Thema legt den Eintrag unter dem neuen Namen an und löscht den alten.
+function memoryEditor(entry, group, redraw) {
+  const form = node("form", "mem-edit");
+  form.autocomplete = "off";
+  const topic = node("input", "field");
+  topic.value = entry.topic;
+  topic.maxLength = 60;
+  topic.setAttribute("aria-label", tr("Thema"));
+  const content = node("textarea", "field area");
+  content.rows = 4;
+  content.maxLength = 800;
+  content.value = entry.content;
+  content.setAttribute("aria-label", tr("Inhalt"));
+  const cancel = node("button", "pill ghost", tr("Abbrechen"));
+  cancel.type = "button";
+  const save = node("button", "pill primary", tr("Speichern"));
+  save.type = "submit";
+  const bar = node("div", "mem-edit-bar");
+  bar.append(cancel, save);
+  form.append(topic, content, bar);
+  cancel.addEventListener("click", () => form.replaceWith(memoryRow(entry, group, redraw)));
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = topic.value.replace(/\s+/g, " ").trim();
+    if (name.length < 2 || content.value.trim().length < 3) { toast(tr("Bitte Thema und Inhalt ausfüllen.")); return; }
+    const renamed = foldText(name) !== foldText(entry.topic);
+    if (renamed && group.entries.some((other) => other !== entry && foldText(other.topic) === foldText(name))) { toast(tr("Dieses Thema gibt es hier schon.")); return; }
+    save.disabled = true;
+    try {
+      await api("api/memory", { method: "POST", body: JSON.stringify({ scope: group.scope, project_id: group.projectId, topic: name, content: content.value.trim() }) });
+      if (renamed) await api(group.deleteUrl(entry), { method: "DELETE" });
+      redraw();
+    } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); save.disabled = false; }
+  });
+  setTimeout(() => content.focus(), 0);
+  return form;
+}
+
+// Eine Gruppe mit Pfeil, Titel und Anzahl; rechts optional „+“. ``body`` ist der Inhalt (nur bei offener Gruppe sichtbar).
+function memoryGroup({ key, title, count = null, meta = "", hint = "", body, onAdd = null, forceOpen = false, repaint }) {
+  const open = forceOpen || memUi.open.has(key);
+  const box = node("section", "mem-group");
+  const head = node("div", "mem-group-head");
+  const toggle = node("button", "mem-group-toggle");
+  toggle.type = "button";
+  toggle.setAttribute("aria-expanded", String(open));
+  toggle.append(icon("chevron"), node("span", "mem-group-title", title));
+  if (count !== null) toggle.append(node("span", "conn-count", String(count)));
+  if (meta) toggle.append(node("span", "mem-group-meta", meta));
+  toggle.addEventListener("click", () => {
+    if (forceOpen) return;
+    if (memUi.open.has(key)) memUi.open.delete(key); else memUi.open.add(key);
+    repaint();
+  });
+  head.append(toggle);
+  if (onAdd) head.append(actionButton(tr("Zu „{0}“ hinzufügen", title), "plus", "mem-group-add", onAdd));
+  box.append(head);
+  if (open) {
+    if (hint) box.append(node("p", "mem-hint", hint));
+    box.append(body);
+  }
+  return box;
 }
 
 // ------------------------------------------------- Smarthome-Überblick (automatisch aus Home Assistant eingelesen)
@@ -1590,7 +1687,7 @@ function overviewSection(info, redraw) {
   const entries = info.entries || [];
   const short = node("small", "mem-meta", overviewShort(info.status, entries.length));
   const head = node("summary", "");
-  head.append(node("span", "", tr("Home Assistant-Überblick")), short, icon("chevron"));
+  head.append(icon("chevron"), node("span", "", tr("Home Assistant-Überblick")), short);
   const line = node("p", "mem-ov-status", overviewLine(info.status, entries.length));
   line.classList.toggle("error", info.status.state === "error");
   const hint = node("p", "mem-hint", tr("Damit kennt die KI deine Smarthome-Umgebung: Bereiche, Geräte, Automationen und Integrationen. Das wird automatisch aus Home Assistant eingelesen und hier nur angezeigt."));
@@ -1668,11 +1765,7 @@ function instructionsSection(data) {
   sync();
   const bar = node("div", "mem-bar");
   bar.append(count, save);
-  box.append(
-    node("h4", "", tr("Meine Anweisungen")),
-    node("p", "mem-hint", tr("Gelten in allen deinen Chats, zusätzlich zu den Anweisungen eines Projekts. Nur du siehst sie.")),
-    area, bar,
-  );
+  box.append(area, bar);
   return box;
 }
 
@@ -1703,11 +1796,7 @@ function memoryImportSection(body, draw) {
       add.disabled = false;
     }
   });
-  box.append(
-    node("h4", "", tr("Aus Claude übernehmen")),
-    node("p", "mem-hint", tr("Bei Claude gibt es in den Einstellungen unter „Gedächtnis“ den Export als ZIP-Datei mit Markdown. Wähle sie hier aus (eine einzelne Markdown- oder Textdatei geht auch). Du siehst alles vorher und bestimmst, was übernommen wird.")),
-    add, picker, status,
-  );
+  box.append(add, picker, status);
   return box;
 }
 
@@ -2046,57 +2135,116 @@ function stylesPanel(body, alive) {
 
 function memoryPanel(body) {
   const draw = async () => {
-    body.classList.remove("tall");
+    body.classList.add("tall");  // im Fenster mehr Platz für die Liste
     let data;
     try { data = await api("api/memory"); } catch { body.replaceChildren(node("p", "mem-empty", tr("Das Gedächtnis ist gerade nicht erreichbar."))); return; }
-    const parts = [instructionsSection(data)];
-    const section = (title, hint, entries, scope, canDelete, url = null) => {
-      const box = node("section", "mem-section");
-      box.append(node("h4", "", title), node("p", "mem-hint", hint));
-      if (entries.length === 0) box.append(node("p", "mem-empty", tr("Noch nichts gemerkt.")));
-      for (const e of entries) box.append(memoryEntry(e, scope, canDelete, draw, url ? url(e) : ""));
-      parts.push(box);
-    };
-    section(tr("Mein Gedächtnis"), tr("Nur du siehst das und nur dir gegenüber nutzt die KI es."), data.person, "person", true);
-    section(tr("Haushalt"), data.household_write ? tr("Gilt für alle im Haushalt.") : tr("Gilt für alle im Haushalt. Du darfst es ansehen, aber nicht ändern."), data.household, "household", data.household_write);
+    // Die Gruppen mit Einträgen; ``deleteUrl`` löscht einen Eintrag der Gruppe, ``projectId`` gehört zum Speichern
+    const groups = [
+      { key: "person", title: tr("Mein Gedächtnis"), hint: tr("Nur du siehst das und nur dir gegenüber nutzt die KI es."), entries: data.person, scope: "person", projectId: "", canWrite: true },
+      { key: "household", title: tr("Haushalt"), hint: data.household_write ? tr("Gilt für alle im Haushalt.") : tr("Gilt für alle im Haushalt. Du darfst es ansehen, aber nicht ändern."), entries: data.household, scope: "household", projectId: "", canWrite: data.household_write },
+    ];
     for (const pr of data.projects || []) {
       if (!pr.entries.length) continue;
-      section(tr("Projekt: {0}", pr.name), tr("Gilt nur in den Chats dieses Projekts, zusätzlich zu deinem Gedächtnis und dem Haushalt."), pr.entries, "project", true, (e) => `api/projects/${encodeURIComponent(pr.id)}/memory/${e.id}`);
+      groups.push({ key: `project:${pr.id}`, title: tr("Projekt: {0}", pr.name), hint: tr("Gilt nur in den Chats dieses Projekts, zusätzlich zu deinem Gedächtnis und dem Haushalt."), entries: pr.entries, scope: "project", projectId: pr.id, canWrite: true });
     }
-    if (data.overview) parts.push(overviewSection(data.overview, draw));
-    parts.push(memoryImportSection(body, draw));
-    // Eintrag selbst hinzufügen
-    const form = node("form", "mem-form");
-    form.autocomplete = "off";
-    const scope = node("select", "field");
-    scope.setAttribute("aria-label", tr("Wo speichern"));
-    scope.append(new Option(tr("Mein Gedächtnis"), "person"));
-    if (data.household_write) scope.append(new Option(tr("Haushalt"), "household"));
-    for (const pr of data.projects || []) scope.append(new Option(tr("Projekt: {0}", pr.name), `project:${pr.id}`));
-    const topic = node("input", "field");
-    topic.placeholder = tr("Thema, z. B. Heizung");
-    topic.maxLength = 60;
-    topic.setAttribute("aria-label", tr("Thema"));
-    const content = node("textarea", "field area");
-    content.rows = 3;
-    content.maxLength = 800;
-    content.placeholder = tr("Was soll die KI wissen?");
-    content.setAttribute("aria-label", tr("Inhalt"));
-    const add = node("button", "pill primary", tr("Merken"));
-    add.type = "submit";
-    form.append(node("h4", "", tr("Selbst etwas eintragen")), scope, topic, content, add);
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (topic.value.trim().length < 2 || content.value.trim().length < 3) { toast(tr("Bitte Thema und Inhalt ausfüllen.")); return; }
-      add.disabled = true;
-      try {
-        const [kind, projectId = ""] = scope.value.split(":");
-        await api("api/memory", { method: "POST", body: JSON.stringify({ scope: kind, project_id: projectId, topic: topic.value, content: content.value }) });
-        draw();
-      } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); add.disabled = false; }
-    });
-    parts.push(form);
-    body.replaceChildren(...parts);
+    for (const g of groups) g.deleteUrl = g.scope === "project" ? (e) => `api/projects/${encodeURIComponent(g.projectId)}/memory/${e.id}` : (e) => `api/memory/${g.scope}/${e.id}`;
+
+    // Oben: Suche und „Hinzufügen“
+    const top = node("div", "mem-top");
+    const search = node("input", "field mem-search");
+    search.type = "search";
+    search.value = memUi.query;
+    search.placeholder = tr("Suchen");
+    search.setAttribute("aria-label", tr("Gedächtnis durchsuchen"));
+    search.autocomplete = "off";
+    const addButton = node("button", "pill primary mem-add-btn");
+    addButton.type = "button";
+    addButton.append(icon("plus"), node("span", "", tr("Hinzufügen")));
+    top.append(search, addButton);
+    const formBox = node("div", "mem-form-box");
+    const list = node("div", "mem-groups");
+
+    // Teile, die ihren Zustand behalten sollen (Eingabe in „Meine Anweisungen“, laufendes Einlesen), werden nur einmal gebaut
+    const instructions = instructionsSection(data);
+    const overviewPart = data.overview ? overviewSection(data.overview, draw) : null;
+    const importPart = memoryImportSection(body, draw);
+
+    const paint = () => {
+      const q = foldText(memUi.query.trim());
+      const parts = [];
+      if (!q) {
+        const saved = (data.instructions || "").replace(/\s+/g, " ").trim();
+        parts.push(memoryGroup({ key: "instructions", title: tr("Meine Anweisungen"), meta: saved.length > 60 ? `${saved.slice(0, 60)}…` : saved, hint: tr("Gelten in allen deinen Chats, zusätzlich zu den Anweisungen eines Projekts. Nur du siehst sie."), body: instructions, repaint: paint }));
+      }
+      let found = 0;
+      for (const g of groups) {
+        const entries = q ? g.entries.filter((e) => foldText(`${e.topic} ${e.content}`).includes(q)) : g.entries;
+        if (q && !entries.length) continue;
+        found += entries.length;
+        const rows = node("div", "mem-list");
+        if (!entries.length) rows.append(node("p", "mem-empty", tr("Noch nichts gemerkt.")));
+        const view = { ...g, entries: g.entries };
+        for (const e of entries) rows.append(memoryRow(e, view, draw));
+        parts.push(memoryGroup({ key: g.key, title: g.title, count: entries.length, hint: g.hint, body: rows, forceOpen: !!q, repaint: paint, onAdd: g.canWrite && !q ? () => openForm(g.key) : null }));
+      }
+      if (q && !found) parts.push(node("p", "mem-empty", tr("Nichts gefunden für „{0}“.", memUi.query.trim())));
+      if (!q) {
+        if (overviewPart) parts.push(overviewPart);
+        parts.push(memoryGroup({ key: "import", title: tr("Aus Claude übernehmen"), hint: tr("Bei Claude gibt es in den Einstellungen unter „Gedächtnis“ den Export als ZIP-Datei mit Markdown. Wähle sie hier aus (eine einzelne Markdown- oder Textdatei geht auch). Du siehst alles vorher und bestimmst, was übernommen wird."), body: importPart, repaint: paint }));
+      }
+      list.replaceChildren(...parts);
+    };
+
+    // Eintrag selbst hinzufügen: das Formular klappt oben auf, damit man nicht bis ans Ende der Liste scrollen muss
+    const closeForm = () => { formBox.replaceChildren(); addButton.setAttribute("aria-expanded", "false"); };
+    const openForm = (preset = "person") => {
+      const form = node("form", "mem-form");
+      form.autocomplete = "off";
+      const scope = node("select", "field");
+      scope.setAttribute("aria-label", tr("Wo speichern"));
+      scope.append(new Option(tr("Mein Gedächtnis"), "person"));
+      if (data.household_write) scope.append(new Option(tr("Haushalt"), "household"));
+      for (const pr of data.projects || []) scope.append(new Option(tr("Projekt: {0}", pr.name), `project:${pr.id}`));
+      if ([...scope.options].some((o) => o.value === preset)) scope.value = preset;
+      const topic = node("input", "field");
+      topic.placeholder = tr("Thema, z. B. Heizung");
+      topic.maxLength = 60;
+      topic.setAttribute("aria-label", tr("Thema"));
+      const content = node("textarea", "field area");
+      content.rows = 3;
+      content.maxLength = 800;
+      content.placeholder = tr("Was soll die KI wissen?");
+      content.setAttribute("aria-label", tr("Inhalt"));
+      const cancel = node("button", "pill ghost", tr("Abbrechen"));
+      cancel.type = "button";
+      cancel.addEventListener("click", closeForm);
+      const add = node("button", "pill primary", tr("Merken"));
+      add.type = "submit";
+      const bar = node("div", "mem-edit-bar");
+      bar.append(cancel, add);
+      form.append(node("h4", "", tr("Selbst etwas eintragen")), scope, topic, content, bar);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (topic.value.trim().length < 2 || content.value.trim().length < 3) { toast(tr("Bitte Thema und Inhalt ausfüllen.")); return; }
+        add.disabled = true;
+        try {
+          const [kind, projectId = ""] = scope.value.split(":");
+          await api("api/memory", { method: "POST", body: JSON.stringify({ scope: kind, project_id: projectId, topic: topic.value, content: content.value }) });
+          memUi.open.add(scope.value === "person" || scope.value === "household" ? scope.value : `project:${projectId}`);  // dort steht der neue Eintrag
+          memUi.query = "";
+          draw();
+        } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); add.disabled = false; }
+      });
+      formBox.replaceChildren(form);
+      addButton.setAttribute("aria-expanded", "true");
+      form.scrollIntoView({ block: "nearest" });
+      topic.focus({ preventScroll: true });
+    };
+    addButton.addEventListener("click", () => { if (formBox.childElementCount) closeForm(); else openForm("person"); });
+    search.addEventListener("input", () => { memUi.query = search.value; paint(); });
+
+    paint();
+    body.replaceChildren(top, formBox, list);
   };
   draw();
 }

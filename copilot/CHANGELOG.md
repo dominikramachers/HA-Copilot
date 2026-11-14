@@ -1,5 +1,15 @@
 # Änderungen
 
+## 0.60.0
+Gedächtnis: neue Ansicht nach dem Vorbild von Claude, damit man bei vielen Einträgen nicht mehr bis ans Ende scrollen muss.
+- **Anlass:** Das Formular „Selbst etwas eintragen“ stand ganz unten. Bei vielen Erinnerungen musste man lang scrollen, um etwas hinzuzufügen.
+- **Oben:** Suche (Thema und Text, ohne Beachtung von Groß-/Kleinschreibung und Akzenten, über alle Gruppen) und „Hinzufügen“. Das Formular klappt direkt darunter auf; das „+“ in einer Gruppe öffnet es mit vorgewähltem Bereich. Nach dem Speichern öffnet sich die Gruppe des neuen Eintrags.
+- **Einklappbare Gruppen** (`memoryGroup`, wie bei den Konnektor-Werkzeugen) mit Pfeil, Titel und Anzahl: Meine Anweisungen, Mein Gedächtnis, Haushalt, Projekte, Home Assistant-Überblick (Pfeil jetzt links), Aus Claude übernehmen. Offen ist zunächst „Mein Gedächtnis“; der Zustand liegt in `memUi.open` (nur im Browser, nicht gespeichert). Bei einer Suche sind alle Gruppen mit Treffern offen.
+- **Zeilen** (`memoryRow`): Thema, Vorschau und „Aktualisiert …“ (`sentAgo`); Klick zeigt den ganzen Text mit Herkunft. Bearbeiten und Löschen erscheinen beim Darüberfahren oder Fokussieren, auf Touchgeräten (`hover: none`) immer. Auf schmalen Breiten (Container-Query, unter 470 px) steht die Vorschau unter dem Thema.
+- **Bearbeiten** (`memoryEditor`) ist neu: Thema und Text direkt in der Zeile. Gespeichert wird mit dem vorhandenen `POST /api/memory`; bei einem neuen Thema wird der alte Eintrag danach gelöscht, ein schon vergebenes Thema wird vorher abgelehnt. Keine neuen Schnittstellen, kein neues Datenbankschema.
+- Das Fenster ist breiter (660 px am Computer) und scrollt in sich; beim Öffnen springt es nicht mehr ans Ende (`focus({ preventScroll: true })` bei Fenstern mit Inhalt), sondern bleibt oben bei Suche und „Hinzufügen“.
+- Neue Texte nur über `tr()` mit Übersetzung in `en-ui.json`.
+
 ## 0.59.4
 GitHub: abgelaufene Tokens werden von selbst erneuert, statt dass man alle paar Stunden neu verbinden muss.
 - **Anlass:** Nach dem Neu-Verbinden zeigte die KI schon wenige Stunden später wieder `401` („Dein GitHub-Zugang ist abgelaufen …“), obwohl die OAuth-App bei GitHub weiter freigegeben war. Das Protokoll zeigte: Am Vorabend gingen alle GitHub-Aufrufe mit 200 durch, am nächsten Mittag kamen nur noch 401. Das passt zu Tokens, die GitHub nach 8 Stunden ablaufen lässt (Einstellung der OAuth-App oder `offline_access`). Das Add-on warf bisher alles weg, was GitHub dazu mitschickt (`refresh_token`, `expires_in`).

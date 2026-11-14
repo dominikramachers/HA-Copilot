@@ -1235,5 +1235,11 @@
  "Nichts erlauben": "Allow none",
  "Benutzerdefiniert": "Custom",
  "Alle Werkzeuge der Gruppe „{0}“": "All tools in the group “{0}”",
- "Dieser Server bietet keine ändernden Werkzeuge an. Das liegt meist am Server selbst: Er darf nur lesen (zum Beispiel „Read-only“ oder eingeschränkte Rechte des Zugangs) oder zeigt nur lesende Werkzeuge an.": "This server offers no tools that change anything. That is usually down to the server itself: it may only read (for example “read-only” or limited rights of the access) or shows only reading tools."
+ "Dieser Server bietet keine ändernden Werkzeuge an. Das liegt meist am Server selbst: Er darf nur lesen (zum Beispiel „Read-only“ oder eingeschränkte Rechte des Zugangs) oder zeigt nur lesende Werkzeuge an.": "This server offers no tools that change anything. That is usually down to the server itself: it may only read (for example “read-only” or limited rights of the access) or shows only reading tools.",
+ "Gedächtnis durchsuchen": "Search memory",
+ "Eintrag bearbeiten": "Edit entry",
+ "Aktualisiert {0}": "Updated {0}",
+ "Zu „{0}“ hinzufügen": "Add to “{0}”",
+ "Nichts gefunden für „{0}“.": "Nothing found for “{0}”.",
+ "Dieses Thema gibt es hier schon.": "This topic already exists here."
 }

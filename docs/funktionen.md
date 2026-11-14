@@ -106,6 +106,8 @@ Die KI merkt sich dauerhafte Dinge in kurzen Einträgen und entscheidet selbst, 
 
 ![Gedächtnis mit Projektbereich und Herkunft](screenshots/gedaechtnis-projekt.png)
 
+Die Ansicht ist wie bei Claude aufgebaut (ab 0.60.0): Oben **Suche** und **Hinzufügen**, darunter **einklappbare Gruppen** (Meine Anweisungen, Mein Gedächtnis, Haushalt, Projekte, Smarthome-Überblick, Aus Claude übernehmen) mit der Anzahl der Einträge. Jede Zeile zeigt Thema, Vorschau und Datum; ein Klick zeigt den ganzen Text, beim Darüberfahren erscheinen **Bearbeiten** und **Löschen**. So findest du auch bei vielen Einträgen schnell etwas und musst zum Hinzufügen nicht ans Ende scrollen.
+
 Im selben Fenster stehen **Meine Anweisungen** (ein Text, der in all deinen Chats mitgeht, etwa „Antworte kurz und duze mich“) und **Aus Claude übernehmen**: Du exportierst dein Gedächtnis bei Claude als ZIP mit Markdown, wählst die Datei hier aus, siehst jeden Fund mit Haken und übernimmst nur, was du willst. Die Vorlieben aus Claude werden zu deinen Anweisungen.
 
 Zusätzlich liest das Add-on selbst einen **Smarthome-Überblick** (Bereiche, Entitäten je Typ, Integrationen, Namen von Automationen) ein und legt ihn als schreibgeschützte Einträge ab. Das kostet keine KI-Nachricht. Es läuft beim ersten Start und danach wöchentlich; mit `chat.memory_enabled: false` ist es aus.
