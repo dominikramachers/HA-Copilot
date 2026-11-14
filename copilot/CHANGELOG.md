@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.59.6
+Gedächtnis: Feinschliff an der neuen Ansicht aus 0.59.5.
+- **Einheitliche Köpfe:** Der Kopf von „Home Assistant-Überblick“ sieht aus wie die der anderen Gruppen (gleicher Pfeil, gleiche Höhe und Abstände, Anzahl als Zähler; bei „wird eingelesen“, „noch nicht eingelesen“ oder Fehler ein kurzer Hinweis statt der Zahl). Der zusätzliche Abstand unter der Gruppe entfällt.
+- **Keine Linie unter der Suche:** Die erste Gruppe (`.mem-groups > :first-child`) hat keine Trennlinie mehr direkt unter Suche und „Hinzufügen“.
+- Reine Darstellung (CSS und Kopf von `overviewSection`), keine neuen Texte, keine Datenbank- oder Schnittstellenänderung.
+
 ## 0.59.5
 Zwei Änderungen: das Theme aus Home Assistant gilt auch über die Domain, und das Gedächtnis hat eine neue, übersichtlichere Ansicht.
 
