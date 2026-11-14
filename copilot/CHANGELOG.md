@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.59.4
+GitHub: abgelaufene Tokens werden von selbst erneuert, statt dass man alle paar Stunden neu verbinden muss.
+- **Anlass:** Nach dem Neu-Verbinden zeigte die KI schon wenige Stunden später wieder `401` („Dein GitHub-Zugang ist abgelaufen …“), obwohl die OAuth-App bei GitHub weiter freigegeben war. Das Protokoll zeigte: Am Vorabend gingen alle GitHub-Aufrufe mit 200 durch, am nächsten Mittag kamen nur noch 401. Das passt zu Tokens, die GitHub nach 8 Stunden ablaufen lässt (Einstellung der OAuth-App oder `offline_access`). Das Add-on warf bisher alles weg, was GitHub dazu mitschickt (`refresh_token`, `expires_in`).
+- **Neu:** `device_poll` und `_store_token` speichern `refresh_token` (verschlüsselt, Fernet) und die Ablaufzeit `expires_at` (Datenbankschema 33, Spalten `github_accounts.refresh`, `expires_at`; bestehende Konten werden unverändert übernommen).
+- **Erneuern:** `GithubAccounts.renew()` ruft `POST /login/oauth/access_token` mit `grant_type=refresh_token` auf; beim Device Flow reicht dafür die Client-ID, ein Client-Secret ist nicht nötig. Das Erneuerungs-Token gilt nur einmal, deshalb eine Sperre je Person (parallele Anfragen erneuern nur einmal, die anderen übernehmen das neue Token). `GithubApi.request` erneuert **vorher** (weniger als 120 s bis zum Ablauf) und **nachher** (GitHub antwortet `401`: einmal erneuern, Anfrage einmal wiederholen). GitHub nicht erreichbar: nichts ändern, nächste Anfrage versucht es erneut. Lehnt GitHub das Erneuern ab (`bad_refresh_token`), gilt wie bisher „abgelaufen“ mit der Bitte, neu zu verbinden.
+- **Diagnose:** Beim Verbinden steht im Protokoll, ob GitHub ein ablaufendes Token ausgestellt hat („Token läuft in 28800 s ab, erneuerbar: ja“ oder „ohne Ablauf“); jede Erneuerung und jede Ablehnung beim Erneuern steht ebenfalls dort (ohne Token).
+- Selbst eingefügte Tokens sind nicht betroffen (kein Erneuerungs-Token, Verhalten wie bisher).
+
 ## 0.59.3
 Konnektor-Werkzeuge: Auswahl je Gruppe wie bei Claude.
 - **Je Gruppe „Lesen“ und „Ändern“** steht in der Titelzeile die Zahl der Werkzeuge und rechts eine Auswahl **Alles erlauben / Nichts erlauben**; bei gemischtem Stand zeigt sie „Benutzerdefiniert“ (nicht wählbar). Sie ersetzt den Knopf „Alle Änderungs-Werkzeuge einschalten“ aus 0.59.1, gilt jetzt auch für „Lesen“ und setzt wie vorher per `PATCH /api/connectors/{id}/account` alle Werkzeuge der Gruppe in einem Zug.

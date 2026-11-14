@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.59.4",
+    "items": [
+      {
+        "de": {
+          "title": "GitHub bleibt verbunden",
+          "text": "Meine Anmeldung bei GitHub erneuert sich jetzt von selbst, wenn sie abläuft. Du musst GitHub nicht mehr alle paar Stunden neu verbinden."
+        },
+        "en": {
+          "title": "GitHub stays connected",
+          "text": "My sign-in to GitHub now renews itself when it runs out. You no longer have to reconnect GitHub every few hours."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.59.3",
     "items": [
       {
