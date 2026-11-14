@@ -1715,9 +1715,14 @@ function overviewSection(info, redraw) {
   box.open = overview.open || info.status.state === "running";
   box.addEventListener("toggle", () => { overview.open = box.open; });
   const entries = info.entries || [];
-  const short = node("small", "mem-meta", overviewShort(info.status, entries.length));
+  // Kopf wie bei den anderen Gruppen: Pfeil, Titel, Anzahl als Zähler; bei Lauf, Fehler oder noch nicht gelesen ein kurzer Hinweis
   const head = node("summary", "");
-  head.append(icon("chevron"), node("span", "", tr("Home Assistant-Überblick")), short);
+  const paintHead = (status) => {
+    const done = status.state === "ok";
+    head.replaceChildren(icon("chevron"), node("span", "mem-group-title", tr("Home Assistant-Überblick")),
+      done ? node("span", "conn-count", String(entries.length)) : node("span", "mem-group-meta", overviewShort(status, entries.length)));
+  };
+  paintHead(info.status);
   const line = node("p", "mem-ov-status", overviewLine(info.status, entries.length));
   line.classList.toggle("error", info.status.state === "error");
   const hint = node("p", "mem-hint", tr("Damit kennt die KI deine Smarthome-Umgebung: Bereiche, Geräte, Automationen und Integrationen. Das wird automatisch aus Home Assistant eingelesen und hier nur angezeigt."));
@@ -1747,7 +1752,7 @@ function overviewSection(info, redraw) {
       renderOverviewNotice(status);
       if (status.state !== "running") { redraw(); return; }
       line.textContent = overviewLine(status, entries.length);
-      short.textContent = overviewShort(status, entries.length);
+      paintHead(status);
     }
   };
   button.addEventListener("click", async () => {
