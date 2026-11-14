@@ -62,16 +62,25 @@ def test_parse_own_export_and_plain_lists():
 
 
 def test_parse_splits_long_text_and_keeps_topics_unique():
-    lines = "\n".join(f"- [stated] Punkt {i:03d} " + "x" * 60 for i in range(30))
+    lines = "\n".join(f"- [stated] Punkt {i:03d} " + "x" * 60 for i in range(80))
     found = mi.parse([("areas/lang.md", "---\nname: lang\n---\n" + lines)])
     assert len(found["entries"]) >= 3
     assert all(len(e["content"]) <= CONTENT_MAX for e in found["entries"])
     topics = [e["topic"].casefold() for e in found["entries"]]
     assert len(set(topics)) == len(topics) and topics[0] == "lang" and topics[1] == "lang (2)"
-    giant = mi.parse([("areas/riesig.md", "- " + "wort " * 400)])
+    giant = mi.parse([("areas/riesig.md", "- " + "wort " * 1000)])
     assert len(giant["entries"]) >= 3 and all(len(e["content"]) <= CONTENT_MAX for e in giant["entries"])
     long_topic = mi.parse([("x.md", "## " + "T" * 100 + "\n\ntext hier")])
     assert len(long_topic["entries"][0]["topic"]) <= 60
+
+
+def test_parse_keeps_text_up_to_the_limit_in_one_entry():
+    """Ein Text von 800 bis 2000 Zeichen bleibt ein Eintrag (früher wurde er ab 800 Zeichen in „Thema (2)“ geteilt)."""
+    assert CONTENT_MAX == 2000
+    lines = "\n".join(f"- [stated] Punkt {i:02d} " + "x" * 60 for i in range(20))
+    found = mi.parse([("areas/mittel.md", "---\nname: mittel\n---\n" + lines)])
+    assert len(lines) > 800 and len(found["entries"]) == 1
+    assert found["entries"][0]["topic"] == "Mittel" and "Punkt 19" in found["entries"][0]["content"]
 
 
 def test_parse_drops_secrets_and_reserved_names():

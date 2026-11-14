@@ -1477,6 +1477,33 @@ const memUi = { open: new Set(["person"]), query: "" };
 
 const lowerFirst = (text) => (text ? text[0].toLowerCase() + text.slice(1) : text);
 
+// Lange Texte (Import, Überblick) liegen als „Thema“, „Thema (2)“, „Thema (3)“ … vor. In der Liste erscheinen sie als ein Eintrag;
+// ``parts`` enthält die einzelnen Einträge in der Reihenfolge, damit Bearbeiten und Löschen alle erreichen.
+const MEMORY_CONTENT_MAX = 2000;
+
+function memoryChains(entries) {
+  const byTopic = new Map(entries.map((e) => [foldText(e.topic), e]));
+  const chains = new Map();  // erster Eintrag -> alle Teile
+  const follow = new Set();  // Teile ab dem zweiten
+  for (const entry of entries) {
+    const parts = [entry];
+    for (let n = 2; ; n++) {
+      const next = byTopic.get(foldText(`${entry.topic} (${n})`));
+      if (!next) break;
+      parts.push(next);
+    }
+    chains.set(entry, parts);
+  }
+  for (const parts of chains.values()) for (const part of parts.slice(1)) follow.add(part);
+  const out = [];
+  for (const entry of entries) {
+    if (follow.has(entry)) continue;
+    const parts = chains.get(entry);
+    out.push(parts.length === 1 ? { ...entry, parts } : { ...entry, content: parts.map((part) => part.content).join("\n"), updated_at: parts.map((part) => part.updated_at).filter(Boolean).sort().pop() || entry.updated_at, parts });
+  }
+  return out;
+}
+
 function memoryOrigin(entry, scope) {
   const shared = scope === "household" && entry.by;  // im Haushalt kann ein Eintrag von jemand anderem stammen
   const origin = { said: shared ? tr("gesagt") : tr("von dir gesagt"), inferred: tr("von der KI abgeleitet"), manual: shared ? tr("eingetragen") : tr("von dir eingetragen"), import: tr("importiert") }[entry.origin] || "";
@@ -1513,9 +1540,9 @@ function memoryRow(entry, group, redraw) {
       actionButton(tr("Eintrag bearbeiten"), "edit", "", () => row.replaceWith(memoryEditor(entry, group, redraw))),
       confirmButton(tr("Eintrag löschen"), async () => {
         try {
-          await api(group.deleteUrl(entry), { method: "DELETE" });
+          for (const part of entry.parts || [entry]) await api(group.deleteUrl(part), { method: "DELETE" });
           redraw();
-        } catch (err) { toast(errorText(err, tr("Löschen hat nicht geklappt."))); }
+        } catch (err) { toast(errorText(err, tr("Löschen hat nicht geklappt."))); redraw(); }
       }),
     );
     line.append(actions);
@@ -1534,7 +1561,7 @@ function memoryEditor(entry, group, redraw) {
   topic.setAttribute("aria-label", tr("Thema"));
   const content = node("textarea", "field area");
   content.rows = 4;
-  content.maxLength = 800;
+  content.maxLength = 2000;
   content.value = entry.content;
   content.setAttribute("aria-label", tr("Inhalt"));
   const cancel = node("button", "pill ghost", tr("Abbrechen"));
@@ -1549,12 +1576,15 @@ function memoryEditor(entry, group, redraw) {
     event.preventDefault();
     const name = topic.value.replace(/\s+/g, " ").trim();
     if (name.length < 2 || content.value.trim().length < 3) { toast(tr("Bitte Thema und Inhalt ausfüllen.")); return; }
+    if (content.value.trim().length > MEMORY_CONTENT_MAX) { toast(tr("Der Text ist länger als {0} Zeichen. Bitte kürze ihn.", MEMORY_CONTENT_MAX)); return; }
+    const parts = entry.parts || [entry];
     const renamed = foldText(name) !== foldText(entry.topic);
-    if (renamed && group.entries.some((other) => other !== entry && foldText(other.topic) === foldText(name))) { toast(tr("Dieses Thema gibt es hier schon.")); return; }
+    if (renamed && (group.raw || group.entries).some((other) => !parts.includes(other) && foldText(other.topic) === foldText(name))) { toast(tr("Dieses Thema gibt es hier schon.")); return; }
     save.disabled = true;
     try {
       await api("api/memory", { method: "POST", body: JSON.stringify({ scope: group.scope, project_id: group.projectId, topic: name, content: content.value.trim() }) });
-      if (renamed) await api(group.deleteUrl(entry), { method: "DELETE" });
+      // Bei einem neuen Thema fällt der alte Eintrag weg; bei einem langen Text auch alle Folgeteile („… (2)“), er steht jetzt in einem Eintrag
+      for (const part of parts) if (foldText(part.topic) !== foldText(name)) await api(group.deleteUrl(part), { method: "DELETE" });
       redraw();
     } catch (err) { toast(errorText(err, tr("Speichern hat nicht geklappt."))); save.disabled = false; }
   });
@@ -2147,6 +2177,7 @@ function memoryPanel(body) {
       if (!pr.entries.length) continue;
       groups.push({ key: `project:${pr.id}`, title: tr("Projekt: {0}", pr.name), hint: tr("Gilt nur in den Chats dieses Projekts, zusätzlich zu deinem Gedächtnis und dem Haushalt."), entries: pr.entries, scope: "project", projectId: pr.id, canWrite: true });
     }
+    for (const g of groups) { g.raw = g.entries; g.entries = memoryChains(g.entries); }
     for (const g of groups) g.deleteUrl = g.scope === "project" ? (e) => `api/projects/${encodeURIComponent(g.projectId)}/memory/${e.id}` : (e) => `api/memory/${g.scope}/${e.id}`;
 
     // Oben: Suche und „Hinzufügen“
@@ -2183,7 +2214,7 @@ function memoryPanel(body) {
         found += entries.length;
         const rows = node("div", "mem-list");
         if (!entries.length) rows.append(node("p", "mem-empty", tr("Noch nichts gemerkt.")));
-        const view = { ...g, entries: g.entries };
+        const view = g;
         for (const e of entries) rows.append(memoryRow(e, view, draw));
         parts.push(memoryGroup({ key: g.key, title: g.title, count: entries.length, hint: g.hint, body: rows, forceOpen: !!q, repaint: paint, onAdd: g.canWrite && !q ? () => openForm(g.key) : null }));
       }
@@ -2212,7 +2243,7 @@ function memoryPanel(body) {
       topic.setAttribute("aria-label", tr("Thema"));
       const content = node("textarea", "field area");
       content.rows = 3;
-      content.maxLength = 800;
+      content.maxLength = 2000;
       content.placeholder = tr("Was soll die KI wissen?");
       content.setAttribute("aria-label", tr("Inhalt"));
       const cancel = node("button", "pill ghost", tr("Abbrechen"));

@@ -3,7 +3,7 @@
 Claude bietet unter „Einstellungen > Gedächtnis“ einen Export als ZIP mit Markdown-Dateien an (Profil, Vorlieben, Bereiche,
 Themen, Personen). Dieses Modul liest so ein ZIP oder eine einzelne Markdown-/Textdatei und macht daraus Vorschläge:
 
-* Einträge für das Gedächtnis (Thema bis 60, Text bis 800 Zeichen), zu lange Texte werden an Zeilengrenzen geteilt;
+* Einträge für das Gedächtnis (Thema bis 60, Text bis 2000 Zeichen), zu lange Texte werden an Zeilengrenzen geteilt;
 * „Meine Anweisungen“ aus der Datei ``preferences.md`` (Claudes Vorlieben sind das Gegenstück zu den Anweisungen).
 
 Es wird nichts gespeichert: Die Person sieht die Vorschläge, ändert sie und übernimmt dann bewusst. Das genaue Aufbau des

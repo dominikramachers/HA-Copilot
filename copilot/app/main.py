@@ -829,7 +829,7 @@ class PluginImportBody(BaseModel):
 class MemoryBody(BaseModel):
     scope: Literal["household", "person", "project"]
     topic: str = Field(min_length=2, max_length=60)
-    content: str = Field(min_length=3, max_length=800)
+    content: str = Field(min_length=3, max_length=CONTENT_MAX)
     project_id: str = Field(default="", max_length=64)
 
 
@@ -837,8 +837,8 @@ class MemoryUndoBody(BaseModel):
     """Eine Gedächtnis-Änderung der KI zurücknehmen: ``prev`` = Text davor (leer: gab es nicht), ``now`` = Text danach (leer: gelöscht)."""
     scope: Literal["household", "person", "project"]
     topic: str = Field(min_length=2, max_length=60)
-    prev: str | None = Field(default=None, max_length=800)
-    now: str | None = Field(default=None, max_length=800)
+    prev: str | None = Field(default=None, max_length=CONTENT_MAX)
+    now: str | None = Field(default=None, max_length=CONTENT_MAX)
     project_id: str = Field(default="", max_length=64)
 
 

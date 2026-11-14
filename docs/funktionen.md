@@ -106,7 +106,7 @@ Die KI merkt sich dauerhafte Dinge in kurzen Einträgen und entscheidet selbst, 
 
 ![Gedächtnis mit Projektbereich und Herkunft](screenshots/gedaechtnis-projekt.png)
 
-Die Ansicht ist wie bei Claude aufgebaut (ab 0.59.5): Oben **Suche** und **Hinzufügen**, darunter **einklappbare Gruppen** (Meine Anweisungen, Mein Gedächtnis, Haushalt, Projekte, Smarthome-Überblick, Aus Claude übernehmen) mit der Anzahl der Einträge. Jede Zeile zeigt Thema, Vorschau und Datum; ein Klick zeigt den ganzen Text, beim Darüberfahren erscheinen **Bearbeiten** und **Löschen**. So findest du auch bei vielen Einträgen schnell etwas und musst zum Hinzufügen nicht ans Ende scrollen.
+Die Ansicht ist wie bei Claude aufgebaut (ab 0.59.5): Oben **Suche** und **Hinzufügen**, darunter **einklappbare Gruppen** (Meine Anweisungen, Mein Gedächtnis, Haushalt, Projekte, Smarthome-Überblick, Aus Claude übernehmen) mit der Anzahl der Einträge. Jede Zeile zeigt Thema, Vorschau und Datum; ein Klick zeigt den ganzen Text, beim Darüberfahren erscheinen **Bearbeiten** und **Löschen**. So findest du auch bei vielen Einträgen schnell etwas und musst zum Hinzufügen nicht ans Ende scrollen. Ein Eintrag fasst bis zu 2000 Zeichen; Einträge, die früher in Stücke („Thema (2)“) geteilt wurden, erscheinen als eine Zeile.
 
 Im selben Fenster stehen **Meine Anweisungen** (ein Text, der in all deinen Chats mitgeht, etwa „Antworte kurz und duze mich“) und **Aus Claude übernehmen**: Du exportierst dein Gedächtnis bei Claude als ZIP mit Markdown, wählst die Datei hier aus, siehst jeden Fund mit Haken und übernimmst nur, was du willst. Die Vorlieben aus Claude werden zu deinen Anweisungen.
 

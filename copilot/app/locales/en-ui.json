@@ -1243,5 +1243,6 @@
  "Aktualisiert {0}": "Updated {0}",
  "Zu „{0}“ hinzufügen": "Add to “{0}”",
  "Nichts gefunden für „{0}“.": "Nothing found for “{0}”.",
- "Dieses Thema gibt es hier schon.": "This topic already exists here."
+ "Dieses Thema gibt es hier schon.": "This topic already exists here.",
+ "Der Text ist länger als {0} Zeichen. Bitte kürze ihn.": "The text is longer than {0} characters. Please shorten it."
 }

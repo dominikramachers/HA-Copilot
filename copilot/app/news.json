@@ -15,11 +15,11 @@
       {
         "de": {
           "title": "Mein Gedächtnis ist übersichtlicher",
-          "text": "Bei mir findest du jetzt oben eine Suche und den Knopf Hinzufügen. Die Einträge stehen in Gruppen, die du auf- und zuklappen kannst. Du kannst jeden Eintrag direkt ändern."
+          "text": "Oben findest du jetzt Suche und Hinzufügen, die Einträge stehen in Gruppen zum Aufklappen. Eine lange Erinnerung bleibt ein Eintrag und steht nicht mehr in Stücken da."
         },
         "en": {
           "title": "My memory is easier to scan",
-          "text": "At the top you now find a search and an Add button. Entries sit in groups you can open and close, and you can change any entry right where it is."
+          "text": "At the top you now find search and Add, and entries sit in groups you can open. A long memory stays one entry instead of showing up in pieces."
         }
       }
     ]

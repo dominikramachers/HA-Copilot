@@ -26,7 +26,7 @@ from .db import AUTO_PREFIX, Store
 from .ha_tools import ToolError, ToolSpec, level_text
 
 TOPIC_MAX = 60
-CONTENT_MAX = 800
+CONTENT_MAX = 2000
 PERSON_LIMIT = 100
 HOUSEHOLD_LIMIT = 150
 PROJECT_LIMIT = 60
@@ -93,7 +93,7 @@ MEMORY_RULES = (
     "scope=household nur für Smarthome-Wissen, das für ALLE im Haushalt gilt: Geräte, Räume und Namen in Home Assistant, Absprachen und Regeln rund ums Smarthome "
     "(z. B. Heizplan, Szenen, was Automationen tun sollen), Entscheidungen über die Technik. Das Haushaltsgedächtnis lesen alle Personen; "
     "was nur eine Person betrifft, gehört dort nicht hin, auch wenn die Person „für alle“ nicht gesagt hat. Im Zweifel persönlich. "
-    f"Ein Eintrag = ein Thema, kurz und sachlich (höchstens {CONTENT_MAX} Zeichen). Gibt es das Thema schon, aktualisiere es mit demselben topic, statt Duplikate anzulegen; "
+    f"Ein Eintrag = ein Thema, kurz und sachlich (meist wenige Sätze, höchstens {CONTENT_MAX} Zeichen). Gibt es das Thema schon, aktualisiere es mit demselben topic, statt Duplikate anzulegen; "
     "Veraltetes oder Erledigtes entfernst du mit memory_forget. Mit source sagst du, woher ein Eintrag stammt: said = die Person hat es so gesagt oder entschieden, "
     "inferred = du hast es aus dem Gespräch geschlossen (die Oberfläche zeigt das an, schließe nur Naheliegendes). Nie speichern: Passwörter, Tokens, Zugangs- oder Kontodaten und sehr "
     "Privates (Gesundheit u. ä.), außer der Nutzer bittet ausdrücklich darum. Die Oberfläche zeigt unter deiner Antwort selbst an, was du gemerkt hast; "
