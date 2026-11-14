@@ -581,8 +581,8 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
         if isinstance(undo, dict) and undo.get("scope") in ("household", "person", "project") and isinstance(undo.get("topic"), str):
             entry["undo"] = {
                 "scope": undo["scope"], "topic": undo["topic"][:60], "project": str(undo.get("project") or "")[:64],
-                "prev": undo["prev"][:800] if isinstance(undo.get("prev"), str) else None,
-                "now": undo["now"][:800] if isinstance(undo.get("now"), str) else None,
+                "prev": undo["prev"][:2000] if isinstance(undo.get("prev"), str) else None,
+                "now": undo["now"][:2000] if isinstance(undo.get("now"), str) else None,
             }
         out.append(entry)
     return out

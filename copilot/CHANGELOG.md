@@ -1,12 +1,29 @@
 # Änderungen
 
 ## 0.59.5
+Zwei Änderungen: das Theme aus Home Assistant gilt auch über die Domain, und das Gedächtnis hat eine neue, übersichtlichere Ansicht.
+
+### Theme über die Domain
 Das Theme, das eine Person in Home Assistant gewählt hat, gilt auch beim Zugriff über die Domain.
 - **Anlass:** Im Home-Assistant-Panel folgt der Copilot dem Theme der Person schon live (eigenes Profil-Theme, Hell/Dunkel, ohne Neuladen; geprüft mit `settheme` wie im Profil). Über die Domain sieht die Seite Home Assistant nicht und zeigte nur das Standard-Theme, sodass dort nach einem Theme-Wechsel in HA die alten Farben blieben.
 - **Neu:** Der eingebettete Copilot meldet das Aussehen (`mode` plus die neun Farbvariablen aus `HA_VARS`) bei jeder Änderung mit 0,8 s Verzögerung an `PUT /api/me/ha-look`. Der Server nimmt nur bekannte Variablen mit Farbwerten an (Hex, `rgb()`, `hsl()`, Farbnamen) und speichert sie je Person (Datenbankschema 34, Spalte `profiles.ha_look`, JSON); `GET /api/me` liefert sie als `ha_look`.
 - **Anzeige ohne HA:** `theme-init.js` kennt dafür die neue Darstellung „Wie Home Assistant“ (`data-theme-source="saved"`). Sie gilt, solange die Person nichts anderes gewählt hat und ein gemerktes Aussehen existiert; eine eigene Wahl (Auto/Hell/Dunkel) hat Vorrang. Das gemerkte Aussehen liegt zusätzlich als `ki-ha-look` im Browser, damit die Seite ohne Aufblitzen startet; beim Start wird es aus `/api/me` aktualisiert.
 - **Grenzen:** Die Domain-Seite erfährt das Theme erst, wenn die Person den Copilot einmal in HA geöffnet hat; danach folgt jede Änderung. Ohne Einbettung (`look.follow_ha_theme` aus) wird nichts gemeldet.
 - Tests: `tests/test_ha_look.py`.
+
+### Gedächtnis: neue Ansicht
+Gedächtnis: neue Ansicht nach dem Vorbild von Claude, damit man bei vielen Einträgen nicht mehr bis ans Ende scrollen muss.
+- **Anlass:** Das Formular „Selbst etwas eintragen“ stand ganz unten. Bei vielen Erinnerungen musste man lang scrollen, um etwas hinzuzufügen.
+- **Oben:** Suche (Thema und Text, ohne Beachtung von Groß-/Kleinschreibung und Akzenten, über alle Gruppen) und „Hinzufügen“. Das Formular klappt direkt darunter auf; das „+“ in einer Gruppe öffnet es mit vorgewähltem Bereich. Nach dem Speichern öffnet sich die Gruppe des neuen Eintrags.
+- **Einklappbare Gruppen** (`memoryGroup`, wie bei den Konnektor-Werkzeugen) mit Pfeil, Titel und Anzahl: Meine Anweisungen, Mein Gedächtnis, Haushalt, Projekte, Home Assistant-Überblick (Pfeil jetzt links), Aus Claude übernehmen. Offen ist zunächst „Mein Gedächtnis“; der Zustand liegt in `memUi.open` (nur im Browser, nicht gespeichert). Bei einer Suche sind alle Gruppen mit Treffern offen.
+- **Zeilen** (`memoryRow`): Thema, Vorschau und „Aktualisiert …“ (`sentAgo`); Klick zeigt den ganzen Text mit Herkunft. Bearbeiten und Löschen erscheinen beim Darüberfahren oder Fokussieren, auf Touchgeräten (`hover: none`) immer. Auf schmalen Breiten (Container-Query, unter 470 px) steht die Vorschau unter dem Thema.
+- **Bearbeiten** (`memoryEditor`) ist neu: Thema und Text direkt in der Zeile. Gespeichert wird mit dem vorhandenen `POST /api/memory`; bei einem neuen Thema wird der alte Eintrag danach gelöscht, ein schon vergebenes Thema wird vorher abgelehnt. Keine neuen Schnittstellen, kein neues Datenbankschema.
+- Das Fenster ist breiter (660 px am Computer) und scrollt in sich; beim Öffnen springt es nicht mehr ans Ende (`focus({ preventScroll: true })` bei Fenstern mit Inhalt), sondern bleibt oben bei Suche und „Hinzufügen“.
+- Neue Texte nur über `tr()` mit Übersetzung in `en-ui.json`.
+- **Eine Erinnerung = ein Eintrag:** Lange Texte standen bisher als „Thema“, „Thema (2)“, „Thema (3)“ … in der Liste, weil ein Eintrag höchstens 800 Zeichen hatte. Die Grenze liegt jetzt bei 2000 Zeichen (`CONTENT_MAX` in `context_tools.py`; gilt für `memory_save`, `POST /api/memory`, den Rückgängig-Weg und die Eingabefelder). Der Import aus Claude und der Überblick teilen deshalb erst ab 2000 Zeichen. Der Hinweis an die KI sagt weiter „kurz und sachlich“ (meist wenige Sätze); der Kontextblock zeigt Einträge neuester zuerst bis 4000 Zeichen je Person und führt den Rest als Themenliste, es wird also nicht mehr Text an die KI geschickt.
+- **Ketten werden in der Liste zusammengefasst** (`memoryChains`): „Thema“ mit „Thema (2)“, „Thema (3)“ … erscheint als eine Zeile mit dem ganzen Text; Löschen entfernt alle Teile. Beim Bearbeiten wird der gesamte Text im Eintrag „Thema“ gespeichert und die Folgeteile entfallen (geht nur, wenn er höchstens 2000 Zeichen hat, sonst die Bitte zu kürzen). So lassen sich vorhandene Ketten bei Gelegenheit zu einem Eintrag zusammenführen; es wird nichts automatisch verändert. Der Überblick (schreibgeschützt) zeigt seine Teile weiterhin einzeln.
+- Der Import teilt lose Listen ohne Überschrift weiterhin je Punkt (einzelne Fakten), Dateien und Abschnitte mit Überschrift bleiben je ein Eintrag.
+- Tests: `tests/test_memory_import.py` (Text bis 2000 Zeichen bleibt ein Eintrag).
 
 ## 0.59.4
 GitHub: abgelaufene Tokens werden von selbst erneuert, statt dass man alle paar Stunden neu verbinden muss.

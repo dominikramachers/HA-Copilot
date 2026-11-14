@@ -11,6 +11,16 @@
           "title": "Your theme applies everywhere",
           "text": "When you change your theme in Home Assistant, I use it too when you open me through the domain. You can change it any time under Settings."
         }
+      },
+      {
+        "de": {
+          "title": "Mein Gedächtnis ist übersichtlicher",
+          "text": "Oben findest du jetzt Suche und Hinzufügen, die Einträge stehen in Gruppen zum Aufklappen. Eine lange Erinnerung bleibt ein Eintrag und steht nicht mehr in Stücken da."
+        },
+        "en": {
+          "title": "My memory is easier to scan",
+          "text": "At the top you now find search and Add, and entries sit in groups you can open. A long memory stays one entry instead of showing up in pieces."
+        }
       }
     ]
   },
