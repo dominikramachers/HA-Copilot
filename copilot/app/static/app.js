@@ -191,7 +191,7 @@ function closeSheet(result) {
 // Ein Fenster von unten für drei Fälle: Bestätigen, Text eingeben, aus einer Liste wählen (``items``).
 // Ergebnis: ``null`` bei Abbruch, sonst true, der Text oder der ``value`` des gewählten Eintrags.
 let sheetMultiline = false;
-function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false, wide = false, maxLength = 120 }) {
+function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false, wide = false, maxLength = null }) {
   return new Promise((resolve) => {
     if (sheetDone) closeSheet(null);
     sheetDone = resolve;
@@ -208,7 +208,7 @@ function openSheet({ title, sub = "", label = "", value = null, placeholder = ""
     const input = multiline ? $("sheet-text") : $("sheet-input");
     $("sheet-input").hidden = multiline || value === null || !!panel;
     $("sheet-text").hidden = !multiline || !!panel;
-    if (!multiline) input.maxLength = maxLength;
+    input.maxLength = maxLength || (multiline ? 4000 : 120);
     input.value = value ?? "";
     input.placeholder = placeholder;
     const count = $("sheet-count");
@@ -1423,7 +1423,15 @@ function buildProject() {
   const heading = node("div", "");
   const title = node("h2", "", "");
   title.tabIndex = -1;
-  heading.append(title);
+  // Die Beschreibung steht unter dem Titel; ein Klick darauf bearbeitet sie.
+  const desc = node("button", "project-desc");
+  desc.type = "button";
+  desc.addEventListener("click", async () => {
+    const project = projectOf(id);
+    if (!project) return;
+    try { if (await editProjectDescription(project)) await loadAll(); } catch { toast(tr("Das hat nicht geklappt.")); }
+  });
+  heading.append(title, desc);
   const buttons = node("div", "skills-buttons");
   buttons.append(actionButton(tr("Aktionen"), "more", "clist-iconbtn", (button) => { const project = projectOf(id); if (project) projectMenu(project, button); }));
   head.append(heading, buttons);
@@ -1533,6 +1541,8 @@ function buildProject() {
     const project = projectOf(id);
     if (!project) { startNew(); return; }
     title.textContent = project.name;
+    desc.textContent = project.description || tr("Beschreibung hinzufügen");
+    desc.classList.toggle("empty", !project.description);
     setTitle(project.name);
     text.placeholder = tr("Neuer Chat in {0}", project.name);
     drawSide(project);
@@ -1596,6 +1606,24 @@ async function createProject() {
   }
 }
 
+// Die kurze Beschreibung eines Projekts bearbeiten; ``true``, wenn gespeichert wurde. Sie wird nur angezeigt, die KI sieht sie nicht.
+async function editProjectDescription(project) {
+  const text = await openSheet({
+    title: tr("Beschreibung des Projekts"),
+    label: tr("Worum geht es in diesem Projekt?"),
+    sub: tr("Ein, zwei Sätze, die in der Projektansicht unter dem Namen stehen. Leer lassen entfernt sie."),
+    value: project.description || "",
+    placeholder: tr("z. B. Alles rund um meine Heizung und die Automationen im Keller."),
+    ok: tr("Speichern"),
+    multiline: true,
+    maxLength: 300,
+  });
+  if (text === null) return false;
+  await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ description: text.slice(0, 300) }) });
+  toast(text.trim() ? tr("Beschreibung gespeichert.") : tr("Beschreibung entfernt."));
+  return true;
+}
+
 // Die Anweisungen eines Projekts bearbeiten; ``true``, wenn gespeichert wurde.
 async function editProjectInstructions(project) {
   const text = await openSheet({
@@ -1618,6 +1646,7 @@ async function projectMenu(project, anchor) {
     { value: "new", icon: "plus", label: tr("Neuer Chat im Projekt"), key: "N" },
     { divider: true },
     { value: "pin", icon: "pin", label: project.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" },
+    { value: "description", icon: "edit", label: project.description ? tr("Beschreibung bearbeiten") : tr("Beschreibung hinzufügen"), key: "B" },
     { value: "instructions", icon: "note", label: project.instructions ? tr("Anweisungen bearbeiten") : tr("Anweisungen festlegen"), key: "A" },
     { value: "knowledge", icon: "stack", label: project.knowledge ? tr("Wissen verwalten ({0})", project.knowledge) : tr("Wissen hinzufügen"), key: "W" },
     { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" },
@@ -1632,6 +1661,8 @@ async function projectMenu(project, anchor) {
   try {
     if (choice === "pin") {
       await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ pinned: !project.pinned }) });
+    } else if (choice === "description") {
+      if (!(await editProjectDescription(project))) return;
     } else if (choice === "instructions") {
       if (!(await editProjectInstructions(project))) return;
     } else if (choice === "rename") {

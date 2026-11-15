@@ -275,6 +275,55 @@ def test_project_instructions_are_limited_and_isolated(client):
     assert foreign.status_code == 404
 
 
+def test_project_description(client):
+    from app.db import DESCRIPTION_MAX
+
+    from conftest import ADM01, DORA, as_user
+
+    project = make_project(client, "Keller", ADM01)
+    assert project["description"] == ""
+    url = f"/api/projects/{project['id']}"
+    ok = client.patch(url, json={"description": "  Alles   rund um\nden Keller  "}, headers=as_user(ADM01, True))
+    assert ok.status_code == 200 and ok.json()["description"] == "Alles rund um den Keller"
+    listed = client.get("/api/projects", headers=as_user(ADM01)).json()
+    assert listed[0]["description"] == "Alles rund um den Keller"
+    # Andere Felder lassen die Beschreibung stehen, leer entfernt sie.
+    assert client.patch(url, json={"pinned": True}, headers=as_user(ADM01, True)).json()["description"] == "Alles rund um den Keller"
+    assert client.patch(url, json={"description": ""}, headers=as_user(ADM01, True)).json()["description"] == ""
+    assert client.patch(url, json={"description": "x" * (DESCRIPTION_MAX + 1)}, headers=as_user(ADM01, True)).status_code == 422
+    assert client.patch(url, json={"description": "fremd"}, headers=as_user(DORA, True)).status_code == 404
+
+
+def test_project_description_is_not_sent_to_the_ai(client, backend):
+    from conftest import ADM01, as_user
+
+    write = as_user(ADM01, True)
+    project = make_project(client, "Geheim", ADM01)
+    client.patch(f"/api/projects/{project['id']}", json={"description": "NUR-ANZEIGE-XYZ"}, headers=write)
+    chat = make_chat(client, ADM01, project_id=project["id"])
+    client.post(f"/api/chats/{chat['id']}/send", json={"content": "Hallo"}, headers=write)
+    assert backend.calls[0]["instructions"] is None
+    assert "NUR-ANZEIGE-XYZ" not in str(backend.calls[0])
+
+
+def test_migration_adds_project_description(tmp_path):
+    from app.db import SCHEMA_VERSION, Store
+
+    path = tmp_path / "v34.sqlite3"
+    store = Store(path)
+    store._conn.execute("ALTER TABLE projects DROP COLUMN description")
+    store._conn.execute("PRAGMA user_version = 34")
+    store._conn.commit()
+    store.close()
+    store = Store(path)
+    try:
+        columns = {r["name"] for r in store._conn.execute("PRAGMA table_info(projects)")}
+        assert "description" in columns
+        assert store._conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 35
+    finally:
+        store.close()
+
+
 def test_system_prompt_composition():
     from app.backend import SYSTEM_PROMPT, compose_system
 

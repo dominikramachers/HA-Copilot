@@ -21,6 +21,16 @@
           "title": "The chat list is more compact",
           "text": "All chats now sit in slim rows across the full width, with the date on the right. Hover a row to rename, move or archive it from the menu."
         }
+      },
+      {
+        "de": {
+          "title": "Projekte haben eine Beschreibung",
+          "text": "Unter dem Namen eines Projekts steht jetzt ein kurzer Text, worum es geht. Den kannst du anklicken und ändern. Die Zeilen in der Seitenleiste sind außerdem flacher."
+        },
+        "en": {
+          "title": "Projects have a description",
+          "text": "Under a project's name there is now a short text about what it is for. You can click it to change it. The rows in the side bar are also flatter."
+        }
       }
     ]
   },
