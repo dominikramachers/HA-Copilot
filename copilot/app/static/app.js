@@ -5614,6 +5614,8 @@ const exactTime = (iso) => { const d = new Date(iso); return Number.isNaN(d.getT
 
 // Eigene Nachricht: Blase, darunter (beim Darüberfahren) Zeitpunkt, Bearbeiten und Kopieren. Die Nummer (data-id)
 // kommt vom Server; bis dahin (gerade gesendet) fehlt der Stift.
+const hasListLines = (text) => /^\s*([-*+]|\d{1,9}[.)])\s+\S/m.test(text);
+
 function userMessage(text, files = [], meta = {}) {
   const group = node("div", "msg-group user-group");
   if (meta.id) group.dataset.id = String(meta.id);
@@ -5628,8 +5630,11 @@ function userMessage(text, files = [], meta = {}) {
   if (quote) {
     const cite = node("div", "msg-quote");
     cite.append(icon("quote"), node("span", "msg-quote-text", quote));
-    bubble.append(cite, node("div", "msg-text", body));
-  } else if (/^\s*([-*+]|\d{1,9}[.)])\s+\S/m.test(text)) {
+    const part = node("div", "msg-text");
+    if (hasListLines(body)) { part.classList.add("has-list"); part.append(window.renderMarkdown(body, { plain: true })); } // auch mit Zitat als Liste
+    else part.textContent = body;
+    bubble.append(cite, part);
+  } else if (hasListLines(text)) {
     bubble.classList.add("has-list"); // Stichpunkte werden als Liste mit Einrückung dargestellt, sonst bleibt der Text, wie getippt
     bubble.append(window.renderMarkdown(text, { plain: true }));
   } else {
