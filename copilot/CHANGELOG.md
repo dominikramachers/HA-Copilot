@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.60.3
+Dokumentation: Bilder auf den aktuellen Stand gebracht, keine Änderung am Programm.
+- **Neue Aufnahmen in `docs/screenshots/`:** `gedaechtnis.png` und `gedaechtnis-projekt.png` zeigen die Gedächtnis-Ansicht seit 0.59.5 (eingeklappte Gruppen, eine Erinnerung = eine Zeile), `suche.png` das Suchfenster mit Reitern und Tastenhinweisen (die Aufnahme stammte noch aus 0.40). Neu ist `projektansicht.png` (Projektseite mit Beschreibung, Eingabefeld, Chats, Anweisungen, Wissen, Gedächtnis); sie steht in `docs/funktionen.md` im Abschnitt „Projekte, Suche, Export“.
+- **Aufnahme-Skripte** (`tools/screenshots/`): `demo_addon.py` legt für das Demo-Projekt „Haus“ eine Beschreibung an; `capture_neu.py` nimmt die Projektansicht auf und klappt im Gedächtnis die Gruppe „Projekt: Haus“ auf; `capture_features.py` schließt das Willkommensfenster einer frischen Demo-App und öffnet das Gedächtnis über die Suche (die Einstellungen sind seit 0.49 ein großes Fenster, Schließen per Esc). README angepasst.
+- Keine Änderung an Server, Oberfläche, Datenbank oder Schnittstellen.
+
 ## 0.60.2
 Projektansicht: das Eingabefeld ist höher.
 - **Mehr Platz im Feld:** Das Eingabefeld oben in der Projektansicht wirkte gequetscht. Der Text steht jetzt in einem Feld für etwa drei Zeilen (`.project-main .composer textarea`: `min-height` 92 px, am Handy 64 px); Senden- und Sprachknopf sitzen wie im Chat unten rechts im Feld. Wächst der Text, wächst das Feld wie gewohnt mit. Reine Darstellung, keine neuen Texte, keine Änderung an Server, Datenbank oder Schnittstellen.

@@ -10,6 +10,12 @@ api("POST", "/api/schedules", {"name": "Morgenüberblick", "prompt": "Fasse jede
 api("POST", "/api/schedules", {"name": "Wochenbericht Strom", "prompt": "Fasse den Stromverbrauch der Woche zusammen und nenne Auffälligkeiten.", "freq": "weekly", "at": "18:00", "days": "4", "notify": "chat"})
 api("POST", "/api/schedules", {"name": "Erinnerung Filterwechsel", "prompt": "Erinnere mich an den Filterwechsel der Lüftung.", "freq": "monthly", "at": "09:00", "days": "1", "notify": "chat", "enabled": False})
 
+def calm(fr):
+    """Fenster „Das kann ich“ / „Das ist neu“ schließen, das eine frisch gestartete Demo-App einmal zeigt."""
+    for _ in range(3):
+        if fr.locator("#sheet-scrim.show").count():
+            pg.keyboard.press("Escape"); pg_wait(500)
+
 def account_item(fr, text):
     fr.locator("#account").click(); pg_wait(400)
     fr.locator("button:visible", has_text=text).first.click(); pg_wait(1200)
@@ -19,17 +25,20 @@ with sync_playwright() as p:
     c = ctx(b, 1440, 860, "light"); pg = c.new_page()
     pg_wait = pg.wait_for_timeout
     pg.goto(HA + "/ha-copilot-panel"); pg.wait_for_timeout(5000)
-    fr = pg.frame_locator("iframe")
+    fr = pg.frame_locator("iframe"); calm(fr)
     # Einrichtungsprüfung
     pg.set_viewport_size({"width": 1440, "height": 1040}); pg.wait_for_timeout(600)
     account_item(fr, "Einrichtungsprüfung")
     pg.screenshot(path=f"{OUT}/einrichtungspruefung.png")
     pg.set_viewport_size({"width": 1440, "height": 860}); pg.wait_for_timeout(400)
-    fr.locator("#sheet-ok").click(); pg.wait_for_timeout(400)
-    # Gedächtnis
-    account_item(fr, "Gedächtnis")
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(400)
+    # Gedächtnis (öffnet über die Suche; die Gruppen sind seit 0.59.5 eingeklappt, „Mein Gedächtnis“ ist offen)
+    fr.locator("#nav-search").click(); pg.wait_for_timeout(500)
+    pg.keyboard.type("Gedächtnis", delay=40); pg.wait_for_timeout(700)
+    fr.locator(".srch-item", has_text="Gedächtnis").first.click(); pg.wait_for_timeout(1200)
+    pg.mouse.move(1380, 600); pg.wait_for_timeout(300)
     pg.screenshot(path=f"{OUT}/gedaechtnis.png")
-    fr.locator("#sheet-ok").click(); pg.wait_for_timeout(400)
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(500)
     # Suche
     fr.locator("#nav-search").click(); pg.wait_for_timeout(500)
     pg.keyboard.type("licht", delay=60); pg.wait_for_timeout(1200)
