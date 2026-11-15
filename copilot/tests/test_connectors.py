@@ -1015,7 +1015,7 @@ def test_tokens_never_appear_in_the_personal_data_export_or_api(store, servers, 
 
 
 def test_chatgpt_chat_gets_project_knowledge_memory_and_connectors(store, servers, tmp_path):
-    """Mit einem ChatGPT-Modell stehen dieselben Werkzeuge bereit wie bei Claude (Projektwissen, Gedächtnis, Konnektoren) und laufen über die Werkzeugschleife von OpenAI."""
+    """Mit einem ChatGPT-Modell stehen dieselben Werkzeuge bereit wie bei Claude (Projektkontext, Gedächtnis, Konnektoren) und laufen über die Werkzeugschleife von OpenAI."""
     from app.backend_router import RouterBackend
     from conftest import FakeBackend
     from test_openai_backend import FakeOpenAI, answer, call

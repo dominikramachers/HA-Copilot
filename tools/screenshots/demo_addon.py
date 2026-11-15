@@ -139,6 +139,7 @@ if os.environ.get("DEMO_ADMIN"):  # Verbrauchsübersicht „Alle Personen“ mit
     for pid, tin, tout, cost, img in (("demo", 820_000, 140_000, 3.1, 3), ("sam", 260_000, 60_000, 0.9, 0)):
         store.usage_add(pid, "claude", "claude-sonnet-5-5", tokens_in=tin, tokens_out=tout, cost_usd=cost, images=img)
 p = store.create_project(U, "Haus" if LANG == "de" else "House")
+store.set_project_description(U, p["id"], "Alles rund ums Smarthome: Licht, Rollläden und Heizung im Haus." if LANG == "de" else "Everything about the smart home: lights, blinds and heating.")
 
 c1 = store.create_chat(U, "Welche Lichter sind an?" if LANG == "de" else "Which lights are on?", p["id"])
 if LANG == "de":

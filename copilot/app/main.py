@@ -371,6 +371,7 @@ class PatchChatBody(BaseModel):
 
 class ProjectBody(BaseModel):
     name: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="", max_length=300)
 
 
 class PatchProjectBody(BaseModel):
@@ -1649,7 +1650,11 @@ def register_chat_routes(
         name = " ".join(body.name.split())
         if not name:
             raise HTTPException(status_code=422, detail=tr("Name fehlt"))
-        return store.create_project(profile.id, name)
+        project = store.create_project(profile.id, name)
+        if body.description.strip():
+            store.set_project_description(profile.id, project["id"], body.description)
+            project = store.get_project(profile.id, project["id"]) or project
+        return project
 
     @app.patch("/api/projects/{project_id}", dependencies=[Depends(write_guard)])
     def update_project(
@@ -2133,7 +2138,7 @@ def register_chat_routes(
         items = [{**a, "shared": modes.get(a["id"], [])} for a in found]
         return [a for a in items if a["shared"]] if shared else items
 
-    # ------------------------------------------------------------ Projektwissen
+    # ------------------------------------------------------------ Projektkontext
 
     @app.get("/api/projects/{project_id}/knowledge")
     def list_knowledge(project_id: str, profile: Profile = Depends(current_profile)) -> dict:

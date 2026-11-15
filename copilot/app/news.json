@@ -1,5 +1,40 @@
 [
   {
+    "version": "0.60.3",
+    "items": [
+      {
+        "de": {
+          "title": "„Kontext“ statt „Wissen“",
+          "text": "Die Dateien in deinem Projekt heißen jetzt Kontext. Das passt besser, denn ich lese sie als Hintergrund für alle Chats in diesem Projekt."
+        },
+        "en": {
+          "title": "“Context” instead of “Knowledge”",
+          "text": "The files in your project are now called context. That fits better, because I read them as background for all chats in this project."
+        }
+      },
+      {
+        "de": {
+          "title": "Neues Projekt mit Kontext",
+          "text": "Beim Erstellen eines Projekts kannst du jetzt gleich beschreiben, worum es geht, und Dateien als Kontext mitgeben. Beides ist freiwillig."
+        },
+        "en": {
+          "title": "New project with context",
+          "text": "When you create a project you can now say what it is about and add files as context right away. Both are optional."
+        }
+      },
+      {
+        "de": {
+          "title": "Aufgeräumtes Eingabefeld",
+          "text": "Auf der Projektseite liegen Büroklammer, Modellwahl und Senden jetzt im Eingabefeld. Den Hinweis, dass ich Fehler machen kann, spare ich mir dort."
+        },
+        "en": {
+          "title": "Tidier input box",
+          "text": "On the project page the paperclip, model choice and send button now sit inside the input box. I skip the note that I can make mistakes there."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.2",
     "items": [
       {

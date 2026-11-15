@@ -1,4 +1,4 @@
-"""Bilder zu den Funktionen ab 0.56.0: Sprechen, Inkognito, Kopfzeile und Teilen (Fenster mit Link, „Geteilt“, öffentliche Seite), Deep Research, Projektwissen, Gedächtnis.
+"""Bilder zu den Funktionen ab 0.56.0: Sprechen, Inkognito, Kopfzeile und Teilen (Fenster mit Link, „Geteilt“, öffentliche Seite), Deep Research, Projektansicht, Projektwissen, Gedächtnis.
 
 Braucht die frisch gestartete Demo-App (``demo_addon.py``, Port 8099, öffentliche Seite auf 8097). Aufruf: ``python capture_neu.py docs/screenshots``.
 Die Demo-App danach neu starten: Das Skript legt Freigaben und einen Recherche-Lauf an.
@@ -105,17 +105,23 @@ with sync_playwright() as p:
     pg.screenshot(path=f"{OUT}/deep-research-bericht.png")
     c.close()
 
+    # --- Projektansicht (seit 0.60.0): Beschreibung, Eingabefeld, Chats des Projekts
+    c = context(b, ME, 1280, 900); pg = start(c)
+    pg.locator(".project-row", has_text="Haus").first.click(); pg.wait_for_selector(".project-main"); pg.mouse.move(1100, 700); pg.wait_for_timeout(900)
+    pg.screenshot(path=f"{OUT}/projektansicht.png")
+    c.close()
+
     # --- Projektwissen (Originale, KI-Notizen) und Gedächtnis (Projekt, Herkunft)
     c = context(b, ME, 1280, 900); pg = start(c)
     pg.locator(".project-row", has_text="Haus").first.hover()
     pg.locator(".project-row", has_text="Haus").first.get_by_label("Aktionen").click(); pg.wait_for_timeout(400)
-    pg.locator("button:visible", has_text="Wissen verwalten").first.click(); pg.wait_for_timeout(900)
+    pg.locator("button:visible", has_text="Kontext verwalten").first.click(); pg.wait_for_timeout(900)
     pg.screenshot(path=f"{OUT}/projekt-wissen.png")
     pg.keyboard.press("Escape"); pg.wait_for_timeout(400); calm(pg)
     open_chat(pg, "Haus", "Lichter")
     action(pg, "Gedächtnis")
-    pg.locator("text=Projekt: Haus").first.scroll_into_view_if_needed(); pg.wait_for_timeout(300)
-    pg.locator("#sheet-panel").evaluate("el => { const t = [...el.querySelectorAll('*')].find((e) => e.scrollHeight > e.clientHeight + 20 && getComputedStyle(e).overflowY !== 'visible'); if (t) t.scrollTop += 220; }"); pg.wait_for_timeout(300)
+    pg.locator("#sheet-panel button:visible, #sheet-panel summary:visible, #sheet-panel [role=button]:visible", has_text="Projekt: Haus").first.click(); pg.wait_for_timeout(500)  # Gruppe aufklappen (ab 0.59.5 eingeklappt)
+    pg.mouse.move(1100, 120); pg.wait_for_timeout(300)
     pg.screenshot(path=f"{OUT}/gedaechtnis-projekt.png")
     c.close()
     b.close()

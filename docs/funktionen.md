@@ -51,14 +51,16 @@ Mehr: [Inkognito-Chat](../copilot/DOCS.md#inkognito-chat-ab-0560), [Chats teilen
 
 ![Suche](screenshots/suche.png)
 
-- **Projekte** ordnen Chats und tragen **Anweisungen** (bis 4000 Zeichen), die in jedem Chat des Projekts mitgehen. Zu einem Projekt kannst du **Wissen** hochladen (Notizen, Word, Excel, PDF, ZIP); die KI liest bei Bedarf nach. Auf Wunsch („speichere das im Projektwissen“) schreibt sie auch selbst Notizen dazu, im Ordner `KI/`; deine hochgeladenen Dateien ändert sie nie. Hochgeladene Dateien bleiben als **Original** erhalten und lassen sich wieder herunterladen; unter einer erzeugten Datei legt **Im Projekt ablegen** sie im Projekt ab (die KI kann das auch selbst). In einem Projekt kennt die KI außerdem die **anderen Chats dieses Projekts** und liest bei Bedarf in ihnen nach („mach mit dem weiter, was wir letzte Woche besprochen haben“).
-![Projektwissen mit Original und Notiz der KI](screenshots/projekt-wissen.png)
+- **Projekte** ordnen Chats und tragen **Anweisungen** (bis 4000 Zeichen), die in jedem Chat des Projekts mitgehen. Zu einem Projekt kannst du **Kontext** hochladen (Notizen, Word, Excel, PDF, ZIP); die KI liest bei Bedarf nach. Auf Wunsch („speichere das im Projektkontext“) schreibt sie auch selbst Notizen dazu, im Ordner `KI/`; deine hochgeladenen Dateien ändert sie nie. Hochgeladene Dateien bleiben als **Original** erhalten und lassen sich wieder herunterladen; unter einer erzeugten Datei legt **Im Projekt ablegen** sie im Projekt ab (die KI kann das auch selbst). In einem Projekt kennt die KI außerdem die **anderen Chats dieses Projekts** und liest bei Bedarf in ihnen nach („mach mit dem weiter, was wir letzte Woche besprochen haben“).
+![Projektkontext mit Original und Notiz der KI](screenshots/projekt-wissen.png)
+
+![Projektansicht mit Beschreibung, Eingabefeld und den Chats des Projekts](screenshots/projektansicht.png)
 
 - **Suchen** (Strg/Cmd+Umschalt+F) durchsucht Titel und Nachrichten aller deiner Chats, ohne Rücksicht auf Groß- und Kleinschreibung und Umlaute. Schon vor der ersten Eingabe zeigt das Fenster laufende und zuletzt benutzte Chats; Reiter trennen Chats, Projekte und geplante Aufgaben, Pfeiltasten und Enter genügen zur Bedienung.
 - **Tastenkürzel** am Computer: Strg (Mac: ⌘) + Umschalt + **O** neuer Chat, **F** Suchen, **P** neues Projekt, **G** geplante Aufgaben. Das Kürzel steht in der Seitenleiste erst, wenn du mit der Maus über den Eintrag fährst.
 - **Hinweise über dem Eingabefeld:** Nutzungslimit und Rückfragen der KI (z. B. vor einer Änderung in Home Assistant) erscheinen als Streifen direkt über dem Eingabefeld, wie in Claude selbst, jeweils als eigene schmale Box (nicht am Eingabefeld angebaut).
 - Anpinnen, umbenennen, in ein Projekt verschieben, als Markdown exportieren, archivieren, löschen: alles im Menü (⋯) jeder Zeile.
-- **Projektansicht** (ab 0.60.0): Ein Klick auf ein Projekt in der Seitenleiste öffnet eine eigene Seite, wie bei Claude: oben das normale Eingabefeld „Neuer Chat in …“ (mit Anhängen, Sprache und Modellwahl), darunter die Chats des Projekts, unter dem Namen eine kurze **Beschreibung** (anklicken zum Ändern), rechts **Anweisungen**, **Wissen** und **Gedächtnis**. Ein weiterer Klick auf das Projekt klappt es in der Seitenleiste zu und wieder auf.
+- **Projektansicht** (ab 0.60.0): Ein Klick auf ein Projekt in der Seitenleiste öffnet eine eigene Seite, wie bei Claude: oben das normale Eingabefeld „Neuer Chat in …“ (mit Anhängen, Sprache und Modellwahl), darunter die Chats des Projekts, unter dem Namen eine kurze **Beschreibung** (anklicken zum Ändern), rechts **Anweisungen**, **Kontext** und **Gedächtnis**. Anhängen, Modell und Senden liegen im Eingabefeld selbst. Beim Erstellen eines Projekts kannst du Beschreibung und, wenn du möchtest, gleich Dateien als **Kontext** mitgeben. Ein weiterer Klick auf das Projekt klappt es in der Seitenleiste zu und wieder auf.
 - **Alle Chats** (Eintrag unter der Chatliste, öffnet eine eigene Seite): die ganze Liste über die ganze Breite, kompakt mit Titel links und Datum rechts, mit Reitern Aktiv, Geteilt und Archiviert, Suche und Mehrfachauswahl; das Menü (⋯) erscheint beim Darüberfahren. Archivierte Chats verschwinden aus der Seitenleiste und stehen unter „Alle Chats“ und in der Projektansicht; neues Schreiben holt sie zurück.
 
 ![Chat-Menü](screenshots/menue.png)
@@ -113,7 +115,7 @@ Im selben Fenster stehen **Meine Anweisungen** (ein Text, der in all deinen Chat
 
 Zusätzlich liest das Add-on selbst einen **Smarthome-Überblick** (Bereiche, Entitäten je Typ, Integrationen, Namen von Automationen) ein und legt ihn als schreibgeschützte Einträge ab. Das kostet keine KI-Nachricht. Es läuft beim ersten Start und danach wöchentlich; mit `chat.memory_enabled: false` ist es aus.
 
-Mehr: [Projektwissen und Gedächtnis](../copilot/DOCS.md#projektwissen-und-gedächtnis-ab-0160).
+Mehr: [Projektkontext und Gedächtnis](../copilot/DOCS.md#projektkontext-und-gedächtnis-ab-0160).
 
 ## Skills
 

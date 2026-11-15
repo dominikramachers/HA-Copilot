@@ -294,6 +294,19 @@ def test_project_description(client):
     assert client.patch(url, json={"description": "fremd"}, headers=as_user(DORA, True)).status_code == 404
 
 
+def test_project_can_be_created_with_description(client):
+    """„Projekt erstellen“ nimmt die Beschreibung gleich mit (optional, höchstens 300 Zeichen)."""
+    from conftest import ADM01, as_user
+
+    write = as_user(ADM01, True)
+    made = client.post("/api/projects", json={"name": "Haus", "description": "  Licht   und\nHeizung "}, headers=write)
+    assert made.status_code == 201 and made.json()["description"] == "Licht und Heizung"
+    assert client.get("/api/projects", headers=as_user(ADM01)).json()[0]["description"] == "Licht und Heizung"
+    plain = client.post("/api/projects", json={"name": "Ohne"}, headers=write)
+    assert plain.status_code == 201 and plain.json()["description"] == ""
+    assert client.post("/api/projects", json={"name": "Zu lang", "description": "x" * 301}, headers=write).status_code == 422
+
+
 def test_project_description_is_not_sent_to_the_ai(client, backend):
     from conftest import ADM01, as_user
 
