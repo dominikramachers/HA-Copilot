@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.60.0",
+    "items": [
+      {
+        "de": {
+          "title": "Jedes Projekt hat eine eigene Seite",
+          "text": "Wenn du ein Projekt antippst, siehst du dort alle Chats, die Anweisungen und das Wissen. Oben kannst du gleich einen neuen Chat im Projekt beginnen."
+        },
+        "en": {
+          "title": "Every project has its own page",
+          "text": "When you tap a project, you see all its chats, instructions and knowledge. At the top you can start a new chat in the project right away."
+        }
+      },
+      {
+        "de": {
+          "title": "Die Chatliste ist kompakter",
+          "text": "Alle Chats stehen jetzt in schmalen Zeilen über die ganze Breite, mit dem Datum rechts. Beim Darüberfahren erscheint das Menü zum Umbenennen, Verschieben oder Archivieren."
+        },
+        "en": {
+          "title": "The chat list is more compact",
+          "text": "All chats now sit in slim rows across the full width, with the date on the right. Hover a row to rename, move or archive it from the menu."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.59.6",
     "items": [
       {
