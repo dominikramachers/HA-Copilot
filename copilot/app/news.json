@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.60.2",
+    "items": [
+      {
+        "de": {
+          "title": "Mehr Platz im Eingabefeld",
+          "text": "Das Eingabefeld auf der Projektseite ist jetzt höher und wirkt nicht mehr so eng. Du hast Platz für mehrere Zeilen."
+        },
+        "en": {
+          "title": "More room in the input box",
+          "text": "The input box on the project page is now taller and no longer feels cramped. You have room for several lines."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.1",
     "items": [
       {
