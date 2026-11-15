@@ -1,6 +1,6 @@
 """Dateien im Projekt ablegen: Originale (auch Bilder und Binärdateien) und Artefakte der KI.
 
-Eine Projektdatei ist eine Zeile im Projektwissen (``knowledge``) mit dem durchsuchbaren Text und, wenn vorhanden, dem Original
+Eine Projektdatei ist eine Zeile im Projektkontext (``knowledge``) mit dem durchsuchbaren Text und, wenn vorhanden, dem Original
 auf der Platte. So finden ``knowledge_search`` und ``knowledge_read`` auch abgelegte Word-, Excel- und PDF-Dateien, und
 Bilder oder Scans stehen mit einem Platzhalter im Inhaltsverzeichnis. Hochgeladene Dateien der Person überschreibt die KI nie.
 """

@@ -1,4 +1,4 @@
-"""Projektwissen und Gedächtnis: Import, Suche, Trennung der Personen, Rechte, Rückfragen nach Dateianhängen."""
+"""Projektkontext und Gedächtnis: Import, Suche, Trennung der Personen, Rechte, Rückfragen nach Dateianhängen."""
 import asyncio
 import dataclasses
 import base64
@@ -176,7 +176,7 @@ def test_knowledge_save_writes_notes_only_in_ki_folder(store):
     store.add_knowledge("dora", pid, "heizung.md", "Hochgeladen, bleibt unverändert.")
     box = toolbox(store, project_id=pid)
     save = handler(box, "knowledge_save")  # auch ohne vorhandene Dateien und mit Gedächtnis aus
-    assert "Angelegt im Projektwissen: KI/zabbix-mcp.md" in run(save({"name": "zabbix-mcp.md", "content": "# Zabbix MCP\nEndpunkt :8080/mcp"}))
+    assert "Angelegt im Projektkontext: KI/zabbix-mcp.md" in run(save({"name": "zabbix-mcp.md", "content": "# Zabbix MCP\nEndpunkt :8080/mcp"}))
     assert store.get_knowledge("dora", pid, "KI/zabbix-mcp.md").startswith("# Zabbix MCP")
     # gleicher Name (auch mit Ordner, anderer Schreibweise) ergänzt oder ersetzt dieselbe Notiz
     assert "Ergänzt" in run(save({"name": "KI/Zabbix-MCP.md", "content": "Admin-Portal auf 9090", "mode": "append"}))

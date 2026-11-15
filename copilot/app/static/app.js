@@ -841,7 +841,7 @@ function renderProjects(root) {
     const row = node("div", "row project-row" + (open ? " open" : "") + (current ? " current" : ""));
     const label = node("span", "name", project.name);
     if (project.instructions) { const dot = node("i", "dot"); dot.title = tr("Projektanweisungen aktiv"); label.append(dot); }
-    if (project.knowledge) { const dot = node("i", "dot know"); dot.title = tr("{0} Wissensdateien", project.knowledge); label.append(dot); }
+    if (project.knowledge) { const dot = node("i", "dot know"); dot.title = tr("{0} Kontextdateien", project.knowledge); label.append(dot); }
     row.append(folderIcon(), label);
     if (project.pinned) { const pin = icon("pin"); pin.classList.add("pin"); row.append(pin); }
     if (!open && state.chats.some((c) => c.project_id === project.id && c.running)) row.append(runningMark());
@@ -1388,7 +1388,7 @@ function buildAllChats() {
 
 // ------------------------------------------------------------- Projektansicht
 // Ein Klick auf ein Projekt in der Seitenleiste öffnet diese Seite: Eingabe für einen neuen Chat im Projekt, die Chats des Projekts
-// und rechts Anweisungen, Wissen und Gedächtnis. Ein weiterer Klick auf das Projekt klappt es in der Seitenleiste zu und wieder auf.
+// und rechts Anweisungen, Kontext und Gedächtnis. Ein weiterer Klick auf das Projekt klappt es in der Seitenleiste zu und wieder auf.
 let projectDraw = null;
 const projectUi = { archived: false, more: false };
 const PROJECT_CHATS = 12;
@@ -1475,7 +1475,7 @@ function buildProject() {
       sideRow("note", tr("Anweisungen"), "", project.instructions ? tr("Bearbeiten") : tr("Festlegen"), async () => {
         if (await editProjectInstructions(project)) await loadAll();
       }, project.instructions || ""),
-      sideRow("stack", tr("Wissen"), project.knowledge ? trn(project.knowledge, "1 Datei", "{0} Dateien") : "", project.knowledge ? tr("Verwalten") : tr("Hinzufügen"), async () => {
+      sideRow("stack", tr("Kontext"), project.knowledge ? trn(project.knowledge, "1 Datei", "{0} Dateien") : "", project.knowledge ? tr("Verwalten") : tr("Hinzufügen"), async () => {
         await openKnowledge(project);
         await loadAll().catch(() => {});
       }),
@@ -1563,27 +1563,85 @@ async function moveChatTo(chat, target) {
   await changeChat(chat, { project_id: target || null }, tr("Verschieben hat nicht geklappt."));
 }
 
+// „Projekt erstellen“: Name, kurze Beschreibung und, wenn man möchte, gleich Dateien als Kontext (wie bei Claude). Gibt das neue Projekt zurück oder ``null``.
 async function createProject() {
-  const name = await openSheet({
+  const picked = [];
+  let created = null;
+  const name = node("input", "field");
+  name.maxLength = 80;
+  name.placeholder = tr("Name des Projekts");
+  const about = node("textarea", "field area");
+  about.rows = 3;
+  about.maxLength = 300;
+  about.placeholder = tr("z. B. Alles rund um meine Heizung und die Automationen im Keller.");
+  name.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); $("sheet-ok").click(); } });
+  const status = node("p", "mem-hint know-status");
+  status.setAttribute("role", "status");
+  const list = node("div", "know-list");
+  const picker = node("input");
+  picker.type = "file";
+  picker.multiple = true;
+  picker.accept = KNOWLEDGE_ACCEPT;
+  picker.hidden = true;
+  const add = node("button", "pill ghost know-add");
+  add.type = "button";
+  add.append(icon("plus"), node("span", "", tr("Kontext hinzufügen")));
+  add.addEventListener("click", () => picker.click());
+  const drawPicked = () => {
+    list.replaceChildren(...picked.map((file) => {
+      const row = node("div", "know-file");
+      const label = node("span", "know-name", file.name);
+      label.title = file.name;
+      const remove = node("button", "icon-btn");
+      remove.type = "button";
+      remove.title = tr("{0} entfernen", file.name);
+      remove.setAttribute("aria-label", tr("{0} entfernen", file.name));
+      remove.append(icon("close"));
+      remove.addEventListener("click", () => { picked.splice(picked.indexOf(file), 1); drawPicked(); });
+      row.append(icon("file"), label, node("small", "mem-meta", formatSize(file.size)), remove);
+      return row;
+    }));
+  };
+  picker.addEventListener("change", () => {
+    for (const file of picker.files) if (!picked.some((p) => p.name === file.name && p.size === file.size)) picked.push(file);
+    picker.value = "";
+    drawPicked();
+  });
+  const ok = await openSheet({
     title: tr("Projekt erstellen"),
     sub: tr("Fasse zusammengehörige Chats an einem Ort zusammen."),
-    label: tr("Wie soll das Projekt heißen?"),
-    value: "",
-    placeholder: tr("Name des Projekts"),
     ok: tr("Projekt erstellen"),
+    panel: (body) => {
+      const context = node("div", "f-field");
+      context.append(node("span", "f-label", tr("Kontext")), node("span", "f-hint", tr("Optional: Dateien, die die KI in allen Chats dieses Projekts nachschlagen kann. Das geht auch später.")), list, add, picker);
+      const form = node("div", "project-new");
+      form.append(field(tr("Wie soll das Projekt heißen?"), name), field(tr("Worum geht es in diesem Projekt?"), about), context, status);
+      body.append(form);
+    },
+    onOk: async () => {
+      const title = name.value.trim();
+      if (!title) { status.textContent = tr("Gib dem Projekt einen Namen."); name.focus(); return false; }
+      try {
+        if (!created) created = await api("api/projects", { method: "POST", body: JSON.stringify({ name: title.slice(0, 80), description: about.value.trim().slice(0, 300) }) });
+      } catch {
+        status.textContent = tr("Das Projekt konnte nicht angelegt werden.");
+        return false;
+      }
+      if (picked.length) {
+        add.disabled = true;
+        const report = await uploadContextFiles(created.id, picked, (file, i, total) => { status.textContent = tr("Lade {0} ({1} von {2}) …", file.name, i + 1, total); });
+        const added = trn(report.added, "1 Datei übernommen", "{0} Dateien übernommen");
+        if (report.skipped.length) toast(tr("{0}, {1} übersprungen.", added, report.skipped.length));
+      }
+      return true;
+    },
   });
-  if (!name) return null;
-  try {
-    const project = await api("api/projects", { method: "POST", body: JSON.stringify({ name: name.slice(0, 80) }) });
-    ui.projectsOpen = true;
-    ui.openProjects.add(project.id);
-    saveUi();
-    await loadAll();
-    return project;
-  } catch {
-    toast(tr("Das Projekt konnte nicht angelegt werden."));
-    return null;
-  }
+  if (!ok || !created) return null;
+  ui.projectsOpen = true;
+  ui.openProjects.add(created.id);
+  saveUi();
+  await loadAll();
+  return created;
 }
 
 // Die kurze Beschreibung eines Projekts bearbeiten; ``true``, wenn gespeichert wurde. Sie wird nur angezeigt, die KI sieht sie nicht.
@@ -1628,7 +1686,7 @@ async function projectMenu(project, anchor) {
     { value: "pin", icon: "pin", label: project.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" },
     { value: "description", icon: "edit", label: project.description ? tr("Beschreibung bearbeiten") : tr("Beschreibung hinzufügen"), key: "B" },
     { value: "instructions", icon: "note", label: project.instructions ? tr("Anweisungen bearbeiten") : tr("Anweisungen festlegen"), key: "A" },
-    { value: "knowledge", icon: "stack", label: project.knowledge ? tr("Wissen verwalten ({0})", project.knowledge) : tr("Wissen hinzufügen"), key: "W" },
+    { value: "knowledge", icon: "stack", label: project.knowledge ? tr("Kontext verwalten ({0})", project.knowledge) : tr("Kontext hinzufügen"), key: "W" },
     { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" },
     { divider: true },
     { value: "delete", icon: "trash", label: tr("Projekt löschen"), danger: true, key: "D" },
@@ -1672,7 +1730,7 @@ async function projectMenu(project, anchor) {
 }
 
 
-// ------------------------------------------------------------- Gedächtnis und Projektwissen
+// ------------------------------------------------------------- Gedächtnis und Projektkontext
 
 function errorText(err, fallback) {
   return typeof err?.detail === "string" ? err.detail : fallback;
@@ -2535,12 +2593,30 @@ async function openMemory(projectId = "") {
 const KNOWLEDGE_ACCEPT = ".zip,.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,text/*,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.log,.py,.js,.ts,.sh,.ps1,.ini,.conf,.cfg,.toml,.sql,.html,.css,.jinja,.j2";
 const KNOWLEDGE_MAX = 8 * 1024 * 1024;
 
+// Dateien in den Kontext eines Projekts laden (Verwalten-Fenster und „Projekt erstellen“); gibt zurück, was übernommen und übersprungen wurde.
+async function uploadContextFiles(projectId, files, progress) {
+  const report = { added: 0, skipped: [], noText: [] };
+  for (const [i, file] of files.entries()) {
+    progress?.(file, i, files.length);
+    if (file.size > KNOWLEDGE_MAX) { report.skipped.push({ name: file.name, reason: tr("zu groß (höchstens {0} MB je Datei oder ZIP)", KNOWLEDGE_MAX / 1024 / 1024) }); continue; }
+    try {
+      const answer = await api(`api/projects/${encodeURIComponent(projectId)}/knowledge`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) });
+      report.added += answer.added.length;
+      report.skipped.push(...answer.skipped);
+      report.noText.push(...(answer.no_text || []));
+    } catch (err) {
+      report.skipped.push({ name: file.name, reason: errorText(err, tr("Hochladen fehlgeschlagen")) });
+    }
+  }
+  return report;
+}
+
 function knowledgePanel(project) {
   return (body) => {
     const state2 = { busy: false };
     const draw = async () => {
       let data;
-      try { data = await api(`api/projects/${encodeURIComponent(project.id)}/knowledge`); } catch { body.replaceChildren(node("p", "mem-empty", tr("Das Wissen ist gerade nicht erreichbar."))); return; }
+      try { data = await api(`api/projects/${encodeURIComponent(project.id)}/knowledge`); } catch { body.replaceChildren(node("p", "mem-empty", tr("Der Kontext ist gerade nicht erreichbar."))); return; }
       const parts = [];
       const picker = node("input");
       picker.type = "file";
@@ -2560,19 +2636,7 @@ function knowledgePanel(project) {
         if (!files.length || state2.busy) return;
         state2.busy = true;
         add.disabled = true;
-        const report = { added: 0, skipped: [], noText: [] };
-        for (const [i, file] of files.entries()) {
-          status.textContent = tr("Lade {0} ({1} von {2}) …", file.name, i + 1, files.length);
-          if (file.size > KNOWLEDGE_MAX) { report.skipped.push({ name: file.name, reason: tr("zu groß (höchstens {0} MB je Datei oder ZIP)", KNOWLEDGE_MAX / 1024 / 1024) }); continue; }
-          try {
-            const answer = await api(`api/projects/${encodeURIComponent(project.id)}/knowledge`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) });
-            report.added += answer.added.length;
-            report.skipped.push(...answer.skipped);
-            report.noText.push(...(answer.no_text || []));
-          } catch (err) {
-            report.skipped.push({ name: file.name, reason: errorText(err, tr("Hochladen fehlgeschlagen")) });
-          }
-        }
+        const report = await uploadContextFiles(project.id, files, (file, i, total) => { status.textContent = tr("Lade {0} ({1} von {2}) …", file.name, i + 1, total); });
         state2.busy = false;
         await draw();
         const note = body.querySelector(".know-status");
@@ -2588,7 +2652,7 @@ function knowledgePanel(project) {
         }
         loadAll().catch(() => {});
       });
-      parts.push(node("p", "mem-hint", tr("Text, Markdown, YAML, Word, Excel, PDF, Bilder oder ein ZIP davon. Das Original bleibt erhalten. Die KI durchsucht das Wissen bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts, und legt auf Wunsch eigene Dateien hier ab.")), add, picker, status);
+      parts.push(node("p", "mem-hint", tr("Text, Markdown, YAML, Word, Excel, PDF, Bilder oder ein ZIP davon. Das Original bleibt erhalten. Die KI durchsucht den Kontext bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts, und legt auf Wunsch eigene Dateien hier ab.")), add, picker, status);
       const list = node("div", "know-list");
       if (data.files.length === 0) list.append(node("p", "mem-empty", tr("Noch keine Dateien. Importiere zum Beispiel Notizen, Anleitungen oder Konfigurationen.")));
       for (const f of data.files) {
@@ -2635,7 +2699,7 @@ async function downloadProjectFile(project, entry) {
 
 async function openKnowledge(project) {
   await openSheet({
-    title: tr("Wissen: {0}", project.name),
+    title: tr("Kontext: {0}", project.name),
     sub: tr("Dateien, aus denen die KI in diesem Projekt nachschlagen darf."),
     ok: tr("Fertig"),
     panel: knowledgePanel(project),
@@ -4862,7 +4926,7 @@ function actionsEl(list = [], open = false) {
     const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok") && a.kind !== "artifact"); // Artefakte zeigen ihre Karten
     const ha = items.filter((a) => ["read", "execute", "write"].includes(a.kind));
     const changes = ha.filter((a) => a.kind !== "read").length;
-    const wissen = items.filter((a) => a.kind === "knowledge").length;
+    const kontext = items.filter((a) => a.kind === "knowledge").length;
     const memory = items.filter((a) => a.kind === "memory").length;
     const noted = items.filter((a) => a.kind === "knowledge-write" && a.status === "ok").length;
     const skillsUsed = items.filter((a) => (a.kind === "skill" || a.kind === "skill-ext") && a.label.startsWith(tr("Skill genutzt"))).length;
@@ -4888,10 +4952,10 @@ function actionsEl(list = [], open = false) {
     if (ha.length) parts.push(trn(ha.length, "1 Aktion in Home Assistant", "{0} Aktionen in Home Assistant") + (changes ? trn(changes, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (gh.length) parts.push(trn(gh.length, "1 Aktion bei GitHub", "{0} Aktionen bei GitHub") + (ghChanges ? trn(ghChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (mcp.length) parts.push(trn(mcp.length, "1 Aktion über Konnektoren", "{0} Aktionen über Konnektoren") + (mcpChanges ? trn(mcpChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
-    if (wissen) parts.push(trn(wissen, "im Wissen nachgeschlagen", "{0}× im Wissen nachgeschlagen"));
+    if (kontext) parts.push(trn(kontext, "im Kontext nachgeschlagen", "{0}× im Kontext nachgeschlagen"));
     if (skillsUsed) parts.push(trn(skillsUsed, "Skill genutzt", "{0} Skills genutzt"));
     if (memory) parts.push(trn(memory, "Gedächtnis aktualisiert", "Gedächtnis {0}× aktualisiert"));
-    if (noted) parts.push(trn(noted, "Im Projektwissen gespeichert", "{0}× im Projektwissen gespeichert"));
+    if (noted) parts.push(trn(noted, "Im Projektkontext gespeichert", "{0}× im Projektkontext gespeichert"));
     if (made) parts.push(trn(made, "Datei erstellt", "{0} Dateien erstellt"));
     if (edited) parts.push(trn(edited, "Datei bearbeitet", "{0} Dateien bearbeitet"));
     if (pics) parts.push(trn(pics, "Bild erzeugt", "{0} Bilder erzeugt"));
@@ -6435,7 +6499,7 @@ function recapOf(actions) {
       return trn(used, "Skill genutzt", "{0} Skills genutzt");
     }
     case "memory": return tr("Gedächtnis aktualisiert");
-    case "knowledge-write": return tr("Im Projektwissen gespeichert");
+    case "knowledge-write": return tr("Im Projektkontext gespeichert");
     case "web": {
       const web = done.filter((a) => a.kind === "web");
       const searches = web.filter((a) => a.label.startsWith(tr("Websuche"))).length;

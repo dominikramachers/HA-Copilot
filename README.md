@@ -20,9 +20,9 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 |---|---|---|
 | ![Sprachgespräch mit der leuchtenden Partikel-Kugel](docs/screenshots/sprachchat.png) | ![Deep-Research-Bericht mit Quellenliste und Hinweis zu entfernten Quellen](docs/screenshots/deep-research-bericht.png) | ![Fenster „Chat teilen“ mit Link](docs/screenshots/chat-teilen.png) |
 
-| Inkognito-Chat | Projektwissen mit Originalen | Gedächtnis mit Herkunft |
+| Inkognito-Chat | Projektkontext mit Originalen | Gedächtnis mit Herkunft |
 |---|---|---|
-| ![Inkognito-Chat](docs/screenshots/inkognito.png) | ![Projektwissen mit Original und KI-Notiz](docs/screenshots/projekt-wissen.png) | ![Gedächtnis mit Projektbereich und Herkunft der Einträge](docs/screenshots/gedaechtnis-projekt.png) |
+| ![Inkognito-Chat](docs/screenshots/inkognito.png) | ![Projektkontext mit Original und KI-Notiz](docs/screenshots/projekt-wissen.png) | ![Gedächtnis mit Projektbereich und Herkunft der Einträge](docs/screenshots/gedaechtnis-projekt.png) |
 
 *Die Bilder zeigen eine Test-Instanz von Home Assistant mit Demo-Geräten und Beispiel-Chats, keine echten Daten. Wie sie entstanden sind, steht in [docs/screenshots/README.md](docs/screenshots/README.md).*
 
@@ -47,7 +47,7 @@ Ein eigener KI-Chat als Add-on für Home Assistant: Claude im Sidebar-Panel von 
 - **Inkognito-Chat:** nichts bleibt zurück (kein Gedächtnis, nicht in Liste, Suche, Export oder Sicherung), beim Verlassen gelöscht
 - **Chats teilen:** Knopf **Teilen** in der Kopfzeile (Projekt / Chatname ▾), Link nur für Personen der Instanz (lesen oder als Kopie weiterführen; du siehst, wer ihn geöffnet hat) und optional ein öffentlicher Link ohne Anmeldung, mit Ablauf und beendbar; alles Geteilte unter **Geteilt**
 - **Deep Research** (optional): mehrstufige Recherche im Web mit Bericht und geprüfter Quellenliste, mit Rückfrage und Tageslimit
-- **Projekte mit Wissen:** Dateien bleiben als Original erhalten, die KI kennt die anderen Chats des Projekts, legt Dateien und Artefakte auf Wunsch im Projekt ab; **Gedächtnis** mit Projektbereich, Herkunft je Eintrag und „Rückgängig“
+- **Projekte mit Kontext:** Dateien bleiben als Original erhalten, die KI kennt die anderen Chats des Projekts, legt Dateien und Artefakte auf Wunsch im Projekt ab; **Gedächtnis** mit Projektbereich, Herkunft je Eintrag und „Rückgängig“
 - **Zugriff auf Home Assistant** mit Rechtestufen je Benutzer (nichts, lesen, ausführen, ändern), Rückfrage im Chat vor Änderungen und Sperrliste für gefährliche Befehle
 - Chats pro Benutzer getrennt, Projekte mit Anweisungen, Anpinnen, Umbenennen, automatische Kurztitel
 - **Suche** in allen eigenen Chats (Strg/Cmd+Umschalt+F), Export als Markdown oder ZIP, eigene Chats gesammelt löschen

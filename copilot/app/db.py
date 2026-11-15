@@ -501,7 +501,7 @@ DEVICE_MAX_DAYS = 180  # harte Obergrenze für ein Gerät seit dem Anlegen, dana
 DEVICE_GRACE_SECONDS = 300  # nach einer Erneuerung gilt das alte Token noch kurz (verlorene Antwort, Doppelaufruf)
 DEVICE_KEEP_DAYS = 30  # gesperrte oder abgelaufene Geräte bleiben so lange in der Liste
 DEVICE_PREFIX = "hcd_"
-SCHEMA_VERSION = 35  # 35: Projektbeschreibung (projects.description, nur zur Anzeige in der Projektansicht); 34: zuletzt gesehenes HA-Theme je Person (profiles.ha_look, JSON); 33: ablaufende GitHub-Tokens (github_accounts.refresh, expires_at: Erneuerungs-Token verschlüsselt, Ablaufzeit); 32: Hintergrund-Design je Person (profiles.design); 31: App-Zugang (devices: Geräte der mobilen App mit Token-Hash, sessions.device_id); 30: Artefakte teilen (artifact_shares, artifact_share_access); 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektwissen und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 35  # 35: Projektbeschreibung (projects.description, nur zur Anzeige in der Projektansicht); 34: zuletzt gesehenes HA-Theme je Person (profiles.ha_look, JSON); 33: ablaufende GitHub-Tokens (github_accounts.refresh, expires_at: Erneuerungs-Token verschlüsselt, Ablaufzeit); 32: Hintergrund-Design je Person (profiles.design); 31: App-Zugang (devices: Geräte der mobilen App mit Token-Hash, sessions.device_id); 30: Artefakte teilen (artifact_shares, artifact_share_access); 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektkontext und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 DESCRIPTION_MAX = 300  # Zeichen der Projektbeschreibung
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
@@ -1468,12 +1468,12 @@ class Store:
                 self._pfile_path(file_id).unlink(missing_ok=True)
         return cur.rowcount == 1
 
-    # ------------------------------------------------------------ Projektwissen
+    # ------------------------------------------------------------ Projektkontext
 
     def add_knowledge(
         self, profile_id: str, project_id: str, name: str, content: str, *, data: bytes | None = None, mime: str = "", origin: str = "upload"
     ) -> dict[str, Any] | None:
-        """Datei zum Wissen eines Projekts hinzufügen; gleicher Name ersetzt die alte Fassung.
+        """Datei zum Kontext eines Projekts hinzufügen; gleicher Name ersetzt die alte Fassung.
 
         Mit ``data`` bleibt das Original erhalten (``content`` ist dann der durchsuchbare Text oder ein Platzhalter).
         """
@@ -1526,7 +1526,7 @@ class Store:
         return Path(full)
 
     def knowledge_entry(self, profile_id: str, project_id: str, name: str) -> dict[str, Any] | None:
-        """Angaben zu einer Datei des Projektwissens (ohne Text), ohne Beachtung der Groß-/Kleinschreibung."""
+        """Angaben zu einer Datei des Projektkontexts (ohne Text), ohne Beachtung der Groß-/Kleinschreibung."""
         _require(profile_id)
         with self._lock:
             row = self._conn.execute(
@@ -1558,7 +1558,7 @@ class Store:
         return (dict(row), path) if path.is_file() else None
 
     def list_knowledge(self, profile_id: str, project_id: str) -> list[dict[str, Any]] | None:
-        """Dateien des Projektwissens (ohne Inhalt); ``None``, wenn das Projekt nicht dem Profil gehört."""
+        """Dateien des Projektkontexts (ohne Inhalt); ``None``, wenn das Projekt nicht dem Profil gehört."""
         _require(profile_id)
         with self._lock:
             owned = self._conn.execute(
@@ -1574,7 +1574,7 @@ class Store:
         return [{**dict(r), "has_file": bool(r["has_file"])} for r in rows]
 
     def knowledge_totals(self, profile_id: str, project_id: str) -> tuple[int, int]:
-        """(Anzahl Dateien, Zeichen insgesamt) des Projektwissens."""
+        """(Anzahl Dateien, Zeichen insgesamt) des Projektkontexts."""
         _require(profile_id)
         with self._lock:
             row = self._conn.execute(
@@ -1584,7 +1584,7 @@ class Store:
         return row["n"], row["chars"]
 
     def knowledge_texts(self, profile_id: str, project_id: str) -> list[tuple[str, str]]:
-        """(Name, Inhalt) aller Dateien des Projektwissens, für die Suche."""
+        """(Name, Inhalt) aller Dateien des Projektkontexts, für die Suche."""
         _require(profile_id)
         with self._lock:
             rows = self._conn.execute(

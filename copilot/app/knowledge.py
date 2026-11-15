@@ -1,7 +1,7 @@
-"""Projektwissen: Dateien lesen (Text, Word, Excel, PDF, ZIP mit solchen Dateien) und gezielt durchsuchen.
+"""Projektkontext: Dateien lesen (Text, Word, Excel, PDF, ZIP mit solchen Dateien) und gezielt durchsuchen.
 
-Das Wissen liegt als reiner Text in der Datenbank (zählt in der HA-Sicherung). Die KI bekommt nicht alles auf einmal,
-sondern ein Inhaltsverzeichnis und sucht oder liest bei Bedarf, so bleibt auch ein großes Wissen bezahlbar.
+Der Kontext liegt als reiner Text in der Datenbank (zählt in der HA-Sicherung). Die KI bekommt nicht alles auf einmal,
+sondern ein Inhaltsverzeichnis und sucht oder liest bei Bedarf, so bleibt auch ein großer Kontext bezahlbar.
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ class KnowledgeError(ValueError):
 
 
 def clean_name(raw: str) -> str | None:
-    """Dateiname bzw. relativer Pfad im Wissen; ``None``, wenn nichts Brauchbares übrig bleibt."""
+    """Dateiname bzw. relativer Pfad im Kontext; ``None``, wenn nichts Brauchbares übrig bleibt."""
     parts = [re.sub(r"[\x00-\x1f\x7f<>\"\\|?*]", "", p).strip() for p in (raw or "").replace("\\", "/").split("/")]
     parts = [p for p in parts if p and p != "."]
     if not parts or any(p == ".." for p in parts):
@@ -69,7 +69,7 @@ def extract_text(data: bytes) -> str:
     except office.OfficeError as exc:
         raise KnowledgeError(str(exc)) from None
     if data.startswith(b"PK\x03\x04") or _looks_binary(data):
-        raise KnowledgeError(tr("hat ein Format, das nicht als Wissen taugt (nur Text, Markdown, Word, Excel, PDF)."))
+        raise KnowledgeError(tr("hat ein Format, das nicht als Kontext taugt (nur Text, Markdown, Word, Excel, PDF)."))
     text = _decode(data)
     if len(text) > MAX_FILE_CHARS:
         raise KnowledgeError(tr("ist zu lang (höchstens {file_chars} Zeichen).", file_chars=format(MAX_FILE_CHARS, ',')).replace(",", "."))

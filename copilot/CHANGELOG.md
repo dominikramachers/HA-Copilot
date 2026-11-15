@@ -1,10 +1,13 @@
 # Änderungen
 
 ## 0.60.3
-Dokumentation: Bilder auf den aktuellen Stand gebracht, keine Änderung am Programm.
-- **Neue Aufnahmen in `docs/screenshots/`:** `gedaechtnis.png` und `gedaechtnis-projekt.png` zeigen die Gedächtnis-Ansicht seit 0.59.5 (eingeklappte Gruppen, eine Erinnerung = eine Zeile), `suche.png` das Suchfenster mit Reitern und Tastenhinweisen (die Aufnahme stammte noch aus 0.40). Neu ist `projektansicht.png` (Projektseite mit Beschreibung, Eingabefeld, Chats, Anweisungen, Wissen, Gedächtnis); sie steht in `docs/funktionen.md` im Abschnitt „Projekte, Suche, Export“.
+Projekte: „Kontext“ statt „Wissen“, Symbole im Eingabefeld der Projektansicht, „Projekt erstellen“ mit Beschreibung und optionalem Kontext; dazu neue Bilder in der Dokumentation.
+- **„Wissen“ heißt jetzt „Kontext“:** Die Dateien eines Projekts heißen in der Oberfläche überall Kontext (Projektansicht, Projektmenü „Kontext hinzufügen/verwalten“, Fenster „Kontext: …“, Punkt hinter dem Projektnamen, Hinweise unter Antworten „im Kontext nachgeschlagen“, „Im Projektkontext gespeichert“, englisch „Context“). Auch die Texte für die KI sprechen von Projektkontext. Unverändert bleiben die Werkzeugnamen `knowledge_*`, die Schnittstelle `/api/projects/{id}/knowledge` und die Datenbank.
+- **Eingabefeld der Projektansicht:** Büroklammer, Modell/Aufwand, Sprachknopf und Senden liegen jetzt im Feld (unten links bzw. rechts), wie bei Claude. Am Computer bildet `.project-main .composer-foot` das nach (Fußzeile über dem unteren Rand des Feldes, am Handy gilt das Muster des Chats), der Hinweis „Die KI kann Fehler machen“ ist in der Projektansicht ausgeblendet (`.project-main .foot-note`). Das Textfeld ist dafür etwas niedriger (`min-height` 56 px), das ganze Feld bleibt etwa gleich hoch.
+- **Projekt erstellen mit Beschreibung und Kontext:** `createProject()` öffnet statt der einen Namenszeile ein Fenster mit Name, Beschreibung (optional, 300 Zeichen) und „Kontext“ (optional): Dateien oder ZIPs lassen sich wählen, vor dem Erstellen wieder entfernen und werden nach dem Anlegen hochgeladen (Fortschritt „Lade … (1 von 2)“, übersprungene Dateien als Hinweis). Der Upload steckt jetzt in `uploadContextFiles()` und wird auch vom Fenster „Kontext verwalten“ benutzt. `POST /api/projects` nimmt zusätzlich `description` an (höchstens 300 Zeichen, sonst 422). Test: `test_project_can_be_created_with_description`.
+- **Dokumentation:** `gedaechtnis.png` und `gedaechtnis-projekt.png` zeigen die Gedächtnis-Ansicht seit 0.59.5, `suche.png` das aktuelle Suchfenster (die Aufnahme stammte noch aus 0.40), neu ist `projektansicht.png`; `projekt-wissen.png` zeigt das Fenster „Kontext“. DOCS und `docs/funktionen.md` sprechen von Kontext.
 - **Aufnahme-Skripte** (`tools/screenshots/`): `demo_addon.py` legt für das Demo-Projekt „Haus“ eine Beschreibung an; `capture_neu.py` nimmt die Projektansicht auf und klappt im Gedächtnis die Gruppe „Projekt: Haus“ auf; `capture_features.py` schließt das Willkommensfenster einer frischen Demo-App und öffnet das Gedächtnis über die Suche (die Einstellungen sind seit 0.49 ein großes Fenster, Schließen per Esc). README angepasst.
-- Keine Änderung an Server, Oberfläche, Datenbank oder Schnittstellen.
+- Keine Änderung an der Datenbank (Schema bleibt 35).
 
 ## 0.60.2
 Projektansicht: das Eingabefeld ist höher.

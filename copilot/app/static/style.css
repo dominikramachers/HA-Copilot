@@ -829,7 +829,7 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .ask-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .ask-dot { flex: none; width: 8px; height: 8px; margin: 0 6px 0 4px; border-radius: 50%; background: var(--warn-fg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn-fg) 25%, transparent); }
 
-/* Gedächtnis und Projektwissen */
+/* Gedächtnis und Projektkontext */
 .sheet[data-kind="panel"] .sheet-sub { font-weight: 400; line-height: 1.45; }
 .sheet-panel { margin-top: 14px; max-height: min(56dvh, 560px); overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
 .sheet-panel[hidden] { display: none; }
@@ -1575,9 +1575,24 @@ body.voice-open { overflow: hidden; }
 .project-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 40px; align-items: start; }
 .project-main .composer { padding: 0; }
 .project-main .composer-box, .project-main .dock, .project-main .composer-foot { max-width: none; }
-.project-main .composer textarea { min-height: 92px; } /* Platz für ein paar Zeilen, wie bei Claude */
-@media (max-width: 800px) { .project-main .composer textarea { min-height: 64px; } }
+/* Symbole und Modellwahl liegen im Feld (wie bei Claude): unten links Anhängen, rechts Modell, Sprache und Senden; den Hinweis „Die KI kann Fehler machen“ gibt es hier nicht.
+   Am Handy gilt dasselbe Muster aus dem Chat (Fußzeile über dem unteren Rand des Feldes), am Computer wird es hier nachgebaut. */
+.project-main .composer textarea { min-height: 56px; } /* Platz für ein paar Zeilen, wie bei Claude */
+.project-main .foot-note { display: none; }
 .project-main .composer-foot { margin-bottom: 10px; }
+@media (min-width: 640px) {
+  .project-main .composer-box { position: relative; padding: 10px 12px 52px 16px; }
+  .project-main .composer-main .send { position: absolute; right: 8px; bottom: 8px; margin: 0; }
+  .project-main .composer-main .send.voice-btn { right: 52px; }
+  .project-main .composer-foot { position: relative; z-index: 2; height: 36px; min-height: 0; margin: -44px 0 10px; padding: 0 8px; gap: 4px; pointer-events: none; }
+  .project-main .composer-foot > * { pointer-events: auto; }
+  .project-main .composer-foot { padding-right: 52px; } /* Platz für den Senden-Knopf, mit Sprachknopf (Computer) etwas mehr */
+  .project-main .composer:has(.voice-btn) .composer-foot { padding-right: 96px; }
+}
+.project-new { display: grid; gap: 16px; }
+.project-new .f-field { margin: 0; }
+.project-new .know-add { margin-top: 8px; }
+.project-new .know-status:empty { display: none; }
 .project-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 26px 0 6px; padding: 0 14px; }
 .project-list-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-2); }
 .project-list-toggle { font-size: 13.5px; font-weight: 600; color: var(--accent); }

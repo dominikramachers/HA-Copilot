@@ -115,7 +115,7 @@ with sync_playwright() as p:
     c = context(b, ME, 1280, 900); pg = start(c)
     pg.locator(".project-row", has_text="Haus").first.hover()
     pg.locator(".project-row", has_text="Haus").first.get_by_label("Aktionen").click(); pg.wait_for_timeout(400)
-    pg.locator("button:visible", has_text="Wissen verwalten").first.click(); pg.wait_for_timeout(900)
+    pg.locator("button:visible", has_text="Kontext verwalten").first.click(); pg.wait_for_timeout(900)
     pg.screenshot(path=f"{OUT}/projekt-wissen.png")
     pg.keyboard.press("Escape"); pg.wait_for_timeout(400); calm(pg)
     open_chat(pg, "Haus", "Lichter")
