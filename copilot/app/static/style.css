@@ -1575,7 +1575,8 @@ body.voice-open { overflow: hidden; }
 .project-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 40px; align-items: start; }
 .project-main .composer { padding: 0; }
 .project-main .composer-box, .project-main .dock, .project-main .composer-foot { max-width: none; }
-.project-main .composer textarea { min-height: 52px; }
+.project-main .composer textarea { min-height: 92px; } /* Platz für ein paar Zeilen, wie bei Claude */
+@media (max-width: 800px) { .project-main .composer textarea { min-height: 64px; } }
 .project-main .composer-foot { margin-bottom: 10px; }
 .project-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 26px 0 6px; padding: 0 14px; }
 .project-list-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-2); }

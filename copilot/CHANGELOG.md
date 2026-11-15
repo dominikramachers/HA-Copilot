@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.60.2
+Projektansicht: das Eingabefeld ist höher.
+- **Mehr Platz im Feld:** Das Eingabefeld oben in der Projektansicht wirkte gequetscht. Der Text steht jetzt in einem Feld für etwa drei Zeilen (`.project-main .composer textarea`: `min-height` 92 px, am Handy 64 px); Senden- und Sprachknopf sitzen wie im Chat unten rechts im Feld. Wächst der Text, wächst das Feld wie gewohnt mit. Reine Darstellung, keine neuen Texte, keine Änderung an Server, Datenbank oder Schnittstellen.
+
 ## 0.60.1
 Projektansicht: das normale Eingabefeld statt eines eigenen.
 - **Echtes Eingabefeld in der Projektansicht:** Die Projektansicht hat kein eigenes Feld mehr (kein `.project-compose`), sondern das normale Eingabefeld des Chats mit Büroklammer, Sprachgespräch, Modell- und Aufwand-Menü und demselben Senden-Knopf. `dockComposer()` setzt `#composer` beim Öffnen oben in `.project-main` und beim Verlassen der Ansicht wieder an den unteren Rand des Chats zurück; `submitComposer()` startet beim Senden in der Projektansicht einen neuen Chat im Projekt (`startNew(id)`), behält dabei Text, Anhänge, Modell- und Stilwahl und sendet. Der Platzhalter heißt „Neuer Chat in …“ (`composerPlaceholder()`), das Feld darf über die ganze Spaltenbreite gehen und ist etwas höher als im Chat (`min-height: 52px`). Das Chats-Symbol im Eingabefeld (nur HA, schmal) entfällt in dieser Ansicht, weil oben schon das Symbol der Kopfzeile steht. Der Schlüssel „Chat starten“ in `en-ui.json` ist weggefallen.
