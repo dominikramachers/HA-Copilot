@@ -1,5 +1,50 @@
 [
   {
+    "version": "0.60.0",
+    "items": [
+      {
+        "de": {
+          "title": "Jedes Projekt hat eine eigene Seite",
+          "text": "Wenn du ein Projekt antippst, siehst du dort alle Chats, die Anweisungen und das Wissen. Oben kannst du gleich einen neuen Chat im Projekt beginnen."
+        },
+        "en": {
+          "title": "Every project has its own page",
+          "text": "When you tap a project, you see all its chats, instructions and knowledge. At the top you can start a new chat in the project right away."
+        }
+      },
+      {
+        "de": {
+          "title": "Die Chatliste ist kompakter",
+          "text": "Alle Chats stehen jetzt in schmalen Zeilen über die ganze Breite, mit dem Datum rechts. Beim Darüberfahren erscheint das Menü zum Umbenennen, Verschieben oder Archivieren."
+        },
+        "en": {
+          "title": "The chat list is more compact",
+          "text": "All chats now sit in slim rows across the full width, with the date on the right. Hover a row to rename, move or archive it from the menu."
+        }
+      },
+      {
+        "de": {
+          "title": "Projekte haben eine Beschreibung",
+          "text": "Unter dem Namen eines Projekts steht jetzt ein kurzer Text, worum es geht. Den kannst du anklicken und ändern. Die Zeilen in der Seitenleiste sind außerdem flacher."
+        },
+        "en": {
+          "title": "Projects have a description",
+          "text": "Under a project's name there is now a short text about what it is for. You can click it to change it. The rows in the side bar are also flatter."
+        }
+      },
+      {
+        "de": {
+          "title": "Listen und Rahmen sind aufgeräumt",
+          "text": "Aufzählungen in deinen Nachrichten sehen jetzt sauber aus, auch wenn du eine Antwort zitierst. Der störende blaue Rahmen um den Chat taucht nicht mehr auf."
+        },
+        "en": {
+          "title": "Lists and frames are tidied up",
+          "text": "Lists in your messages now look clean, even when you quote a reply. The annoying blue frame around the chat no longer shows up."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.59.6",
     "items": [
       {

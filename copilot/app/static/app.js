@@ -2,7 +2,7 @@
 
 // Alle Pfade sind relativ, damit die Seite unter dem Ingress-Pfad von Home Assistant funktioniert.
 const $ = (id) => document.getElementById(id);
-const state = { research: false, incognito: false, incognitoId: null, view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
+const state = { research: false, incognito: false, incognitoId: null, view: "chat", schedules: [], files: [], quote: "", recent: [], chats: [], projects: [], activeId: null, newProject: null, projectId: null, streaming: null, me: null, effort: "medium", heldUnread: null, shownAt: null, model: "", web: true };
 const ui = { projectsOpen: true, openProjects: new Set() };
 const SIDE_CHATS = 15; // so viele neueste Chats stehen in der Seitenleiste; alles andere unter „Alle Chats“
 
@@ -191,7 +191,7 @@ function closeSheet(result) {
 // Ein Fenster von unten für drei Fälle: Bestätigen, Text eingeben, aus einer Liste wählen (``items``).
 // Ergebnis: ``null`` bei Abbruch, sonst true, der Text oder der ``value`` des gewählten Eintrags.
 let sheetMultiline = false;
-function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false, wide = false, maxLength = 120 }) {
+function openSheet({ title, sub = "", label = "", value = null, placeholder = "", ok = tr("OK"), danger = false, items = null, multiline = false, panel = null, onOk = null, plain = false, wide = false, maxLength = null }) {
   return new Promise((resolve) => {
     if (sheetDone) closeSheet(null);
     sheetDone = resolve;
@@ -208,7 +208,7 @@ function openSheet({ title, sub = "", label = "", value = null, placeholder = ""
     const input = multiline ? $("sheet-text") : $("sheet-input");
     $("sheet-input").hidden = multiline || value === null || !!panel;
     $("sheet-text").hidden = !multiline || !!panel;
-    if (!multiline) input.maxLength = maxLength;
+    input.maxLength = maxLength || (multiline ? 4000 : 120);
     input.value = value ?? "";
     input.placeholder = placeholder;
     const count = $("sheet-count");
@@ -502,7 +502,7 @@ function syncCrumbs() {
   const project = chat?.project_id ? state.projects.find((p) => p.id === chat.project_id) : null;
   const crumb = $("crumb-project");
   crumb.hidden = $("crumb-sep").hidden = !project;
-  if (project) { crumb.textContent = project.name; crumb.title = tr("Projekt „{0}“ in der Seitenleiste zeigen", project.name); }
+  if (project) { crumb.textContent = project.name; crumb.title = tr("Projekt „{0}“ öffnen", project.name); }
   $("crumb-menu").hidden = !chat;
   const title = $("chat-title");
   const editing = !!title.querySelector("input");
@@ -571,11 +571,7 @@ function initCrumbs() {
   $("crumb-project").addEventListener("click", () => {
     const chat = currentChat();
     if (!chat?.project_id) return;
-    ui.projectsOpen = true;
-    ui.openProjects.add(chat.project_id);
-    saveUi();
-    renderSide();
-    if (narrowScreen()) openMenu();
+    openProject(chat.project_id).catch(() => {});
   });
   $("share-top").addEventListener("click", () => { const chat = currentChat(); if (chat) shareChat(chat).catch(() => {}); });
 }
@@ -840,7 +836,7 @@ function renderProjects(root) {
   for (const project of ordered) {
     const open = ui.openProjects.has(project.id);
     // markiert nur, solange in diesem Projekt kein Chat ausgewählt ist (neuer Chat im Projekt); sonst ist es der Chat
-    const current = state.view === "chat" && !state.activeId && state.newProject === project.id;
+    const current = (state.view === "chat" && !state.activeId && state.newProject === project.id) || (state.view === "project" && state.projectId === project.id);
     const row = node("div", "row project-row" + (open ? " open" : "") + (current ? " current" : ""));
     const label = node("span", "name", project.name);
     if (project.instructions) { const dot = node("i", "dot"); dot.title = tr("Projektanweisungen aktiv"); label.append(dot); }
@@ -854,10 +850,15 @@ function renderProjects(root) {
       actionButton(tr("Aktionen"), "more", "more", (button) => projectMenu(project, button)),
     );
     row.setAttribute("aria-expanded", String(open));
+    // Wie bei Claude: Ein Klick öffnet die Projektansicht (und klappt das Projekt auf). Ist sie schon offen, klappt der nächste Klick das Projekt zu und wieder auf.
     activate(row, () => {
-      if (open) ui.openProjects.delete(project.id); else ui.openProjects.add(project.id);
-      saveUi();
-      renderSide();
+      if (state.view === "project" && state.projectId === project.id) {
+        if (open) ui.openProjects.delete(project.id); else ui.openProjects.add(project.id);
+        saveUi();
+        renderSide();
+        return;
+      }
+      openProject(project.id).catch(() => {});
     });
     body.append(row);
     if (!open) continue;
@@ -921,6 +922,7 @@ async function loadAll() {
   syncCrumbs();
   syncSharedNav();
   if (state.view === "allchats") allChatsDraw?.();
+  if (state.view === "project") projectDraw?.();
 }
 
 // „Geteilt“ steht in der Seitenleiste immer, solange das Teilen erlaubt ist (leer zeigt die Seite einen Hinweis).
@@ -1135,23 +1137,76 @@ async function openAllChats(tab = "active") {
   $("allchats").scrollTop = 0;
 }
 
+// Kurz wie bei Claude: „Vor 18 Stunden“, „Vorgestern“, „5. Okt.“
+function listWhen(iso, now = new Date()) {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return "";
+  const mins = Math.max(0, Math.round((now - then) / 60000));
+  if (mins < 1) return tr("Gerade eben");
+  if (mins < 60) return tr("Vor {0} Min.", mins);
+  if (mins < 1440) return trn(Math.round(mins / 60), "Vor 1 Stunde", "Vor {0} Stunden");
+  const days = Math.floor(mins / 1440);
+  if (days === 1) return tr("Gestern");
+  if (days === 2) return tr("Vorgestern");
+  if (days < 7) return tr("Vor {0} Tagen", days);
+  const opts = then.getFullYear() === now.getFullYear() ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" };
+  try { return then.toLocaleDateString(kiLocale, opts); } catch { return ""; }
+}
+
+// Eine Zeile der kompakten Chatliste (Alle Chats, Projekt): Titel links, Datum rechts, beim Darüberfahren „…“ mit dem Menü des Chats.
+function chatListItem(chat, { selecting = false, chosen = false, project = "", snippet = "", onOpen } = {}) {
+  const item = node("div", "clist-item" + (chosen ? " chosen" : "") + (chat.archived ? " archived" : ""));
+  const open = node("button", "clist-open");
+  open.type = "button";
+  if (selecting) {
+    const box = node("span", "allchats-check" + (chosen ? " on" : ""));
+    if (chosen) box.append(icon("check"));
+    open.append(box);
+  }
+  const text = node("span", "clist-text");
+  const line = node("span", "clist-line");
+  if (chat.schedule_id) {
+    const mark = icon("clock");
+    mark.classList.add("sched-mark");
+    mark.setAttribute("role", "img");
+    mark.setAttribute("aria-label", tr("Geplante Aufgabe"));
+    line.append(mark);
+  }
+  line.append(node("span", "clist-title", chat.title));
+  if (chat.shared?.length) {
+    const mark = icon("share");
+    mark.classList.add("share-mark");
+    mark.setAttribute("role", "img");
+    mark.setAttribute("aria-label", tr("Geteilt"));
+    line.append(mark);
+  }
+  if (chat.needs_approval) line.append(askMark());
+  else if (chat.running) line.append(runningMark());
+  else if (chat.unread) line.append(unreadDot());
+  text.append(line);
+  if (snippet) text.append(node("span", "clist-snippet", snippet));
+  open.append(text);
+  if (project) open.append(node("span", "clist-project", project));
+  if (chat.updated_at) open.append(node("span", "clist-when", listWhen(chat.updated_at)));
+  open.addEventListener("click", () => onOpen(chat));
+  item.append(open);
+  if (!selecting) item.append(actionButton(tr("Aktionen"), "more", "clist-more", (button) => chatMenu(chat, button)));
+  return item;
+}
+
 function buildAllChats() {
   const wrap = $("allchats-wrap");
   wrap.replaceChildren();
   const view = allChats;
 
-  const fresh = node("button", "pill primary");
-  fresh.type = "button";
-  fresh.append(icon("plus"), node("span", "", tr("Neuer Chat")));
-  fresh.addEventListener("click", () => startNew());
-  skillHead(wrap, tr("Alle Chats"), "", fresh);
+  skillHead(wrap, tr("Alle Chats"), "");
 
-  const tabs = node("div", "skills-tabs");
+  const tabs = node("div", "clist-tabs");
   tabs.setAttribute("role", "tablist");
   const tabButtons = new Map();
   for (const [id, label] of [["active", tr("Aktiv")], ["shared", tr("Geteilt")], ["archived", tr("Archiviert")]]) {
     if (id === "shared" && !canShare()) continue;
-    const button = node("button", "skills-tab", label);
+    const button = node("button", "clist-tab", label);
     button.type = "button";
     button.setAttribute("role", "tab");
     button.addEventListener("click", () => {
@@ -1166,21 +1221,30 @@ function buildAllChats() {
     tabButtons.set(id, button);
     tabs.append(button);
   }
-  const bar = node("div", "skills-bar");
-  bar.append(tabs);
-  wrap.append(bar);
 
-  const search = node("input", "field allchats-search");
+  // Rechts: Suche (ein Symbol, das sich zum Feld öffnet), Auswählen, Neuer Chat
+  const search = node("input", "field clist-search-input");
   search.type = "search";
   search.placeholder = tr("Chats suchen");
   search.setAttribute("aria-label", tr("Chats suchen"));
-  const pick = node("button", "allchats-pick", tr("Auswählen"));
+  search.autocomplete = "off";
+  const searchBox = node("div", "clist-search");
+  const searchOpen = actionButton(tr("Chats suchen"), "search", "clist-iconbtn", () => { searchBox.classList.add("open"); search.focus(); });
+  searchBox.append(searchOpen, search);
+  const pick = node("button", "pill ghost clist-pick", tr("Auswählen"));
   pick.type = "button";
-  const tools = node("div", "allchats-tools");
-  tools.append(search, pick);
-  const list = node("div", "allchats-list");
+  const fresh = node("button", "pill primary clist-new");
+  fresh.type = "button";
+  fresh.append(node("span", "", tr("Neuer Chat")));
+  fresh.addEventListener("click", () => startNew());
+  const tools = node("div", "clist-tools");
+  tools.append(searchBox, pick, fresh);
+
+  const bar = node("div", "clist-bar");
+  bar.append(tabs, tools);
+  const list = node("div", "clist-list");
   const foot = node("div", "allchats-foot");
-  wrap.append(tools, list, foot);
+  wrap.append(bar, list, foot);
 
   const loadIncoming = async () => {
     try { view.incoming = await api("api/shared"); } catch { view.incoming = []; }
@@ -1191,11 +1255,10 @@ function buildAllChats() {
     const match = (c) => !view.query || wordsMatch(view.query, c.title) || view.hits.has(c.id);
     const chats = state.chats.filter((c) => (view.tab === "archived" ? c.archived : view.tab === "shared" ? c.shared?.length : !c.archived)).filter(match);
     return chats.map((c) => {
-      const project = c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name : "";
       const found = view.hits.get(c.id);
       return {
         chat: c,
-        sub: [project, searchDate(c.updated_at)].filter(Boolean).join(" · "),
+        project: c.project_id ? state.projects.find((p) => p.id === c.project_id)?.name || "" : "",
         snippet: found && !wordsMatch(view.query, c.title) ? found.snippet : "",
       };
     });
@@ -1213,49 +1276,34 @@ function buildAllChats() {
     const shared = view.tab === "shared";
     pick.hidden = shared;
     pick.textContent = view.selecting ? tr("Fertig") : tr("Auswählen");
+    searchBox.classList.toggle("open", searchBox.classList.contains("open") || !!view.query);
     const nodes = [];
-    for (const { chat, sub, snippet } of rowsFor()) {
-      const item = node("div", "shared-item allchats-item" + (view.chosen.has(chat.id) ? " chosen" : ""));
-      const open = node("button", "shared-open");
-      open.type = "button";
-      if (view.selecting) {
-        const box = node("span", "allchats-check" + (view.chosen.has(chat.id) ? " on" : ""));
-        if (view.chosen.has(chat.id)) box.append(icon("check"));
-        open.append(box);
-      } else open.append(icon(chat.schedule_id ? "clock" : "chat"));
-      const text = node("span", "share-text");
-      text.append(node("b", "", chat.title), node("span", "share-hint", sub));
-      if (snippet) text.append(node("span", "share-hint allchats-snippet", snippet));
-      open.append(text);
-      open.addEventListener("click", () => {
-        if (view.selecting) {
-          if (view.chosen.has(chat.id)) view.chosen.delete(chat.id); else view.chosen.add(chat.id);
-          view.armed = false;
-          draw();
-        } else selectChat(chat.id);
-      });
-      item.append(open);
-      if (!view.selecting && !shared) {
-        const flip = node("button", "shared-remove allchats-flip");
-        flip.type = "button";
-        const label = chat.archived ? tr("Aus dem Archiv holen") : tr("Archivieren");
-        flip.setAttribute("aria-label", label);
-        flip.title = label;
-        flip.append(icon("archive"));
-        flip.addEventListener("click", async () => { await archiveChats([chat], !chat.archived); });
-        item.append(flip);
-      }
-      nodes.push(item);
+    for (const { chat, project, snippet } of rowsFor()) {
+      nodes.push(chatListItem(chat, {
+        selecting: view.selecting,
+        chosen: view.chosen.has(chat.id),
+        project,
+        snippet,
+        onOpen: () => {
+          if (view.selecting) {
+            if (view.chosen.has(chat.id)) view.chosen.delete(chat.id); else view.chosen.add(chat.id);
+            view.armed = false;
+            draw();
+          } else selectChat(chat.id);
+        },
+      }));
     }
     if (shared) {
       for (const c of view.incoming || []) {
         if (view.query && !wordsMatch(view.query, c.title)) continue;
-        const item = node("div", "shared-item");
-        const open = node("button", "shared-open");
+        const item = node("div", "clist-item");
+        const open = node("button", "clist-open");
         open.type = "button";
-        const text = node("span", "share-text");
-        text.append(node("b", "", c.title), node("span", "share-hint", tr("Von {0} · Stand {1}", c.owner, exactTime(c.taken_at))));
-        open.append(icon("share"), text);
+        const text = node("span", "clist-text");
+        const line = node("span", "clist-line");
+        line.append(node("span", "clist-title", c.title));
+        text.append(line, node("span", "clist-snippet", tr("Von {0} · Stand {1}", c.owner, exactTime(c.taken_at))));
+        open.append(text);
         open.addEventListener("click", () => { openSharedChat(c.id).catch(() => {}); });
         item.append(open);
         nodes.push(item);
@@ -1308,6 +1356,15 @@ function buildAllChats() {
     view.armed = false;
     draw();
   });
+  search.addEventListener("blur", () => { if (!search.value) searchBox.classList.remove("open"); });
+  search.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    search.value = "";
+    search.dispatchEvent(new Event("input"));
+    searchBox.classList.remove("open");
+    search.blur();
+  });
   search.addEventListener("input", () => {
     view.query = search.value.trim();
     draw();
@@ -1326,6 +1383,173 @@ function buildAllChats() {
   allChatsDraw = draw;
   draw();
   if (view.tab === "shared") loadIncoming();
+}
+
+// ------------------------------------------------------------- Projektansicht
+// Ein Klick auf ein Projekt in der Seitenleiste öffnet diese Seite: Eingabe für einen neuen Chat im Projekt, die Chats des Projekts
+// und rechts Anweisungen, Wissen und Gedächtnis. Ein weiterer Klick auf das Projekt klappt es in der Seitenleiste zu und wieder auf.
+let projectDraw = null;
+const projectUi = { archived: false, more: false };
+const PROJECT_CHATS = 12;
+
+async function openProject(id) {
+  if (!state.me || !projectOf(id)) return;
+  closeArtifact();
+  setView("project");
+  rememberDetail(id);
+  detachRun();
+  releaseRecent();
+  state.activeId = null;
+  rememberActive();
+  state.newProject = null;
+  state.heldUnread = null;
+  state.projectId = id;
+  Object.assign(projectUi, { archived: false, more: false });
+  ui.projectsOpen = true;
+  ui.openProjects.add(id);
+  saveUi();
+  renderSide();
+  closeMenu();
+  buildProject();
+  $("project").scrollTop = 0;
+}
+
+function buildProject() {
+  const wrap = $("project-wrap");
+  wrap.replaceChildren();
+  const id = state.projectId;
+
+  const head = node("div", "skills-top project-head");
+  const heading = node("div", "");
+  const title = node("h2", "", "");
+  title.tabIndex = -1;
+  // Die Beschreibung steht unter dem Titel; ein Klick darauf bearbeitet sie.
+  const desc = node("button", "project-desc");
+  desc.type = "button";
+  desc.addEventListener("click", async () => {
+    const project = projectOf(id);
+    if (!project) return;
+    try { if (await editProjectDescription(project)) await loadAll(); } catch { toast(tr("Das hat nicht geklappt.")); }
+  });
+  heading.append(title, desc);
+  const buttons = node("div", "skills-buttons");
+  buttons.append(actionButton(tr("Aktionen"), "more", "clist-iconbtn", (button) => { const project = projectOf(id); if (project) projectMenu(project, button); }));
+  head.append(heading, buttons);
+
+  // Die Eingabe startet einen neuen Chat im Projekt und schickt die Nachricht gleich ab.
+  const compose = node("form", "project-compose");
+  const text = node("textarea", "project-input");
+  text.rows = 2;
+  const send = node("button", "project-send");
+  send.type = "submit";
+  send.disabled = true;
+  send.setAttribute("aria-label", tr("Chat starten"));
+  send.title = tr("Chat starten");
+  send.append(icon("arrowUp"));
+  compose.append(text, send);
+  text.addEventListener("input", () => { send.disabled = !text.value.trim(); });
+  text.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); compose.requestSubmit(); }
+  });
+  compose.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const message = text.value.trim();
+    if (!message) return;
+    startNew(id);
+    $("input").value = message;
+    autosize();
+    sendMessage();
+  });
+
+  const main = node("div", "project-main");
+  const listHead = node("div", "project-list-head");
+  const list = node("div", "clist-list");
+  const more = node("div", "project-more");
+  main.append(compose, listHead, list, more);
+  const side = node("aside", "project-side");
+  side.setAttribute("aria-label", tr("Einstellungen des Projekts"));
+  const cols = node("div", "project-cols");
+  cols.append(main, side);
+  wrap.append(head, cols);
+
+  const sideRow = (iconName, label, meta, actionLabel, onAction, preview = "") => {
+    const row = node("div", "project-side-row");
+    row.append(icon(iconName));
+    const body = node("div", "project-side-text");
+    const line = node("div", "project-side-line");
+    line.append(node("b", "", label));
+    if (meta) line.append(node("span", "project-side-meta", meta));
+    body.append(line);
+    if (preview) body.append(node("span", "project-side-preview", preview));
+    const action = node("button", "project-side-action", actionLabel);
+    action.type = "button";
+    action.addEventListener("click", async () => {
+      try { await onAction(); } catch { toast(tr("Das hat nicht geklappt.")); }
+    });
+    row.append(body, action);
+    return row;
+  };
+
+  const drawSide = (project) => {
+    const rows = [
+      sideRow("note", tr("Anweisungen"), "", project.instructions ? tr("Bearbeiten") : tr("Festlegen"), async () => {
+        if (await editProjectInstructions(project)) await loadAll();
+      }, project.instructions || ""),
+      sideRow("stack", tr("Wissen"), project.knowledge ? trn(project.knowledge, "1 Datei", "{0} Dateien") : "", project.knowledge ? tr("Verwalten") : tr("Hinzufügen"), async () => {
+        await openKnowledge(project);
+        await loadAll().catch(() => {});
+      }),
+    ];
+    if (state.me?.memory) rows.push(sideRow("memory", tr("Gedächtnis"), "", tr("Ansehen"), () => openMemory(project.id)));
+    side.replaceChildren(...rows);
+  };
+
+  const drawList = (project) => {
+    const mine = state.chats.filter((c) => c.project_id === project.id).sort((a, b) => Date.parse(b.updated_at || 0) - Date.parse(a.updated_at || 0));
+    const archived = mine.filter((c) => c.archived);
+    if (!archived.length) projectUi.archived = false;
+    const chats = projectUi.archived ? archived : mine.filter((c) => !c.archived);
+
+    const label = node("h3", "project-list-title", projectUi.archived ? tr("Archivierte Chats") : tr("Chats"));
+    listHead.replaceChildren(label);
+    if (archived.length) {
+      const toggle = node("button", "project-list-toggle", projectUi.archived ? tr("Zurück zu den Chats") : tr("Archiviert ({0})", archived.length));
+      toggle.type = "button";
+      toggle.addEventListener("click", () => { projectUi.archived = !projectUi.archived; projectUi.more = false; drawList(project); });
+      listHead.append(toggle);
+    }
+
+    const shown = projectUi.more ? chats : chats.slice(0, PROJECT_CHATS);
+    const rows = shown.map((chat) => chatListItem(chat, { onOpen: () => selectChat(chat.id) }));
+    if (!rows.length) {
+      const box = node("div", "shared-empty");
+      box.append(icon("chat"), node("p", "", tr("Noch keine Chats in diesem Projekt.")));
+      rows.push(box);
+    }
+    list.replaceChildren(...rows);
+    more.replaceChildren();
+    if (chats.length > shown.length) {
+      const all = node("button", "pill ghost small", tr("Alle {0} anzeigen", chats.length));
+      all.type = "button";
+      all.addEventListener("click", () => { projectUi.more = true; drawList(project); });
+      more.append(all);
+    }
+  };
+
+  const draw = () => {
+    if (state.view !== "project") return;
+    const project = projectOf(id);
+    if (!project) { startNew(); return; }
+    title.textContent = project.name;
+    desc.textContent = project.description || tr("Beschreibung hinzufügen");
+    desc.classList.toggle("empty", !project.description);
+    setTitle(project.name);
+    text.placeholder = tr("Neuer Chat in {0}", project.name);
+    drawSide(project);
+    drawList(project);
+  };
+  projectDraw = draw;
+  draw();
 }
 
 async function changeChat(chat, body, failure) {
@@ -1382,11 +1606,47 @@ async function createProject() {
   }
 }
 
+// Die kurze Beschreibung eines Projekts bearbeiten; ``true``, wenn gespeichert wurde. Sie wird nur angezeigt, die KI sieht sie nicht.
+async function editProjectDescription(project) {
+  const text = await openSheet({
+    title: tr("Beschreibung des Projekts"),
+    label: tr("Worum geht es in diesem Projekt?"),
+    sub: tr("Ein, zwei Sätze, die in der Projektansicht unter dem Namen stehen. Leer lassen entfernt sie."),
+    value: project.description || "",
+    placeholder: tr("z. B. Alles rund um meine Heizung und die Automationen im Keller."),
+    ok: tr("Speichern"),
+    multiline: true,
+    maxLength: 300,
+  });
+  if (text === null) return false;
+  await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ description: text.slice(0, 300) }) });
+  toast(text.trim() ? tr("Beschreibung gespeichert.") : tr("Beschreibung entfernt."));
+  return true;
+}
+
+// Die Anweisungen eines Projekts bearbeiten; ``true``, wenn gespeichert wurde.
+async function editProjectInstructions(project) {
+  const text = await openSheet({
+    title: tr("Anweisungen für das Projekt"),
+    label: tr("Was soll Claude in diesem Projekt beachten?"),
+    sub: tr("Gelten für jeden Chat in diesem Projekt, zum Beispiel Rolle, Stil oder feste Hintergründe. Leer lassen entfernt sie."),
+    value: project.instructions || "",
+    placeholder: tr("z. B. Du hilfst bei meinem Home-Assistant-Smarthome. Antworte knapp und zeige YAML in Codeblöcken."),
+    ok: tr("Speichern"),
+    multiline: true,
+  });
+  if (text === null) return false;
+  await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ instructions: text }) });
+  toast(text ? tr("Anweisungen gespeichert.") : tr("Anweisungen entfernt."));
+  return true;
+}
+
 async function projectMenu(project, anchor) {
   const entries = [
     { value: "new", icon: "plus", label: tr("Neuer Chat im Projekt"), key: "N" },
     { divider: true },
     { value: "pin", icon: "pin", label: project.pinned ? tr("Lösen") : tr("Anpinnen"), key: "P" },
+    { value: "description", icon: "edit", label: project.description ? tr("Beschreibung bearbeiten") : tr("Beschreibung hinzufügen"), key: "B" },
     { value: "instructions", icon: "note", label: project.instructions ? tr("Anweisungen bearbeiten") : tr("Anweisungen festlegen"), key: "A" },
     { value: "knowledge", icon: "stack", label: project.knowledge ? tr("Wissen verwalten ({0})", project.knowledge) : tr("Wissen hinzufügen"), key: "W" },
     { value: "rename", icon: "edit", label: tr("Umbenennen"), key: "R" },
@@ -1401,19 +1661,10 @@ async function projectMenu(project, anchor) {
   try {
     if (choice === "pin") {
       await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ pinned: !project.pinned }) });
+    } else if (choice === "description") {
+      if (!(await editProjectDescription(project))) return;
     } else if (choice === "instructions") {
-      const text = await openSheet({
-        title: tr("Anweisungen für das Projekt"),
-        label: tr("Was soll Claude in diesem Projekt beachten?"),
-        sub: tr("Gelten für jeden Chat in diesem Projekt, zum Beispiel Rolle, Stil oder feste Hintergründe. Leer lassen entfernt sie."),
-        value: project.instructions || "",
-        placeholder: tr("z. B. Du hilfst bei meinem Home-Assistant-Smarthome. Antworte knapp und zeige YAML in Codeblöcken."),
-        ok: tr("Speichern"),
-        multiline: true,
-      });
-      if (text === null) return;
-      await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "PATCH", body: JSON.stringify({ instructions: text }) });
-      toast(text ? tr("Anweisungen gespeichert.") : tr("Anweisungen entfernt."));
+      if (!(await editProjectInstructions(project))) return;
     } else if (choice === "rename") {
       const name = await openSheet({ title: tr("Projekt umbenennen"), label: tr("Name"), value: project.name, ok: tr("Speichern") });
       if (!name) return;
@@ -1429,6 +1680,7 @@ async function projectMenu(project, anchor) {
       await api(`api/projects/${encodeURIComponent(project.id)}`, { method: "DELETE" });
       ui.openProjects.delete(project.id);
       if (state.newProject === project.id) state.newProject = null;
+      if (state.view === "project" && state.projectId === project.id) startNew();
       saveUi();
     } else {
       return;
@@ -1473,7 +1725,7 @@ function confirmButton(label, onConfirm) {
 
 // Gedächtnis wie bei Claude: Gruppen zum Auf- und Zuklappen, Suche und „Hinzufügen“ oben, Zeilen mit Vorschau und Datum.
 // Welche Gruppen offen sind, gilt, solange die Seite offen ist (zu ist der Standard, nur „Mein Gedächtnis“ ist am Anfang offen).
-const memUi = { open: new Set(["person"]), query: "" };
+const memUi = { open: new Set(["person"]), query: "", focus: "" };
 
 const lowerFirst = (text) => (text ? text[0].toLowerCase() + text.slice(1) : text);
 
@@ -2179,7 +2431,7 @@ function memoryPanel(body) {
       { key: "household", title: tr("Haushalt"), hint: data.household_write ? tr("Gilt für alle im Haushalt.") : tr("Gilt für alle im Haushalt. Du darfst es ansehen, aber nicht ändern."), entries: data.household, scope: "household", projectId: "", canWrite: data.household_write },
     ];
     for (const pr of data.projects || []) {
-      if (!pr.entries.length) continue;
+      if (!pr.entries.length && pr.id !== memUi.focus) continue;
       groups.push({ key: `project:${pr.id}`, title: tr("Projekt: {0}", pr.name), hint: tr("Gilt nur in den Chats dieses Projekts, zusätzlich zu deinem Gedächtnis und dem Haushalt."), entries: pr.entries, scope: "project", projectId: pr.id, canWrite: true });
     }
     for (const g of groups) { g.raw = g.entries; g.entries = memoryChains(g.entries); }
@@ -2285,13 +2537,19 @@ function memoryPanel(body) {
   draw();
 }
 
-async function openMemory() {
-  await openSheet({
-    title: tr("Gedächtnis"),
-    sub: tr("Die KI merkt sich, was du ihr sagst, und nutzt es in allen Chats. Du kannst jeden Eintrag löschen."),
-    ok: tr("Fertig"),
-    panel: memoryPanel,
-  });
+async function openMemory(projectId = "") {
+  // Aus der Projektansicht: die Gruppe des Projekts ist offen, auch wenn sie noch leer ist
+  if (projectId) { memUi.open.add(`project:${projectId}`); memUi.focus = projectId; }
+  try {
+    await openSheet({
+      title: tr("Gedächtnis"),
+      sub: tr("Die KI merkt sich, was du ihr sagst, und nutzt es in allen Chats. Du kannst jeden Eintrag löschen."),
+      ok: tr("Fertig"),
+      panel: memoryPanel,
+    });
+  } finally {
+    memUi.focus = "";
+  }
 }
 
 const KNOWLEDGE_ACCEPT = ".zip,.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,text/*,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.log,.py,.js,.ts,.sh,.ps1,.ini,.conf,.cfg,.toml,.sql,.html,.css,.jinja,.j2";
@@ -5356,6 +5614,8 @@ const exactTime = (iso) => { const d = new Date(iso); return Number.isNaN(d.getT
 
 // Eigene Nachricht: Blase, darunter (beim Darüberfahren) Zeitpunkt, Bearbeiten und Kopieren. Die Nummer (data-id)
 // kommt vom Server; bis dahin (gerade gesendet) fehlt der Stift.
+const hasListLines = (text) => /^\s*([-*+]|\d{1,9}[.)])\s+\S/m.test(text);
+
 function userMessage(text, files = [], meta = {}) {
   const group = node("div", "msg-group user-group");
   if (meta.id) group.dataset.id = String(meta.id);
@@ -5370,8 +5630,11 @@ function userMessage(text, files = [], meta = {}) {
   if (quote) {
     const cite = node("div", "msg-quote");
     cite.append(icon("quote"), node("span", "msg-quote-text", quote));
-    bubble.append(cite, node("div", "msg-text", body));
-  } else if (/^\s*([-*+]|\d{1,9}[.)])\s+\S/m.test(text)) {
+    const part = node("div", "msg-text");
+    if (hasListLines(body)) { part.classList.add("has-list"); part.append(window.renderMarkdown(body, { plain: true })); } // auch mit Zitat als Liste
+    else part.textContent = body;
+    bubble.append(cite, part);
+  } else if (hasListLines(text)) {
     bubble.classList.add("has-list"); // Stichpunkte werden als Liste mit Einrückung dargestellt, sonst bleibt der Text, wie getippt
     bubble.append(window.renderMarkdown(text, { plain: true }));
   } else {
@@ -7034,6 +7297,7 @@ function setView(view) {
   $("schedules").hidden = view !== "schedules";
   $("skills").hidden = view !== "skills";
   $("allchats").hidden = view !== "allchats";
+  $("project").hidden = view !== "project";
   $("settings").hidden = view !== "settings";
   rememberView(view);
   syncIncognito();
@@ -9348,6 +9612,7 @@ async function init() {
     else if (view === "skills") await openSkills(["connectors", "plugins"].includes(detail) ? detail : "skills");
     else if (view === "schedules" && state.me.schedules) await openSchedules();
     else if (view === "allchats") await openAllChats(["shared", "archived"].includes(detail) ? detail : "active");
+    else if (view === "project" && projectOf(detail)) await openProject(detail);
     else if (again && state.chats.some((c) => c.id === again)) await selectChat(again);
     openSharedFromAddress().catch(() => {});
     showWelcome().catch(() => {});

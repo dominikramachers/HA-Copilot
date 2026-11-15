@@ -187,13 +187,16 @@
     if (ordered && parseInt(first[2], 10) !== 1) list.start = parseInt(first[2], 10);
     let i = start;
     let last = null;
+    let lastText = 0; // Spalte, ab der der Text des letzten Punkts beginnt (Einrückung + Zeichen + Leerzeichen)
     while (i < lines.length) {
       const line = lines[i];
       const m = !HR.test(line) && LI.exec(line);
       if (m) {
         const level = indentOf(m[1]);
         if (level < base) break;
-        if (level > base && last) {
+        // Ein gleichartiger Punkt (1. nach 1.) ist nur dann eine Unterliste, wenn er hinter dem Text des Punkts davor beginnt;
+        // „1. a“ und darunter „ 2. b“ (ein Leerzeichen mehr) sind zwei Punkte derselben Liste.
+        if (level > base && last && (/\d/.test(m[2]) !== ordered || level >= lastText)) {
           const sub = parseList(lines, i, plain);
           last.append(sub.el);
           i = sub.next;
@@ -204,6 +207,7 @@
         inline(m[3], li, plain);
         list.append(li);
         last = li;
+        lastText = level + m[2].length + 1;
         i++;
         continue;
       }

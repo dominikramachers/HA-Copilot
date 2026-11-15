@@ -92,7 +92,7 @@ from .connectors import ConnectorError, ConnectorService, ConnectorToolbox
 from .vault import Vault
 from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
 from .ha_scan import OverviewScanner
-from .db import INSTRUCTIONS_MAX, Store
+from .db import DESCRIPTION_MAX, INSTRUCTIONS_MAX, Store
 from .ha_login import HaLoginClient, HaLoginError
 from .identity import AccessDenied, Registry, resolve_entra, resolve_ingress
 from .oidc import EntraClient, OidcError, PendingLogins, pkce_pair
@@ -377,6 +377,7 @@ class PatchProjectBody(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     pinned: bool | None = None
     instructions: str | None = Field(default=None, max_length=INSTRUCTIONS_MAX)
+    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
 
 
 class DeleteChatsBody(BaseModel):
@@ -1665,6 +1666,8 @@ def register_chat_routes(
             store.set_project_pinned(profile.id, project_id, body.pinned)
         if body.instructions is not None:
             store.set_project_instructions(profile.id, project_id, body.instructions.strip())
+        if body.description is not None:
+            store.set_project_description(profile.id, project_id, body.description)
         return store.get_project(profile.id, project_id) or {}
 
     @app.delete("/api/projects/{project_id}", status_code=204, dependencies=[Depends(write_guard)])
