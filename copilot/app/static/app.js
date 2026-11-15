@@ -591,6 +591,7 @@ function syncIncognito() {
 
 function composerPlaceholder() {
   if (state.files.length) return tr("Frage zu den Dateien stellen");
+  if (state.view === "project") return tr("Neuer Chat in {0}", projectOf(state.projectId)?.name || "");
   return document.documentElement.classList.contains("incognito") ? tr("Inkognito-Nachricht schreiben") : tr("Nachricht schreiben");
 }
 
@@ -1404,6 +1405,7 @@ async function openProject(id) {
   state.newProject = null;
   state.heldUnread = null;
   state.projectId = id;
+  useChatModel(null);
   Object.assign(projectUi, { archived: false, more: false });
   ui.projectsOpen = true;
   ui.openProjects.add(id);
@@ -1416,6 +1418,7 @@ async function openProject(id) {
 
 function buildProject() {
   const wrap = $("project-wrap");
+  dockComposer(null); // das Eingabefeld erst heraus nehmen, sonst verschwindet es mit dem alten Inhalt
   wrap.replaceChildren();
   const id = state.projectId;
 
@@ -1436,36 +1439,13 @@ function buildProject() {
   buttons.append(actionButton(tr("Aktionen"), "more", "clist-iconbtn", (button) => { const project = projectOf(id); if (project) projectMenu(project, button); }));
   head.append(heading, buttons);
 
-  // Die Eingabe startet einen neuen Chat im Projekt und schickt die Nachricht gleich ab.
-  const compose = node("form", "project-compose");
-  const text = node("textarea", "project-input");
-  text.rows = 2;
-  const send = node("button", "project-send");
-  send.type = "submit";
-  send.disabled = true;
-  send.setAttribute("aria-label", tr("Chat starten"));
-  send.title = tr("Chat starten");
-  send.append(icon("arrowUp"));
-  compose.append(text, send);
-  text.addEventListener("input", () => { send.disabled = !text.value.trim(); });
-  text.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); compose.requestSubmit(); }
-  });
-  compose.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const message = text.value.trim();
-    if (!message) return;
-    startNew(id);
-    $("input").value = message;
-    autosize();
-    sendMessage();
-  });
-
   const main = node("div", "project-main");
   const listHead = node("div", "project-list-head");
   const list = node("div", "clist-list");
   const more = node("div", "project-more");
-  main.append(compose, listHead, list, more);
+  // Das echte Eingabefeld (Büroklammer, Sprache, Modellauswahl) steht oben; Senden startet einen neuen Chat im Projekt.
+  main.append(listHead, list, more);
+  dockComposer(main);
   const side = node("aside", "project-side");
   side.setAttribute("aria-label", tr("Einstellungen des Projekts"));
   const cols = node("div", "project-cols");
@@ -1544,7 +1524,7 @@ function buildProject() {
     desc.textContent = project.description || tr("Beschreibung hinzufügen");
     desc.classList.toggle("empty", !project.description);
     setTitle(project.name);
-    text.placeholder = tr("Neuer Chat in {0}", project.name);
+    $("input").placeholder = composerPlaceholder();
     drawSide(project);
     drawList(project);
   };
@@ -7289,11 +7269,38 @@ const WEEKDAY_SHORT = [tr("Mo"), tr("Di"), tr("Mi"), tr("Do"), tr("Fr"), tr("Sa"
 const WEEKDAY_LONG = [tr("Montag"), tr("Dienstag"), tr("Mittwoch"), tr("Donnerstag"), tr("Freitag"), tr("Samstag"), tr("Sonntag")];
 const NOTIFY_TEXT = { chat: tr("Nur im Chat"), ha: tr("Meldung in Home Assistant"), phone: tr("Aufs Handy") };
 
+// In der Projektansicht steht das Eingabefeld oben auf der Seite, sonst am unteren Rand des Chats.
+let composerHome = null;
+function dockComposer(into) {
+  const composer = $("composer");
+  composerHome ||= composer.parentElement;
+  if (into) into.prepend(composer);
+  else if (composer.parentElement !== composerHome) composerHome.append(composer);
+}
+
+// Senden: In der Projektansicht beginnt das einen neuen Chat im Projekt (Text, Anhänge und Modellwahl bleiben erhalten).
+async function submitComposer() {
+  if (state.view !== "project") return sendMessage();
+  const id = state.projectId;
+  const input = $("input");
+  const { files, model, style, styleChanged } = state;
+  const text = input.value;
+  if (!id || (!text.trim() && !files.length)) return;
+  startNew(id);
+  Object.assign(state, { files, model, style, styleChanged });
+  markTools();
+  renderTray();
+  input.value = text;
+  autosize();
+  return sendMessage();
+}
+
 function setView(view) {
   state.view = view;
   document.documentElement.dataset.view = view;
   $("messages").hidden = view !== "chat";
-  $("composer").hidden = view !== "chat";
+  $("composer").hidden = view !== "chat" && view !== "project";
+  if (view !== "project") dockComposer(null);
   $("schedules").hidden = view !== "schedules";
   $("skills").hidden = view !== "skills";
   $("allchats").hidden = view !== "allchats";
@@ -9552,7 +9559,7 @@ async function init() {
   initQuotePicker();
   $("composer").addEventListener("submit", (event) => {
     event.preventDefault();
-    sendMessage().catch(() => {});
+    submitComposer().catch(() => {});
   });
   $("input").addEventListener("input", (event) => { listIndentOnType($("input"), event); autosize(); });
   $("input").addEventListener("keydown", (event) => {
@@ -9562,7 +9569,7 @@ async function init() {
       event.preventDefault(); // Liste fortführen (Umschalt+Enter; am Handy Enter)
     } else if (event.key === "Enter" && !event.shiftKey && !touch) {
       event.preventDefault();
-      sendMessage().catch(() => {});
+      submitComposer().catch(() => {});
     } else if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey && listTab($("input"), event.shiftKey)) {
       event.preventDefault();
     }

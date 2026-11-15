@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.60.1",
+    "items": [
+      {
+        "de": {
+          "title": "Neuer Chat im Projekt wie gewohnt",
+          "text": "Auf der Projektseite schreibst du jetzt im gewohnten Eingabefeld: mit Büroklammer, Sprache und Modellwahl, genau wie im normalen Chat."
+        },
+        "en": {
+          "title": "New chat in a project, as usual",
+          "text": "On the project page you now write in the familiar input box: with paperclip, voice and model choice, just like in the normal chat."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.0",
     "items": [
       {

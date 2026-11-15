@@ -728,6 +728,7 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
   /* Kopfzeile in HA schlank: nur das Chats-Symbol (und der Chat-Titel, sobald einer offen ist) */
   :root[data-embed="ha"] #new-chat-top, :root[data-embed="ha"] #menu { display: none; }
   :root[data-embed="ha"] #menu-composer { display: grid; }
+  :root[data-embed="ha"][data-view="project"] #menu-composer { display: none; }
   :root[data-embed="ha"] .topbar { min-height: 48px; padding: 4px 16px; }
 }
 
@@ -1572,14 +1573,10 @@ body.voice-open { overflow: hidden; }
 .project-desc.empty { color: var(--muted); }
 .project-head .clist-iconbtn .icon { stroke-width: 3; color: var(--text); }
 .project-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 40px; align-items: start; }
-.project-compose { position: relative; display: flex; align-items: flex-end; gap: 8px; padding: 10px 10px 10px 16px; border: 1px solid var(--line-2); border-radius: var(--r-3); background: var(--panel); transition: border-color .15s; }
-.project-compose:focus-within { border-color: var(--accent); }
-.project-input { flex: 1; min-width: 0; min-height: 52px; max-height: 220px; padding: 6px 0; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font: inherit; font-size: 15.5px; line-height: 1.45; field-sizing: content; }
-.project-input::placeholder { color: var(--muted); }
-.project-send { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: var(--on-accent); transition: opacity .15s, transform .1s; }
-.project-send:active { transform: scale(.94); }
-.project-send:disabled { opacity: .35; cursor: default; }
-.project-send .icon { width: 18px; height: 18px; stroke-width: 2.4; }
+.project-main .composer { padding: 0; }
+.project-main .composer-box, .project-main .dock, .project-main .composer-foot { max-width: none; }
+.project-main .composer textarea { min-height: 52px; }
+.project-main .composer-foot { margin-bottom: 10px; }
 .project-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 26px 0 6px; padding: 0 14px; }
 .project-list-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-2); }
 .project-list-toggle { font-size: 13.5px; font-weight: 600; color: var(--accent); }
