@@ -54,7 +54,7 @@ func TestHelperRechecksPolicyAndClass(t *testing.T) {
 	ctx := context.Background()
 	// Stufe 3 lehnt der Helfer selbst dann ab, wenn der Agent sie schickt
 	resp, _ := c.Run(ctx, plan.Request{Tool: plan.ToolRun, Args: plan.Args{"argv": []any{"reboot"}}})
-	if !strings.Contains(resp.Error, "Abgelehnt") {
+	if !strings.Contains(resp.Error, "Refused") {
 		t.Fatalf("Stufe 3: %+v", resp)
 	}
 	// ungültige Anfrage
@@ -65,7 +65,7 @@ func TestHelperRechecksPolicyAndClass(t *testing.T) {
 	// Richtlinie wird bei jeder Anfrage neu gelesen
 	cur = policy.Default()
 	resp, _ = c.Run(ctx, plan.Request{Tool: plan.ToolRun, Args: plan.Args{"argv": []any{"echo", "x"}}})
-	if !strings.Contains(resp.Error, "nicht erlaubt") {
+	if !strings.Contains(resp.Error, "not allowed") {
 		t.Fatalf("nur lesen: %+v", resp)
 	}
 }
@@ -76,7 +76,7 @@ func TestHelperRejectsOtherUsers(t *testing.T) {
 	}
 	c := start(t, operate, os.Getuid()+1)
 	resp, err := c.Run(context.Background(), plan.Request{Tool: plan.ToolRun, Args: plan.Args{"argv": []any{"echo", "x"}}})
-	if err != nil || !strings.Contains(resp.Error, "verweigert") {
+	if err != nil || !strings.Contains(resp.Error, "denied") {
 		t.Fatalf("fremder Benutzer: %+v %v", resp, err)
 	}
 	if c.Available() {

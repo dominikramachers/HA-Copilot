@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,8 @@ type Plan struct {
 	Undo    string `json:"undo"`
 	Expires int64  `json:"expires"`
 	Timeout int    `json:"timeout_s"`
+	// Msgs sind die Texte mit Code (reason, summary, undo, preview), damit der Hub sie in der Sprache der Person zeigen kann.
+	Msgs map[string]Msg `json:"msgs,omitempty"`
 }
 
 type stored struct {
@@ -86,11 +89,22 @@ type hashInput struct {
 	Root    bool     `json:"root"`
 	Timeout int      `json:"timeout_s"`
 	Class   int      `json:"class"`
+	Digest  string   `json:"digest,omitempty"`
+}
+
+// digest bindet bei Aufträgen ohne Befehlszeile (Datei schreiben) die Argumente in die Freigabe.
+func (a Action) digest() string {
+	if a.Tool != ToolFileWrite {
+		return ""
+	}
+	raw, _ := json.Marshal(a.Args)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }
 
 // Hash bindet die Freigabe an genau diesen Befehl.
 func (a Action) Hash() string {
-	raw, _ := json.Marshal(hashInput{a.Tool, a.Argv, a.Env, a.Root, int(a.Timeout.Seconds()), a.Class})
+	raw, _ := json.Marshal(hashInput{a.Tool, a.Argv, a.Env, a.Root, int(a.Timeout.Seconds()), a.Class, a.digest()})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
@@ -99,15 +113,17 @@ func (a Action) Hash() string {
 func Allowed(p policy.Policy, a Action) string {
 	switch {
 	case !p.Operate:
-		return "Auf diesem Server sind Änderungen durch die KI nicht erlaubt (lokale Richtlinie ki_access=read)."
+		return "Changes by the AI are not allowed on this server (local policy ki_access=read)."
 	case a.Class >= 3:
-		return "Abgelehnt: " + a.Reason
+		return "Refused: " + a.Reason.Text
 	case a.Class > p.MaxClass:
-		return fmt.Sprintf("Die lokale Richtlinie erlaubt nur Änderungen bis Stufe %d, dieser Auftrag ist Stufe %d (%s)", p.MaxClass, a.Class, a.Reason)
+		return fmt.Sprintf("The local policy only allows changes up to class %d, this request is class %d (%s)", p.MaxClass, a.Class, a.Reason.Text)
 	case a.Tool == ToolRun && !p.RunCommand:
-		return "Freie Befehle sind auf diesem Server lokal ausgeschaltet (run_command=off)."
+		return "Free commands are switched off locally on this server (run_command=off)."
 	case a.Root && !p.Root:
-		return "Befehle mit root-Rechten sind auf diesem Server lokal ausgeschaltet (root=off)."
+		return "Commands with root rights are switched off locally on this server (root=off)."
+	case a.Tool == ToolFileWrite && !p.WriteAllowed(a.Args.text("path")):
+		return fmt.Sprintf("Writing to %s is not allowed by the local policy (write_paths).", a.Args.text("path"))
 	}
 	return ""
 }
@@ -151,6 +167,9 @@ func (m *Manager) Prepare(ctx context.Context, tool string, args Args) (Plan, er
 	if why := Allowed(p, a); why != "" {
 		return Plan{}, errors.New(why)
 	}
+	if a, err = bindBase(p, a); err != nil {
+		return Plan{}, err
+	}
 	if a.Tool == ToolRun && len(a.Argv) > 0 {
 		// Läuft das Programm überhaupt (nur Systemverzeichnisse)? Dann scheitert es nicht erst nach der Freigabe.
 		if _, err := tools.LookPath(a.Argv[0]); err != nil {
@@ -158,7 +177,7 @@ func (m *Manager) Prepare(ctx context.Context, tool string, args Args) (Plan, er
 		}
 	}
 	if a.Root && (m.Root == nil || !m.Root.Available()) {
-		return Plan{}, errors.New("Der Root-Helfer ist auf diesem Server nicht erreichbar (copilot-helper.service prüfen).")
+		return Plan{}, errors.New("The root helper is not reachable on this server (check copilot-helper.service).")
 	}
 	preview, a, err := m.preview(ctx, a)
 	if err != nil {
@@ -180,8 +199,9 @@ func (m *Manager) Prepare(ctx context.Context, tool string, args Args) (Plan, er
 		runner = "root"
 	}
 	return Plan{
-		ID: id, Hash: st.hash, Tool: a.Tool, Class: a.Class, Reason: a.Reason, Summary: a.Summary, Command: a.Command, Runner: runner,
-		Preview: preview, Undo: a.Undo, Expires: st.expires.Unix(), Timeout: int(a.Timeout.Seconds()),
+		ID: id, Hash: st.hash, Tool: a.Tool, Class: a.Class, Reason: a.Reason.Text, Summary: a.Summary.Text, Command: a.Command, Runner: runner,
+		Preview: preview.FullText(), Undo: a.Undo.Text, Expires: st.expires.Unix(), Timeout: int(a.Timeout.Seconds()),
+		Msgs: map[string]Msg{"reason": a.Reason, "summary": a.Summary, "undo": a.Undo, "preview": preview},
 	}, nil
 }
 
@@ -192,20 +212,20 @@ func (m *Manager) Execute(ctx context.Context, planID, hash string) (string, err
 	delete(m.plans, planID) // einmal verwendbar, auch bei Fehlern
 	m.mu.Unlock()
 	if !ok {
-		return "", errors.New("Dieser Plan ist unbekannt, abgelaufen oder wurde schon ausgeführt. Bitte erneut vorbereiten.")
+		return "", errors.New("This plan is unknown, expired or has already been executed. Please prepare it again.")
 	}
 	if m.now().After(st.expires) {
-		return "", errors.New("Der Plan ist abgelaufen. Bitte erneut vorbereiten.")
+		return "", errors.New("The plan has expired. Please prepare it again.")
 	}
 	a := st.action
 	if hash == "" || hash != st.hash || a.Hash() != st.hash {
-		return "", errors.New("Die Freigabe passt nicht zum vorbereiteten Befehl.")
+		return "", errors.New("The approval does not match the prepared command.")
 	}
 	if why := Allowed(m.Policy(), a); why != "" {
 		return "", errors.New(why)
 	}
 	if !m.write.TryLock() {
-		return "", errors.New("Auf diesem Server läuft gerade schon eine Änderung. Bitte später erneut versuchen.")
+		return "", errors.New("Another change is already running on this server. Please try again later.")
 	}
 	defer m.write.Unlock()
 
@@ -214,7 +234,7 @@ func (m *Manager) Execute(ctx context.Context, planID, hash string) (string, err
 	var runErr error
 	if a.Root {
 		if m.Root == nil || !m.Root.Available() {
-			return "", errors.New("Der Root-Helfer ist nicht erreichbar.")
+			return "", errors.New("The root helper is not reachable.")
 		}
 		resp, err := m.Root.Run(ctx, Request{Tool: a.Tool, Args: a.Args})
 		switch {
@@ -238,57 +258,59 @@ func finish(ctx context.Context, a Action, out string, code int, runErr error) s
 	var b strings.Builder
 	b.WriteString(strings.TrimRight(out, "\n"))
 	if runErr != nil {
-		fmt.Fprintf(&b, "\n[Fehler: %v]", runErr)
+		fmt.Fprintf(&b, "\n[Error: %v]", runErr)
 	}
-	status := "erfolgreich"
+	status := "successful"
 	if code != 0 || runErr != nil {
-		status = fmt.Sprintf("fehlgeschlagen (Exit-Code %d)", code)
+		status = fmt.Sprintf("failed (exit code %d)", code)
 	}
-	fmt.Fprintf(&b, "\n\n== Ergebnis: %s ==\n", status)
+	fmt.Fprintf(&b, "\n\n== Result: %s ==\n", status)
 	if len(a.Check) > 0 {
 		chk, _, err := tools.RunWith(ctx, tools.Opts{Timeout: checkTime}, a.Check[0], a.Check[1:]...)
 		if err != nil && chk == "" {
 			chk = err.Error()
 		}
-		b.WriteString("\n-- Prüfung: " + strings.Join(a.Check, " ") + " --\n")
+		b.WriteString("\n-- Check: " + strings.Join(a.Check, " ") + " --\n")
 		b.WriteString(strings.TrimRight(chk, "\n") + "\n")
 	}
 	return tools.Clean(tools.Redact(b.String()))
 }
 
 // preview liefert den Text zur Freigabekarte (nur lesend). Bei Paketen wird ein Trockenlauf ausgewertet.
-func (m *Manager) preview(ctx context.Context, a Action) (string, Action, error) {
+func (m *Manager) preview(ctx context.Context, a Action) (Msg, Action, error) {
 	switch a.Tool {
 	case ToolService:
 		state, _, _ := tools.RunWith(ctx, tools.Opts{Timeout: 10 * time.Second}, "systemctl", "is-active", "--", a.Args.text("unit"))
 		enabled, _, _ := tools.RunWith(ctx, tools.Opts{Timeout: 10 * time.Second}, "systemctl", "is-enabled", "--", a.Args.text("unit"))
-		return fmt.Sprintf("Zustand jetzt: %s, beim Start: %s", oneLine(state, "unbekannt"), oneLine(enabled, "unbekannt")), a, nil
+		return T("svc.preview", "State now: {state}, at boot: {boot}", "state", oneLine(state, "unknown"), "boot", oneLine(enabled, "unknown")), a, nil
 	case ToolPackage:
 		if a.Args.text("action") == "update" {
-			return "Lädt die Paketlisten neu, es werden keine Pakete verändert.", a, nil
+			return T("pkg.preview.update", "Reloads the package lists; no packages are changed."), a, nil
 		}
 		sim := SimulationArgv(a)
 		out, _, err := tools.RunWith(ctx, tools.Opts{Timeout: 90 * time.Second, Env: a.Env}, sim[0], sim[1:]...)
 		if err != nil && out == "" {
-			return "", a, fmt.Errorf("Trockenlauf nicht möglich: %v", err)
+			return Msg{}, a, fmt.Errorf("dry run not possible: %v", err)
 		}
 		text, removed := ParseSimulation(out)
 		for _, r := range removed {
 			if isProtectedPackage(r) {
 				a.Class = 3
-				a.Reason = fmt.Sprintf("Dabei würde %s entfernt (Grundsystem oder Anmeldung).", r)
+				a.Reason = T("pkg.reason.would_remove_protected", "This would also remove {package} (base system or login).", "package", r)
 			}
 		}
 		if len(removed) > 0 && a.Class < 2 {
 			a.Class = 2
-			a.Reason = "Es würden zusätzlich Pakete entfernt: " + strings.Join(removed, ", ")
+			a.Reason = T("pkg.reason.also_removes", "Additional packages would be removed: {packages}", "packages", strings.Join(removed, ", "))
 		}
 		return text, a, nil
+	case ToolFileWrite:
+		return m.previewFileWrite(a)
 	}
 	if a.Class == 1 {
-		return "Lesender Befehl, verändert laut Einstufung nichts.", a, nil
+		return T("run.preview_read", "Read-only command; according to the classification it changes nothing."), a, nil
 	}
-	return "Der Befehl wird genau so ausgeführt, wie oben steht.", a, nil
+	return T("run.preview", "The command is run exactly as shown above."), a, nil
 }
 
 func oneLine(s, def string) string {
@@ -300,7 +322,7 @@ func oneLine(s, def string) string {
 }
 
 // ParseSimulation fasst die Ausgabe von „apt-get -s“ zusammen und nennt die zu entfernenden Pakete.
-func ParseSimulation(out string) (string, []string) {
+func ParseSimulation(out string) (Msg, []string) {
 	var inst, remv []string
 	var other []string
 	for _, line := range strings.Split(out, "\n") {
@@ -321,29 +343,35 @@ func ParseSimulation(out string) (string, []string) {
 			}
 		}
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "Trockenlauf: %d Paket(e) installieren oder aktualisieren, %d entfernen.\n", len(inst), len(remv))
-	list := func(title string, items []string) {
+	head := T("pkg.preview.sim", "Dry run: {inst} package(s) to install or upgrade, {remv} to remove.", "inst", strconv.Itoa(len(inst)), "remv", strconv.Itoa(len(remv)))
+	list := func(code, format string, items []string) {
 		if len(items) == 0 {
 			return
 		}
+		more := 0
 		if len(items) > 25 {
-			items = append(items[:25:25], fmt.Sprintf("… und %d weitere", len(items)-25))
+			more = len(items) - 25
+			items = items[:25]
 		}
-		b.WriteString(title + ": " + strings.Join(items, ", ") + "\n")
+		line := T(code, format, "packages", strings.Join(items, ", "))
+		if more > 0 {
+			line.Text += fmt.Sprintf(" … and %d more", more)
+			line.Params["more"] = strconv.Itoa(more)
+		}
+		head.Then = append(head.Then, line)
 	}
-	list("Installieren/Aktualisieren", inst)
-	list("Entfernen", remv)
+	list("pkg.preview.installs", "Install/upgrade: {packages}", inst)
+	list("pkg.preview.removes", "Remove: {packages}", remv)
 	for _, o := range other {
-		b.WriteString(o + "\n")
+		head.Then = append(head.Then, Plain(o))
 	}
-	return strings.TrimRight(b.String(), "\n"), remv
+	return head, remv
 }
 
 // Exec führt eine Action im aktuellen Prozess aus (ohne Shell). Der Helfer nutzt dieselbe Funktion als root.
 func Exec(ctx context.Context, a Action) (string, int, error) {
 	if len(a.Argv) == 0 {
-		return "", -1, errors.New("kein Befehl")
+		return "", -1, errors.New("no command")
 	}
 	return tools.RunWith(ctx, tools.Opts{Timeout: a.Timeout, Env: a.Env}, a.Argv[0], a.Argv[1:]...)
 }

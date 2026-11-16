@@ -18,6 +18,8 @@ Dieses Modul enthält die Zertifizierungsstelle, die Schlüsselverwaltung, die S
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import contextlib
 import hashlib
 import ipaddress
@@ -37,13 +39,15 @@ from typing import Any
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric import ec, ed25519
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from .config import Settings
 from .db import Store
 from .i18n import tr
 from .ratelimit import RateLimiter
+from .server_messages import clean_msgs
 
 log = logging.getLogger("ki.servers")
 
@@ -56,20 +60,25 @@ CALL_TIMEOUT = 45  # Sekunden, die ein Aufruf an einen Server höchstens dauert
 KEY_PREFIX = "ck_"
 KEY_MAX_HOURS = 24 * 14
 KEY_MAX_USES = 100
-CERT_DAYS = 5 * 365  # Zertifikat eines Servers; die Erneuerung (ohne neue Anmeldung) kommt in einer späteren Version
+CERT_DAYS = 365  # Zertifikat eines Servers; der Agent erneuert es von selbst, sobald weniger als 120 Tage übrig sind
+PREV_CERT_HOURS = 24 * 7  # so lange gilt das alte Zertifikat nach einer Erneuerung noch (falls der Agent das neue nicht mehr ablegen konnte)
+RENEW_MIN_SECONDS = 300  # frühester Abstand zweier Erneuerungsanfragen einer Verbindung
 CA_DAYS = 20 * 365
 AUDIT_KEEP_DAYS = 90
 AUDIT_MAX_ROWS = 20_000
 STATES = ("pending", "active", "blocked")  # Zustand in der Datenbank; online/offline wird aus den Meldungen abgeleitet
 DISK_WARN_PERCENT = 90
+CERT_WARN_DAYS = 30  # so lange vor dem Ablauf des Zertifikats zeigt die Übersicht einen Hinweis (der Agent erneuert schon viel früher)
+AGENT_UPDATE_TIMEOUT = 30
 
 # Was der Hub einem Agenten überhaupt auftragen darf (der Agent prüft noch einmal selbst, siehe agent/internal/tools)
 READ_TOOLS = (
     "system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users",
+    "metrics", "file_read", "package_info", "docker",
 )
 
 # Ändernde Aufträge (Etappe 2): nur nach Einstufung durch den Agenten und Freigabe in der App
-CHANGE_TOOLS = ("service_action", "package", "run_command")
+CHANGE_TOOLS = ("service_action", "package", "run_command", "file_write")
 EXECUTE_GRACE = 60  # Sekunden über dem Zeitlimit des Plans, bis der Hub eine Ausführung als verloren ansieht
 PREPARE_TIMEOUT = 120  # der Trockenlauf von apt kann dauern
 
@@ -87,6 +96,15 @@ class ServerError(Exception):
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _within(stamp: Any, hours: int) -> bool:
+    """Liegt der Zeitpunkt (ISO, UTC) höchstens ``hours`` Stunden zurück?"""
+    try:
+        moment = datetime.fromisoformat(str(stamp))
+    except ValueError:
+        return False
+    return moment.tzinfo is not None and datetime.now(timezone.utc) - moment <= timedelta(hours=hours)
 
 
 def _sha256(data: bytes | str) -> str:
@@ -111,6 +129,50 @@ def _number(value: Any, low: float, high: float) -> float | None:
 def clean_host(value: Any) -> str:
     text = clean_text(value, 253)
     return text if _HOST_RE.match(text) else ""
+
+
+def _iso_time(value: Any) -> str:
+    """Zeitangabe eines Agenten als UTC-Zeichenkette. Der Agent sendet Unix-Sekunden; auch RFC 3339 mit Zeitzone wird gelesen.
+    Unbrauchbares ergibt einen leeren Text."""
+    if isinstance(value, bool):
+        return ""
+    if isinstance(value, (int, float)):
+        if value != value or not 0 < value < 4_102_444_800:  # bis zum Jahr 2100
+            return ""
+        return datetime.fromtimestamp(value, timezone.utc).isoformat(timespec="seconds")
+    if not isinstance(value, str) or len(value) > 40:
+        return ""
+    try:
+        moment = datetime.fromisoformat(value.strip())
+    except ValueError:
+        return ""
+    if moment.tzinfo is None:
+        return ""
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def cert_days_left(info: dict[str, Any]) -> int | None:
+    """Wie viele Tage das Zertifikat des Servers noch gilt (nach seiner letzten Meldung); ``None`` = unbekannt."""
+    try:
+        moment = datetime.fromisoformat(str(info.get("cert_expires") or ""))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        return None
+    return (moment - datetime.now(timezone.utc)).days
+
+
+def parse_version(value: str) -> tuple[int, int, int] | None:
+    """„0.61.0“ (auch mit führendem v) als Zahlen; alles andere (etwa „dev“) ist keine Fassung."""
+    parts = value.strip().removeprefix("v").split(".")
+    if len(parts) != 3 or not all(p.isdigit() and str(int(p)) == p and int(p) <= 1_000_000 for p in parts):
+        return None
+    return int(parts[0]), int(parts[1]), int(parts[2])
+
+
+def version_newer(offered: str, current: str) -> bool:
+    a, b = parse_version(offered), parse_version(current)
+    return a is not None and b is not None and a > b
 
 
 def clean_heartbeat(data: Any) -> dict[str, Any] | None:
@@ -144,6 +206,11 @@ def clean_heartbeat(data: Any) -> dict[str, Any] | None:
         # Etappe 2: was die lokale Richtlinie des Servers erlaubt (der Hub kann das nicht erweitern)
         "operate": data.get("operate") is True,
         "helper": data.get("helper") is True,
+        # 0.61: Ablauf des Zertifikats, Richtlinie zur Selbstaktualisierung und ein zurückgesetztes Update
+        "cert_expires": _iso_time(data.get("cert_expires")),
+        "update_mode": data.get("update_mode") if data.get("update_mode") in ("off", "manual", "auto") else "",
+        "update_failed": clean_text(data.get("update_failed"), 20),
+        "update_reason": clean_text(data.get("update_reason"), 300),
     }
     max_class = _number(data.get("max_class"), 0, 3)
     out["max_class"] = min(2, max(0, int(max_class))) if max_class is not None else 0
@@ -159,6 +226,7 @@ def clean_heartbeat(data: Any) -> dict[str, Any] | None:
     return out
 
 
+PREVIEW_CHARS = 6000  # Vorschau eines Plans (bei Dateiänderungen der Vergleich)
 _PLAN_ID = re.compile(r"^[0-9a-f]{24}$")
 _PLAN_HASH = re.compile(r"^[0-9a-f]{64}$")
 
@@ -182,8 +250,10 @@ def clean_plan(data: Any) -> dict[str, Any] | None:
         "id": plan_id, "hash": plan_hash, "tool": tool, "class": int(klass),
         "reason": clean_text(data.get("reason"), 300), "summary": clean_text(data.get("summary"), 200),
         "command": command, "runner": "root" if data.get("runner") == "root" else "agent",
-        "preview": clean_text_block(data.get("preview"), 1500), "undo": clean_text(data.get("undo"), 300),
+        "preview": clean_text_block(data.get("preview"), PREVIEW_CHARS), "undo": clean_text(data.get("undo"), 300),
         "timeout_s": int(timeout) if timeout is not None else 60,
+        # dieselben Texte mit Code und Werten, damit die Freigabekarte in der Sprache der Person erscheint (server_messages.py)
+        "msgs": clean_msgs(data.get("msgs")),
     }
 
 
@@ -385,9 +455,24 @@ class ServerRepo:
         rows = self._q("SELECT * FROM servers WHERE id = ?", (server_id,))
         return rows[0] if rows else None
 
-    def server_by_cert(self, cert_hash: str) -> dict[str, Any] | None:
+    def server_by_cert(self, cert_hash: str) -> tuple[dict[str, Any], bool] | None:
+        """Der Server zu einem Zertifikat und ob es das **alte** Zertifikat nach einer Erneuerung ist (gilt nur kurz, siehe
+        ``PREV_CERT_HOURS``: so geht ein Agent nicht verloren, der das neue Zertifikat nicht mehr ablegen konnte)."""
         rows = self._q("SELECT * FROM servers WHERE cert_hash = ?", (cert_hash,))
-        return rows[0] if rows else None
+        if rows:
+            return rows[0], False
+        rows = self._q("SELECT * FROM servers WHERE prev_cert_hash = ? AND prev_cert_hash != ''", (cert_hash,))
+        if rows and _within(rows[0].get("cert_renewed_at"), PREV_CERT_HOURS):
+            return rows[0], True
+        return None
+
+    def server_renewed(self, server_id: str, cert_hash: str) -> bool:
+        """Das erneuerte Zertifikat gilt ab jetzt; das bisherige bleibt noch kurz gültig."""
+        return self._x("UPDATE servers SET prev_cert_hash = cert_hash, cert_hash = ?, cert_renewed_at = ? WHERE id = ?", (cert_hash, _now(), server_id)) > 0
+
+    def server_cert_settled(self, server_id: str) -> None:
+        """Der Agent hat sich mit dem neuen Zertifikat gemeldet: das alte gilt nicht mehr."""
+        self._x("UPDATE servers SET prev_cert_hash = '' WHERE id = ? AND prev_cert_hash != ''", (server_id,))
 
     def server_list(self) -> list[dict[str, Any]]:
         return self._q("SELECT * FROM servers ORDER BY name COLLATE NOCASE, id")
@@ -491,6 +576,7 @@ class AgentConn:
         self.next_id = 0
         self.violations = 0
         self.rate = RateLimiter(60, 10)  # höchstens 60 Nachrichten in 10 Sekunden
+        self.last_renew = 0.0  # Zeitpunkt (monotonic) der letzten Anfrage nach einem neuen Zertifikat
 
 
 Notify = Callable[[str, str], Awaitable[None]]  # (Titel, Text) -> Meldung in Home Assistant
@@ -510,6 +596,7 @@ class ServerHub:
         self._online: dict[str, bool] = {}  # zuletzt gemeldeter Zustand je bestätigtem Server (für „ging offline“)
         self._enroll_limit = RateLimiter(10, 600)  # Anmeldeversuche je Adresse in zehn Minuten
         self._download_limit = RateLimiter(30, 600)
+        self._offers: dict[str, tuple[tuple[int, int, int, int], dict[str, Any]]] = {}
         self.notify: Notify | None = None
         self._server: Any = None
         self.port = 0
@@ -549,6 +636,11 @@ class ServerHub:
             hints.append(tr("{n} Dienst fehlgeschlagen", n=failed) if failed == 1 else tr("{n} Dienste fehlgeschlagen", n=failed))
         if info.get("reboot_required"):
             hints.append(tr("Neustart erforderlich"))
+        days = cert_days_left(info)
+        if days is not None and days < CERT_WARN_DAYS:
+            hints.append(tr("Zertifikat läuft in {n} Tagen ab", n=max(days, 0)) if days != 1 else tr("Zertifikat läuft morgen ab"))
+        if info.get("update_failed"):
+            hints.append(tr("Aktualisierung auf {version} wurde zurückgenommen", version=info["update_failed"]))
         return hints
 
     def view(self, row: dict[str, Any]) -> dict[str, Any]:
@@ -561,6 +653,12 @@ class ServerHub:
             "created_at": row["created_at"], "confirmed_at": row["confirmed_at"], "last_seen_at": row["last_seen_at"],
             "ip": (info.get("ips") or [row["last_ip"]])[0] if (info.get("ips") or row["last_ip"]) else "",
             "peer": row["last_ip"], "connected": conn is not None, "info": info,
+            # Aktualisierung des Agenten: neuere Fassung im Add-on, lokale Richtlinie (off | manual | auto), zurückgesetzte Fassung
+            "update": {
+                "available": self.update_available(info), "mode": info.get("update_mode") or "",
+                "failed": info.get("update_failed") or "", "reason": info.get("update_reason") or "",
+            },
+            "cert_days": cert_days_left(info),
         }
 
     def listing(self) -> list[dict[str, Any]]:
@@ -622,6 +720,75 @@ class ServerHub:
         if not name or not self.repo.server_rename(server_id, name):
             raise ServerError(tr("Der Name ist ungültig."), 422)
 
+    # -- Zertifikat und Aktualisierung des Agenten
+
+    def renew_now(self, server_id: str, actor: str) -> None:
+        """Den Agenten auffordern, sofort ein neues Zertifikat anzufragen (sonst macht er das von selbst, sobald es fällig ist)."""
+        row = self.repo.server_get(server_id)
+        if row is None:
+            raise ServerError(tr("Dieser Server ist nicht bekannt."), 404)
+        conn = self._conns.get(server_id)
+        if conn is None or self._clock() - conn.seen > OFFLINE_AFTER:
+            raise ServerError(tr("Der Server {name} ist gerade offline.", name=row["name"]), 503)
+        self.repo.audit_add("event", tr("Zertifikatserneuerung angestoßen"), server_id=server_id, server_name=row["name"], actor=actor, result="ok")
+        self._on_loop(lambda: asyncio.ensure_future(self._send(conn.ws, {"t": "renew_now"})))
+
+    def agent_version(self) -> str:
+        """Fassung der mitgelieferten Agenten (Datei VERSION neben den Programmen); leer bei Entwicklungsständen."""
+        if not self.agent_dir:
+            return ""
+        try:
+            text = (self.agent_dir / "VERSION").read_text(encoding="utf-8").strip()[:20]
+        except OSError:
+            return ""
+        return text if parse_version(text) else ""
+
+    def update_offer(self, arch: str, current: str = "") -> dict[str, Any] | None:
+        """Das Angebot einer neueren Fassung für eine Architektur: Fassung, SHA-256, Größe und (falls vorhanden) Signatur.
+        ``current`` ist die Fassung des Agenten; ohne eine neuere gibt es kein Angebot."""
+        version = self.agent_version()
+        binary = self.agent_binaries().get(arch)
+        if not version or binary is None or not version_newer(version, current):
+            return None
+        try:
+            stat = binary.stat()
+            sig_path = binary.with_name(binary.name + ".sig")
+            sig_stat = sig_path.stat() if sig_path.is_file() else None
+            stamp = (stat.st_mtime_ns, stat.st_size, sig_stat.st_mtime_ns if sig_stat else 0, sig_stat.st_size if sig_stat else 0)
+            cached = self._offers.get(arch)
+            if cached is None or cached[0] != stamp:
+                digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+                sig = sig_path.read_text(encoding="ascii").strip()[:200] if sig_stat else ""
+                cached = (stamp, {"sha256": digest, "size": stat.st_size, "sig": sig})
+                self._offers[arch] = cached
+        except (OSError, UnicodeDecodeError):
+            return None
+        offer: dict[str, Any] = {"version": version, "sha256": cached[1]["sha256"], "size": cached[1]["size"]}
+        if cached[1]["sig"]:
+            offer["sig"] = cached[1]["sig"]
+        return offer
+
+    def update_available(self, info: dict[str, Any]) -> str:
+        offer = self.update_offer(str(info.get("arch") or ""), str(info.get("agent_version") or ""))
+        return offer["version"] if offer else ""
+
+    async def update_agent(self, server_id: str, actor: str) -> str:
+        """Dem Agenten die neuere Fassung anbieten und ihn bitten, sie jetzt einzuspielen. Ob er das tut, bestimmt seine lokale
+        Richtlinie (``update=off`` lehnt ab); der Agent prüft die Datei selbst (Prüfsumme, Signatur, Probelauf) und setzt bei einem
+        Fehlstart auf die alte Fassung zurück."""
+        row, conn = self._connection(server_id)
+        info = _json(row["info"])
+        offer = self.update_offer(str(info.get("arch") or ""), str(info.get("agent_version") or ""))
+        if offer is None:
+            raise ServerError(tr("Für diesen Server gibt es keine neuere Fassung des Agenten."), 409)
+        try:
+            text = await self._request(row, conn, {"t": "update", "offer": offer}, AGENT_UPDATE_TIMEOUT)
+        except ServerError as exc:
+            self.repo.audit_add("event", tr("Aktualisierung des Agenten abgelehnt"), server_id=server_id, server_name=row["name"], actor=actor, result="denied", detail=str(exc))
+            raise ServerError(tr("Der Agent hat die Aktualisierung nicht gestartet: {reason}", reason=str(exc)), exc.status) from None
+        self.repo.audit_add("event", tr("Aktualisierung des Agenten auf {version} angestoßen", version=offer["version"]), server_id=server_id, server_name=row["name"], actor=actor, result="ok")
+        return text
+
     def _on_loop(self, func: Callable[[], None]) -> None:
         """Führt ``func`` in der Ereignisschleife des Hubs aus. Die Schnittstelle der Seite ruft Bestätigen, Sperren und Entfernen
         aus Worker-Threads auf, dort gibt es keine Schleife (``ensure_future`` würde scheitern) und die Verbindungen dürfen nur
@@ -654,7 +821,9 @@ class ServerHub:
     def _push_state(self, server_id: str, state: str) -> None:
         conn = self._conns.get(server_id)
         if conn is not None:
-            self._on_loop(lambda: asyncio.ensure_future(self._send(conn.ws, {"t": "ack", "state": state, "interval": HEARTBEAT_SECONDS})))
+            row = self.repo.server_get(server_id)
+            message = self._ack(row) if row is not None else {"t": "ack", "state": state, "interval": HEARTBEAT_SECONDS}
+            self._on_loop(lambda: asyncio.ensure_future(self._send(conn.ws, message)))
 
     @staticmethod
     async def _send(ws: Any, message: dict[str, Any]) -> None:
@@ -802,11 +971,14 @@ class ServerHub:
         if not der:
             await ws.close(1008, "certificate required")
             return
-        row = self.repo.server_by_cert(_sha256(der))
-        if row is None or row["state"] == "blocked":
+        found = self.repo.server_by_cert(_sha256(der))
+        if found is None or found[0]["state"] == "blocked":
             await ws.close(1008, "not allowed")
             return
+        row, with_old_cert = found
         server_id = row["id"]
+        if not with_old_cert:
+            self.repo.server_cert_settled(server_id)
         conn = AgentConn(ws, server_id, peer)
         previous = self._conns.get(server_id)
         self._conns[server_id] = conn
@@ -833,7 +1005,10 @@ class ServerHub:
                     current = self.repo.server_get(server_id)
                     if current is None or current["state"] == "blocked":
                         break
-                    await self._send(ws, {"t": "ack", "state": current["state"], "interval": HEARTBEAT_SECONDS})
+                    await self._send(ws, self._ack(current, info))
+                elif kind == "renew":
+                    if not await self._renew(conn, data):
+                        break
                 elif kind == "result":
                     self._result(conn, data)
                 else:
@@ -846,6 +1021,40 @@ class ServerHub:
             for future in conn.pending.values():
                 if not future.done():
                     future.set_exception(ServerError(tr("Die Verbindung zum Server wurde beendet.")))
+
+    def _ack(self, row: dict[str, Any], info: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Antwort auf eine Meldung. Bei bestätigten Servern liegt eine neuere Fassung des Agenten als Angebot bei; ob der Agent sie
+        nimmt, entscheidet allein seine lokale Richtlinie (update=off, manual, auto)."""
+        message: dict[str, Any] = {"t": "ack", "state": row["state"], "interval": HEARTBEAT_SECONDS}
+        if row["state"] == "active":
+            info = info if info is not None else _json(row["info"])
+            offer = self.update_offer(str(info.get("arch") or ""), str(info.get("agent_version") or ""))
+            if offer is not None:
+                message["offer"] = offer
+        return message
+
+    async def _renew(self, conn: AgentConn, data: dict[str, Any]) -> bool:
+        """Ein Agent bittet um ein neues Zertifikat (sein altes läuft bald ab). Gibt False zurück, wenn die Verbindung enden soll."""
+        now = self._clock()
+        if conn.last_renew and now - conn.last_renew < RENEW_MIN_SECONDS:
+            conn.violations += 1
+            return conn.violations < 5
+        conn.last_renew = now
+        row = self.repo.server_get(conn.server_id)
+        if row is None or row["state"] == "blocked":
+            return False
+        try:
+            csr = self.pki.parse_csr(data.get("csr"))
+        except ServerError:
+            conn.violations += 1
+            return conn.violations < 5
+        cert_pem, cert_hash = self.pki.sign_csr(csr, conn.server_id)
+        if not self.repo.server_renewed(conn.server_id, cert_hash):
+            return False
+        self.repo.audit_add("event", tr("Zertifikat erneuert"), server_id=conn.server_id, server_name=row["name"], result="ok")
+        log.info("Server-Hub: Zertifikat von %s erneuert", row["name"])
+        await self._send(conn.ws, {"t": "renewed", "cert": cert_pem})
+        return True
 
     @staticmethod
     def _result(conn: AgentConn, data: dict[str, Any]) -> None:
@@ -870,6 +1079,29 @@ class ServerHub:
                     found[arch] = path
         return found
 
+    def update_key(self) -> str:
+        """Der öffentliche Schlüssel (Base64), mit dem die mitgelieferten Agenten-Programme signiert sind; leer, wenn es keinen gibt oder
+        nicht jedes Programm eine gültige Signatur für die mitgelieferte Fassung hat (dann sind sie unsigniert). Der Hub prüft das
+        selbst nach, damit ein Skript nie einen Schlüssel einträgt, mit dem die eigenen Programme nicht angenommen würden."""
+        binaries = self.agent_binaries()
+        version = self.agent_version()
+        if not binaries or not version or not self.agent_dir:
+            return ""
+        try:
+            text = (self.agent_dir / "update_key.pub").read_text(encoding="ascii").strip()
+            raw = base64.b64decode(text, validate=True)
+            key = ed25519.Ed25519PublicKey.from_public_bytes(raw)
+        except (OSError, UnicodeDecodeError, binascii.Error, ValueError):
+            return ""
+        for arch, path in binaries.items():
+            try:
+                sig = base64.b64decode(path.with_name(path.name + ".sig").read_text(encoding="ascii").strip(), validate=True)
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                key.verify(sig, f"ha-copilot-agent\n{version}\n{arch}\n{digest}\n".encode("ascii"))
+            except (OSError, UnicodeDecodeError, binascii.Error, ValueError, InvalidSignature):
+                return ""
+        return text
+
     def agent_hashes(self) -> dict[str, str]:
         return {arch: hashlib.sha256(path.read_bytes()).hexdigest() for arch, path in self.agent_binaries().items()}
 
@@ -879,14 +1111,23 @@ class ServerHub:
         if path in ("/enroll", "/agent"):
             return None
         peer = (connection.remote_address or ("", 0))[0]
-        if not path.startswith("/download/"):
+        if not path.startswith(("/download/", "/agent-update/")):
             return connection.respond(HTTPStatus.NOT_FOUND, "Not found\n")
         if not self._download_limit.allow(peer):
             return connection.respond(HTTPStatus.TOO_MANY_REQUESTS, "Too many requests\n")
-        params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
-        if self.repo.key_check(params.get("key")) is None:
-            return connection.respond(HTTPStatus.FORBIDDEN, "Forbidden\n")
-        binary = self.agent_binaries().get(path.removeprefix("/download/copilot-agent-linux-"))
+        if path.startswith("/agent-update/"):
+            # Aktualisierung: nur für einen bestätigten Server, der sich mit seinem Zertifikat ausweist (kein Schlüssel nötig)
+            ssl_object = connection.transport.get_extra_info("ssl_object")
+            der = ssl_object.getpeercert(binary_form=True) if ssl_object is not None else None
+            found = self.repo.server_by_cert(_sha256(der)) if der else None
+            if found is None or found[0]["state"] != "active":
+                return connection.respond(HTTPStatus.FORBIDDEN, "Forbidden\n")
+            binary = self.agent_binaries().get(path.removeprefix("/agent-update/"))
+        else:
+            params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
+            if self.repo.key_check(params.get("key")) is None:
+                return connection.respond(HTTPStatus.FORBIDDEN, "Forbidden\n")
+            binary = self.agent_binaries().get(path.removeprefix("/download/copilot-agent-linux-"))
         if binary is None:
             return connection.respond(HTTPStatus.NOT_FOUND, "Not found\n")
         from websockets.datastructures import Headers

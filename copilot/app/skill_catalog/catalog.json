@@ -1188,6 +1188,86 @@
    "license": "Apache-2.0",
    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/d900840/human-resources/skills/performance-review",
    "license_file": "Apache-2.0.txt"
+  },
+  {
+   "id": "server-stoerung-eingrenzen",
+   "category": "tech",
+   "label": {
+    "de": "Server-Störung eingrenzen",
+    "en": "Narrow down a server fault"
+   },
+   "summary": {
+    "de": "Erfasst bei einer Server-Störung erst die Lage, grenzt die Ursache mit den Server-Werkzeugen ein und ändert nur nach deiner Freigabe.",
+    "en": "For a server fault, first assesses the situation, narrows down the cause with the server tools and changes things only after your approval."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/server-stoerung-eingrenzen",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "server-dienst-startet-nicht",
+   "category": "tech",
+   "label": {
+    "de": "Dienst startet nicht",
+    "en": "Service will not start"
+   },
+   "summary": {
+    "de": "Führt bei einem Dienst, der nicht startet oder dauernd abstürzt, über Zustand, Journal und Konfiguration zur Ursache.",
+    "en": "For a service that will not start or keeps crashing, leads to the cause through its state, journal and configuration."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/server-dienst-startet-nicht",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "server-speicher-voll",
+   "category": "tech",
+   "label": {
+    "de": "Speicherplatz knapp",
+    "en": "Disk space running out"
+   },
+   "summary": {
+    "de": "Findet, was den Platz auf einem Server belegt, und schlägt Aufräumschritte vor, die erst nach deiner Freigabe laufen.",
+    "en": "Finds what fills up a server's disk and proposes cleanup steps that only run after your approval."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/server-speicher-voll",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "server-langsam",
+   "category": "tech",
+   "label": {
+    "de": "Server ist langsam",
+    "en": "Server is slow"
+   },
+   "summary": {
+    "de": "Unterscheidet bei hoher Last, ob ein Prozess, knapper Arbeitsspeicher, der Datenträger oder ein Container den Server bremst.",
+    "en": "Tells whether a process, low memory, the disk or a container is slowing a server down under high load."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/server-langsam",
+   "license_file": "MIT-ha-copilot.txt"
+  },
+  {
+   "id": "server-updates-sicher",
+   "category": "tech",
+   "label": {
+    "de": "Updates sicher einspielen",
+    "en": "Apply updates safely"
+   },
+   "summary": {
+    "de": "Ordnet anstehende Paketupdates ein, spielt sie nach deiner Freigabe ein und prüft danach, ob alles weiterläuft.",
+    "en": "Assesses pending package updates, installs them after your approval and checks afterwards that everything still runs."
+   },
+   "author": "HA Copilot",
+   "license": "MIT",
+   "source": "https://github.com/dominikramachers/HA-Copilot/tree/main/copilot/app/skill_catalog/server-updates-sicher",
+   "license_file": "MIT-ha-copilot.txt"
   }
  ]
 }

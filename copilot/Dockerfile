@@ -1,12 +1,20 @@
 # Stufe 1: der Linux-Server-Agent (Go, ohne Netz gebaut: die Abhängigkeit liegt unter agent/vendor). Der Hub im Add-on liefert die
-# beiden Dateien an die Server aus; sie landen unter /opt/copilot/agent-bin.
+# beiden Dateien (und die Fassung in VERSION, aus der der Hub Aktualisierungen anbietet) an die Server aus; sie landen unter /opt/copilot/agent-bin.
+# Sind sie vom Release signiert, liegen daneben die .sig-Dateien und update_key.pub.
 FROM golang:1.24-bookworm AS agent
 ARG BUILD_VERSION=dev
 WORKDIR /src
 COPY agent/ ./
 ENV CGO_ENABLED=0 GOFLAGS=-mod=vendor
 RUN GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${BUILD_VERSION}" -o /out/copilot-agent-linux-amd64 ./cmd/copilot-agent \
- && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${BUILD_VERSION}" -o /out/copilot-agent-linux-arm64 ./cmd/copilot-agent
+ && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${BUILD_VERSION}" -o /out/copilot-agent-linux-arm64 ./cmd/copilot-agent \
+ && printf '%s\n' "${BUILD_VERSION}" > /out/VERSION
+
+# Signierte Programme aus dem GitHub-Release (siehe .github/workflows/release-agent.yml) ersetzen die eben gebauten, wenn Signatur und
+# öffentlicher Schlüssel (agent/update_key.pub) stimmen. Sonst bleiben die lokal gebauten, unsignierten Dateien; der Bau schlägt nie fehl.
+ARG AGENT_RELEASES=https://github.com/dominikramachers/HA-Copilot/releases/download
+RUN go build -trimpath -o /tmp/copilot-sign ./cmd/copilot-sign \
+ && sh ./fetch-signed.sh "${BUILD_VERSION}" "${AGENT_RELEASES}" update_key.pub /tmp/copilot-sign /out
 
 # Stufe 2: das Add-on
 # Debian-Basis, weil das mitgelieferte Claude-CLI des Agent SDK nur für glibc gebaut wird (nicht Alpine/musl).

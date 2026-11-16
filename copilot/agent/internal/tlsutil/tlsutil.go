@@ -46,10 +46,10 @@ func NormalizeFingerprint(s string) (string, error) {
 	s = strings.TrimPrefix(s, "sha256:")
 	s = strings.ReplaceAll(s, ":", "")
 	if len(s) != 64 {
-		return "", errors.New("ungültiger Fingerabdruck (erwartet: sha256: und 64 Hexzeichen)")
+		return "", errors.New("invalid fingerprint (expected: sha256: and 64 hex characters)")
 	}
 	if _, err := hex.DecodeString(s); err != nil {
-		return "", errors.New("ungültiger Fingerabdruck (kein Hex)")
+		return "", errors.New("invalid fingerprint (not hex)")
 	}
 	return "sha256:" + s, nil
 }
@@ -59,7 +59,7 @@ func NormalizeFingerprint(s string) (string, error) {
 // die Adresse des Hubs kann je nach Netz (NAT, VPN) abweichen; die Identität ergibt sich aus der privaten CA.
 func verifyAgainstPinnedCA(fingerprint string, rawCerts [][]byte, now time.Time) error {
 	if len(rawCerts) == 0 {
-		return errors.New("der Hub hat kein Zertifikat gesendet")
+		return errors.New("the hub sent no certificate")
 	}
 	var root *x509.Certificate
 	for _, raw := range rawCerts {
@@ -73,14 +73,14 @@ func verifyAgainstPinnedCA(fingerprint string, rawCerts [][]byte, now time.Time)
 		}
 	}
 	if root == nil {
-		return errors.New("das Zertifikat des Hubs gehört nicht zur erwarteten CA (Fingerabdruck stimmt nicht)")
+		return errors.New("the certificate of the hub does not belong to the expected CA (fingerprint mismatch)")
 	}
 	leaf, err := x509.ParseCertificate(rawCerts[0])
 	if err != nil {
 		return err
 	}
 	if leaf.Equal(root) {
-		return errors.New("der Hub darf kein CA-Zertifikat als Serverzertifikat verwenden")
+		return errors.New("the hub must not use a CA certificate as its server certificate")
 	}
 	pool := x509.NewCertPool()
 	pool.AddCert(root)
@@ -96,7 +96,7 @@ func Config(fingerprint string, clientCert *tls.Certificate) *tls.Config {
 		InsecureSkipVerify: true, // ersetzt durch VerifyPeerCertificate: die eigene Prüfung gegen die angeheftete CA
 		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			if err := verifyAgainstPinnedCA(fingerprint, rawCerts, time.Now()); err != nil {
-				return fmt.Errorf("Hub nicht vertrauenswürdig: %w", err)
+				return fmt.Errorf("hub not trusted: %w", err)
 			}
 			return nil
 		},

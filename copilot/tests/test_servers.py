@@ -449,7 +449,7 @@ def test_script_contains_all_variables_and_is_valid_bash(tmp_path):
         hub="ha.example.lan:8101", key="ck_ABC-def_123", ca_fingerprint="sha256:" + "ab" * 32, hub_pin="sha256//XYZ=",
         hashes={"amd64": "1" * 64, "arm64": "2" * 64}, expires="2026-11-17 12:00 UTC", max_uses=3, name="web01",
     )
-    for needle in ("HUB=ha.example.lan:8101", "KEY=ck_ABC-def_123", "sha256:" + "ab" * 32, "HUB_PIN=sha256//XYZ=", "1" * 64, "SERVER_NAME=web01", "bis 2026-11-17 12:00 UTC"):
+    for needle in ("HUB=ha.example.lan:8101", "KEY=ck_ABC-def_123", "sha256:" + "ab" * 32, "HUB_PIN=sha256//XYZ=", "1" * 64, "SERVER_NAME=web01", "valid until 2026-11-17 12:00 UTC", "ALLOW_CHANGES=1", "AUTO_UPDATE=1"):
         assert needle in script, needle
     path = tmp_path / "install.sh"
     path.write_text(script)

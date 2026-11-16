@@ -31,3 +31,26 @@ func TestLoadReadsFile(t *testing.T) {
 		t.Fatal("operate nicht gelesen")
 	}
 }
+
+func TestParseUpdateAndWritePaths(t *testing.T) {
+	p := Parse("update=auto\nwrite_paths=/etc/nginx, /opt/app/ ,relative,/\nupdate_key=QUJD # Kommentar\n")
+	if p.Update != UpdateAuto || p.UpdateKey != "QUJD" {
+		t.Errorf("update=%q key=%q", p.Update, p.UpdateKey)
+	}
+	if len(p.WritePaths) != 2 || p.WritePaths[0] != "/etc/nginx" || p.WritePaths[1] != "/opt/app" {
+		t.Errorf("write_paths=%v", p.WritePaths)
+	}
+	if d := Parse(""); d.Update != UpdateManual || len(d.WritePaths) == 0 {
+		t.Errorf("defaults: %+v", d)
+	}
+	if p := Parse("update=sometimes"); p.Update != UpdateManual {
+		t.Errorf("invalid update value must keep the default, got %q", p.Update)
+	}
+	if p := Parse("write_paths="); len(p.WritePaths) != 0 {
+		t.Errorf("empty write_paths means nowhere, got %v", p.WritePaths)
+	}
+	allowed := Parse("write_paths=/etc/nginx")
+	if !allowed.WriteAllowed("/etc/nginx/conf.d/a.conf") || allowed.WriteAllowed("/etc/nginx-evil/a.conf") || allowed.WriteAllowed("/etc/passwd") {
+		t.Error("WriteAllowed must match whole directories only")
+	}
+}
