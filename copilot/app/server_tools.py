@@ -188,7 +188,7 @@ class ServerToolbox:
             for item in hub.listing():
                 info = item["info"]
                 items.append({
-                    "id": item["id"], "name": item["name"], "status": item["status"], "reasons": item["reasons"], "ip": item["ip"],
+                    "id": item["id"], "name": item["name"], "status": item["status"], "reasons": item["reasons"], "hints": item["hints"], "ip": item["ip"],
                     "os": info.get("os", ""), "last_seen_at": item["last_seen_at"],
                     "load1": info.get("load1"), "mem_used_pct": info.get("mem_used_pct"), "disk_worst_pct": info.get("disk_worst_pct"),
                     "failed_units": info.get("failed_units"), "updates": info.get("updates"), "reboot_required": info.get("reboot_required", False),
@@ -211,7 +211,7 @@ class ServerToolbox:
             view = hub.view(row)
             self._event(tid, label, "ok")
             return DATA_NOTE.format(name=row["name"]) + json.dumps(
-                {k: view[k] for k in ("id", "name", "state", "status", "reasons", "ip", "last_seen_at", "info")}, ensure_ascii=False, separators=(",", ":"))
+                {k: view[k] for k in ("id", "name", "state", "status", "reasons", "hints", "ip", "last_seen_at", "info")}, ensure_ascii=False, separators=(",", ":"))
 
         async def server_read(args: dict[str, Any]) -> str:
             ref = args.get("server")

@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"os/user"
 	"strconv"
 	"sync"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/dominikramachers/ha-copilot/agent/internal/plan"
 	"github.com/dominikramachers/ha-copilot/agent/internal/policy"
+	"github.com/dominikramachers/ha-copilot/agent/internal/tools"
 )
 
 const (
@@ -65,6 +67,10 @@ func Serve(ctx context.Context, opt Options) error {
 		ln.Close()
 	}()
 	s := &server{opt: opt}
+	s.dropOnce.Do(func() { s.canDrop = CanDropPrivileges() })
+	if !s.canDrop {
+		fmt.Fprintln(os.Stderr, "copilot-helper: Benutzerwechsel nicht möglich (CAP_SETUID/CAP_SETGID fehlt); apt läuft ohne Benutzer _apt.")
+	}
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -80,6 +86,38 @@ func Serve(ctx context.Context, opt Options) error {
 type server struct {
 	opt  Options
 	busy sync.Mutex
+
+	dropOnce sync.Once
+	canDrop  bool
+}
+
+// unsandboxedNote steht vor der Ausgabe, wenn apt ohne Benutzerwechsel laufen musste.
+const unsandboxedNote = "Hinweis: Auf diesem Server darf der Helfer keinen Benutzerwechsel ausführen (es fehlt das Recht dazu, etwa durch einen Container oder die Systemeinstellungen). " +
+	"apt lädt die Pakete deshalb als root herunter und nicht im eingeschränkten Benutzer _apt (Option APT::Sandbox::User=root). Die Signaturen der Pakete werden trotzdem geprüft.\n\n"
+
+// CanDropPrivileges prüft, ob ein Prozess dieses Prozesses auf einen anderen Benutzer wechseln darf, so wie es apt für seine
+// Download-Prozesse tut (setgroups, setgid, setuid). Fehlt das Recht, scheitert apt sonst mit „seteuid 42 failed“. Nur als root
+// aussagekräftig; sonst gilt es als möglich.
+func CanDropPrivileges() bool {
+	if os.Geteuid() != 0 {
+		return true
+	}
+	path, err := tools.LookPath("true")
+	if err != nil {
+		return true
+	}
+	cmd := exec.Command(path)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: 65534, Gid: 65534}}
+	return cmd.Run() == nil
+}
+
+// withoutAptSandbox setzt hinter „apt-get“ die Option, die den Benutzerwechsel von apt abschaltet.
+func withoutAptSandbox(argv []string) []string {
+	if len(argv) == 0 || argv[0] != "apt-get" {
+		return argv
+	}
+	out := append([]string{argv[0], "-o", "APT::Sandbox::User=root"}, argv[1:]...)
+	return out
 }
 
 func peerUID(c *net.UnixConn) (int, error) {
@@ -148,8 +186,16 @@ func (s *server) handle(ctx context.Context, c *net.UnixConn) {
 		return
 	}
 	defer s.busy.Unlock()
+	note := ""
+	if a.Tool == plan.ToolPackage {
+		s.dropOnce.Do(func() { s.canDrop = CanDropPrivileges() })
+		if !s.canDrop {
+			a.Argv = withoutAptSandbox(a.Argv)
+			note = unsandboxedNote
+		}
+	}
 	out, code, runErr := plan.Exec(ctx, a)
-	r := plan.Response{Output: out, ExitCode: code}
+	r := plan.Response{Output: note + out, ExitCode: code}
 	if runErr != nil {
 		r.Output += fmt.Sprintf("\n[Fehler: %v]", runErr)
 		if out == "" {

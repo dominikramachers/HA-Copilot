@@ -536,11 +536,20 @@ class ServerHub:
             return "offline", []
         info = _json(row["info"])
         reasons: list[str] = []
-        if (info.get("failed_units") or 0) > 0:
-            reasons.append(tr("{n} Dienste fehlgeschlagen", n=info["failed_units"]))
         if (info.get("disk_worst_pct") or 0) >= DISK_WARN_PERCENT:
             reasons.append(tr("Datenträger zu {n} % voll", n=int(info["disk_worst_pct"])))
         return ("degraded" if reasons else "online"), reasons
+
+    @staticmethod
+    def hints_of(info: dict[str, Any]) -> list[str]:
+        """Hinweise, die den Status nicht ändern: Der Server ist erreichbar und arbeitet, aber etwas verdient einen Blick."""
+        hints: list[str] = []
+        failed = info.get("failed_units") or 0
+        if failed > 0:
+            hints.append(tr("{n} Dienst fehlgeschlagen", n=failed) if failed == 1 else tr("{n} Dienste fehlgeschlagen", n=failed))
+        if info.get("reboot_required"):
+            hints.append(tr("Neustart erforderlich"))
+        return hints
 
     def view(self, row: dict[str, Any]) -> dict[str, Any]:
         status, reasons = self.status_of(row)
@@ -548,6 +557,7 @@ class ServerHub:
         conn = self._conns.get(row["id"])
         return {
             "id": row["id"], "name": row["name"], "state": row["state"], "status": status, "reasons": reasons,
+            "hints": self.hints_of(info) if status in ("online", "degraded") else [],
             "created_at": row["created_at"], "confirmed_at": row["confirmed_at"], "last_seen_at": row["last_seen_at"],
             "ip": (info.get("ips") or [row["last_ip"]])[0] if (info.get("ips") or row["last_ip"]) else "",
             "peer": row["last_ip"], "connected": conn is not None, "info": info,

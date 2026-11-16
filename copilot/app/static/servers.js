@@ -16,6 +16,7 @@ const srvUi = {
   busy: false,
   status: "",
   editing: false,             // Name wird gerade geändert: Aktualisierung pausiert
+  open: new Set(),            // Kennungen der aufgeklappten Server (bleibt bei der Aktualisierung erhalten)
   timer: 0,
 };
 
@@ -204,17 +205,34 @@ function srvFact(label, value, bad) {
   return [dt, dd];
 }
 
+function srvDot(status) {
+  const dot = node("span", `srv-dot ${status}`);
+  dot.setAttribute("aria-hidden", "true");
+  return dot;
+}
+
 function serverCard(s) {
   const info = s.info || {};
-  const card = node("article", `srv-card ${s.status}`);
-  const head = node("div", "srv-head");
-  const title = node("div", "srv-title");
-  const name = node("h3", "", s.name);
-  title.append(name, srvBadge(s.status));
-  head.append(title);
-  card.append(head);
-  if (s.reasons?.length) card.append(node("p", "srv-reasons", s.reasons.join(" · ")));
+  const [, statusLabel] = SRV_STATUS[s.status] || SRV_STATUS.offline;
+  // Ein Eintrag pro Server, aufklappbar. Was aufgeklappt war, bleibt es bei der regelmäßigen Aktualisierung (srvUi.open).
+  const card = node("details", `srv-card ${s.status}`);
+  card.open = srvUi.open.has(s.id) || s.state === "pending";
+  card.addEventListener("toggle", () => { if (card.open) srvUi.open.add(s.id); else srvUi.open.delete(s.id); });
 
+  const sum = node("summary", "srv-sum");
+  const name = node("h3", "srv-name", s.name);
+  const state = node("span", "srv-state", statusLabel());
+  sum.append(srvDot(s.status), name, state);
+  const meta = [s.ip, s.status === "offline" ? `${tr("Letzte Meldung")}: ${s.last_seen_at ? srvAgo(s.last_seen_at) : tr("noch nie")}` : info.os].filter(Boolean).join(" · ");
+  if (meta) sum.append(node("span", "srv-meta", meta));
+  const chips = node("span", "srv-chips");
+  for (const text of s.reasons || []) chips.append(node("span", "srv-chip bad", text));
+  for (const text of s.hints || []) chips.append(node("span", "srv-chip warn", text));
+  if (chips.childNodes.length) sum.append(chips);
+  sum.append(node("span", "srv-chevron"));
+  card.append(sum);
+
+  const body = node("div", "srv-body");
   const facts = node("dl", "srv-facts");
   const add = (label, value, bad) => { if (value !== "" && value != null) facts.append(...srvFact(label, String(value), bad)); };
   add(tr("Adresse"), s.ip || "–");
@@ -230,7 +248,7 @@ function serverCard(s) {
   if (info.agent_version) add(tr("Agent"), info.agent_version);
   // Was die lokale Richtlinie auf dem Server erlaubt: nicht über die App änderbar
   if (s.status !== "pending" && s.status !== "offline" && s.status !== "blocked") add(tr("Änderungen"), info.operate ? tr("erlaubt, nur nach deiner Freigabe") : tr("nur lesen (lokale Richtlinie)"));
-  card.append(facts);
+  body.append(facts);
 
   const foot = node("div", "sched-foot");
   const button = (label, cls, run) => {
@@ -245,7 +263,7 @@ function serverCard(s) {
       button(tr("Bestätigen"), "primary", () => srvAct(`api/servers/${s.id}/confirm`, "POST", null, tr("Bestätigt. Die KI darf diesen Server jetzt ansehen."))),
     );
   } else {
-    foot.append(button(tr("Umbenennen"), "ghost", () => srvRename(card, name, s)));
+    foot.append(button(tr("Umbenennen"), "ghost", () => srvRename(body, foot, s)));
     if (s.state === "blocked") foot.append(button(tr("Entsperren"), "ghost", () => srvAct(`api/servers/${s.id}/unblock`, "POST", null, tr("Entsperrt."))));
     else foot.append(button(tr("Sperren"), "ghost", () => srvAct(`api/servers/${s.id}/block`, "POST", null, tr("Gesperrt. Der Server wird getrennt."))));
     let armed = 0;
@@ -261,11 +279,12 @@ function serverCard(s) {
     });
     foot.append(remove);
   }
-  card.append(foot);
+  body.append(foot);
+  card.append(body);
   return card;
 }
 
-function srvRename(card, heading, s) {
+function srvRename(body, foot, s) {
   srvUi.editing = true;
   const input = node("input", "field srv-rename");
   input.value = s.name;
@@ -282,7 +301,7 @@ function srvRename(card, heading, s) {
     if (event.key === "Escape") { srvUi.editing = false; renderServers(); }
   });
   input.addEventListener("blur", save);
-  heading.replaceWith(input);
+  foot.before(input);
   input.focus();
   input.select();
 }

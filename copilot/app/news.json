@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.60.8",
+    "items": [
+      {
+        "de": {
+          "title": "Server übersichtlicher",
+          "text": "Auf der Seite „Server“ hat jeder Server nur noch eine Zeile mit einem Punkt, der pulsiert. Tippst du darauf, siehst du alle Angaben. Fehlt etwas, zeige ich es dir als Hinweis."
+        },
+        "en": {
+          "title": "Servers at a glance",
+          "text": "On the Servers page each server now has just one line with a pulsing dot. Tap it to see all the details. If something is wrong, I show you a note."
+        }
+      },
+      {
+        "de": {
+          "title": "Programme auf Servern installieren",
+          "text": "Ich kann Programme auf Servern jetzt auch dort installieren, wo es vorher nicht ging. Du musst weiterhin jedes Mal zustimmen."
+        },
+        "en": {
+          "title": "Installing programs on servers",
+          "text": "I can now install programs on servers where it did not work before. You still have to agree every time."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.7",
     "items": [
       {
