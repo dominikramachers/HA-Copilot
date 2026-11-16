@@ -1689,6 +1689,7 @@ select.art-lib-project { flex: none; width: auto; min-width: 150px; max-width: 4
 .srv-badge { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 2px 9px; border-radius: 999px; background: var(--chip); color: var(--text); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .srv-glyph { font-size: 11px; line-height: 1; }
 .srv-badge.degraded, .srv-badge.pending { background: var(--warn-bg); color: var(--warn-fg); }
+.srv-badge.online { background: color-mix(in srgb, var(--ok, #2e9d5b) 22%, transparent); color: color-mix(in srgb, var(--ok, #2e9d5b) 80%, var(--text)); }
 .srv-badge.offline { color: var(--muted); }
 .srv-badge.blocked { background: var(--danger); color: #fff; }
 .srv-pending { margin: 0 0 18px; padding: 14px 16px 6px; border: 1px solid var(--warn-fg); border-radius: var(--r-2); background: var(--warn-bg); }

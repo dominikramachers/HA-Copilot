@@ -11,6 +11,26 @@
           "title": "Servers ready for administrators",
           "text": "If you are an administrator, you now see the “Servers” page right away and I may look at your servers. No extra approval is needed any more. Other people still need one."
         }
+      },
+      {
+        "de": {
+          "title": "Bestätigen klappt ohne Fehlermeldung",
+          "text": "Wenn du einen neuen Server bestätigst, bekommst du jetzt keine Fehlermeldung mehr. Der Server erfährt es sofort und muss nicht warten."
+        },
+        "en": {
+          "title": "Confirming works without an error",
+          "text": "When you confirm a new server, you no longer get an error message. The server learns about it right away and does not have to wait."
+        }
+      },
+      {
+        "de": {
+          "title": "„Online“ leuchtet grün",
+          "text": "Server, die in Ordnung sind, siehst du jetzt in Grün. So erkennst du auf einen Blick, bei welchen alles läuft."
+        },
+        "en": {
+          "title": "“Online” shows in green",
+          "text": "Servers that are fine now show in green, so you can see at a glance where everything is running."
+        }
       }
     ]
   },

@@ -458,6 +458,7 @@ class ServerHub:
         self.agent_dir = agent_dir
         self._clock = clock
         self._conns: dict[str, AgentConn] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None  # Ereignisschleife des Hubs (gesetzt in serve)
         self._online: dict[str, bool] = {}  # zuletzt gemeldeter Zustand je bestätigtem Server (für „ging offline“)
         self._enroll_limit = RateLimiter(10, 600)  # Anmeldeversuche je Adresse in zehn Minuten
         self._download_limit = RateLimiter(30, 600)
@@ -563,18 +564,39 @@ class ServerHub:
         if not name or not self.repo.server_rename(server_id, name):
             raise ServerError(tr("Der Name ist ungültig."), 422)
 
+    def _on_loop(self, func: Callable[[], None]) -> None:
+        """Führt ``func`` in der Ereignisschleife des Hubs aus. Die Schnittstelle der Seite ruft Bestätigen, Sperren und Entfernen
+        aus Worker-Threads auf, dort gibt es keine Schleife (``ensure_future`` würde scheitern) und die Verbindungen dürfen nur
+        von der Schleife angefasst werden."""
+        loop = self._loop
+        if loop is None or loop.is_closed():
+            return
+        try:
+            inside = asyncio.get_running_loop() is loop
+        except RuntimeError:
+            inside = False
+        if inside:
+            func()
+        else:
+            loop.call_soon_threadsafe(func)
+
     def _drop(self, server_id: str) -> None:
         conn = self._conns.pop(server_id, None)
-        if conn is not None:
+        if conn is None:
+            return
+
+        def close() -> None:
             for future in conn.pending.values():
                 if not future.done():
                     future.set_exception(ServerError(tr("Die Verbindung zum Server wurde beendet.")))
             asyncio.ensure_future(self._close(conn.ws, 1008, "closed"))
 
+        self._on_loop(close)
+
     def _push_state(self, server_id: str, state: str) -> None:
         conn = self._conns.get(server_id)
         if conn is not None:
-            asyncio.ensure_future(self._send(conn.ws, {"t": "ack", "state": state, "interval": HEARTBEAT_SECONDS}))
+            self._on_loop(lambda: asyncio.ensure_future(self._send(conn.ws, {"t": "ack", "state": state, "interval": HEARTBEAT_SECONDS})))
 
     @staticmethod
     async def _send(ws: Any, message: dict[str, Any]) -> None:
@@ -786,6 +808,7 @@ class ServerHub:
         """Listener auf ``HUB_PORT`` bis zum Abbruch der Aufgabe (``port`` und ``host`` nur für Tests)."""
         from websockets.asyncio.server import serve
 
+        self._loop = asyncio.get_running_loop()
         context = await asyncio.to_thread(self.pki.ssl_context, self.hosts())
         self._server = await serve(
             self._handle, host, port, ssl=context, max_size=MAX_MESSAGE_BYTES, process_request=self._process_request,

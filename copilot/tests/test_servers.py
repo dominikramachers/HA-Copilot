@@ -216,6 +216,32 @@ def test_registration_keys_expire_run_out_and_are_stored_hashed(tmp_path):
 # ------------------------------------------------------------------------------------------------ Der Hub mit echtem TLS
 
 
+def test_confirm_and_block_work_from_a_worker_thread(tmp_path):
+    """Die Seite ruft Bestätigen und Sperren aus einem Worker-Thread auf (dort gibt es keine Ereignisschleife)."""
+    async def scenario():
+        hub = make_hub(tmp_path)
+        task = await start(hub)
+        try:
+            _, key, _ = hub.repo.key_create("Admin", "Test", 24, 5)
+            reply, private = await enroll(hub, key)
+            server_id = reply["server_id"]
+            context = client_context(tmp_path, private, reply["cert"])
+            async with connect(f"wss://127.0.0.1:{hub.port}/agent", ssl=context) as ws:
+                await ws.send(json.dumps(HEARTBEAT))
+                assert json.loads(await ws.recv())["state"] == "pending"
+                await asyncio.to_thread(hub.confirm, server_id, "Admin")
+                assert json.loads(await asyncio.wait_for(ws.recv(), 5)) == {"t": "ack", "state": "active", "interval": 30}
+                await asyncio.to_thread(hub.block, server_id, "Admin")
+                with pytest.raises(Exception):
+                    await asyncio.wait_for(ws.recv(), 5)  # die Verbindung wird vom Hub beendet
+            assert hub.repo.server_get(server_id)["state"] == "blocked"
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
 def test_enroll_heartbeat_confirm_and_call(tmp_path):
     async def scenario():
         hub = make_hub(tmp_path)
