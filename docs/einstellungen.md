@@ -115,7 +115,7 @@ In der Konfigurationsdatei: `domain:` mit den Feldern darunter.
 
 ## Linux-Server (`servers`)
 
-Optional und aus: Linux-Server melden sich beim Hub im Add-on, die KI darf sie ansehen. Ausführlich in der [Dokumentation](../copilot/DOCS.md#linux-server-ab-0605).
+Optional und aus: Linux-Server melden sich beim Hub im Add-on, die KI darf sie ansehen. Ausführlich in der [Dokumentation](../copilot/DOCS.md#linux-server-ab-0604).
 
 In der Konfigurationsdatei: `servers:` mit den Feldern darunter.
 

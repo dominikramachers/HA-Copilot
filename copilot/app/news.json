@@ -1,6 +1,6 @@
 [
   {
-    "version": "0.60.5",
+    "version": "0.60.4",
     "items": [
       {
         "de": {
@@ -21,12 +21,7 @@
           "title": "New “Servers” page",
           "text": "Here you see all servers at a glance, confirm new ones and read what I looked at. With a ready-made script you connect a new server in a few minutes."
         }
-      }
-    ]
-  },
-  {
-    "version": "0.60.4",
-    "items": [
+      },
       {
         "de": {
           "title": "Ich zeichne Diagramme",

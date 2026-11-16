@@ -1,5 +1,5 @@
 "use strict";
-// Linux-Server (ab 0.60.5): Übersicht, Aktivität und „Server hinzufügen“ (Installationsskript mit allen Angaben).
+// Linux-Server (ab 0.60.4): Übersicht, Aktivität und „Server hinzufügen“ (Installationsskript mit allen Angaben).
 // Nutzt die Hilfen aus app.js ($, node, icon, api, tr, toast, state, skillHead, errorText, ago, kiLocale, setView …).
 //
 // Die Seite zeigt nur, was der Hub im Add-on weiß. Ein neuer Server erscheint als „Ausstehend“ und wird erst nach der

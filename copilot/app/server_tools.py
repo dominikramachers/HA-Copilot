@@ -1,4 +1,4 @@
-"""Werkzeuge der KI für Linux-Server (nur lesend, Version 0.60.5).
+"""Werkzeuge der KI für Linux-Server (nur lesend, Version 0.60.4).
 
 Es gibt bewusst **eine feste Werkzeugliste**, egal wie viele Server angebunden sind: ``server_list``, ``server_status`` und
 ``server_read`` (mit dem Server als Angabe). Was die Agenten liefern, ist fremder Inhalt (Protokollzeilen, Dienstnamen, Hostnamen)

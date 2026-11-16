@@ -1,4 +1,4 @@
-"""Linux-Server: Hub im Add-on, Registrierung, Zugriffsrechte, Werkzeuge der KI und Installationsskript (ab 0.60.5)."""
+"""Linux-Server: Hub im Add-on, Registrierung, Zugriffsrechte, Werkzeuge der KI und Installationsskript (ab 0.60.4)."""
 import asyncio
 import json
 import shutil

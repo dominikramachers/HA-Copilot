@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.60.5.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.60.4.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -648,7 +648,7 @@ Neben dem Senden-Knopf im Chat sitzt ein Mikrofon-Knopf. Er öffnet ein Fenster 
 - **Mikrofon im Browser.** Der Browser erlaubt das Mikrofon nur über eine sichere Verbindung (`https`, also über deine Domain oder eine HTTPS-Adresse von Home Assistant; `http://` im Heimnetz geht nicht) und fragt einmal um Erlaubnis. In der Home-Assistant-App und im Ingress-Fenster hängt es davon ab, ob die Einbettung das Mikrofon erlaubt – dort bitte ausprobieren; der Zugang über die Domain funktioniert immer.
 - **Noch nicht dabei.** Dauerndes Zuhören auf das Weckwort, Mikrofone in Räumen, Wandtablets und Anbindung an Assist.
 
-## Linux-Server (ab 0.60.5)
+## Linux-Server (ab 0.60.4)
 
 Ein **Agent** auf deinen Debian-/Ubuntu-Servern meldet sich bei einem **zentralen Hub im Add-on**. Die KI darf die Server dann ansehen (Zustand, Speicher, Dienste, Protokolle) und beim Fehlersuchen helfen. Etappe 1 ist **nur lesend**: Änderungen und Installationen kommen später, mit Zulassungshinweis.
 
@@ -807,7 +807,7 @@ Alles liegt in `/data/copilot.sqlite3`. Das Token steht in den Add-on-Optionen u
 - Daten an Dritte: Nachrichten und Anhänge gehen in Claude-Chats an Anthropic und, nur wenn `chat.openai_enabled` an ist und ein ChatGPT-Modell gewählt wurde, in diesem Chat an OpenAI (ab 0.55.0), nie an beide. Der OpenAI-Schlüssel steht nur in der Konfiguration, ist als Passwort maskiert; schlüsselähnliche Zeichenfolgen in Fehlertexten von OpenAI werden unkenntlich gemacht (`redact()`).
 - **Öffentlicher Chat-Link (ab 0.56.0, nur mit `chat.sharing: public`):** Die Kennung besteht aus 32 zufälligen Bytes (43 Zeichen) und liegt in der Datenbank (und damit in Sicherungen); wer den Link kennt, liest den Schnappschuss. Deshalb: nur an Menschen weitergeben, kurze Gültigkeit wählen, bei Zweifel widerrufen. Die Route liefert nur diese eine Seite und deren Daten (`/s/<Kennung>`, `/s/<Kennung>/data`) mit strenger Content-Security-Policy, `noindex`, `no-store` und Begrenzung je Adresse; Chats ohne öffentliche Freigabe sind darüber nie erreichbar, auch nicht mit einer Kennung einer In-Instanz-Freigabe.
 - **Deep Research (ab 0.56.0):** nur Websuche und Seiten lesen, keine Werkzeuge für Home Assistant, GitHub, Gedächtnis oder Konnektoren; Quellen im Bericht werden gegen die Notizen geprüft; feste Grenzen je Lauf und Tageslimit.
-- **Linux-Server (ab 0.60.5, nur mit `servers.enabled`):** Der Hub nimmt nur Verbindungen mit TLS 1.3 an; Server melden sich mit einem befristeten Registrierungsschlüssel und sind bis zur Bestätigung gesperrt. Agenten senden nur feste, streng geprüfte Nachrichten, der Hub schickt ihnen nur feste lesende Abfragen. Alles, was Server liefern, ist Fremdinhalt für die KI. Jeder Aufruf steht im Protokoll. Näheres im Abschnitt „Linux-Server“.
+- **Linux-Server (ab 0.60.4, nur mit `servers.enabled`):** Der Hub nimmt nur Verbindungen mit TLS 1.3 an; Server melden sich mit einem befristeten Registrierungsschlüssel und sind bis zur Bestätigung gesperrt. Agenten senden nur feste, streng geprüfte Nachrichten, der Hub schickt ihnen nur feste lesende Abfragen. Alles, was Server liefern, ist Fremdinhalt für die KI. Jeder Aufruf steht im Protokoll. Näheres im Abschnitt „Linux-Server“.
 - Das Repository enthält keine echten IDs, Adressen oder Logos: `config.yaml` hat nur einen Platzhalter-Benutzer, das Logo ist neutral.
 - Die App hat keine Verwaltungsfunktionen und keine Schnittstelle dafür. Mit `homeassistant_api` bekommt das Add-on Zugriff auf die Home-Assistant-API. Ohne die KI-Werkzeuge liest es damit nur die Benutzerliste und die Theme-Farben (`person/list`, `config/auth/list`, `frontend/get_themes`); alles Weitere, was die KI in Home Assistant tut, richtet sich nach den Stufen oben.
 - Theme-Werte aus Home Assistant werden gefiltert (nur einfache Farb- und Längenwerte, kein `url()`), `custom.css` darf nur der Administrator ablegen, und es gilt weiter die strenge Content-Security-Policy.
