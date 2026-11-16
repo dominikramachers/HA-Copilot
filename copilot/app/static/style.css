@@ -1727,6 +1727,13 @@ select.art-lib-project { flex: none; width: auto; min-width: 150px; max-width: 4
 .srv-script-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .srv-script-buttons .pill { display: inline-flex; align-items: center; gap: 6px; }
 .srv-script-buttons .icon { width: 16px; height: 16px; }
+.srv-script-buttons .pill.srv-copy { display: inline-grid; transition: background .2s, color .2s; }
+.srv-copy > span { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.srv-copy-done { visibility: hidden; }
+.srv-copy.copied .srv-copy-idle { visibility: hidden; }
+.srv-copy.copied .srv-copy-done { visibility: visible; }
+.srv-script-buttons .pill.srv-copy.copied { background: color-mix(in srgb, var(--ok, #2e9d5b) 22%, var(--panel-2, transparent)); color: color-mix(in srgb, var(--ok, #2e9d5b) 75%, var(--text)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok, #2e9d5b) 45%, transparent); }
+@media (prefers-reduced-motion: reduce) { .srv-script-buttons .pill.srv-copy { transition: none; } }
 .srv-code { display: block; width: 100%; max-height: 320px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--chip); color: var(--text); font-family: var(--mono); font-size: 12.5px; line-height: 1.5; resize: vertical; white-space: pre; overflow: auto; }
 .srv-key { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line-2); }
 .srv-key:first-of-type { margin-top: 8px; }

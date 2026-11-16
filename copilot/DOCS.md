@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.60.5.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.60.6.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -654,7 +654,7 @@ Ein **Agent** auf deinen Debian-/Ubuntu-Servern meldet sich bei einem **zentrale
 
 - **Einschalten.** Aus ist der Standard. In der Gruppe **Linux-Server** (`servers:`) `enabled: true` setzen, `access_default: on` (oder bei einzelnen Benutzern `server_access: on`) und bei `hub_address` den Namen oder die IP angeben, unter der die Server den Home-Assistant-Rechner erreichen. Der Hub lauscht auf Port **8101/tcp**; unter **Netzwerk** des Add-ons einen Host-Port eintragen und in der Firewall nur die Server zulassen (nur Heimnetz oder VPN, nie ins Internet). Ohne `enabled` gibt es keinen Listener und keinen Seitenleisten-Eintrag.
 - **Ganz oder gar nicht.** `servers.access_default` (`off`/`on`) gilt für alle, `server_access` im Benutzer-Eintrag überschreibt es je Person. Es gibt keine Abstufungen. Ohne Freigabe fehlt die Seite „Server“, die Schnittstellen antworten mit 403 und die KI hat die Werkzeuge nicht.
-- **Server hinzufügen.** Seite **Server → Server hinzufügen**: Hub-Adresse, Name (optional), Gültigkeit und Anzahl Server wählen, **Skript erstellen**. Das Skript enthält schon alles: Adresse, einen frischen Registrierungsschlüssel, den Fingerabdruck der Hub-CA und die Prüfsummen. **Kopieren** legt es in die Zwischenablage, **Herunterladen** speichert `install-copilot-agent.sh`. Auf dem Server als root ausführen (`sudo bash install-copilot-agent.sh`). Es lädt den Agenten vom Hub, prüft ihn, legt den Benutzer `copilot-agent` an, meldet den Server an und startet den Dienst `copilot-agent`. Mit `--uninstall` ist alles wieder entfernt.
+- **Server hinzufügen.** Seite **Server → Server hinzufügen**: Hub-Adresse, Name (optional), Gültigkeit und Anzahl Server wählen, **Skript erstellen**. Das Skript enthält schon alles: Adresse, einen frischen Registrierungsschlüssel, den Fingerabdruck der Hub-CA und die Prüfsummen. **Kopieren** legt es in die Zwischenablage (der Knopf färbt sich kurz grün und zeigt einen Haken mit „Kopiert“), **Herunterladen** speichert `install-copilot-agent.sh`. Auf dem Server als root ausführen (`sudo bash install-copilot-agent.sh`). Es lädt den Agenten vom Hub, prüft ihn, legt den Benutzer `copilot-agent` an, meldet den Server an und startet den Dienst `copilot-agent`. Mit `--uninstall` ist alles wieder entfernt.
 - **Bestätigen.** Ein neuer Server erscheint unter **Übersicht** als **Ausstehend**. Erst nach **Bestätigen** darf die KI ihn ansehen; **Ablehnen** löscht ihn. Später lässt er sich umbenennen, sperren (der Server wird getrennt) oder entfernen.
 - **Zustände.** *Online* (meldet sich alle 30 Sekunden), *Eingeschränkt* (fehlgeschlagene Dienste oder ein Datenträger ab 90 %), *Offline* (90 Sekunden keine Meldung), *Ausstehend*, *Gesperrt*. Fällt ein bestätigter Server aus, steht es im Protokoll und es erscheint eine Benachrichtigung in Home Assistant.
 - **Aktivität.** Der Reiter zeigt, was die KI und die Personen getan haben (Aufrufe, Bestätigungen, Sperren, neue Schlüssel, abgelehnte Anmeldungen), filterbar nach Server, Art und Zeitraum. Das Protokoll wird 90 Tage aufbewahrt.

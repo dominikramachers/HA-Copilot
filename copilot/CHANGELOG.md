@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.60.6
+Seite „Server“: Der Kopieren-Knopf zeigt, dass kopiert wurde; der überflüssige Knopf „Server hinzufügen“ im leeren Zustand entfällt.
+- **Rückmeldung beim Kopieren:** Der Knopf „Kopieren“ beim Installationsskript (`renderScriptResult` in `servers.js`) färbt sich nach dem Kopieren etwa 1,8 Sekunden grün (`--ok`) und zeigt einen Haken mit „Kopiert“, wie beim Teilen-Link im Chat. Beide Zustände liegen im selben Gitterfeld übereinander (`.srv-copy`, `.srv-copy-idle`/`.srv-copy-done`), die Breite springt also nicht. Ein unsichtbarer `role="status"`-Text („Skript kopiert.“) meldet es Screenreadern; bei `prefers-reduced-motion` entfällt der Übergang. `srvCopy` gibt jetzt zurück, ob es geklappt hat; die frühere Meldung unten („Skript kopiert. Auf dem Server als root einfügen.“) entfällt, nur bei Misserfolg gibt es weiter den Hinweis „Zum Kopieren Strg+C drücken.“.
+- **Leerer Zustand ohne Knopf:** Ist noch kein Server gemeldet, steht nur noch der Hinweis „Unter „Server hinzufügen“ bekommst du ein Skript …“; der Knopf darunter ist weg, der Reiter „Server hinzufügen“ oben reicht.
+- Reine Oberfläche, keine Änderung an Server, Datenbank (Schema bleibt 36) oder Schnittstellen.
+
 ## 0.60.5
 Übersicht „Alle Personen“: Status je Person (aktiv jetzt, zuletzt aktiv) und Geld nur, wo es wirklich anfällt (nicht mehr der Abo-Vergleichswert).
 - **Status je Person:** `GET /api/usage/all` liefert je Person `active` (laufende Antworten, aus der Laufverwaltung `runs`; geplante Aufgaben und Sprache zählen mit), `waiting` (davon auf eine Rückfrage wartend, `run.pending`) und `last_active` (Unix-Zeit; neu `Store.last_activity()`: jüngster Eintrag in `usage_events` oder jüngstes `chats.updated_at` je Person). Nur Zahlen und Zeitpunkte, nie Chat-Namen oder Inhalte. Die Oberfläche zeigt neben dem Namen „arbeitet gerade“ (grün, mit Anzahl ab zwei Antworten), „wartet auf Zulassen“, „zuletzt aktiv vor 5 Min.“ oder „noch nie aktiv“; sie aktualisiert sich mit der Nutzungsseite (`USAGE_POLL_MS`).

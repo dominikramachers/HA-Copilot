@@ -188,10 +188,6 @@ function renderServerOverview(wrap) {
   if (!servers.length) {
     const empty = node("div", "sched-empty");
     empty.append(node("p", "", tr("Noch kein Server gemeldet.")), node("p", "sched-note", tr("Unter „Server hinzufügen“ bekommst du ein Skript, das du auf dem Server ausführst.")));
-    const go = node("button", "pill primary small", tr("Server hinzufügen"));
-    go.type = "button";
-    go.addEventListener("click", () => { srvUi.tab = "add"; rememberDetail("add"); renderServers(); });
-    empty.append(go);
     wrap.append(empty);
     return;
   }
@@ -343,19 +339,19 @@ function srvResult(result) {
 
 // ------------------------------------------------------------- Server hinzufügen
 
+// Kopiert das Skript; gibt zurück, ob es geklappt hat (der Knopf zeigt das selbst an, bei Misserfolg gibt es einen Hinweis).
 async function srvCopy(text, input) {
   try {
     await navigator.clipboard.writeText(text);
-    toast(tr("Skript kopiert. Auf dem Server als root einfügen."));
+    return true;
   } catch {
     try {
       input.focus();
       input.select();
-      document.execCommand("copy");
-      toast(tr("Skript kopiert. Auf dem Server als root einfügen."));
-    } catch {
-      toast(tr("Zum Kopieren Strg+C drücken."));
-    }
+      if (document.execCommand("copy")) return true;
+    } catch { /* weiter zum Hinweis */ }
+    toast(tr("Zum Kopieren Strg+C drücken."));
+    return false;
   }
 }
 
@@ -495,10 +491,25 @@ function renderScriptResult(script, hub) {
   area.spellcheck = false;
   area.setAttribute("aria-label", tr("Installationsskript"));
   const buttons = node("div", "srv-script-buttons");
-  const copy = node("button", "pill primary small", tr("Kopieren"));
+  // Nach dem Kopieren färbt sich der Knopf kurz grün und zeigt einen Haken („Kopiert“), wie beim Teilen-Link im Chat.
+  const copy = node("button", "pill primary small srv-copy");
   copy.type = "button";
-  copy.prepend(icon("copy"));
-  copy.addEventListener("click", () => { srvCopy(script.script, area); });
+  const idle = node("span", "srv-copy-idle");
+  idle.append(icon("copy"), node("span", "", tr("Kopieren")));
+  const done = node("span", "srv-copy-done");
+  done.setAttribute("aria-hidden", "true");
+  done.append(icon("check"), node("span", "", tr("Kopiert")));
+  const status = node("span", "sr-only");
+  status.setAttribute("role", "status");
+  copy.append(idle, done, status);
+  let resetTimer = 0;
+  copy.addEventListener("click", async () => {
+    if (!(await srvCopy(script.script, area))) return;
+    copy.classList.add("copied");
+    status.textContent = tr("Skript kopiert.");
+    clearTimeout(resetTimer);
+    resetTimer = setTimeout(() => { copy.classList.remove("copied"); status.textContent = ""; }, 1800);
+  });
   const download = node("button", "pill ghost small", tr("Herunterladen"));
   download.type = "button";
   download.prepend(icon("download"));
