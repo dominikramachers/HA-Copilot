@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.60.7",
+    "items": [
+      {
+        "de": {
+          "title": "Server für Administratoren sofort da",
+          "text": "Bist du Administrator, siehst du die Seite „Server“ jetzt gleich und ich darf deine Server ansehen. Eine extra Freigabe ist nicht mehr nötig. Andere Personen brauchen sie weiterhin."
+        },
+        "en": {
+          "title": "Servers ready for administrators",
+          "text": "If you are an administrator, you now see the “Servers” page right away and I may look at your servers. No extra approval is needed any more. Other people still need one."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.6",
     "items": [
       {

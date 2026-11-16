@@ -33,10 +33,10 @@ configuration:
             description: 'on = this person may talk to the AI by voice (microphone button in the chat), off = not. Empty: the default of this option in the group “Chat (Claude & OpenAI)” or “Talking to the AI” applies.'
           server_access:
             name: Access to Linux servers (optional)
-            description: 'on = this person may use all connected Linux servers through the Copilot (page “Servers”, AI commands with an approval prompt), off = not. Deliberately all or nothing: no levels and no per-server rights. Empty: the default of the group “Linux servers” applies. Only effective when the server hub is on.'
+            description: 'on = this person may use all connected Linux servers through the Copilot (page “Servers”, AI commands with an approval prompt), off = not. Deliberately all or nothing: no levels and no per-server rights. Empty: app administrators (including Home Assistant administrators) have access, everybody else gets the default of the group “Linux servers”. Set off to exclude an administrator. Only effective when the server hub is on.'
           admin:
             name: App administrator (optional)
-            description: 'On = this person sees the “All people” overview under Settings → Usage (who used how much, numbers only, no content). Home Assistant administrators are administrators automatically; this field is for people who are not administrators in Home Assistant, or for sign-in via the domain. Empty/off: only Home Assistant administrators.'
+            description: 'On = this person sees the “All people” overview under Settings → Usage (who used how much, numbers only, no content). Home Assistant administrators are administrators automatically; this field is for people who are not administrators in Home Assistant, or for sign-in via the domain. Empty/off: only Home Assistant administrators. Administrators may also use the Linux servers when the server hub is on and their entry does not say `server_access: off`.'
           notify_service:
             name: Notification service (optional)
             description: 'Home Assistant service used to notify this user on their phone, e.g. notify.mobile_app_pixel (Developer tools → Actions, search “notify”). Default device of this person (everyone picks their own devices under Settings → Notifications; without a choice the devices of their person in Home Assistant apply). Empty: no default.'
@@ -203,7 +203,7 @@ configuration:
         description: 'Off (default): no listener, the page “Servers” stays hidden. On: the hub accepts connections from the agents. New servers show up as “Pending” until you confirm them in the app.'
       access_default:
         name: Default – who may use servers
-        description: 'Applies to all users without their own setting: off (default) = nobody, on = everybody. All or nothing, no levels.'
+        description: 'Applies to all users without their own setting who are not administrators: off (default) = nobody, on = everybody. App administrators always have access unless their own entry says `server_access: off`. All or nothing, no levels.'
       hub_address:
         name: Hub address (optional)
         description: 'Name or IP address (optionally with :port) under which the servers reach the hub, e.g. ha.example.lan or 10.20.0.5:8101. It goes into the install script. Empty: the app suggests the address you opened it with; you can change it there before generating.'

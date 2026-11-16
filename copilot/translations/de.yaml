@@ -33,10 +33,10 @@ configuration:
             description: 'on = diese Person darf per Sprache mit der KI sprechen (Mikrofon-Knopf im Chat), off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“.'
           server_access:
             name: Zugriff auf Linux-Server (optional)
-            description: 'on = diese Person darf über den Copiloten auf alle angebundenen Linux-Server zugreifen (Seite „Server“, Befehle der KI mit Zulassungshinweis), off = nicht. Es gibt bewusst nur ganz oder gar nicht, keine Abstufungen und keine Rechte pro Server. Leer: es gilt der Standard der Gruppe „Linux-Server“. Wirkt nur bei eingeschaltetem Server-Hub.'
+            description: 'on = diese Person darf über den Copiloten auf alle angebundenen Linux-Server zugreifen (Seite „Server“, Befehle der KI mit Zulassungshinweis), off = nicht. Es gibt bewusst nur ganz oder gar nicht, keine Abstufungen und keine Rechte pro Server. Leer: Administratoren der App (auch Administratoren von Home Assistant) haben Zugriff, alle anderen der Standard der Gruppe „Linux-Server“. Mit off schließt du einen Administrator aus. Wirkt nur bei eingeschaltetem Server-Hub.'
           admin:
             name: Administrator der App (optional)
-            description: 'An = diese Person sieht unter Einstellungen → Nutzung die Übersicht „Alle Personen“ (wer wie viel genutzt hat, nur Zahlen, keine Inhalte). Administratoren von Home Assistant sind es automatisch; dieses Feld ist für Personen, die in Home Assistant keine Administratoren sind, oder für die Anmeldung über die Domain. Leer/aus: nur wer in Home Assistant Administrator ist.'
+            description: 'An = diese Person sieht unter Einstellungen → Nutzung die Übersicht „Alle Personen“ (wer wie viel genutzt hat, nur Zahlen, keine Inhalte). Administratoren von Home Assistant sind es automatisch; dieses Feld ist für Personen, die in Home Assistant keine Administratoren sind, oder für die Anmeldung über die Domain. Leer/aus: nur wer in Home Assistant Administrator ist. Administratoren dürfen außerdem auf die Linux-Server zugreifen, sofern der Server-Hub an ist und bei ihnen nicht `server_access: off` steht.'
           notify_service:
             name: Benachrichtigungsdienst (optional)
             description: 'Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Vorgabe für die Geräte dieser Person (jede Person wählt ihre Geräte selbst unter Einstellungen → Benachrichtigungen; ohne Auswahl gelten die Geräte ihrer Person in Home Assistant). Leer: keine Vorgabe.'
@@ -203,7 +203,7 @@ configuration:
         description: 'Aus (Standard): kein Listener, die Seite „Server“ bleibt verborgen. An: der Hub nimmt Verbindungen der Agenten an. Neue Server erscheinen als „Ausstehend“, bis sie in der App bestätigt werden.'
       access_default:
         name: Standard – wer darf auf Server zugreifen
-        description: 'Gilt für alle Benutzer ohne eigene Angabe: off (Standard) = niemand, on = alle. Ganz oder gar nicht, keine Abstufungen.'
+        description: 'Gilt für alle Benutzer ohne eigene Angabe, die keine Administratoren sind: off (Standard) = niemand, on = alle. Administratoren der App haben ohne eigene Angabe immer Zugriff (mit `server_access: off` im Benutzer-Eintrag ausschließen). Ganz oder gar nicht, keine Abstufungen.'
       hub_address:
         name: Adresse des Hubs (optional)
         description: 'Name oder IP-Adresse (optional mit :Port), unter der die Server den Hub erreichen, z. B. ha.example.lan oder 10.20.0.5:8101. Sie landet im Installationsskript. Leer: die App schlägt die Adresse vor, unter der Sie sie geöffnet haben; dort lässt sie sich vor dem Erzeugen ändern.'

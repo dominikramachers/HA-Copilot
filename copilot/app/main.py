@@ -992,6 +992,20 @@ def register_chat_routes(
         lookup = getattr(ha, "admin_ids", None)
         return bool(ha_id and lookup is not None and ha_id in await lookup())
 
+    async def server_allowed(profile: Profile) -> bool:
+        """Zugriff auf Server: ``server_access``/Standard (``Settings.server_level``), dazu jeder Administrator der App
+        (Profil-Schalter oder Administrator in Home Assistant), solange das Profil nicht ausdrücklich ``off`` hat."""
+        if settings.server_level(profile) == "on":
+            return True
+        if not settings.servers_enabled or profile.server_access:
+            return False
+        return await is_admin(profile)
+
+    async def server_profile(profile: Profile = Depends(current_profile)) -> Profile:
+        if not await server_allowed(profile):
+            raise HTTPException(status_code=403, detail=tr("Kein Zugriff"))
+        return profile
+
     @app.get("/api/me")
     async def me(profile: Profile = Depends(current_profile)) -> dict:
         return {
@@ -1009,7 +1023,7 @@ def register_chat_routes(
             "voice": voice_allowed(profile),
             "voice_wake": settings.app_name if voice_allowed(profile) else "",
             "connectors": connectors.level(profile.id) >= 1,
-            "servers": settings.server_level(profile) == "on",
+            "servers": await server_allowed(profile),
             "models": settings.model_choices(),
             "default_model": settings.model,
             "user_model": user_default_model(profile.id),
@@ -1310,7 +1324,7 @@ def register_chat_routes(
             "allow_private": settings.connector_allow_private,
         }
 
-    register_server_routes(app, settings, server_hub, current_profile, write_guard)
+    register_server_routes(app, settings, server_hub, server_profile, write_guard)
 
     @app.get("/api/connectors")
     def connectors_list(profile: Profile = Depends(current_profile)) -> dict:
@@ -3113,7 +3127,7 @@ def register_chat_routes(
         connector_specs = [] if spoken else connector_box.specs()
         specs += connector_specs
         server_note = ""
-        if not spoken and settings.server_level(profile) == "on":
+        if not spoken and await server_allowed(profile):
             server_box = ServerToolbox(server_hub, profile, record=run.push, next_id=run.next_tool_id)
             specs += server_box.specs()
             server_note = server_box.note()

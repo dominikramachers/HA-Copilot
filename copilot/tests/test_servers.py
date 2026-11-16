@@ -129,6 +129,20 @@ def test_server_access_is_all_or_nothing_and_off_by_default():
         settings(access_default="admin")
 
 
+def test_app_administrators_get_server_access_unless_switched_off():
+    """Der Schalter „Administrator der App“ genügt; ein ausdrückliches server_access im Profil geht vor."""
+    def profiles(first: dict, second: dict | None = None):
+        return parse_settings({**RAW, "profiles": [{**RAW["profiles"][0], **first}, {**RAW["profiles"][1], **(second or {})}], "servers": {"enabled": True}})
+    admin = profiles({"admin": True})
+    assert admin.server_level(admin.profiles[0]) == "on" and admin.server_level(admin.profiles[1]) == "off"
+    off = profiles({"admin": True, "server_access": "off"})
+    assert off.server_level(off.profiles[0]) == "off"
+    on = profiles({"admin": False, "server_access": "on"})
+    assert on.server_level(on.profiles[0]) == "on"
+    hub_off = parse_settings({**RAW, "profiles": [{**RAW["profiles"][0], "admin": True}, RAW["profiles"][1]], "servers": {"enabled": False}})
+    assert hub_off.server_level(hub_off.profiles[0]) == "off"
+
+
 def test_server_access_needs_the_hub_to_be_on():
     off = parse_settings({**RAW, "servers": {"enabled": False, "access_default": "on"}})
     assert off.server_level(off.profiles[0]) == "off"
@@ -435,6 +449,20 @@ def test_only_people_with_access_see_servers(api):
     assert dora.post("/api/servers/install-script", json={}, headers=WRITE).status_code == 403
     overview = admin.get("/api/servers").json()
     assert overview["servers"] == [] and overview["hub"]["port"] == 8101 and overview["hub"]["agents"] == ["amd64"]
+
+
+def test_app_administrator_sees_servers_without_server_access(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.main.SERVER_DIR", tmp_path / "servers")
+    cfg = parse_settings({
+        **RAW, "servers": {"enabled": True, "hub_address": "ha.example.lan"},
+        "profiles": [{**RAW["profiles"][0], "admin": True}, {**RAW["profiles"][1]}],
+    }, frozenset({"testclient"}))
+    store = Store(tmp_path / "db.sqlite3")
+    store.sync_profiles(p.id for p in cfg.profiles)
+    client = TestClient(build_ingress_app(cfg, store, FakeBackend()))
+    admin, dora = Who(client, ADM01), Who(client, DORA)
+    assert admin.get("/api/me").json()["servers"] is True and admin.get("/api/servers").status_code == 200
+    assert dora.get("/api/me").json()["servers"] is False and dora.get("/api/servers").status_code == 403
 
 
 def test_install_script_is_created_with_a_fresh_key_and_logged(api):

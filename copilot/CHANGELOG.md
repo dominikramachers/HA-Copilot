@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.60.7
+Linux-Server: Administratoren der App haben ohne eigenen Eintrag Zugriff auf die Server.
+- **Zugriff für Administratoren:** Bisher galt für alle nur `server_access` oder der Standard `servers.access_default` (Standard „aus“); wer die Server nutzen wollte, musste sich also erst selbst freischalten. Jetzt haben **Administratoren der App** bei eingeschaltetem Hub (`servers.enabled`) automatisch Zugriff, wenn bei ihnen kein `server_access` steht. Das gilt für den Schalter `admin` im Benutzer-Eintrag und für Administratoren in Home Assistant. Ein ausdrückliches `server_access` geht immer vor (`off` schließt auch einen Administrator aus, `on` gibt es auch Nicht-Administratoren). Für alle anderen ändert sich nichts: sie folgen `servers.access_default`.
+- **Technik:** `Settings.server_level` kennt den Profil-Schalter `admin`; Administratoren, die nur in Home Assistant Administrator sind, erkennt erst `server_allowed` in `main.py` (über `is_admin`, die Liste kommt von Home Assistant). Diese Prüfung gilt an allen Stellen: `/api/me` (`servers`, damit der Seitenleisten-Eintrag erscheint), die Abhängigkeit `server_profile` für alle Schnittstellen unter `/api/servers*` (403 ohne Zugriff; die frühere Prüfung `guard` in `server_routes.py` entfällt) und die Werkzeuge der KI im Chat (`server_list`, `server_status`, `server_read`). Ist der Hub aus, gilt für alle „kein Zugriff“.
+- Beschreibungstexte der Optionen `server_access`, `servers.access_default` und `admin` (Übersetzungen), DOCS, `docs/benutzer.md`, `docs/funktionen.md` und `docs/einstellungen.md` sind angepasst.
+- Tests: `test_app_administrators_get_server_access_unless_switched_off`, `test_app_administrator_sees_servers_without_server_access`.
+- Keine Änderung an der Datenbank (Schema bleibt 36).
+
 ## 0.60.6
 Seite „Server“: Der Kopieren-Knopf zeigt, dass kopiert wurde; der überflüssige Knopf „Server hinzufügen“ im leeren Zustand entfällt.
 - **Rückmeldung beim Kopieren:** Der Knopf „Kopieren“ beim Installationsskript (`renderScriptResult` in `servers.js`) färbt sich nach dem Kopieren etwa 1,8 Sekunden grün (`--ok`) und zeigt einen Haken mit „Kopiert“, wie beim Teilen-Link im Chat. Beide Zustände liegen im selben Gitterfeld übereinander (`.srv-copy`, `.srv-copy-idle`/`.srv-copy-done`), die Breite springt also nicht. Ein unsichtbarer `role="status"`-Text („Skript kopiert.“) meldet es Screenreadern; bei `prefers-reduced-motion` entfällt der Übergang. `srvCopy` gibt jetzt zurück, ob es geklappt hat; die frühere Meldung unten („Skript kopiert. Auf dem Server als root einfügen.“) entfällt, nur bei Misserfolg gibt es weiter den Hinweis „Zum Kopieren Strg+C drücken.“.
