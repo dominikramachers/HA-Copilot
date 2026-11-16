@@ -17,7 +17,7 @@ import socket
 import sqlite3
 import time
 from urllib.parse import quote
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Literal
@@ -47,6 +47,7 @@ from . import artifacts as artifactlib
 from . import usage as usagelib
 from . import i18n
 from .i18n import tr
+from .mermaid_frame import FRAME_HEADERS as MERMAID_HEADERS, page as mermaid_page
 from .previews import MAX_CHARS as PREVIEW_MAX_CHARS, PREVIEW_HEADERS, PreviewStore
 from .branding import Branding
 from .config import (
@@ -1576,12 +1577,18 @@ def register_chat_routes(
         """Seite „Nutzung“: Stand des Abo-Limits sowie ChatGPT-Token und Bilder des Monats, jeweils für alle Personen zusammen (für jede Person gleich)."""
         generate = bool(settings.images_enabled and settings.files_enabled and images.providers())
         month = datetime.now().strftime("%Y-%m")
+        euro = i18n.language() == "de"
+        start, end = usagelib.period("month")
+        image_cost = store.usage_cost_total("image", int(start.timestamp()), int(end.timestamp()), start.strftime("%Y-%m-%d"), (end - timedelta(seconds=1)).strftime("%Y-%m-%d")) if generate else 0.0
         return {
             "limits": limits.current(),
             "windows": limits.overview(),
             "subscription": is_subscription(),
             # Bilder und ChatGPT zählen für alle Personen zusammen (ein API-Konto, ein Limit): jede Person sieht dieselben Zahlen
-            "images": {"enabled": generate, "month": month, "used": store.image_usage_total(month) if generate else 0, "limit": settings.image_limit_month},
+            "images": {
+                "enabled": generate, "month": month, "used": store.image_usage_total(month) if generate else 0, "limit": settings.image_limit_month,
+                "cost": round(image_cost * (settings.usd_eur_rate if euro else 1.0), 2), "currency": "EUR" if euro else "USD",  # geschätzt, nach Listenpreisen
+            },
             "openai": {
                 "enabled": settings.openai_active, "month": month,
                 "used": store.token_usage_total(month, "openai") if settings.openai_active else 0,
@@ -1693,6 +1700,11 @@ def register_chat_routes(
         if page is None:
             raise HTTPException(status_code=404, detail=tr("Die Vorschau ist abgelaufen."))
         return HTMLResponse(page, headers=PREVIEW_HEADERS)
+
+    @app.get("/mermaid-frame", response_class=HTMLResponse)
+    def mermaid_frame(profile: Profile = Depends(current_profile)) -> HTMLResponse:
+        # Feste Seite mit der mitgelieferten Mermaid-Bibliothek; der Diagrammtext kommt erst im Browser per postMessage (siehe mermaid_frame.py).
+        return HTMLResponse(mermaid_page(), headers=MERMAID_HEADERS)
 
     @app.get("/api/chats/{chat_id}/artifacts")
     def chat_artifacts(chat_id: str, profile: Profile = Depends(current_profile)) -> list[dict]:
@@ -2128,7 +2140,7 @@ def register_chat_routes(
 
     @app.get("/api/artifacts")
     def list_artifacts(
-        shared: bool = False, q: str = Query(default="", max_length=100), kind: Literal["", "html", "svg", "markdown", "code"] = "",
+        shared: bool = False, q: str = Query(default="", max_length=100), kind: Literal["", "html", "svg", "markdown", "code", "mermaid"] = "",
         project: str = Query(default="", max_length=64), profile: Profile = Depends(current_profile),
     ) -> list[dict]:
         """Alle Artefakte der Person (ohne Inhalt) für die Bibliothek: Suche in Titel und Inhalt (`q`), Filter nach Art und Projekt (`none` = ohne Projekt);
@@ -2991,6 +3003,9 @@ def register_chat_routes(
         async def ask_image(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("image", label, details, offer_chat)
 
+        async def ask_skill(label: str, details: str, offer_chat: bool) -> str:
+            return await ask_about("skill", label, details, offer_chat)
+
         async def ask_connector(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("connector", label, details, offer_chat)
 
@@ -3026,7 +3041,7 @@ def register_chat_routes(
             memory_enabled=settings.memory_enabled and not incognito,  # Inkognito: weder lesen noch schreiben, auch nicht Haushalt und Projekt
             household_write=household_writable(profile),
             force_confirm=bool(foreign_files) or imported,
-            ask=ask_memory, record=run.push, next_id=run.next_tool_id,
+            ask=ask_memory, ask_skill=ask_skill, skills_write=not incognito, record=run.push, next_id=run.next_tool_id,
             tainted=lambda: any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
             overview=overview_allowed(profile),
         )
@@ -3093,6 +3108,9 @@ def register_chat_routes(
                 "Dieser Chat lief bisher mit {old}, ab dieser Nachricht antwortest du ({new}). Die früheren Antworten im Verlauf stammen von {old}. Ergebnisse von Werkzeugen aus früheren Antworten liegen nicht mehr vor; lies bei Bedarf noch einmal nach.",
                 old=model_label(switched_from), new=model_label(chosen_model),
             )
+        forced = re.match(r"/([a-z0-9][a-z0-9-]{0,63})(?:\s|$)", text or "")
+        if forced and any(item["name"] == forced.group(1) for item in context.skills):
+            extra["note"] += "\n" + f"Der Nutzer verlangt mit „/{forced.group(1)}“ ausdrücklich das Skill {forced.group(1)}: lade es mit skill_load, bevor du anfängst, und befolge es."
         if artifact_note:
             extra["note"] += "\n" + artifact_note
         if any(s.name == "design_guide" for s in specs):

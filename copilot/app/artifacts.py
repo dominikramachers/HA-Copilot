@@ -6,7 +6,7 @@ daneben öffnet sich ein Fenster mit Vorschau und Code. Word, Excel, PowerPoint 
 
 Sicherheit: Inhalte laufen nie in der Hauptoberfläche. HTML zeigt die bestehende abgeschottete Vorschau (``previews.py``: eigene
 Herkunft, kein Netzwerk, keine Formulare), SVG wird vorher geprüft (``images.check_svg``) und nur als Bild gezeigt, Markdown und
-Code als Text. Die Werkzeuge ändern nichts außerhalb des Add-ons und fragen deshalb nicht nach.
+Code als Text, Mermaid-Diagramme zeichnet ein eigener abgeschotteter Rahmen (``mermaid_frame.py``) im Browser. Die Werkzeuge ändern nichts außerhalb des Add-ons und fragen deshalb nicht nach.
 """
 from __future__ import annotations
 
@@ -19,14 +19,14 @@ from .ha_tools import ToolError, ToolSpec
 from .i18n import tr
 from .images import ImageError, check_svg
 
-KINDS = ("html", "svg", "markdown", "code")
+KINDS = ("html", "svg", "markdown", "code", "mermaid")
 TITLE_MAX = 80
 CONTENT_MAX = 150_000
 MAX_PER_CHAT = 30
 MAX_EDITS = 30
 NOTE_MAX = 200
 LANGUAGE_RE = re.compile(r"^[a-z0-9+#._-]{1,20}$")
-MIME = {"html": "text/html", "svg": "image/svg+xml", "markdown": "text/markdown", "code": "text/plain"}
+MIME = {"html": "text/html", "svg": "image/svg+xml", "markdown": "text/markdown", "code": "text/plain", "mermaid": "text/plain"}
 LANG_EXT = {
     "python": "py", "py": "py", "javascript": "js", "js": "js", "typescript": "ts", "ts": "ts", "bash": "sh", "sh": "sh", "shell": "sh",
     "powershell": "ps1", "ps1": "ps1", "yaml": "yaml", "yml": "yaml", "json": "json", "sql": "sql", "css": "css", "html": "html",
@@ -37,7 +37,7 @@ LANG_EXT = {
 RULES = (
     "Artefakte: Ein Artefakt ist ein eigenständiges Ergebnis, das der Nutzer behalten, weiterbearbeiten oder wiederverwenden will: "
     "eine HTML-Seite (auch interaktiv, eine einzige Datei ohne Nachladen von außen, Bilder nur als data:-URL, das Netzwerk ist gesperrt), "
-    "eine Zeichnung als SVG, ein längeres Dokument als Markdown oder eine Code-Datei (kind=code mit language, z. B. python, yaml; auch CSV). "
+    "eine Zeichnung als SVG, ein Diagramm als Mermaid-Text (kind=mermaid, nur der Diagrammtext ohne Umzäunung mit drei Backticks: Ablaufdiagramm flowchart, Sequenzdiagramm, Zustands-, Klassen-, ER-, Gantt- oder Kreisdiagramm), ein längeres Dokument als Markdown oder eine Code-Datei (kind=code mit language, z. B. python, yaml; auch CSV). "
     "Lege dafür mit artifact_create ein Artefakt an, statt den ganzen Inhalt in den Antworttext zu schreiben; in der Antwort steht danach nur, was es ist und was du entschieden hast. "
     "Kein Artefakt für kurze Antworten, Erklärungen, einzelne Befehle oder Schnipsel im Fließtext, und nicht für Word, Excel, PowerPoint oder PDF (dafür gibt es die Dateiwerkzeuge). "
     "Änderungen am Artefakt machst du mit artifact_update und edits (alte Stelle → neue Stelle, die alte Stelle muss genau einmal vorkommen); nur bei einer großen Umgestaltung ersetzt du mit content alles. "
@@ -60,7 +60,7 @@ def rules_note(items: list[dict]) -> str:
 
 def filename(title: str, kind: str, language: str = "") -> str:
     """Dateiname zum Herunterladen: Titel als Dateiname plus passende Endung."""
-    ext = {"html": "html", "svg": "svg", "markdown": "md"}.get(kind) or LANG_EXT.get(language.lower(), "txt")
+    ext = {"html": "html", "svg": "svg", "markdown": "md", "mermaid": "mmd"}.get(kind) or LANG_EXT.get(language.lower(), "txt")
     base = re.sub(r"[^\w.-]+", "-", title.strip(), flags=re.UNICODE).strip("-.")[:60] or "artefakt"
     return f"{base}.{ext}"
 
@@ -68,7 +68,7 @@ def filename(title: str, kind: str, language: str = "") -> str:
 def validate(kind: str, language: str, content: str) -> tuple[str, str]:
     """Art, Sprache und Inhalt prüfen; liefert (Sprache, Inhalt) – SVG kommt bereinigt zurück. Wirft ``ToolError``."""
     if kind not in KINDS:
-        raise ToolError("kind muss html, svg, markdown oder code sein.")
+        raise ToolError("kind muss html, svg, markdown, code oder mermaid sein.")
     if not content.strip():
         raise ToolError("content fehlt oder ist leer.")
     if len(content) > CONTENT_MAX:
@@ -192,7 +192,7 @@ class ArtifactToolbox:
         return [
             ToolSpec(
                 "artifact_create",
-                "Ein Artefakt anlegen: ein eigenständiges Ergebnis (HTML-Seite, SVG, Markdown-Dokument oder Code-Datei), das der Nutzer behalten und weiterbearbeiten will. "
+                "Ein Artefakt anlegen: ein eigenständiges Ergebnis (HTML-Seite, SVG, Mermaid-Diagramm, Markdown-Dokument oder Code-Datei), das der Nutzer behalten und weiterbearbeiten will. "
                 "Der Inhalt steht vollständig in content. Der Nutzer sieht eine Karte und ein Fenster mit Vorschau und Code.",
                 {"type": "object", "properties": {
                     "title": {"type": "string", "description": f"Kurzer Titel, höchstens {TITLE_MAX} Zeichen"},

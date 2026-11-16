@@ -2627,6 +2627,13 @@ class Store:
                 add(r["profile_id"], r["n"] or 0, r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0)
         return list(rows.values())
 
+    def usage_cost_total(self, kind: str, start_ts: int, end_ts: int, start_day: str, end_day: str) -> float:
+        """Summe der (geschätzten) Kosten in US-Dollar für eine Art von Aufrufen (z. B. ``image``) im Zeitraum, aller Personen zusammen."""
+        with self._lock:
+            fresh = self._conn.execute("SELECT SUM(cost_usd) AS c FROM usage_events WHERE kind = ? AND ts >= ? AND ts < ?", (kind, start_ts, end_ts)).fetchone()
+            daily = self._conn.execute("SELECT SUM(cost_usd) AS c FROM usage_daily WHERE kind = ? AND day >= ? AND day <= ?", (kind, start_day, end_day)).fetchone()
+        return float(fresh["c"] or 0.0) + float(daily["c"] or 0.0)
+
     def usage_compact(self, before_ts: int) -> int:
         """Einträge vor ``before_ts`` zu Tagessummen (lokales Datum) verdichten und löschen; liefert die Zahl verdichteter Einträge."""
         with self._lock, self._conn:

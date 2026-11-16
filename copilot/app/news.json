@@ -1,5 +1,50 @@
 [
   {
+    "version": "0.60.4",
+    "items": [
+      {
+        "de": {
+          "title": "Ich zeichne Diagramme",
+          "text": "Ich kann jetzt Ablaufpläne, Zeitleisten und andere Diagramme zeichnen. Du siehst sie neben dem Chat und kannst sie von mir ändern lassen."
+        },
+        "en": {
+          "title": "I can draw diagrams",
+          "text": "I can now draw flowcharts, timelines and other diagrams. You see them next to the chat and can ask me to change them."
+        }
+      },
+      {
+        "de": {
+          "title": "Ich schreibe Skills für dich",
+          "text": "Sagst du „mach daraus ein Skill“, schreibe ich auf, wie ich vorgegangen bin. Du siehst eine Vorschau und entscheidest, ob ich es speichern darf. Mit „/name“ rufst du ein Skill gezielt auf."
+        },
+        "en": {
+          "title": "I write skills for you",
+          "text": "Say “turn this into a skill” and I write down how I did it. You see a preview and decide whether I may save it. Type “/name” to call a skill directly."
+        }
+      },
+      {
+        "de": {
+          "title": "Kosten für Bilder in Euro",
+          "text": "Auf der Seite Nutzung zeige ich, was die Bilder in diesem Monat ungefähr gekostet haben. Das ist eine Schätzung, abgerechnet wird bei OpenAI oder Google."
+        },
+        "en": {
+          "title": "Image costs in euros",
+          "text": "On the usage page I show roughly what the images cost this month. It is an estimate; the bill comes from OpenAI or Google."
+        }
+      },
+      {
+        "de": {
+          "title": "Nutzung ohne leeren Abo-Block",
+          "text": "Arbeitest du mit einem Schlüssel statt mit einem Abo, zeige ich auf der Seite Nutzung keinen Abo-Hinweis mehr, der dort nichts zu suchen hat."
+        },
+        "en": {
+          "title": "Usage without an empty plan box",
+          "text": "If you work with a key instead of a subscription, the usage page no longer shows a subscription note that does not belong there."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.3",
     "items": [
       {

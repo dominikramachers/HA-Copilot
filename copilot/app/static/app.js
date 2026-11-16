@@ -49,6 +49,7 @@ const ICONS = {
   bell: ["M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z", "M10 20.5h4"],
   bug: ["M9 7a3 3 0 0 1 6 0M8 9h8v5a4 4 0 0 1-8 0zM4 10l4 1.5M20 10l-4 1.5M4 18l4-2M20 18l-4-2M12 9v10"],
   code: ["M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"],
+  diagram: ["M9 4h6v4H9z", "M3 16h6v4H3z", "M15 16h6v4h-6z", "M12 8v4M6 16v-4h12v4"],
   pen: ["M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"],
   eye: ["M2.5 12C3.5 10.5 7 6 12 6s8.5 4.5 9.5 6c-1 1.5-4.5 6-9.5 6s-8.5-4.5-9.5-6z", "M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"],
   eyeOff: ["M3 3l18 18", "M10.6 6.1A9.6 9.6 0 0 1 12 6c5 0 8.5 4.5 9.5 6a14 14 0 0 1-3.2 3.6M6.5 7.6A14 14 0 0 0 2.5 12c1 1.5 4.5 6 9.5 6 1.5 0 2.8-.4 4-1", "M9.9 10a3 3 0 0 0 4.1 4.1"],
@@ -4929,6 +4930,7 @@ function actionsEl(list = [], open = false) {
     const kontext = items.filter((a) => a.kind === "knowledge").length;
     const memory = items.filter((a) => a.kind === "memory").length;
     const noted = items.filter((a) => a.kind === "knowledge-write" && a.status === "ok").length;
+    const skillsSaved = items.filter((a) => a.kind === "skill-write" && a.status === "ok").length;
     const skillsUsed = items.filter((a) => (a.kind === "skill" || a.kind === "skill-ext") && a.label.startsWith(tr("Skill genutzt"))).length;
     const made = items.filter((a) => a.kind === "file" && a.status === "ok").length;
     const edited = items.filter((a) => a.kind === "file-edit" && a.status === "ok").length;
@@ -4953,6 +4955,7 @@ function actionsEl(list = [], open = false) {
     if (gh.length) parts.push(trn(gh.length, "1 Aktion bei GitHub", "{0} Aktionen bei GitHub") + (ghChanges ? trn(ghChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (mcp.length) parts.push(trn(mcp.length, "1 Aktion über Konnektoren", "{0} Aktionen über Konnektoren") + (mcpChanges ? trn(mcpChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (kontext) parts.push(trn(kontext, "im Kontext nachgeschlagen", "{0}× im Kontext nachgeschlagen"));
+    if (skillsSaved) parts.push(trn(skillsSaved, "Skill gespeichert", "{0} Skills gespeichert"));
     if (skillsUsed) parts.push(trn(skillsUsed, "Skill genutzt", "{0} Skills genutzt"));
     if (memory) parts.push(trn(memory, "Gedächtnis aktualisiert", "Gedächtnis {0}× aktualisiert"));
     if (noted) parts.push(trn(noted, "Im Projektkontext gespeichert", "{0}× im Projektkontext gespeichert"));
@@ -5246,7 +5249,7 @@ function fileCardsEl(actions) {
 // Artefakte: eigenständige Ergebnisse der KI (Seite, Grafik, Dokument, Code). Unter der Antwort steht eine Karte, daneben
 // öffnet sich ein Fenster mit Vorschau und Code. HTML läuft in der abgeschotteten Vorschau (kein Netzwerk), SVG nur als Bild.
 const artifactKinds = () => ({
-  html: [tr("Seite"), "globe"], svg: [tr("Grafik"), "picture"], markdown: [tr("Dokument"), "note"], code: [tr("Code"), "code"],
+  html: [tr("Seite"), "globe"], svg: [tr("Grafik"), "picture"], markdown: [tr("Dokument"), "note"], code: [tr("Code"), "code"], mermaid: [tr("Diagramm"), "diagram"],
 });
 
 function artifactKindText(a) {
@@ -5317,6 +5320,35 @@ async function openArtifact(id, version = null, tab = null) {
   drawArtifact();
 }
 
+// Mermaid-Diagramm: eine abgeschottete Seite (kein Netzwerk, kein Zugriff auf diese Oberfläche) zeichnet es; der Text geht per postMessage hinein.
+function mermaidFrame(data) {
+  const box = node("div", "art-mermaid-box");
+  const frame = document.createElement("iframe");
+  frame.setAttribute("sandbox", "allow-scripts");
+  frame.setAttribute("referrerpolicy", "no-referrer");
+  frame.title = data.title;
+  frame.src = "mermaid-frame";
+  const problem = node("p", "art-mermaid-error");
+  problem.hidden = true;
+  const listener = (event) => {
+    if (!frame.isConnected) { window.removeEventListener("message", listener); return; }
+    if (event.source !== frame.contentWindow || !event.data) return;
+    if (event.data.type === "ready") {
+      frame.contentWindow.postMessage({ type: "render", source: data.content }, "*");
+    } else if (event.data.type === "done") {
+      problem.hidden = true;
+      frame.hidden = false;
+    } else if (event.data.type === "error") {
+      frame.hidden = true;
+      problem.hidden = false;
+      problem.textContent = tr("Das Diagramm enthält einen Fehler: {0}", String(event.data.message || "").split("\n")[0].slice(0, 200));
+    }
+  };
+  window.addEventListener("message", listener);
+  box.append(frame, problem);
+  return box;
+}
+
 function artifactPreview(data) {
   const wrap = node("div", "art-preview");
   if (data.kind === "html") {
@@ -5328,6 +5360,9 @@ function artifactPreview(data) {
       .then((r) => { frame.src = `preview/${encodeURIComponent(r.id)}`; })
       .catch(() => wrap.replaceChildren(node("p", "mem-empty", tr("Die Vorschau konnte nicht erstellt werden (zu groß?)."))));
     wrap.append(frame, node("p", "art-note", tr("Vorschau ohne Netzwerkzugriff")));
+  } else if (data.kind === "mermaid") {
+    wrap.classList.add("art-mermaid");
+    wrap.append(mermaidFrame(data), node("p", "art-note", tr("Gezeichnet im Browser, ohne Netzwerkzugriff")));
   } else if (data.kind === "svg") {
     const img = document.createElement("img");
     img.alt = data.title;
@@ -5509,7 +5544,7 @@ async function openArtifactLibrary() {
       const tabs = node("div", "skills-tabs art-lib-kinds");
       tabs.setAttribute("role", "tablist");
       const tabButtons = new Map();
-      const kinds = [["", tr("Alle")], ["html", tr("Seiten")], ["svg", tr("Grafiken")], ["markdown", tr("Dokumente")], ["code", tr("Code")]];
+      const kinds = [["", tr("Alle")], ["html", tr("Seiten")], ["svg", tr("Grafiken")], ["markdown", tr("Dokumente")], ["mermaid", tr("Diagramme")], ["code", tr("Code")]];
       for (const [id, label] of kinds) {
         const button = node("button", "skills-tab", label);
         button.type = "button";
@@ -6478,7 +6513,7 @@ const THINK_WORDS = [tr("Denkt nach"), tr("Überlegt"), tr("Tüftelt"), tr("Sort
 const BUSY_ART = {
   file: "pen", "file-edit": "pen", image: "pen",
   web: "look", read: "look", knowledge: "look", skill: "look", "skill-ext": "look", "memory-read": "look", "gh-read": "look", "file-read": "look", "mcp-read": "look",
-  execute: "act", write: "act", "gh-write": "act", "mcp-write": "act", memory: "act", "knowledge-write": "pen",
+  execute: "act", write: "act", "gh-write": "act", "mcp-write": "act", memory: "act", "knowledge-write": "pen", "skill-write": "pen",
 };
 const HA_KINDS = ["read", "execute", "write"];
 
@@ -6500,6 +6535,7 @@ function recapOf(actions) {
     }
     case "memory": return tr("Gedächtnis aktualisiert");
     case "knowledge-write": return tr("Im Projektkontext gespeichert");
+    case "skill-write": return tr("Skill gespeichert");
     case "web": {
       const web = done.filter((a) => a.kind === "web");
       const searches = web.filter((a) => a.label.startsWith(tr("Websuche"))).length;
@@ -6648,12 +6684,12 @@ function approvalCard(chatId, ev) {
   const card = node("div", "ask-card");
   card.setAttribute("role", "group");
   card.setAttribute("aria-label", tr("Rückfrage"));
-  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), research: tr("Soll die Recherche gestartet werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
+  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), research: tr("Soll die Recherche gestartet werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?"), skill: tr("Soll dieses Skill gespeichert werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
   card.append(node("div", "ask-title", question), node("div", "ask-what", ev.label));
   if (ev.details) {
     const more = document.createElement("details");
     more.className = "ask-details";
-    more.open = ev.topic === "research"; // Zeit und Kosten stehen dort: bei Deep Research gleich sichtbar
+    more.open = ev.topic === "research" || ev.topic === "skill"; // Deep Research: Zeit und Kosten; Skill: die Vorschau der Anleitung soll man vor dem Zulassen sehen
     more.append(node("summary", "", tr("Einzelheiten")), node("pre", "", ev.details));
     card.append(more);
   }
@@ -9025,6 +9061,7 @@ function usageBlocks(data) {
 
   const plan = node("section", "set-block");
   plan.append(node("h4", "", tr("Claude-Abo")));
+  const showPlan = data.subscription || (data.windows || []).length > 0 || data.limits.length > 0; // mit API-Schlüssel gibt es kein Abo-Limit, dann entfällt der ganze Block
   const WINDOW_NAMES = {
     five_hour: [tr("Aktuelle Sitzung"), tr("Fenster von 5 Stunden")],
     seven_day: [tr("Diese Woche"), tr("Wochenlimit")],
@@ -9065,7 +9102,7 @@ function usageBlocks(data) {
     if (usageProbe.note) plan.append(node("p", "mem-hint", usageProbe.note));
   }
   plan.append(node("p", "mem-hint", tr("Das Limit gehört dem Abo und gilt für alle Personen im Add-on zusammen. Claude meldet den Stand mit jeder Antwort der KI, egal an wen; die Seite holt ihn alle paar Sekunden ab. Was außerhalb des Add-ons verbraucht wird (zum Beispiel in der Claude-App), erscheint erst mit der nächsten Antwort.")));
-  parts.push(plan);
+  if (showPlan) parts.push(plan);
 
   const gpt = data.openai;
   if (gpt?.enabled) {
@@ -9085,7 +9122,8 @@ function usageBlocks(data) {
     const used = img.used;
     pics.append(node("p", "set-lead", img.limit ? tr("{0} von {1} Bildern erzeugt.", used, img.limit) : trn(used, "{0} Bild erzeugt (kein Limit).", "{0} Bilder erzeugt (kein Limit).", used)));
     if (img.limit) pics.append(usageBar(Math.min(1, used / img.limit), used >= img.limit ? "bad" : ""));
-    pics.append(node("p", "mem-hint", tr("Zählt Fotos und Kunstbilder von OpenAI oder Google, von allen Personen zusammen. Einfache Grafiken (SVG) kosten nichts und zählen nicht.")));
+    if (img.cost > 0) pics.append(node("p", "set-lead", tr("Geschätzte Kosten: {0}", new Intl.NumberFormat(kiLocale, { style: "currency", currency: img.currency }).format(img.cost))));
+    pics.append(node("p", "mem-hint", tr("Zählt Fotos und Kunstbilder von OpenAI oder Google, von allen Personen zusammen. Einfache Grafiken (SVG) kosten nichts und zählen nicht. Die Kosten sind eine Schätzung nach Listenpreisen; abgerechnet wird beim Anbieter.")));
   } else {
     pics.append(node("p", "mem-hint", tr("Fotos und Kunstbilder sind nicht eingerichtet. Einfache Grafiken zeichnet die KI kostenlos als SVG.")));
   }

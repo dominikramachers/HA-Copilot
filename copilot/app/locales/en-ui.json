@@ -1211,7 +1211,8 @@
  "Die Nutzung ist gerade nicht erreichbar. Ich versuche es weiter.": "Usage is not available right now. I will keep trying.",
  "Zurückgesetzt {0}": "Reset {0}",
  "Zählt Eingabe und Ausgabe aller Chats mit ChatGPT-Modellen, von allen Personen zusammen. Titel und Zusammenfassungen zählen nicht mit. Ist das Limit erreicht, fragt der Chat vor jeder weiteren Antwort nach. Der Zähler beginnt jeden Monat neu.": "Counts input and output of all chats with ChatGPT models, from everyone together. Titles and summaries do not count. Once the limit is reached, the chat asks before every further answer. The counter starts over every month.",
- "Zählt Fotos und Kunstbilder von OpenAI oder Google, von allen Personen zusammen. Einfache Grafiken (SVG) kosten nichts und zählen nicht.": "Counts photos and artwork from OpenAI or Google, from everyone together. Simple graphics (SVG) cost nothing and do not count.",
+ "Zählt Fotos und Kunstbilder von OpenAI oder Google, von allen Personen zusammen. Einfache Grafiken (SVG) kosten nichts und zählen nicht. Die Kosten sind eine Schätzung nach Listenpreisen; abgerechnet wird beim Anbieter.": "Counts photos and artwork from OpenAI or Google, from everyone together. Simple graphics (SVG) cost nothing and do not count. The cost is an estimate based on list prices; the provider does the billing.",
+ "Geschätzte Kosten: {0}": "Estimated cost: {0}",
  "Prüfe …": "Checking …",
  "Jetzt prüfen": "Check now",
  "Schickt eine winzige Anfrage an Claude, damit der aktuelle Stand gemeldet wird.": "Sends a tiny request to Claude so that it reports the current status.",
@@ -1244,7 +1245,6 @@
  "Eintrag bearbeiten": "Edit entry",
  "Aktualisiert {0}": "Updated {0}",
  "Zu „{0}“ hinzufügen": "Add to “{0}”",
- "Nichts gefunden für „{0}“.": "Nothing found for “{0}”.",
  "Dieses Thema gibt es hier schon.": "This topic already exists here.",
  "Der Text ist länger als {0} Zeichen. Bitte kürze ihn.": "The text is longer than {0} characters. Please shorten it.",
  "Gerade eben": "Just now",
@@ -1268,5 +1268,12 @@
  "Ein, zwei Sätze, die in der Projektansicht unter dem Namen stehen. Leer lassen entfernt sie.": "One or two sentences shown under the name in the project view. Leave empty to remove it.",
  "z. B. Alles rund um meine Heizung und die Automationen im Keller.": "e.g. Everything about my heating and the automations in the basement.",
  "Beschreibung gespeichert.": "Description saved.",
- "Beschreibung entfernt.": "Description removed."
+ "Beschreibung entfernt.": "Description removed.",
+ "Diagramm": "Diagram",
+ "Diagramme": "Diagrams",
+ "Gezeichnet im Browser, ohne Netzwerkzugriff": "Drawn in the browser, without network access",
+ "Das Diagramm enthält einen Fehler: {0}": "The diagram contains an error: {0}",
+ "Soll dieses Skill gespeichert werden?": "Should this skill be saved?",
+ "Skill gespeichert": "Skill saved",
+ "{0} Skills gespeichert": "{0} skills saved"
 }

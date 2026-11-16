@@ -334,7 +334,7 @@ def test_memory_asks_after_foreign_content_was_read(store):
 
 def test_memory_disabled_has_no_tools_or_note(store):
     box = toolbox(store, memory=False)
-    assert box.specs() == [] and "Gedächtnis" not in box.note(["A"], "read", False)
+    assert [t.name for t in box.specs()] == ["skill_save"] and "Gedächtnis" not in box.note(["A"], "read", False)  # Skills hängen nicht am Gedächtnis
 
 
 # ------------------------------------------------------------------ Gedächtnis über die Oberfläche

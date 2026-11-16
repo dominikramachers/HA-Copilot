@@ -288,3 +288,27 @@ def test_library_search_sees_only_the_newest_version(client, store, library):
     store.artifact_update("adm01", library["b"], "print('neu')")
     assert client.get("/api/artifacts", params={"q": "shutil"}, headers=as_user(ADM01)).json() == []
     assert [x["id"] for x in client.get("/api/artifacts", params={"q": "print"}, headers=as_user(ADM01)).json()] == [library["b"]]
+
+
+def test_mermaid_is_a_kind_with_text_download(client, store, chat):
+    tools, _ = box(store, chat)
+    run(tools.create({"title": "Ablauf: Heizung", "kind": "mermaid", "content": "graph TD\n  A[Start] --> B[Ende]"}))
+    item = store.artifact_list("adm01", chat)[0]
+    assert item["kind"] == "mermaid" and item["language"] == ""
+    dl = client.get(f"/api/artifacts/{item['id']}/download", headers=as_user(ADM01))
+    assert dl.status_code == 200 and dl.headers["content-type"].startswith("text/plain")
+    assert dl.headers["content-disposition"].startswith("attachment; filename*=UTF-8''Ablauf-Heizung.mmd")
+    assert [a["id"] for a in client.get("/api/artifacts?kind=mermaid", headers=as_user(ADM01)).json()] == [item["id"]]
+    assert "mermaid" in art.rules_note([])
+    with pytest.raises(ToolError):
+        run(tools.create({"title": "Leer", "kind": "mermaid", "content": "  "}))
+
+
+def test_mermaid_frame_is_sealed_and_ships_the_library(client):
+    shown = client.get("/mermaid-frame", headers=as_user(ADM01))
+    assert shown.status_code == 200 and "mermaid" in shown.text and 'securityLevel: "strict"' in shown.text
+    assert "</script" not in shown.text.split("<script>", 1)[1].split("</script>", 1)[0]  # die Bibliothek beendet den Skriptblock nicht
+    csp = shown.headers["content-security-policy"]
+    assert "sandbox allow-scripts" in csp and "default-src 'none'" in csp
+    assert "connect-src" not in csp and "allow-same-origin" not in csp
+    assert "http" not in csp

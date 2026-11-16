@@ -193,7 +193,7 @@ def handler(box, name):
 
 
 def test_tools_only_exist_with_active_skills_and_list_goes_into_the_note(store):
-    assert not [s for s in toolbox(store).specs() if s.name.startswith("skill_")]
+    assert not [s for s in toolbox(store).specs() if s.name in ("skill_load", "skill_file")]  # Laden gibt es nur mit Skills; skill_save immer
     assert "Skills:" not in toolbox(store).note(["Dora"], "read", False)
     pkg = sk.parse_upload("x.skill", skill_zip())
     store.skill_save("dora", pkg.name, pkg.description, pkg.files, origin="imported")
@@ -637,3 +637,120 @@ def test_catalog_files_stay_inside_the_catalog_folder():
     assert sk.catalog_files("") == {} and sk.catalog_files(".") == {} and sk.catalog_files("frontend-design/..") == {} and sk.catalog_files("../") == {} and sk.catalog_files("../../etc") == {} and sk.catalog_files("/etc") == {}
     assert "SKILL.md" in sk.catalog_files("frontend-design")
     assert sk.catalog_files("licenses/x") == {} and sk.catalog_files("frontend-design/SKILL.md") == {}
+
+
+# ------------------------------------------------------------------ Stufe B: die KI schreibt ein Skill
+
+class Denier:
+    def __init__(self):
+        self.asked = []
+
+    async def __call__(self, label, details, offer):
+        self.asked.append((label, details))
+        return "deny"
+
+
+def writer(store, *, ask_skill=None, read_only=False, profile="dora"):
+    events, counter = [], iter(range(1, 1000))
+    box = ContextToolbox(
+        store, profile, profile.capitalize(), project_id=None, memory_enabled=True, household_write=True,
+        force_confirm=False, ask=Asker(), ask_skill=ask_skill, record=events.append, next_id=lambda: next(counter),
+        tainted=lambda: False, read_only=read_only,
+    )
+    box.events = events
+    return box
+
+
+SAVE_ARGS = {"name": "heizung-pruefen", "description": "Wenn die Heizung geprüft werden soll.", "instructions": "# Heizung\n\n1. Vorlauf lesen\n2. Vergleichen"}
+
+
+def test_skill_save_always_asks_and_shows_a_preview(store):
+    asker = Denier()
+    box = writer(store, ask_skill=asker)
+    out = run(handler(box, "skill_save")(SAVE_ARGS))
+    assert "abgelehnt" in out and store.skill_list("dora") == []  # ohne Zustimmung wird nichts gespeichert, auch ohne Fremdinhalt
+    label, details = asker.asked[0]
+    assert label == "Skill speichern: heizung-pruefen" and "Wenn die Heizung geprüft werden soll." in details and "1. Vorlauf lesen" in details
+    assert box.events[-1]["status"] == "denied" and box.events[-1]["kind"] == "skill-write"
+
+
+def test_skill_save_stores_an_own_skill_after_allowing(store):
+    box = writer(store, ask_skill=Asker())
+    out = run(handler(box, "skill_save")(SAVE_ARGS))
+    assert "gespeichert" in out
+    row = store.skill_get("dora", store.skill_list("dora")[0]["id"])
+    assert row["name"] == "heizung-pruefen" and row["origin"] == "own" and row["enabled"] == 1
+    assert "1. Vorlauf lesen" in row["files"]["SKILL.md"] and row["files"]["SKILL.md"].startswith("---\nname: heizung-pruefen")
+    assert [s["name"] for s in box.skills] == ["heizung-pruefen"]  # sofort für skill_load da
+    assert box.events[-1]["status"] == "ok"
+    assert "Skills schreiben" in box.note(["Dora"], "read", False)
+
+
+def test_skill_save_replaces_only_own_skills_and_keeps_extra_files(store):
+    box = writer(store, ask_skill=Asker())
+    run(handler(box, "skill_save")(SAVE_ARGS))
+    skill_id = store.skill_list("dora")[0]["id"]
+    row = store.skill_get("dora", skill_id)
+    store.skill_save("dora", "heizung-pruefen", row["description"], {**row["files"], "references/liste.md": "Vorlauf 35 Grad"}, origin="own")
+    run(handler(box, "skill_save")({**SAVE_ARGS, "instructions": "Neu und besser"}))
+    again = store.skill_get("dora", skill_id)
+    assert "Neu und besser" in again["files"]["SKILL.md"] and again["files"]["references/liste.md"] == "Vorlauf 35 Grad"
+    assert box.events[-1]["label"] == "Skill ersetzen: heizung-pruefen"
+    # importierte und empfohlene Skills werden nie überschrieben
+    rec = sk.recommended_package("frontend-design")
+    store.skill_save("dora", rec.name, rec.description, rec.files, origin="recommended")
+    with pytest.raises(ToolError, match="nicht überschrieben"):
+        run(handler(box, "skill_save")({**SAVE_ARGS, "name": "frontend-design"}))
+    assert store.skill_get("dora", next(s["id"] for s in store.skill_list("dora") if s["name"] == "frontend-design"))["origin"] == "recommended"
+
+
+def test_skill_save_checks_input_secrets_and_limit(store):
+    box = writer(store, ask_skill=Asker())
+    save_tool = handler(box, "skill_save")
+    for bad in (
+        {**SAVE_ARGS, "name": "Ungültiger Name!"},
+        {**SAVE_ARGS, "description": ""},
+        {**SAVE_ARGS, "instructions": "  "},
+        {**SAVE_ARGS, "instructions": "Nimm das Passwort: password=Geheim12345678 und sk-abcdefghijklmnopqrstuvwx"},
+    ):
+        with pytest.raises(ToolError):
+            run(save_tool(bad))
+    assert store.skill_list("dora") == []
+    for number in range(sk.PER_PERSON):
+        pkg = sk.build(f"s{number}", "d", "x")
+        store.skill_save("dora", pkg.name, pkg.description, pkg.files, origin="own")
+    with pytest.raises(ToolError, match="höchstens"):
+        run(save_tool(SAVE_ARGS))
+
+
+def test_skill_save_is_not_offered_to_scheduled_tasks_and_chat_gets_it(store):
+    assert "skill_save" not in {s.name for s in writer(store, read_only=True).specs()}
+    assert "Skills schreiben" not in writer(store, read_only=True).note(["Dora"], "read", False)
+    backend = FakeBackend()
+    client = TestClient(build_ingress_app(parse_settings(RAW, frozenset({"testclient"})), store, backend))
+    chat = client.post("/api/chats", json={}, headers=as_user(DORA, True)).json()["id"]
+    client.post(f"/api/chats/{chat}/send", json={"content": "Hallo"}, headers=as_user(DORA, True))
+    assert "skill_save" in {t.name for t in backend.calls[-1]["tools"]}
+
+
+def test_slash_name_forces_the_skill(store):
+    backend = FakeBackend()
+    client = TestClient(build_ingress_app(parse_settings(RAW, frozenset({"testclient"})), store, backend))
+    save(store)
+    chat = client.post("/api/chats", json={}, headers=as_user(DORA, True)).json()["id"]
+    client.post(f"/api/chats/{chat}/send", json={"content": "/zabbix-templates Bau mir ein Template"}, headers=as_user(DORA, True))
+    assert "verlangt mit „/zabbix-templates“" in backend.calls[-1]["note"] and "skill_load" in backend.calls[-1]["note"]
+    client.post(f"/api/chats/{chat}/send", json={"content": "/gibtsnicht Hallo"}, headers=as_user(DORA, True))
+    assert "ausdrücklich das Skill" not in backend.calls[-1]["note"]
+    client.post(f"/api/chats/{chat}/send", json={"content": "Wie nutze ich /zabbix-templates?"}, headers=as_user(DORA, True))
+    assert "ausdrücklich das Skill" not in backend.calls[-1]["note"]  # nur am Anfang der Nachricht
+
+
+def test_skill_save_is_not_offered_in_incognito_chats(store):
+    box = ContextToolbox(
+        store, "dora", "Dora", project_id=None, memory_enabled=False, household_write=True, force_confirm=False,
+        ask=Asker(), record=lambda e: None, next_id=iter(range(1, 99)).__next__, skills_write=False,
+    )
+    assert "skill_save" not in {s.name for s in box.specs()} and "Skills schreiben" not in box.note(["Dora"], "read", False)
+    with pytest.raises(ToolError, match="Inkognito"):
+        run(box.skill_save(SAVE_ARGS))
