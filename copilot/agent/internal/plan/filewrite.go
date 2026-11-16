@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -62,26 +63,63 @@ func sha(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// currentBase liest die Datei (soweit der aufrufende Benutzer sie lesen darf) und gibt Inhalt und Hash zurück.
-func currentBase(real string, exists bool) (string, string, error) {
+// confined öffnet das erlaubte Verzeichnis (aus der lokalen Richtlinie, nie aus der Eingabe), in dem der aufgelöste Pfad liegt, und
+// gibt den Rest als relativen Namen zurück. Alle Zugriffe auf bestehende Dateien laufen darüber (os.Root): Sie können das
+// Verzeichnis auch durch einen Link oder einen Wettlauf zwischen Prüfung und Zugriff nicht verlassen.
+func confined(pol policy.Policy, real string) (*os.Root, string, error) {
+	for _, dir := range pol.WritePaths {
+		if !strings.HasPrefix(real, dir+"/") {
+			continue
+		}
+		root, err := os.OpenRoot(dir)
+		if err != nil {
+			return nil, "", err
+		}
+		return root, strings.TrimPrefix(real, dir+"/"), nil
+	}
+	return nil, "", errors.New("writing to this path is not allowed")
+}
+
+// readConfined liest eine bestehende Datei (soweit der aufrufende Benutzer sie lesen darf): Angaben, Inhalt und Hash.
+// Eine nicht lesbare Datei ergibt den Hash baseUnreadable.
+func readConfined(pol policy.Policy, real string) (os.FileInfo, string, string, error) {
+	root, rel, err := confined(pol, real)
+	if err != nil {
+		return nil, "", "", err
+	}
+	defer root.Close()
+	info, err := root.Lstat(rel)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, "", "", errors.New("the path is not a regular file")
+	}
+	if info.Size() > maxFileBytes {
+		return nil, "", "", fmt.Errorf("the file is larger than %d KiB; it is not edited through the AI", maxFileBytes/1024)
+	}
+	f, err := root.Open(rel)
+	if err != nil {
+		return info, "", baseUnreadable, nil
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxFileBytes+1))
+	if err != nil {
+		return info, "", baseUnreadable, nil
+	}
+	if len(data) > maxFileBytes {
+		return nil, "", "", fmt.Errorf("the file is larger than %d KiB; it is not edited through the AI", maxFileBytes/1024)
+	}
+	return info, string(data), sha(data), nil
+}
+
+// currentBase gibt Inhalt und Hash der bestehenden Datei zurück (bei einer neuen Datei beides leer).
+func currentBase(pol policy.Policy, real string, exists bool) (string, string, error) {
 	if !exists {
 		return "", "", nil
 	}
-	info, err := os.Lstat(real)
-	if err != nil {
-		return "", "", err
-	}
-	if !info.Mode().IsRegular() {
-		return "", "", errors.New("the path is not a regular file")
-	}
-	if info.Size() > maxFileBytes {
-		return "", "", fmt.Errorf("the file is larger than %d KiB; it is not edited through the AI", maxFileBytes/1024)
-	}
-	data, err := os.ReadFile(real)
-	if err != nil {
-		return "", baseUnreadable, nil
-	}
-	return string(data), sha(data), nil
+	_, content, hash, err := readConfined(pol, real)
+	return content, hash, err
 }
 
 func classifyFileWrite(args Args) (Action, error) {
@@ -107,14 +145,9 @@ func classifyFileWrite(args Args) (Action, error) {
 	if err != nil {
 		return Action{}, err
 	}
-	base, hasBase := args["base_sha256"].(string)
-	if !hasBase {
-		_, h, err := currentBase(real, exists)
-		if err != nil {
-			return Action{}, err
-		}
-		base = h
-	}
+	// Der Hash der bestehenden Datei wird erst in Manager.Prepare eingetragen, nachdem die Richtlinie den Pfad erlaubt hat
+	// (bindBase); der Root-Helfer bekommt ihn mit dem Plan zurück.
+	base, _ := args["base_sha256"].(string)
 	if mode == "replace" && strings.HasSuffix(strings.ToLower(real), ".json") {
 		var tmp any
 		if err := json.Unmarshal([]byte(content), &tmp); err != nil {
@@ -154,7 +187,7 @@ func (m *Manager) previewFileWrite(a Action) (Msg, Action, error) {
 	if err != nil {
 		return Msg{}, a, err
 	}
-	old, hash, err := currentBase(real, exists)
+	old, hash, err := currentBase(m.Policy(), real, exists)
 	if err != nil {
 		return Msg{}, a, err
 	}
@@ -206,7 +239,7 @@ func ApplyFileWrite(a Action, pol policy.Policy) (string, error) {
 	if writeDenied(real) || !pol.WriteAllowed(real) {
 		return "", errors.New("writing to this path is not allowed")
 	}
-	old, hash, err := currentBase(real, exists)
+	old, hash, err := currentBase(pol, real, exists)
 	if err != nil {
 		return "", err
 	}
@@ -223,7 +256,7 @@ func ApplyFileWrite(a Action, pol policy.Policy) (string, error) {
 	perm, uid, gid := os.FileMode(0o644), 0, 0
 	var backup string
 	if exists {
-		info, err := os.Lstat(real)
+		info, _, _, err := readConfined(pol, real)
 		if err != nil {
 			return "", err
 		}
@@ -231,9 +264,9 @@ func ApplyFileWrite(a Action, pol policy.Policy) (string, error) {
 		if st, ok := info.Sys().(*syscall.Stat_t); ok {
 			uid, gid = int(st.Uid), int(st.Gid)
 		}
-		data, err := os.ReadFile(real)
-		if err != nil {
-			return "", err
+		data := []byte(old) // der Inhalt, dessen Hash gerade mit der Vorschau verglichen wurde
+		if hash == baseUnreadable {
+			return "", errors.New("the current content cannot be read, so no backup copy can be made")
 		}
 		backup = real + backupInfix + time.Now().UTC().Format("20060102-150405")
 		if err := writeNew(backup, data, perm, uid, gid); err != nil {
@@ -314,4 +347,32 @@ func pruneBackups(real string) {
 		_ = os.Remove(filepath.Join(dir, names[0]))
 		names = names[1:]
 	}
+}
+
+// bindBase trägt bei einem Auftrag zum Schreiben den Hash der bestehenden Datei ein, falls noch keiner gesetzt ist. Das geschieht
+// erst, nachdem die Richtlinie den Pfad erlaubt hat; gelesen wird nur innerhalb des erlaubten Ordners.
+func bindBase(pol policy.Policy, a Action) (Action, error) {
+	if a.Tool != ToolFileWrite || a.Args.text("base_sha256") != "" {
+		return a, nil
+	}
+	real := a.Args.text("path")
+	_, exists, err := tools.ResolveParent(real)
+	if err != nil {
+		return a, err
+	}
+	_, hash, err := currentBase(pol, real, exists)
+	if err != nil {
+		return a, err
+	}
+	a.Args = copyArgs(a.Args)
+	a.Args["base_sha256"] = hash
+	return a, nil
+}
+
+func copyArgs(in Args) Args {
+	out := make(Args, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }

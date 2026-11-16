@@ -59,13 +59,22 @@ func TestClassifyFileWrite(t *testing.T) {
 	}
 }
 
+// prep entspricht dem, was Manager.Prepare mit einem Auftrag zum Schreiben macht: einstufen, dann den Hash der Datei binden.
+func prep(dir string, args Args) (Action, error) {
+	a, err := classifyFileWrite(args)
+	if err != nil {
+		return a, err
+	}
+	return bindBase(writePolicy(dir), a)
+}
+
 func TestApplyFileWriteReplaceBackupAndMode(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "app.conf")
 	if err := os.WriteFile(path, []byte("a=1\n"), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	a, err := classifyFileWrite(Args{"path": path, "content": "a=2\n"})
+	a, err := prep(dir, Args{"path": path, "content": "a=2\n"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,11 +107,11 @@ func TestApplyFileWriteReplaceBackupAndMode(t *testing.T) {
 func TestApplyFileWriteAppendAndCreate(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "log.txt")
-	a, _ := classifyFileWrite(Args{"path": path, "content": "one\n"})
+	a, _ := prep(dir, Args{"path": path, "content": "one\n"})
 	if _, err := ApplyFileWrite(a, writePolicy(dir)); err != nil {
 		t.Fatal(err)
 	}
-	a, _ = classifyFileWrite(Args{"path": path, "content": "two\n", "mode": "append"})
+	a, _ = prep(dir, Args{"path": path, "content": "two\n", "mode": "append"})
 	if _, err := ApplyFileWrite(a, writePolicy(dir)); err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +124,7 @@ func TestApplyFileWriteRefusals(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "app.conf")
 	_ = os.WriteFile(path, []byte("a=1\n"), 0o644)
-	a, _ := classifyFileWrite(Args{"path": path, "content": "a=2\n"})
+	a, _ := prep(dir, Args{"path": path, "content": "a=2\n"})
 
 	// the file changed after the preview
 	_ = os.WriteFile(path, []byte("a=changed\n"), 0o644)
@@ -136,13 +145,13 @@ func TestApplyFileWriteRefusals(t *testing.T) {
 	// symlink as the last name is refused
 	link := filepath.Join(dir, "link.conf")
 	_ = os.Symlink(path, link)
-	if _, err := classifyFileWrite(Args{"path": link, "content": "x"}); err == nil {
+	if _, err := prep(dir, Args{"path": link, "content": "x"}); err == nil {
 		t.Error("symbolic link target must be refused")
 	}
 	// a path through a symlinked directory is resolved and then checked against the policy
 	linkDir := filepath.Join(t.TempDir(), "d")
 	_ = os.Symlink(other, linkDir)
-	if a2, err := classifyFileWrite(Args{"path": filepath.Join(linkDir, "x.conf"), "content": "x"}); err == nil {
+	if a2, err := prep(dir, Args{"path": filepath.Join(linkDir, "x.conf"), "content": "x"}); err == nil {
 		if _, err := ApplyFileWrite(a2, writePolicy(dir)); err == nil {
 			t.Error("a symlinked directory must not escape the policy")
 		}
@@ -158,7 +167,7 @@ func TestApplyFileWriteKeepsFiveBackups(t *testing.T) {
 		bak := path + backupInfix + "2020010" + string(rune('1'+i)) + "-000000"
 		_ = os.WriteFile(bak, []byte("old"), 0o644)
 	}
-	a, _ := classifyFileWrite(Args{"path": path, "content": "v1\n"})
+	a, _ := prep(dir, Args{"path": path, "content": "v1\n"})
 	if _, err := ApplyFileWrite(a, writePolicy(dir)); err != nil {
 		t.Fatal(err)
 	}
@@ -178,5 +187,40 @@ func TestWriteDenied(t *testing.T) {
 		if writeDenied(p) {
 			t.Errorf("%s must be allowed", p)
 		}
+	}
+}
+
+func TestReadsStayInsideTheAllowedDirectory(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.conf")
+	if err := os.WriteFile(secret, []byte("outside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pol := writePolicy(dir)
+	// a path outside the allowed directories is never read, not even for the comparison hash
+	a, err := classifyFileWrite(Args{"path": secret, "content": "x\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bindBase(pol, a); err == nil || !strings.Contains(err.Error(), "not allowed") {
+		t.Errorf("a path outside write_paths must not be read, got %v", err)
+	}
+	// a link inside the allowed directory that points out of it is not followed
+	link := filepath.Join(dir, "escape.conf")
+	if err := os.Symlink(secret, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := readConfined(pol, link); err == nil {
+		t.Error("a symbolic link leaving the allowed directory must not be followed")
+	}
+	// an ordinary file inside is read, with its hash
+	inside := filepath.Join(dir, "ok.conf")
+	if err := os.WriteFile(inside, []byte("a=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, content, hash, err := readConfined(pol, inside)
+	if err != nil || content != "a=1\n" || hash != sha([]byte("a=1\n")) {
+		t.Errorf("readConfined = %q %q %v", content, hash, err)
 	}
 }
