@@ -1144,7 +1144,6 @@
  "Dieser Monat": "This month",
  "Letzter Monat": "Last month",
  "Alle Personen": "All people",
- "Nur für Administratoren. Es werden nur Zahlen gezählt, keine Inhalte. Der Wert ist der Preis, den Claude für die Aufrufe meldet; ChatGPT und Bilder haben keinen Wert und zählen nur als Token bzw. Bilder.": "Administrators only. Only numbers are counted, never content. The value is the price Claude reports for the calls; ChatGPT and images have no value and only count as tokens or images.",
  "Die Übersicht ist gerade nicht erreichbar.": "The overview is not available right now.",
  "{0} Token": "{0} tokens",
  "{0} % der Token": "{0} % of tokens",
@@ -1365,5 +1364,12 @@
  "{0} Tage {1} Std.": "{0} days {1} h",
  "{0} von {1} genutzt · gültig bis {2} · erstellt von {3}": "{0} of {1} used · valid until {2} · created by {3}",
  "Änderungen": "Changes",
- "Übersicht": "Overview"
+ "Übersicht": "Overview",
+ "Nur für Administratoren. Es werden nur Zahlen und Zeitpunkte gezählt, keine Inhalte. Geld zählt nur, wo es wirklich anfällt: Bilder (geschätzt) und Claude mit API-Schlüssel. Claude im Abo ist durch die Pauschale gedeckt, ChatGPT-Token haben keinen Preis.": "For administrators only. Only numbers and times are counted, never content. Money only counts where it is actually spent: images (estimated) and Claude with an API key. Claude on a plan is covered by the flat fee, ChatGPT tokens have no price.",
+ "wartet auf Zulassen": "waiting for approval",
+ "arbeitet gerade": "working now",
+ "arbeitet gerade ({0} Antworten)": "working now ({0} answers)",
+ "zuletzt aktiv {0}": "last active {0}",
+ "noch nie aktiv": "never active",
+ "Claude im Abo: {0} nach API-Liste, nicht bezahlt": "Claude on the plan: {0} at API list prices, not billed"
 }

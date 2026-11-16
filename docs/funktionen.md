@@ -79,7 +79,7 @@ Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigen
 
 ## Verbrauch im Blick
 
-- Administratoren sehen unter **Einstellungen → Nutzung → Alle Personen**, wer wie viel der KI genutzt hat: Anteil an den Token, Bilder und Wert in Euro (bei englischer Sprache Dollar), für 24 Stunden, heute, diese Woche, diesen Monat oder den letzten Monat. Es werden nur Zahlen gezählt, nie Inhalte. Administrator ist, wer in Home Assistant Administrator ist, oder wer im Benutzer-Eintrag `admin: true` hat.
+- Administratoren sehen unter **Einstellungen → Nutzung → Alle Personen**, wer wie viel der KI genutzt hat: Anteil an den Token, Bilder und Geld in Euro (bei englischer Sprache Dollar; Claude im Abo ist durch die Pauschale gedeckt und zählt nicht mit), außerdem ob gerade jemand arbeitet oder wann zuletzt etwas geschah, für 24 Stunden, heute, diese Woche, diesen Monat oder den letzten Monat. Es werden nur Zahlen gezählt, nie Inhalte. Administrator ist, wer in Home Assistant Administrator ist, oder wer im Benutzer-Eintrag `admin: true` hat.
 
 ## Schreibstile
 
