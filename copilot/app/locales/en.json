@@ -742,7 +742,7 @@
  "als Benutzer des Agenten (ohne besondere Rechte)": "as the agent's user (without special privileges)",
  "als root (über den Root-Helfer)": "as root (through the root helper)",
  "argv muss eine Liste von höchstens 64 Texten sein.": "argv must be a list of at most 64 strings.",
- "packages muss eine Liste von höchstens 20 Paketnamen sein (kleingeschrieben, ohne Versionsangabe).": "packages must be a list of at most 20 package names (lowercase, without a version).",
+ "packages muss eine Liste von höchstens 20 Paketnamen sein (ohne Versionsangabe und Platzhalter).": "packages must be a list of at most 20 package names (without a version or wildcards).",
  "root muss true oder false sein.": "root must be true or false.",
  "script muss ein Text von höchstens 4000 Zeichen sein.": "script must be a text of at most 4000 characters.",
  "timeout_s muss eine Zahl von 1 bis 600 sein.": "timeout_s must be a number from 1 to 600.",
@@ -765,7 +765,8 @@
  "lines muss eine Zahl von 1 bis 400 sein.": "lines must be a number from 1 to 400.",
  "minutes muss eine Zahl von 5 bis 1440 sein.": "minutes must be a number from 5 to 1440.",
  "mode muss replace oder append sein.": "mode must be replace or append.",
- "package muss ein Paketname sein (kleingeschrieben, ohne Versionsangabe).": "package must be a package name (lowercase, without a version).",
+ "package muss ein Paketname sein (ohne Versionsangabe und Platzhalter).": "package must be a package name (without a version or wildcards).",
  "path muss ein absoluter Pfad sein, z. B. /etc/nginx/conf.d/site.conf.": "path must be an absolute path, e.g. /etc/nginx/conf.d/site.conf.",
- "path muss ein absoluter Pfad sein, z. B. /etc/nginx/nginx.conf.": "path must be an absolute path, e.g. /etc/nginx/nginx.conf."
+ "path muss ein absoluter Pfad sein, z. B. /etc/nginx/nginx.conf.": "path must be an absolute path, e.g. /etc/nginx/nginx.conf.",
+ "{name} (geplante Aufgabe)": "{name} (scheduled task)"
 }

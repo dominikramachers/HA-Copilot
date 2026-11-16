@@ -288,11 +288,21 @@ func (m *Manager) preview(ctx context.Context, a Action) (Msg, Action, error) {
 			return T("pkg.preview.update", "Reloads the package lists; no packages are changed."), a, nil
 		}
 		sim := SimulationArgv(a)
-		out, _, err := tools.RunWith(ctx, tools.Opts{Timeout: 90 * time.Second, Env: a.Env}, sim[0], sim[1:]...)
+		var out string
+		var err error
+		if sim[0] == "dnf" {
+			// dnf löst die Abhängigkeiten nur als root auf: der Trockenlauf läuft über den Helfer (--assumeno ändert nie etwas)
+			out, err = m.rootSimulation(ctx, a)
+		} else {
+			out, _, err = tools.RunWith(ctx, tools.Opts{Timeout: 90 * time.Second, Env: a.Env}, sim[0], sim[1:]...)
+		}
 		if err != nil && out == "" {
 			return Msg{}, a, fmt.Errorf("dry run not possible: %v", err)
 		}
 		text, removed := ParseSimulation(out)
+		if sim[0] == "dnf" {
+			text, removed = ParseDnfSimulation(out)
+		}
 		for _, r := range removed {
 			if isProtectedPackage(r) {
 				a.Class = 3
@@ -311,6 +321,21 @@ func (m *Manager) preview(ctx context.Context, a Action) (Msg, Action, error) {
 		return T("run.preview_read", "Read-only command; according to the classification it changes nothing."), a, nil
 	}
 	return T("run.preview", "The command is run exactly as shown above."), a, nil
+}
+
+// rootSimulation lässt den Trockenlauf einer Paketaktion vom Root-Helfer ausführen.
+func (m *Manager) rootSimulation(ctx context.Context, a Action) (string, error) {
+	if m.Root == nil {
+		return "", errors.New("The root helper is not available.")
+	}
+	resp, err := m.Root.Run(ctx, Request{Tool: ToolPackageSim, Args: a.Args})
+	if err != nil {
+		return "", err
+	}
+	if resp.Error != "" {
+		return resp.Output, errors.New(resp.Error)
+	}
+	return resp.Output, nil
 }
 
 func oneLine(s, def string) string {
@@ -343,6 +368,11 @@ func ParseSimulation(out string) (Msg, []string) {
 			}
 		}
 	}
+	return summarizeSimulation(inst, remv, other)
+}
+
+// summarizeSimulation macht aus den Listen eines Trockenlaufs die Vorschau für die Freigabekarte.
+func summarizeSimulation(inst, remv, other []string) (Msg, []string) {
 	head := T("pkg.preview.sim", "Dry run: {inst} package(s) to install or upgrade, {remv} to remove.", "inst", strconv.Itoa(len(inst)), "remv", strconv.Itoa(len(remv)))
 	list := func(code, format string, items []string) {
 		if len(items) == 0 {
@@ -366,6 +396,41 @@ func ParseSimulation(out string) (Msg, []string) {
 		head.Then = append(head.Then, Plain(o))
 	}
 	return head, remv
+}
+
+// ParseDnfSimulation fasst die Ausgabe von „dnf --assumeno“ zusammen (dnf 4 und dnf 5) und nennt die zu entfernenden Pakete. Gelesen
+// werden die Abschnitte „Installing:“, „Upgrading:“, „Removing:“ und ihre Abhängigkeiten bis zur „Transaction Summary“.
+func ParseDnfSimulation(out string) (Msg, []string) {
+	var inst, remv, other []string
+	section := ""
+	for _, line := range strings.Split(out, "\n") {
+		trimmed := strings.TrimRight(line, " \t\r")
+		switch {
+		case strings.HasPrefix(trimmed, "Transaction Summary"):
+			section = "stop"
+		case strings.HasPrefix(trimmed, "Error:") || strings.HasPrefix(trimmed, "No match for argument") || strings.HasPrefix(trimmed, "Failed"):
+			other = append(other, trimmed)
+		case section == "stop":
+		case trimmed != "" && trimmed[0] != ' ' && strings.HasSuffix(trimmed, ":"):
+			lower := strings.ToLower(trimmed)
+			switch {
+			case strings.HasPrefix(lower, "remov"):
+				section = "remove"
+			case strings.HasPrefix(lower, "install"), strings.HasPrefix(lower, "upgrad"), strings.HasPrefix(lower, "downgrad"), strings.HasPrefix(lower, "reinstall"), strings.HasPrefix(lower, "replac"):
+				section = "install"
+			default:
+				section = ""
+			}
+		case len(trimmed) > 1 && trimmed[0] == ' ' && trimmed[1] != ' ' && section != "":
+			name := strings.Fields(trimmed)[0]
+			if section == "remove" {
+				remv = append(remv, name)
+			} else {
+				inst = append(inst, name)
+			}
+		}
+	}
+	return summarizeSimulation(inst, remv, other)
 }
 
 // Exec führt eine Action im aktuellen Prozess aus (ohne Shell). Der Helfer nutzt dieselbe Funktion als root.

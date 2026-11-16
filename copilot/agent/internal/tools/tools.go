@@ -290,6 +290,9 @@ func network(ctx context.Context) (string, error) {
 }
 
 func updates(ctx context.Context) (string, error) {
+	if PackageManager() == PkgDnf {
+		return dnfUpdatesText(ctx)
+	}
 	out, err := Run(ctx, "apt", "list", "--upgradable")
 	if err != nil {
 		return "", err

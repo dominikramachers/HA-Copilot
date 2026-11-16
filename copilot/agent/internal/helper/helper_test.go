@@ -10,6 +10,7 @@ import (
 
 	"github.com/dominikramachers/ha-copilot/agent/internal/plan"
 	"github.com/dominikramachers/ha-copilot/agent/internal/policy"
+	"github.com/dominikramachers/ha-copilot/agent/internal/tools"
 )
 
 func start(t *testing.T, p func() policy.Policy, allow int) *Client {
@@ -123,5 +124,66 @@ func TestCanDropPrivileges(t *testing.T) {
 	}
 	if os.Geteuid() != 0 && !got {
 		t.Fatal("ohne root gilt der Wechsel als möglich (nicht aussagekräftig)")
+	}
+}
+
+func withManager(t *testing.T, name string) {
+	t.Helper()
+	old := tools.PackageManager
+	tools.PackageManager = func() string { return name }
+	t.Cleanup(func() { tools.PackageManager = old })
+}
+
+func TestHelperPackageSimulationIsGuarded(t *testing.T) {
+	cur := operate()
+	c := start(t, func() policy.Policy { return cur }, os.Getuid())
+	ctx := context.Background()
+	args := plan.Args{"action": "install", "packages": []any{"htop"}}
+	// nur für dnf
+	withManager(t, tools.PkgApt)
+	resp, _ := c.Run(ctx, plan.Request{Tool: plan.ToolPackageSim, Args: args})
+	if !strings.Contains(resp.Error, "only available for dnf") {
+		t.Fatalf("apt: %+v", resp)
+	}
+	withManager(t, tools.PkgDnf)
+	// ungültige Namen werden wie bei jeder Änderung abgelehnt
+	resp, _ = c.Run(ctx, plan.Request{Tool: plan.ToolPackageSim, Args: plan.Args{"action": "install", "packages": []any{"*"}}})
+	if !strings.Contains(resp.Error, "invalid package name") {
+		t.Fatalf("Platzhalter: %+v", resp)
+	}
+	// das Entfernen von Grundsystem-Paketen wird auch im Trockenlauf abgelehnt
+	resp, _ = c.Run(ctx, plan.Request{Tool: plan.ToolPackageSim, Args: plan.Args{"action": "remove", "packages": []any{"systemd-libs"}}})
+	if !strings.Contains(resp.Error, "Refused") {
+		t.Fatalf("Stufe 3: %+v", resp)
+	}
+	// nur lesen: kein Trockenlauf
+	cur = policy.Default()
+	resp, _ = c.Run(ctx, plan.Request{Tool: plan.ToolPackageSim, Args: args})
+	if !strings.Contains(resp.Error, "not allowed") {
+		t.Fatalf("nur lesen: %+v", resp)
+	}
+	// ohne dnf auf dem Rechner scheitert der Aufruf sauber, ohne etwas zu verändern
+	cur = operate()
+	if _, err := tools.LookPath("dnf"); err != nil {
+		resp, _ = c.Run(ctx, plan.Request{Tool: plan.ToolPackageSim, Args: args})
+		if !strings.Contains(resp.Error, "dnf is not installed") {
+			t.Fatalf("dnf fehlt: %+v", resp)
+		}
+	}
+}
+
+func TestHelperUpdateCheckNeedsRootPolicy(t *testing.T) {
+	cur := operate()
+	c := start(t, func() policy.Policy { return cur }, os.Getuid())
+	read := c.RootRead()
+	cur.Root = false
+	if _, err := read(context.Background(), "pkg_check", nil); err == nil || !strings.Contains(err.Error(), "root=off") {
+		t.Fatalf("root=off: %v", err)
+	}
+	cur.Root = true
+	if _, err := tools.LookPath("dnf"); err != nil {
+		if _, err := read(context.Background(), "pkg_check", nil); err == nil || !strings.Contains(err.Error(), "dnf is not installed") {
+			t.Fatalf("dnf fehlt: %v", err)
+		}
 	}
 }

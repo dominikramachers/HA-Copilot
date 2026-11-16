@@ -1,6 +1,6 @@
 ---
 name: server-updates-sicher
-description: Playbook für Paketaktualisierungen auf einem Linux-Server (apt): Was ansteht, was riskant ist, wie man sicher aktualisiert und danach prüft, ob alles läuft. Nutze es bei "sind Updates offen", "spiel die Updates ein" oder "Neustart nötig".
+description: Playbook für Paketaktualisierungen auf einem Linux-Server (apt oder dnf): Was ansteht, was riskant ist, wie man sicher aktualisiert und danach prüft, ob alles läuft. Nutze es bei "sind Updates offen", "spiel die Updates ein" oder "Neustart nötig".
 ---
 
 # Updates sicher einspielen
@@ -18,17 +18,17 @@ description: Playbook für Paketaktualisierungen auf einem Linux-Server (apt): W
 
 ## 3. Einspielen (nur mit Freigabe)
 1. `server_package` mit `update` (Paketlisten aktualisieren).
-2. Zeige vor dem Upgrade, was passieren würde (Simulation, zum Beispiel `apt-get -s upgrade` über `server_run`, falls erlaubt), und nenne Pakete, die Dienste neu starten.
+2. Zeige vor dem Upgrade, was passieren würde (Simulation über `server_run`, falls erlaubt: bei apt `apt-get -s upgrade`, bei dnf als root `dnf --assumeno upgrade`), und nenne Pakete, die Dienste neu starten. Welche Paketverwaltung der Server hat, steht im Betriebssystem (Debian und Ubuntu: apt; Red Hat, Rocky, Alma und Fedora: dnf); `server_package` wählt sie selbst.
 3. `server_package` mit `upgrade` oder gezielt `install` für einzelne Pakete. Bei vielen Paketen lieber in überschaubaren Gruppen, wichtige Dienste einzeln.
 4. Bei Rückfragen zu Konfigurationsdateien („behalten oder ersetzen?“): im Zweifel die lokale Fassung behalten und der Person sagen, dass es eine neue Vorlage gibt.
 
 ## 4. Danach prüfen
 - `server_status` und `services_failed`: läuft alles, was vorher lief?
 - Die wichtigsten Dienste einzeln mit `service` und im Journal nach Fehlern seit dem Update suchen (`journal`, `priority=err`, `since_minutes`).
-- `updates` erneut lesen: Ist „Neustart erforderlich“ gesetzt? Dann der Person sagen, **welche** Pakete den Neustart verlangen, soweit bekannt.
+- `updates` erneut lesen: Ist „Neustart erforderlich“ gesetzt (bei dnf: ein neuerer Kernel ist installiert als der laufende)? Dann der Person sagen, **welche** Pakete den Neustart verlangen, soweit bekannt.
 - Fasse zusammen: was wurde aktualisiert (Pakete und Versionen), was läuft, was ist offen.
 
 ## Regeln
-- Entferne keine Pakete, nur weil `autoremove` sie vorschlägt, ohne die Liste gezeigt zu haben.
+- Entferne keine Pakete, nur weil `autoremove` (apt) oder `dnf autoremove` sie vorschlägt, ohne die Liste gezeigt zu haben.
 - Aktualisiere nicht „alles“ auf Produktivsystemen ohne Rückfrage und ohne Hinweis auf Sicherung.
-- Bei Fehlern mitten im Upgrade (unterbrochenes dpkg) nicht raten: Meldung zeigen, Zustand mit `package_info` und dem Journal prüfen und Optionen nennen.
+- Bei Fehlern mitten im Upgrade (unterbrochenes dpkg oder eine abgebrochene dnf-Transaktion) nicht raten: Meldung zeigen, Zustand mit `package_info` und dem Journal prüfen und Optionen nennen.

@@ -231,7 +231,7 @@ def test_bad_change_arguments_never_reach_the_server(tmp_path):
         ("server_service", {"server": "web01", "unit": "nginx", "action": "mask"}),
         ("server_service", {"unit": "nginx", "action": "restart"}),
         ("server_package", {"server": "web01", "action": "install"}),
-        ("server_package", {"server": "web01", "action": "install", "packages": ["Htop"]}),
+        ("server_package", {"server": "web01", "action": "install", "packages": ["ht op"]}),
         ("server_package", {"server": "web01", "action": "install", "packages": ["-oAPT::x=1"]}),
         ("server_package", {"server": "web01", "action": "purge", "packages": ["htop"]}),
         ("server_package", {"server": "web01", "action": "update", "packages": ["htop"]}),

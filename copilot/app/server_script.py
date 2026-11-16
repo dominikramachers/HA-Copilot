@@ -48,7 +48,7 @@ def render_script(
     head = f"""#!/usr/bin/env bash
 # HA Copilot: install the server agent
 # Generated {stamp}. The registration key is valid until {expires} and for at most {max_uses} server(s).
-# Run as root on the Linux server (Debian or Ubuntu):  sudo bash install-copilot-agent.sh
+# Run as root on the Linux server (Debian, Ubuntu, Red Hat, Rocky, Alma, Fedora):  sudo bash install-copilot-agent.sh
 # Remove again:  sudo bash install-copilot-agent.sh --uninstall
 set -euo pipefail
 
@@ -92,11 +92,11 @@ if [ "${1:-}" = "--uninstall" ]; then
     exit 0
 fi
 
-command -v curl >/dev/null 2>&1 || die "curl is missing (apt install curl)."
+command -v curl >/dev/null 2>&1 || die "curl is missing (apt install curl or dnf install curl)."
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum is missing (package coreutils)."
 command -v runuser >/dev/null 2>&1 || die "runuser is missing (package util-linux)."
-if ! command -v apt-get >/dev/null 2>&1; then
-    say "Note: apt was not found. The agent is meant for Debian and Ubuntu; package updates are not shown here."
+if ! command -v apt-get >/dev/null 2>&1 && ! command -v dnf >/dev/null 2>&1; then
+    say "Note: neither apt nor dnf was found. The agent is meant for Debian, Ubuntu and Red Hat based systems; package functions are not available here."
 fi
 
 case "$(uname -m)" in
@@ -155,7 +155,7 @@ ki_access=$ACCESS
 max_class=2
 # allow free commands (server_run): on or off
 run_command=on
-# allow commands with root rights: on or off (off also blocks services and apt)
+# allow commands with root rights: on or off (off also blocks services and package changes)
 root=on
 # write_paths   directories in which the AI may write files (after approval), separated by commas. Empty = nowhere.
 #               Login, boot and system files (for example /etc/ssh, /etc/passwd) are never written, whatever is set here.

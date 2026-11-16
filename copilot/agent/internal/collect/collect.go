@@ -57,6 +57,7 @@ type Collector struct {
 	// Annotate ergänzt die Meldung um Angaben, die nicht aus dem System gelesen werden (Richtlinie, Helfer).
 	Annotate func(*Heartbeat)
 	updates  *int
+	reboot   bool // dnf: neuerer Kernel installiert als der laufende (nur bei der Abfrage der Updates neu bestimmt)
 	ticks    int
 }
 
@@ -216,13 +217,23 @@ func (c *Collector) Collect(ctx context.Context) Heartbeat {
 	if _, err := os.Stat("/run/reboot-required"); err == nil {
 		hb.RebootRequired = true
 	}
+	dnf := tools.PackageManager() == tools.PkgDnf
 	if c.ticks%updatesEvery == 0 {
-		if out, err := tools.Run(ctx, "apt", "list", "--upgradable"); err == nil {
+		if dnf {
+			if found, err := tools.DnfUpdates(ctx); err == nil {
+				n := len(found)
+				c.updates = &n
+			}
+			c.reboot = tools.DnfRebootRequired(ctx)
+		} else if out, err := tools.Run(ctx, "apt", "list", "--upgradable"); err == nil {
 			n := ParseUpdates(out)
 			c.updates = &n
 		}
 	}
 	c.ticks++
+	if dnf && c.reboot {
+		hb.RebootRequired = true
+	}
 	hb.Updates = c.updates
 	if c.Annotate != nil {
 		c.Annotate(&hb)
