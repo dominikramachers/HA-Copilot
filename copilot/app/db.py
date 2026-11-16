@@ -410,6 +410,46 @@ CREATE INDEX IF NOT EXISTS idx_devices_profile ON devices(profile_id);
 CREATE INDEX IF NOT EXISTS idx_devices_prev ON devices(prev_hash);
 """
 
+SERVERS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS servers (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    state         TEXT NOT NULL DEFAULT 'pending',
+    cert_hash     TEXT NOT NULL UNIQUE,
+    created_at    TEXT NOT NULL,
+    confirmed_at  TEXT,
+    last_seen_at  TEXT,
+    last_ip       TEXT NOT NULL DEFAULT '',
+    info          TEXT NOT NULL DEFAULT '{}',
+    key_id        TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS server_keys (
+    id          TEXT PRIMARY KEY,
+    key_hash    TEXT NOT NULL UNIQUE,
+    label       TEXT NOT NULL DEFAULT '',
+    created_by  TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    max_uses    INTEGER NOT NULL,
+    uses        INTEGER NOT NULL DEFAULT 0,
+    revoked_at  TEXT
+);
+CREATE TABLE IF NOT EXISTS server_audit (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          TEXT NOT NULL,
+    server_id   TEXT NOT NULL DEFAULT '',
+    server_name TEXT NOT NULL DEFAULT '',
+    actor       TEXT NOT NULL DEFAULT '',
+    kind        TEXT NOT NULL,
+    summary     TEXT NOT NULL,
+    command     TEXT NOT NULL DEFAULT '',
+    result      TEXT NOT NULL DEFAULT '',
+    detail      TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_server_audit_ts ON server_audit(ts);
+CREATE INDEX IF NOT EXISTS idx_server_audit_server ON server_audit(server_id, ts);
+"""
+
 STYLES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS styles (
     id           TEXT PRIMARY KEY,
@@ -501,7 +541,7 @@ DEVICE_MAX_DAYS = 180  # harte Obergrenze für ein Gerät seit dem Anlegen, dana
 DEVICE_GRACE_SECONDS = 300  # nach einer Erneuerung gilt das alte Token noch kurz (verlorene Antwort, Doppelaufruf)
 DEVICE_KEEP_DAYS = 30  # gesperrte oder abgelaufene Geräte bleiben so lange in der Liste
 DEVICE_PREFIX = "hcd_"
-SCHEMA_VERSION = 35  # 35: Projektbeschreibung (projects.description, nur zur Anzeige in der Projektansicht); 34: zuletzt gesehenes HA-Theme je Person (profiles.ha_look, JSON); 33: ablaufende GitHub-Tokens (github_accounts.refresh, expires_at: Erneuerungs-Token verschlüsselt, Ablaufzeit); 32: Hintergrund-Design je Person (profiles.design); 31: App-Zugang (devices: Geräte der mobilen App mit Token-Hash, sessions.device_id); 30: Artefakte teilen (artifact_shares, artifact_share_access); 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektkontext und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
+SCHEMA_VERSION = 36  # 36: Linux-Server (servers, server_keys, server_audit: Hub im Add-on, Registrierungsschlüssel, Protokoll); 35: Projektbeschreibung (projects.description, nur zur Anzeige in der Projektansicht); 34: zuletzt gesehenes HA-Theme je Person (profiles.ha_look, JSON); 33: ablaufende GitHub-Tokens (github_accounts.refresh, expires_at: Erneuerungs-Token verschlüsselt, Ablaufzeit); 32: Hintergrund-Design je Person (profiles.design); 31: App-Zugang (devices: Geräte der mobilen App mit Token-Hash, sessions.device_id); 30: Artefakte teilen (artifact_shares, artifact_share_access); 29: Artefakte (artifacts, artifact_versions); 28: Fassungen der letzten Antwort (answer_versions, chats.answer_seq); 27: Verbrauchsprotokoll (usage_events je Aufruf, usage_daily als Tagessumme älterer Einträge); 26: Schreibstile (styles, chats.style_id, profiles.default_style); 25: Archiv (chats.archived_at: archivierte Chats verschwinden aus den Listen, bleiben aber auffindbar); 24: Freigaben in der Instanz nur mit Link (share_access: wer den Link geöffnet hat; chat_shares.opens: Abrufe des öffentlichen Links); 23: geteilte Chats (chat_shares, chats.imported), Gedächtnis je Projekt (project_memories), Herkunft der Gedächtniseinträge (origin) und Originaldateien im Projekt (knowledge.file_id, file_size, mime, origin); 22: Standardmodell je Person (profiles.default_model) und Tokenzähler je Person, Monat und Anbieter (token_usage); 21: Art des Chats (chats.kind: 'voice' = Sprachgespräch außerhalb eines Chats, nicht in der Liste); 20: persönliche GitHub-Konten (github_accounts, Token verschlüsselt); 19: Plugins/Pakete je Person (plugins); 18: eigene Anweisungen je Person (profiles.instructions); 17: Logos der Konnektoren (connector_icons); 16: Konnektoren (connectors, connector_accounts); 15: Skills (skills, skill_files); 14: Bildzähler je Person und Monat (image_usage); 13: Herkunft der Dateien (outfiles.origin: angehängt oder erzeugt); 12: geplante Aufgaben (schedules, chats.schedule_id); 11: Modell je Chat; 10: erzeugte Dateien (outfiles); 9: Zustandstabelle (Stand des Smarthome-Überblicks); 8: Projektkontext und Gedächtnis; 7: Aktionsprotokoll der Antworten (HA-Werkzeuge); 2: Projekte, Anpinnen, Zusammenfassungen; 3: Anhang-Angaben; 4: Projektanweisungen; 5: Name/HA-Benutzer automatischer Profile; 6: Lesestatus der Chats (siehe Store._migrate)
 INSTRUCTIONS_MAX = 4000
 DESCRIPTION_MAX = 300  # Zeichen der Projektbeschreibung
 CHAT_FIELDS = "id, title, created_at, updated_at, pinned_at, archived_at, project_id, unread, model, style_id, schedule_id, kind, imported"
@@ -740,6 +780,7 @@ class Store:
         self._conn.executescript(GITHUB_SCHEMA)
         self._conn.executescript(STYLES_SCHEMA)
         self._conn.executescript(DEVICES_SCHEMA)
+        self._conn.executescript(SERVERS_SCHEMA)
         session_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(sessions)")}
         if "device_id" not in session_columns:
             self._conn.execute("ALTER TABLE sessions ADD COLUMN device_id TEXT")  # gesetzt bei Sitzungen, die ein App-Gerät erzeugt hat

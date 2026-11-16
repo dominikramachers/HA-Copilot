@@ -27,6 +27,7 @@ def render(root: Path = ROOT) -> str:
      ("images", "Die KI erzeugt Bilder von selbst: SVG kostenlos, Fotos und Kunst über OpenAI oder Google. Ausführlich in der [Dokumentation](../copilot/DOCS.md#bilder-ab-0280)."),
      ("voice", "Optional: mit der KI sprechen (Mikrofon-Knopf im Chat). Ausführlich in der [Dokumentation](../copilot/DOCS.md#sprechen-mit-der-ki-ab-0520)."),
      ("domain", "Optional; der Zugang ist an, sobald `domain.public_base_url` und eine Anmeldung eingetragen sind. Ausführlich in [Domain-Zugang](domain-zugang.md)."),
+     ("servers", "Optional und aus: Linux-Server melden sich beim Hub im Add-on, die KI darf sie ansehen. Ausführlich in der [Dokumentation](../copilot/DOCS.md#linux-server-ab-0605)."),
      ("look", "Alles optional. Ausführlich in der [Dokumentation](../copilot/DOCS.md#personalisierung-name-logo-texte-farben)."),
      ("global", "Normalerweise leer oder aus. Siehe [Betrieb](betrieb.md)."),
     ]

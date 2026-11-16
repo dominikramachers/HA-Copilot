@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.60.4"
+version: "0.60.5"
 slug: copilot
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -31,8 +31,10 @@ map:
 # NICHT nach außen gemappt (null) und abgeschaltet (solange public_base_url leer ist).
 ports:
   8100/tcp: null
+  8101/tcp: null
 ports_description:
   8100/tcp: Domain-Zugang (Ziel des Cloudflare Tunnels, nicht ins Internet öffnen)
+  8101/tcp: Server-Hub (hier melden sich die Agenten Ihrer Linux-Server; nur im Heimnetz oder VPN erreichbar machen, nie ins Internet öffnen)
 
 options:
   users:
@@ -88,6 +90,10 @@ options:
     public_trusted_proxies: []
     app_access: false
     device_days: 90
+  servers:
+    enabled: false
+    access_default: "off"
+    hub_address: ""
   look:
     app_name: HA Copilot
     language: de
@@ -111,6 +117,7 @@ schema:
         connector_access: list(none|use|own|global)?
         web_access: list(on|off)?
         voice_access: list(on|off)?
+        server_access: list(on|off)?
         admin: bool?
         notify_service: str?
         id: "match(^[a-z0-9_-]{2,32}$)?"
@@ -165,6 +172,10 @@ schema:
       - str
     app_access: bool?
     device_days: int(1,180)?
+  servers:
+    enabled: bool?
+    access_default: list(on|off)?
+    hub_address: str?
   look:
     app_name: str?
     language: list(de|en)?

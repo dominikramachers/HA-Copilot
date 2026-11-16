@@ -31,6 +31,9 @@ configuration:
           voice_access:
             name: Sprechen mit der KI (optional)
             description: 'on = diese Person darf per Sprache mit der KI sprechen (Mikrofon-Knopf im Chat), off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“.'
+          server_access:
+            name: Zugriff auf Linux-Server (optional)
+            description: 'on = diese Person darf über den Copiloten auf alle angebundenen Linux-Server zugreifen (Seite „Server“, Befehle der KI mit Zulassungshinweis), off = nicht. Es gibt bewusst nur ganz oder gar nicht, keine Abstufungen und keine Rechte pro Server. Leer: es gilt der Standard der Gruppe „Linux-Server“. Wirkt nur bei eingeschaltetem Server-Hub.'
           admin:
             name: Administrator der App (optional)
             description: 'An = diese Person sieht unter Einstellungen → Nutzung die Übersicht „Alle Personen“ (wer wie viel genutzt hat, nur Zahlen, keine Inhalte). Administratoren von Home Assistant sind es automatisch; dieses Feld ist für Personen, die in Home Assistant keine Administratoren sind, oder für die Anmeldung über die Domain. Leer/aus: nur wer in Home Assistant Administrator ist.'
@@ -191,6 +194,19 @@ configuration:
       device_days:
         name: Gültigkeit eines App-Geräts (Tage)
         description: Wie lange ein Gerät ohne Erneuerung angemeldet bleibt (1–180). Die App erneuert sich bei Nutzung selbst.
+  servers:
+    name: Linux-Server
+    description: 'Ein zentraler Hub im Add-on, bei dem sich die Agenten Ihrer Linux-Server melden. Der Hub lauscht auf Port 8101 (unter „Netzwerk“ des Add-ons einen Host-Port eintragen; nur im Heimnetz oder VPN erreichbar machen, nie ins Internet öffnen).'
+    fields:
+      enabled:
+        name: Server-Hub einschalten
+        description: 'Aus (Standard): kein Listener, die Seite „Server“ bleibt verborgen. An: der Hub nimmt Verbindungen der Agenten an. Neue Server erscheinen als „Ausstehend“, bis sie in der App bestätigt werden.'
+      access_default:
+        name: Standard – wer darf auf Server zugreifen
+        description: 'Gilt für alle Benutzer ohne eigene Angabe: off (Standard) = niemand, on = alle. Ganz oder gar nicht, keine Abstufungen.'
+      hub_address:
+        name: Adresse des Hubs (optional)
+        description: 'Name oder IP-Adresse (optional mit :Port), unter der die Server den Hub erreichen, z. B. ha.example.lan oder 10.20.0.5:8101. Sie landet im Installationsskript. Leer: die App schlägt die Adresse vor, unter der Sie sie geöffnet haben; dort lässt sie sich vor dem Erzeugen ändern.'
   look:
     name: Personalisierung
     description: 'Alles optional: Name, Sprache, Anmeldeseite, Logo und Farben.'

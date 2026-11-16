@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.60.5",
+    "items": [
+      {
+        "de": {
+          "title": "Ich kann Linux-Server ansehen",
+          "text": "Meldet sich ein Server bei mir an und du bestätigst ihn, sehe ich seinen Zustand, Speicher und Protokolle und helfe bei der Fehlersuche. Verändern kann ich dort noch nichts."
+        },
+        "en": {
+          "title": "I can look at Linux servers",
+          "text": "Once a server has registered with me and you confirm it, I can see its status, disk space and logs and help you find problems. I cannot change anything there yet."
+        }
+      },
+      {
+        "de": {
+          "title": "Neue Seite „Server“",
+          "text": "Hier siehst du alle Server auf einen Blick, bestätigst neue und liest nach, was ich dort angesehen habe. Mit einem fertigen Skript verbindest du einen neuen Server in wenigen Minuten."
+        },
+        "en": {
+          "title": "New “Servers” page",
+          "text": "Here you see all servers at a glance, confirm new ones and read what I looked at. With a ready-made script you connect a new server in a few minutes."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.4",
     "items": [
       {

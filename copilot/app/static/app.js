@@ -10,6 +10,7 @@ const SIDE_CHATS = 15; // so viele neueste Chats stehen in der Seitenleiste; all
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const ICONS = {
+  server: ["M4 5h16v6H4zM4 13h16v6H4z", "M8 8h.01M8 16h.01"],
   sliders: ["M4 7h9M17 7h3M4 17h3M11 17h9", "M15 5v4M9 15v4"],
   lock: ["M7 11V8a5 5 0 0 1 10 0v3", "M6 11h12v9H6z"],
   gauge: ["M4.5 17.5a8.5 8.5 0 1 1 15 0", "M12 13.5l3.2-4.2", "M12 13.5h.01"],
@@ -7403,6 +7404,8 @@ function setView(view) {
   if (view !== "project") dockComposer(null);
   $("schedules").hidden = view !== "schedules";
   $("skills").hidden = view !== "skills";
+  $("servers").hidden = view !== "servers";
+  if (view !== "servers" && typeof srvStop === "function") srvStop();
   $("allchats").hidden = view !== "allchats";
   $("project").hidden = view !== "project";
   $("settings").hidden = view !== "settings";
@@ -7412,6 +7415,7 @@ function setView(view) {
   if (view !== "settings") { settingsStop(); settingsStop = () => {}; }
   $("nav-schedules").classList.toggle("active", view === "schedules");
   $("nav-skills").classList.toggle("active", view === "skills");
+  $("nav-servers").classList.toggle("active", view === "servers");
 }
 
 function stampText(ts) {
@@ -8129,6 +8133,7 @@ function searchActions() {
     { icon: "code", label: tr("Artefakte"), run: () => openArtifactLibrary() },
   ];
   if (state.me?.schedules) list.push({ icon: "clock", label: tr("Geplant"), run: () => openSchedules() });
+  if (state.me?.servers) list.push({ icon: "server", label: tr("Server"), run: () => openServers() });
   if (state.me?.memory) list.push({ icon: "memory", label: tr("Gedächtnis"), run: () => openMemory() });
   if (canShare()) list.push({ icon: "share", label: tr("Geteilte Chats"), run: () => openSharedChats() });
   list.push({ icon: "download", label: tr("Meine Daten"), run: () => openMyData() });
@@ -9683,6 +9688,7 @@ async function init() {
     syncHaLook();
     syncIncognito();
     initVoiceButton();
+    if (typeof initServers === "function") initServers();
     $("who").textContent = state.me.label;
     fillAvatar($("avatar"), state.me.label);
     let stored = null;
@@ -9720,6 +9726,7 @@ async function init() {
     if (view === "settings" && narrowScreen()) await openSettings(detail);
     else if (view === "skills") await openSkills(["connectors", "plugins"].includes(detail) ? detail : "skills");
     else if (view === "schedules" && state.me.schedules) await openSchedules();
+    else if (view === "servers" && state.me.servers) await openServers(["activity", "add"].includes(detail) ? detail : "overview");
     else if (view === "allchats") await openAllChats(["shared", "archived"].includes(detail) ? detail : "active");
     else if (view === "project" && projectOf(detail)) await openProject(detail);
     else if (again && state.chats.some((c) => c.id === again)) await selectChat(again);

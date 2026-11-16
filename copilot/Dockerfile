@@ -1,3 +1,14 @@
+# Stufe 1: der Linux-Server-Agent (Go, ohne Netz gebaut: die Abhängigkeit liegt unter agent/vendor). Der Hub im Add-on liefert die
+# beiden Dateien an die Server aus; sie landen unter /opt/copilot/agent-bin.
+FROM golang:1.24-bookworm AS agent
+ARG BUILD_VERSION=dev
+WORKDIR /src
+COPY agent/ ./
+ENV CGO_ENABLED=0 GOFLAGS=-mod=vendor
+RUN GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${BUILD_VERSION}" -o /out/copilot-agent-linux-amd64 ./cmd/copilot-agent \
+ && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${BUILD_VERSION}" -o /out/copilot-agent-linux-arm64 ./cmd/copilot-agent
+
+# Stufe 2: das Add-on
 # Debian-Basis, weil das mitgelieferte Claude-CLI des Agent SDK nur für glibc gebaut wird (nicht Alpine/musl).
 FROM python:3.15-slim-bookworm
 
@@ -27,6 +38,7 @@ RUN (apt-get update && apt-get install -y --no-install-recommends libcairo2 && r
 RUN (apt-get update && apt-get install -y --no-install-recommends libreoffice-writer libreoffice-impress fonts-crosextra-carlito fonts-dejavu-core && rm -rf /var/lib/apt/lists/*) \
     || echo "Hinweis: LibreOffice nicht installiert, die Vorschau gibt es dann nur fuer PDF und Bilder"
 
+COPY --from=agent /out /opt/copilot/agent-bin
 COPY app ./app
 COPY run.sh /run.sh
 RUN chmod +x /run.sh

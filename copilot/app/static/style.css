@@ -1209,7 +1209,7 @@ button.mem-group-toggle { flex: 1; min-width: 0; display: flex; align-items: cen
   .skills-scope .field { flex: 1; max-width: none; }
 }
 @media (max-width: 800px) {
-  :root[data-embed="ha"][data-view="skills"] #menu { display: grid; }
+  :root[data-embed="ha"][data-view="skills"] #menu, :root[data-embed="ha"][data-view="servers"] #menu { display: grid; }
 }
 
 .plain-page { max-width: 32rem; margin: 12vh auto 0; padding: 0 20px; }
@@ -1674,6 +1674,66 @@ select.art-lib-project { flex: none; width: auto; min-width: 150px; max-width: 4
 .dev-text span { font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
 .dev-row .pill { flex: none; min-height: 44px; }
 @media (max-width: 520px) { .dev-row { flex-wrap: wrap; } .dev-row .pill { margin-left: 34px; } }
+
+/* ---------- Server (Linux-Agenten) ---------- */
+.srv-note { margin: 6px 0 12px; max-width: 64ch; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+.srv-hint { display: block; margin-top: 4px; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.srv-count { display: inline-block; min-width: 18px; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 650; line-height: 16px; text-align: center; }
+.srv-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 14px 0 18px; }
+.srv-tile { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--panel); }
+.srv-tile b { font-size: 24px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.srv-badge { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 2px 9px; border-radius: 999px; background: var(--chip); color: var(--text); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.srv-glyph { font-size: 11px; line-height: 1; }
+.srv-badge.degraded, .srv-badge.pending { background: var(--warn-bg); color: var(--warn-fg); }
+.srv-badge.offline { color: var(--muted); }
+.srv-badge.blocked { background: var(--danger); color: #fff; }
+.srv-pending { margin: 0 0 18px; padding: 14px 16px 6px; border: 1px solid var(--warn-fg); border-radius: var(--r-2); background: var(--warn-bg); }
+.srv-pending h3 { margin: 0; font-size: 16px; font-weight: 650; color: var(--warn-fg); }
+.srv-pending .srv-note { color: var(--text); }
+.srv-list { display: grid; gap: 12px; }
+.srv-card { padding: 14px 16px 10px; margin-bottom: 10px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--panel); }
+.srv-list .srv-card { margin-bottom: 0; }
+.srv-card.offline h3, .srv-card.blocked h3 { color: var(--text-2); }
+.srv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.srv-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; flex: 1; }
+.srv-title h3 { margin: 0; font-size: 16px; font-weight: 650; overflow-wrap: anywhere; }
+.srv-rename { margin: 0; height: 38px; max-width: 320px; font-size: 15px; }
+.srv-reasons { margin: 8px 0 0; font-size: 13.5px; font-weight: 600; color: var(--danger); }
+.srv-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 18px; margin: 10px 0 0; }
+.srv-facts dt { font-size: 12px; color: var(--muted); }
+.srv-facts dd { margin: 1px 0 0; font-size: 14px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.srv-facts dd.bad { color: var(--danger); font-weight: 600; }
+.srv-filter { margin-top: 10px; flex-wrap: wrap; }
+.srv-filter select.field { flex: 1; min-width: 150px; }
+.srv-log { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.srv-log-row { padding: 10px 14px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--panel); }
+.srv-log-row.denied, .srv-log-row.error { border-color: var(--danger); }
+.srv-log-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13.5px; }
+.srv-log-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.srv-kind { padding: 1px 8px; border-radius: var(--r-1); background: var(--chip); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.srv-result { font-size: 12px; font-weight: 650; color: var(--danger); }
+.srv-log-text { margin: 4px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.srv-log-more { margin: 3px 0 0; font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.srv-add, .srv-script, .srv-keys { margin: 14px 0 0; padding: 16px 18px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--panel); }
+.srv-add h3, .srv-script h3, .srv-keys h3 { margin: 0; font-size: 16px; font-weight: 650; }
+.srv-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 18px; margin: 0 0 14px; }
+.srv-field { display: block; }
+.srv-field .field { margin-top: 6px; height: 44px; font-size: 15px; }
+.srv-field .field:disabled { opacity: .55; }
+.srv-script-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.srv-script-buttons .pill { display: inline-flex; align-items: center; gap: 6px; }
+.srv-script-buttons .icon { width: 16px; height: 16px; }
+.srv-code { display: block; width: 100%; max-height: 320px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--chip); color: var(--text); font-family: var(--mono); font-size: 12.5px; line-height: 1.5; resize: vertical; white-space: pre; overflow: auto; }
+.srv-key { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line-2); }
+.srv-key:first-of-type { margin-top: 8px; }
+.srv-key-text { min-width: 0; }
+.srv-key-text small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.srv-print { display: block; margin-top: 6px; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; color: var(--text-2); }
+@media (max-width: 800px) {
+  .srv-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .srv-form { grid-template-columns: minmax(0, 1fr); }
+  .srv-card, .srv-add, .srv-script, .srv-keys { padding-left: 14px; padding-right: 14px; }
+}
 
 /* ---------- Hintergrund-Muster (Einstellungen → Allgemein → Design) ----------
    Ein feines, ruhiges Muster hinter dem Chat. Die Farben kommen ausschließlich aus --accent, --text und --bg, also aus dem aktiven

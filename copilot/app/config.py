@@ -82,6 +82,7 @@ class Profile:
     web_access: str = ""  # Websuche und Seiten lesen: on | off; leer = web_access_default
     notify_service: str = ""  # Benachrichtigungsdienst dieser Person, z. B. notify.mobile_app_pixel; leer = keiner
     voice_access: str = ""  # Sprechen mit der KI: on | off; leer = voice_access_default
+    server_access: str = ""  # Zugriff auf Linux-Server über den Copiloten: on | off (alle oder keine, keine Abstufung); leer = servers.access_default
     admin: bool = False  # Administrator der App (Übersicht „Alle Personen“); Administratoren von Home Assistant sind es ohnehin
 
 
@@ -171,6 +172,10 @@ class Settings:
     voice_instructions: str = ""  # eigene Wünsche an die gesprochenen Antworten, werden an den Hinweis für die KI angehängt
     voice_chat_days: int = 30  # Sprachgespräche außerhalb eines Chats nach so vielen Tagen löschen (0 = behalten)
     voice_model: str = VOICE_MODEL  # fest
+    # Linux-Server: ein zentraler Hub im Add-on, die Agenten auf den Servern melden sich dort (siehe servers.py)
+    servers_enabled: bool = False  # Hub einschalten (lauscht auf Port 8101); aus = kein Listener, die Seite „Server“ bleibt verborgen
+    server_access_default: str = "off"  # wer auf Server zugreifen darf (on | off), pro Benutzer überschreibbar (server_access)
+    server_hub_address: str = ""  # Adresse, unter der die Server den Hub erreichen (Name oder IP, optional mit :Port); leer = die Oberfläche schlägt eine vor
     # Domain-Zugang (nur relevant, wenn public_enabled)
     public_base_url: str = ""
     entra_tenant_id: str = ""
@@ -222,6 +227,12 @@ class Settings:
         """Was darf diese Person bei Konnektoren? (none | use | own | global)"""
         return profile.connector_access or self.connector_access_default
 
+    def server_level(self, profile: Profile) -> str:
+        """Darf diese Person über den Copiloten auf Server zugreifen? (on | off, nur mit eingeschaltetem Hub)"""
+        if not self.servers_enabled:
+            return "off"
+        return profile.server_access or self.server_access_default
+
     def web_level(self, profile: Profile) -> str:
         """Darf diese Person die Websuche nutzen? (on | off)"""
         return profile.web_access or self.web_access_default
@@ -242,6 +253,8 @@ RESEARCH_DAILY_LIMIT_DEFAULT = 3
 USD_EUR_RATE_DEFAULT = 0.92
 WEB_ACCESS_LEVELS = ("on", "off")
 VOICE_ACCESS_LEVELS = ("on", "off")
+SERVER_ACCESS_LEVELS = ("on", "off")  # bewusst nur ganz oder gar nicht: keine gemischten Rechte
+_HUB_ADDRESS_RE = re.compile(r"^(?:[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?|\[[0-9A-Fa-f:]+\])(?::[0-9]{1,5})?$")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]{1,80}$")
 CONNECTOR_ACCESS_LEVELS = ("none", "use", "own", "global")  # none = keine, use = globale nutzen, own = zusätzlich eigene, global = zusätzlich globale verwalten
 
@@ -430,13 +443,16 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         voice_access = _optional(entry, "voice_access").lower()
         if voice_access and voice_access not in VOICE_ACCESS_LEVELS:
             raise ConfigError(f"voice_access bei Profil {profile_id!r} muss on oder off sein")
+        server_access = _optional(entry, "server_access").lower()
+        if server_access and server_access not in SERVER_ACCESS_LEVELS:
+            raise ConfigError(f"server_access bei Profil {profile_id!r} muss on oder off sein")
         notify_service = _optional(entry, "notify_service").lower()
         if notify_service and not _NOTIFY_RE.match(notify_service):
             raise ConfigError(f"notify_service bei Profil {profile_id!r} muss ein Benachrichtigungsdienst wie notify.mobile_app_pixel sein")
         profile = Profile(
             id=profile_id, label=label, ha_user_id=ha_user_id, entra_upn=entra_upn, ha_user=ha_user,
             ha_access=ha_access, connector_access=connector_access, web_access=web_access, notify_service=notify_service,
-            voice_access=voice_access, admin=_flag(entry.get("admin")),
+            voice_access=voice_access, server_access=server_access, admin=_flag(entry.get("admin")),
         )
         for key in seen:
             value = getattr(profile, key)
@@ -512,6 +528,16 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     voice_access_default = str(voice.get("access_default") or "off").strip().lower()
     if voice_access_default not in VOICE_ACCESS_LEVELS:
         raise ConfigError("voice.access_default muss on oder off sein")
+    servers = _group(raw, "servers", "enabled, access_default, hub_address")
+    server_access_default = str(servers.get("access_default") or "off").strip().lower()
+    if server_access_default not in SERVER_ACCESS_LEVELS:
+        raise ConfigError("servers.access_default muss on oder off sein")
+    servers_enabled = servers.get("enabled", False)
+    if not isinstance(servers_enabled, bool):
+        raise ConfigError("servers.enabled muss true oder false sein")
+    server_hub_address = str(servers.get("hub_address") or "").strip().lower()
+    if server_hub_address and not _HUB_ADDRESS_RE.match(server_hub_address):
+        raise ConfigError("servers.hub_address muss ein Name oder eine IP-Adresse sein, optional mit :Port (z. B. ha.example.lan oder 10.20.0.5:8101)")
     voice_output = str(voice.get("output") or "device").strip().lower()
     if voice_output not in ("device", "service"):
         raise ConfigError("voice.output muss device oder service sein")
@@ -648,6 +674,9 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         image_provider=image_provider,
         image_limit_month=image_limit_month,
         voice_access_default=voice_access_default,
+        servers_enabled=servers_enabled,
+        server_access_default=server_access_default,
+        server_hub_address=server_hub_address,
         voice_output=voice_output,
         voice_browser_stt=bool(voice.get("browser_stt", True)),
         voice_openai_api_key=str(voice.get("openai_api_key") or "").strip(),

@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.60.4.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.60.5.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -25,6 +25,7 @@ Diese Seite ist die ausführliche Referenz. Sie behandelt: Profile, Zugang über
 | `images` | Bilder | Schlüssel für OpenAI und Google, Ablaufdaten, Anbieter, Monatslimit |
 | `voice` | Sprechen mit der KI | Wer sprechen darf, Stimme, Aufbewahrung, eigener OpenAI-Schlüssel mit Ablaufdatum |
 | `domain` | Domain-Zugang (Entra) | Öffentliche Adresse, Entra-Angaben mit Ablaufdatum, Anmeldedauer, vertrauenswürdige Proxys, `ha_url` |
+| `servers` | Linux-Server | Hub für Linux-Server ein/aus (`enabled`), Standard-Zugriff (`access_default`), Adresse des Hubs (`hub_address`) |
 | `look` | Personalisierung | App-Name, Sprache, Anmeldeseite, Logo, Theme |
 | `global` | Globale Einstellungen | `restore_snapshot`, `export_database` |
 
@@ -647,6 +648,22 @@ Neben dem Senden-Knopf im Chat sitzt ein Mikrofon-Knopf. Er öffnet ein Fenster 
 - **Mikrofon im Browser.** Der Browser erlaubt das Mikrofon nur über eine sichere Verbindung (`https`, also über deine Domain oder eine HTTPS-Adresse von Home Assistant; `http://` im Heimnetz geht nicht) und fragt einmal um Erlaubnis. In der Home-Assistant-App und im Ingress-Fenster hängt es davon ab, ob die Einbettung das Mikrofon erlaubt – dort bitte ausprobieren; der Zugang über die Domain funktioniert immer.
 - **Noch nicht dabei.** Dauerndes Zuhören auf das Weckwort, Mikrofone in Räumen, Wandtablets und Anbindung an Assist.
 
+## Linux-Server (ab 0.60.5)
+
+Ein **Agent** auf deinen Debian-/Ubuntu-Servern meldet sich bei einem **zentralen Hub im Add-on**. Die KI darf die Server dann ansehen (Zustand, Speicher, Dienste, Protokolle) und beim Fehlersuchen helfen. Etappe 1 ist **nur lesend**: Änderungen und Installationen kommen später, mit Zulassungshinweis.
+
+- **Einschalten.** Aus ist der Standard. In der Gruppe **Linux-Server** (`servers:`) `enabled: true` setzen, `access_default: on` (oder bei einzelnen Benutzern `server_access: on`) und bei `hub_address` den Namen oder die IP angeben, unter der die Server den Home-Assistant-Rechner erreichen. Der Hub lauscht auf Port **8101/tcp**; unter **Netzwerk** des Add-ons einen Host-Port eintragen und in der Firewall nur die Server zulassen (nur Heimnetz oder VPN, nie ins Internet). Ohne `enabled` gibt es keinen Listener und keinen Seitenleisten-Eintrag.
+- **Ganz oder gar nicht.** `servers.access_default` (`off`/`on`) gilt für alle, `server_access` im Benutzer-Eintrag überschreibt es je Person. Es gibt keine Abstufungen. Ohne Freigabe fehlt die Seite „Server“, die Schnittstellen antworten mit 403 und die KI hat die Werkzeuge nicht.
+- **Server hinzufügen.** Seite **Server → Server hinzufügen**: Hub-Adresse, Name (optional), Gültigkeit und Anzahl Server wählen, **Skript erstellen**. Das Skript enthält schon alles: Adresse, einen frischen Registrierungsschlüssel, den Fingerabdruck der Hub-CA und die Prüfsummen. **Kopieren** legt es in die Zwischenablage, **Herunterladen** speichert `install-copilot-agent.sh`. Auf dem Server als root ausführen (`sudo bash install-copilot-agent.sh`). Es lädt den Agenten vom Hub, prüft ihn, legt den Benutzer `copilot-agent` an, meldet den Server an und startet den Dienst `copilot-agent`. Mit `--uninstall` ist alles wieder entfernt.
+- **Bestätigen.** Ein neuer Server erscheint unter **Übersicht** als **Ausstehend**. Erst nach **Bestätigen** darf die KI ihn ansehen; **Ablehnen** löscht ihn. Später lässt er sich umbenennen, sperren (der Server wird getrennt) oder entfernen.
+- **Zustände.** *Online* (meldet sich alle 30 Sekunden), *Eingeschränkt* (fehlgeschlagene Dienste oder ein Datenträger ab 90 %), *Offline* (90 Sekunden keine Meldung), *Ausstehend*, *Gesperrt*. Fällt ein bestätigter Server aus, steht es im Protokoll und es erscheint eine Benachrichtigung in Home Assistant.
+- **Aktivität.** Der Reiter zeigt, was die KI und die Personen getan haben (Aufrufe, Bestätigungen, Sperren, neue Schlüssel, abgelehnte Anmeldungen), filterbar nach Server, Art und Zeitraum. Das Protokoll wird 90 Tage aufbewahrt.
+- **Was die KI sehen kann.** `server_list`, `server_status` und `server_read` mit `what` = `system`, `disks`, `memory`, `load`, `processes`, `services_failed`, `service` (Status eines Dienstes), `journal` (Protokoll, auch nach Dienst, Stufe und Zeit), `network`, `updates`, `users`. Das sind feste Abfragen, keine frei wählbaren Befehle. Offensichtliche Geheimnisse in der Ausgabe werden geschwärzt.
+- **Fremde Daten.** Alles, was ein Server liefert, gilt für die KI als Information, nie als Anweisung. Hat sie in einer Antwort von einem Server gelesen, fragt sie danach vor jeder Änderung in Home Assistant nach, wie nach Web- oder Dateiinhalten. Geplante Aufgaben und das Sprechen bekommen die Werkzeuge nicht.
+- **Sicherheit.** Die Agenten verbinden sich nur **ausgehend** per TLS 1.3 mit gegenseitiger Zertifikatsprüfung; auf den Servern lauscht nichts. Das Add-on betreibt dafür eine kleine eigene CA (Verzeichnis `/data/servers`, Teil der HA-Sicherung). Der Agent prüft den Hub über den Fingerabdruck dieser CA, der Hub erkennt einen Server an dessen Zertifikat (der Hostname ist nur ein Anzeigename). Registrierungsschlüssel sind höchstens 14 Tage und für höchstens 100 Anmeldungen gültig, liegen nur als Hash in der Datenbank und lassen sich widerrufen. Der Agent läuft als Benutzer ohne Rechte in einer gehärteten systemd-Einheit und führt nur die festen Abfragen aus. Es gibt keine Befehlswarteschlange und keinen Weg, dem Agenten Dateien oder Befehle zu schicken.
+- **Grenzen.** Nur lesen; Zertifikate gelten 5 Jahre (die Erneuerung ohne neue Anmeldung kommt später); wird das CA-Verzeichnis gelöscht oder wechselt der Fingerabdruck, müssen alle Server neu angemeldet werden. Der Agent braucht systemd; `apt`-Updates werden nur auf Debian/Ubuntu angezeigt. Das Image enthält den Agenten für `amd64` und `arm64` (gebaut im Dockerfile).
+- **Technik.** Hub `app/servers.py`, Skript `app/server_script.py`, KI-Werkzeuge `app/server_tools.py`, Schnittstelle `app/server_routes.py` (`/api/servers*`), Seite `static/servers.js`, Agent in `agent/` (Go). Tabellen `servers`, `server_keys`, `server_audit` (Datenbankschema 36).
+
 ## Dateien erzeugen (ab 0.18.0)
 
 Bittest du die KI um eine Datei („Mach daraus ein Word-Dokument“, „Schreib mir ein PowerShell-Skript zum Sichern“, „Erstelle eine Excel-Tabelle mit …“), legt sie diese mit dem Werkzeug `file_create` an. Unter der Antwort erscheint eine Karte mit Name, Art, Größe und Download-Knopf.
@@ -790,6 +807,7 @@ Alles liegt in `/data/copilot.sqlite3`. Das Token steht in den Add-on-Optionen u
 - Daten an Dritte: Nachrichten und Anhänge gehen in Claude-Chats an Anthropic und, nur wenn `chat.openai_enabled` an ist und ein ChatGPT-Modell gewählt wurde, in diesem Chat an OpenAI (ab 0.55.0), nie an beide. Der OpenAI-Schlüssel steht nur in der Konfiguration, ist als Passwort maskiert; schlüsselähnliche Zeichenfolgen in Fehlertexten von OpenAI werden unkenntlich gemacht (`redact()`).
 - **Öffentlicher Chat-Link (ab 0.56.0, nur mit `chat.sharing: public`):** Die Kennung besteht aus 32 zufälligen Bytes (43 Zeichen) und liegt in der Datenbank (und damit in Sicherungen); wer den Link kennt, liest den Schnappschuss. Deshalb: nur an Menschen weitergeben, kurze Gültigkeit wählen, bei Zweifel widerrufen. Die Route liefert nur diese eine Seite und deren Daten (`/s/<Kennung>`, `/s/<Kennung>/data`) mit strenger Content-Security-Policy, `noindex`, `no-store` und Begrenzung je Adresse; Chats ohne öffentliche Freigabe sind darüber nie erreichbar, auch nicht mit einer Kennung einer In-Instanz-Freigabe.
 - **Deep Research (ab 0.56.0):** nur Websuche und Seiten lesen, keine Werkzeuge für Home Assistant, GitHub, Gedächtnis oder Konnektoren; Quellen im Bericht werden gegen die Notizen geprüft; feste Grenzen je Lauf und Tageslimit.
+- **Linux-Server (ab 0.60.5, nur mit `servers.enabled`):** Der Hub nimmt nur Verbindungen mit TLS 1.3 an; Server melden sich mit einem befristeten Registrierungsschlüssel und sind bis zur Bestätigung gesperrt. Agenten senden nur feste, streng geprüfte Nachrichten, der Hub schickt ihnen nur feste lesende Abfragen. Alles, was Server liefern, ist Fremdinhalt für die KI. Jeder Aufruf steht im Protokoll. Näheres im Abschnitt „Linux-Server“.
 - Das Repository enthält keine echten IDs, Adressen oder Logos: `config.yaml` hat nur einen Platzhalter-Benutzer, das Logo ist neutral.
 - Die App hat keine Verwaltungsfunktionen und keine Schnittstelle dafür. Mit `homeassistant_api` bekommt das Add-on Zugriff auf die Home-Assistant-API. Ohne die KI-Werkzeuge liest es damit nur die Benutzerliste und die Theme-Farben (`person/list`, `config/auth/list`, `frontend/get_themes`); alles Weitere, was die KI in Home Assistant tut, richtet sich nach den Stufen oben.
 - Theme-Werte aus Home Assistant werden gefiltert (nur einfache Farb- und Längenwerte, kein `url()`), `custom.css` darf nur der Administrator ablegen, und es gilt weiter die strenge Content-Security-Policy.
