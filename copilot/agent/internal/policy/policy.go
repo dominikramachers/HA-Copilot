@@ -4,14 +4,24 @@ package policy
 
 import (
 	"bufio"
-	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 // DefaultPath ist der Ort der Richtlinie.
 const DefaultPath = "/etc/copilot-agent/policy"
+
+// Update-Modi: was der Agent mit neuen Fassungen vom Hub macht.
+const (
+	UpdateOff    = "off"    // nie aktualisieren
+	UpdateManual = "manual" // nur auf Anstoß aus der Übersicht
+	UpdateAuto   = "auto"   // sobald der Hub eine neuere Fassung anbietet
+)
+
+// DefaultWritePaths sind die Verzeichnisse, in denen die KI (nach Freigabe) Dateien schreiben darf, wenn die Richtlinie nichts anderes sagt.
+var DefaultWritePaths = []string{"/etc", "/opt", "/srv", "/var/www", "/home", "/usr/local/etc"}
 
 // Policy sind die lokalen Grenzen.
 type Policy struct {
@@ -23,10 +33,35 @@ type Policy struct {
 	RunCommand bool
 	// Root: Befehle dürfen über den Helfer als root laufen. Dienste und Pakete brauchen es immer.
 	Root bool
+	// WritePaths: Verzeichnisse, in denen Dateien geschrieben werden dürfen (file_write). Leer = nirgends.
+	WritePaths []string
+	// Update: off, manual oder auto (siehe oben). Ohne Angabe gilt manual.
+	Update string
+	// UpdateKey: öffentlicher ed25519-Schlüssel (Base64). Ist er gesetzt, werden nur Agenten-Dateien mit passender Signatur installiert.
+	UpdateKey string
 }
 
 // Default gilt ohne Datei: nur lesen.
-func Default() Policy { return Policy{Operate: false, MaxClass: 2, RunCommand: true, Root: true} }
+func Default() Policy {
+	return Policy{Operate: false, MaxClass: 2, RunCommand: true, Root: true, WritePaths: append([]string(nil), DefaultWritePaths...), Update: UpdateManual}
+}
+
+// cleanPaths macht aus „/etc, /opt/app“ eine Liste sauberer, absoluter Pfade (ohne „/“ selbst).
+func cleanPaths(value string) []string {
+	var out []string
+	for _, item := range strings.Split(value, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" || !filepath.IsAbs(item) {
+			continue
+		}
+		item = filepath.Clean(item)
+		if item == "/" {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
 
 // Parse liest den Inhalt einer Richtlinie (Zeilen „schlüssel=wert“, # beginnt einen Kommentar). Unbekannte Schlüssel und
 // ungültige Werte werden ignoriert und lassen die vorsichtige Vorgabe stehen.
@@ -42,7 +77,8 @@ func Parse(content string) Policy {
 		if !ok {
 			continue
 		}
-		key, value = strings.ToLower(strings.TrimSpace(key)), strings.ToLower(strings.TrimSpace(value))
+		key, raw := strings.ToLower(strings.TrimSpace(key)), strings.TrimSpace(value)
+		value = strings.ToLower(raw)
 		switch key {
 		case "ki_access":
 			p.Operate = value == "operate"
@@ -54,6 +90,14 @@ func Parse(content string) Policy {
 			p.RunCommand = value != "off"
 		case "root":
 			p.Root = value != "off"
+		case "write_paths":
+			p.WritePaths = cleanPaths(raw)
+		case "update":
+			if value == UpdateOff || value == UpdateManual || value == UpdateAuto {
+				p.Update = value
+			}
+		case "update_key":
+			p.UpdateKey = raw
 		}
 	}
 	return p
@@ -63,10 +107,17 @@ func Parse(content string) Policy {
 func Load(path string) Policy {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return Default()
-		}
 		return Default()
 	}
 	return Parse(string(data))
+}
+
+// WriteAllowed sagt, ob ein (bereits aufgelöster, absoluter) Pfad unter einem erlaubten Verzeichnis liegt.
+func (p Policy) WriteAllowed(path string) bool {
+	for _, dir := range p.WritePaths {
+		if path == dir || strings.HasPrefix(path, dir+"/") {
+			return true
+		}
+	}
+	return false
 }

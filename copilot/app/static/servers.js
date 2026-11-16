@@ -11,7 +11,7 @@ const srvUi = {
   data: null,                 // Antwort von api/servers
   activity: null,
   filter: { server: "", kind: "", days: 7 },
-  form: { hub: "", name: "", hours: 24, uses: 1, changes: true },
+  form: { hub: "", name: "", hours: 24, uses: 1, changes: true, autoUpdate: true },
   script: null,               // { script, filename, expires, uses }
   busy: false,
   status: "",
@@ -245,7 +245,10 @@ function serverCard(s) {
   if (info.updates != null) add(tr("Updates"), info.updates === 0 ? tr("keine") : String(info.updates));
   if (info.reboot_required) add(tr("Neustart"), tr("erforderlich"), true);
   add(tr("Letzte Meldung"), s.last_seen_at ? srvAgo(s.last_seen_at) : tr("noch nie"));
-  if (info.agent_version) add(tr("Agent"), info.agent_version);
+  if (info.agent_version) add(tr("Agent"), s.update?.available ? `${info.agent_version} → ${s.update.available}` : info.agent_version);
+  if (s.update?.mode && s.status !== "offline") add(tr("Aktualisierung des Agenten"), SRV_UPDATE_MODES()[s.update.mode] || s.update.mode);
+  if (s.update?.failed) add(tr("Zurückgenommen"), tr("Fassung {0}: {1}", s.update.failed, s.update.reason || tr("Der Agent ist nicht angelaufen.")), true);
+  if (s.cert_days != null) add(tr("Zertifikat"), s.cert_days < 0 ? tr("abgelaufen") : tr("gültig noch {0} Tage", s.cert_days), s.cert_days < 30);
   // Was die lokale Richtlinie auf dem Server erlaubt: nicht über die App änderbar
   if (s.status !== "pending" && s.status !== "offline" && s.status !== "blocked") add(tr("Änderungen"), info.operate ? tr("erlaubt, nur nach deiner Freigabe") : tr("nur lesen (lokale Richtlinie)"));
   body.append(facts);
@@ -263,6 +266,12 @@ function serverCard(s) {
       button(tr("Bestätigen"), "primary", () => srvAct(`api/servers/${s.id}/confirm`, "POST", null, tr("Bestätigt. Die KI darf diesen Server jetzt ansehen."))),
     );
   } else {
+    const live = s.status === "online" || s.status === "degraded";
+    if (live) foot.append(button(tr("Untersuchen"), "primary", () => srvInvestigate(s)));
+    if (live && s.update?.available && s.update.mode !== "off") {
+      foot.append(button(tr("Agent aktualisieren"), "ghost", () => srvAct(`api/servers/${s.id}/update`, "POST", null, tr("Die Aktualisierung läuft. Der Agent meldet sich gleich wieder."))));
+    }
+    if (live) foot.append(button(tr("Zertifikat erneuern"), "ghost", () => srvAct(`api/servers/${s.id}/renew`, "POST", null, tr("Die Erneuerung des Zertifikats wurde angestoßen."))));
     foot.append(button(tr("Umbenennen"), "ghost", () => srvRename(body, foot, s)));
     if (s.state === "blocked") foot.append(button(tr("Entsperren"), "ghost", () => srvAct(`api/servers/${s.id}/unblock`, "POST", null, tr("Entsperrt."))));
     else foot.append(button(tr("Sperren"), "ghost", () => srvAct(`api/servers/${s.id}/block`, "POST", null, tr("Gesperrt. Der Server wird getrennt."))));
@@ -282,6 +291,17 @@ function serverCard(s) {
   body.append(foot);
   card.append(body);
   return card;
+}
+
+const SRV_UPDATE_MODES = () => ({ auto: tr("automatisch"), manual: tr("auf Knopfdruck"), off: tr("aus (lokale Richtlinie)") });
+
+// Öffnet einen neuen Chat mit einer Vorlage; abgeschickt wird erst, wenn du es willst.
+function srvInvestigate(s) {
+  startNew();
+  const input = $("input");
+  input.value = tr("Untersuche den Server „{0}“: Prüfe Last, Speicher, Festplatten, Dienste, Protokolle und Updates, und sag mir, was auffällt. Ändere nichts ohne meine Freigabe.", s.name);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.focus();
 }
 
 function srvRename(body, foot, s) {
@@ -396,7 +416,7 @@ async function srvCreateScript() {
   try {
     const result = await api("api/servers/install-script", {
       method: "POST",
-      body: JSON.stringify({ hub: form.hub.trim(), name: form.uses === 1 ? form.name.trim() : "", hours: form.hours, max_uses: form.uses, changes: form.changes }),
+      body: JSON.stringify({ hub: form.hub.trim(), name: form.uses === 1 ? form.name.trim() : "", hours: form.hours, max_uses: form.uses, changes: form.changes, auto_update: form.autoUpdate }),
     });
     srvUi.script = { ...result, uses: form.uses };
     await srvLoad(true);
@@ -466,12 +486,21 @@ function renderServerAdd(wrap) {
     changes.append(o);
   }
   changes.addEventListener("change", () => { form.changes = changes.value === "true"; });
+  const autoUpdate = node("select", "field");
+  for (const [value, text] of [[true, tr("Ja, automatisch")], [false, tr("Nein, nur auf Knopfdruck")]]) {
+    const o = node("option", "", text);
+    o.value = String(value);
+    o.selected = value === form.autoUpdate;
+    autoUpdate.append(o);
+  }
+  autoUpdate.addEventListener("change", () => { form.autoUpdate = autoUpdate.value === "true"; });
   fields.append(
     field(tr("Adresse des Hubs"), address, tr("So erreichen die Server diesen Home-Assistant-Rechner. Der Port {0} wird ergänzt.", hub.port)),
     field(tr("Name des Servers (optional)"), name, form.uses === 1 ? tr("Sonst gilt der Hostname.") : tr("Bei mehreren Servern gilt jeweils der Hostname.")),
     field(tr("Das Skript gilt"), hours, tr("Danach ist der Schlüssel im Skript ungültig.")),
     field(tr("Für wie viele Server"), uses, tr("Der Schlüssel wird nach so vielen Anmeldungen ungültig.")),
     field(tr("Darf die KI dort etwas ändern?"), changes, tr("Das legt nur die Starteinstellung auf dem Server fest. Danach entscheidet allein die Datei /etc/copilot-agent/policy auf dem Server.")),
+    field(tr("Soll sich der Agent selbst aktualisieren?"), autoUpdate, tr("Neue Fassungen aus diesem Add-on spielt der Agent dann selbst ein, ohne neues Skript. Das Zertifikat erneuert er in jedem Fall von selbst.")),
   );
   card.append(fields);
 

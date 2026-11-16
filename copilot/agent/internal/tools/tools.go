@@ -15,7 +15,7 @@ import (
 )
 
 // Names sind die Werkzeuge in der Reihenfolge des Hubs (READ_TOOLS in app/servers.py).
-var Names = []string{"system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users"}
+var Names = []string{"system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users", "metrics", "file_read", "package_info", "docker"}
 
 var (
 	unitRe     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9:_.@\\-]{0,99}$`)
@@ -38,7 +38,7 @@ func (a Args) number(key string, def, low, high int) (int, error) {
 	}
 	f, ok := v.(float64)
 	if !ok || f != float64(int(f)) {
-		return 0, fmt.Errorf("%s muss eine ganze Zahl sein", key)
+		return 0, fmt.Errorf("%s must be a whole number", key)
 	}
 	n := int(f)
 	if n < low {
@@ -74,12 +74,12 @@ func Call(ctx context.Context, name string, args Args) (string, error) {
 	case "services_failed":
 		out, err = Run(ctx, "systemctl", "--failed", "--no-pager", "--no-legend", "--plain")
 		if err == nil && strings.TrimSpace(out) == "" {
-			out = "Keine fehlgeschlagenen Dienste.\n"
+			out = "No failed services.\n"
 		}
 	case "service":
 		unit := args.text("unit")
 		if !unitRe.MatchString(unit) {
-			return "", errors.New("unit fehlt oder enthält ungültige Zeichen")
+			return "", errors.New("unit is missing or contains invalid characters")
 		}
 		out, err = Run(ctx, "systemctl", "status", "--no-pager", "--full", "-n", "15", "--", unit)
 	case "journal":
@@ -90,8 +90,16 @@ func Call(ctx context.Context, name string, args Args) (string, error) {
 		out, err = updates(ctx)
 	case "users":
 		out, err = users(ctx)
+	case "metrics":
+		out, err = metricsHistory(args)
+	case "file_read":
+		out, err = fileRead(args)
+	case "package_info":
+		out, err = packageInfo(ctx, args)
+	case "docker":
+		out, err = docker(ctx, args)
 	default:
-		return "", errors.New("unbekanntes Werkzeug")
+		return "", errors.New("unknown tool")
 	}
 	if err != nil {
 		return "", err
@@ -107,13 +115,13 @@ func journal(ctx context.Context, args Args) (string, error) {
 	argv := []string{"--no-pager", "-o", "short-iso", "-n", strconv.Itoa(lines)}
 	if unit := args.text("unit"); unit != "" {
 		if !unitRe.MatchString(unit) {
-			return "", errors.New("unit enthält ungültige Zeichen")
+			return "", errors.New("unit contains invalid characters")
 		}
 		argv = append(argv, "-u", unit)
 	}
 	if p := args.text("priority"); p != "" {
 		if !priorities[p] {
-			return "", errors.New("priority muss emerg, alert, crit, err, warning, notice, info oder debug sein")
+			return "", errors.New("priority must be emerg, alert, crit, err, warning, notice, info or debug")
 		}
 		argv = append(argv, "-p", p)
 	}
@@ -155,15 +163,15 @@ func system(ctx context.Context) (string, error) {
 		fmt.Fprintf(&b, "System: %s\n", name)
 	}
 	fmt.Fprintf(&b, "Kernel: %s\n", strings.TrimSpace(readFile("/proc/sys/kernel/osrelease")))
-	fmt.Fprintf(&b, "Architektur: %s, CPUs: %d\n", runtime.GOARCH, runtime.NumCPU())
+	fmt.Fprintf(&b, "Architecture: %s, CPUs: %d\n", runtime.GOARCH, runtime.NumCPU())
 	if up := Uptime(); up > 0 {
-		fmt.Fprintf(&b, "Laufzeit: %s\n", HumanDuration(up))
+		fmt.Fprintf(&b, "Uptime: %s\n", HumanDuration(up))
 	}
 	if virt, err := Run(ctx, "systemd-detect-virt"); err == nil {
-		fmt.Fprintf(&b, "Virtualisierung: %s\n", strings.TrimSpace(strings.Split(virt, "\n[")[0]))
+		fmt.Fprintf(&b, "Virtualization: %s\n", strings.TrimSpace(strings.Split(virt, "\n[")[0]))
 	}
 	if _, err := os.Stat("/run/reboot-required"); err == nil {
-		b.WriteString("Neustart erforderlich: ja\n")
+		b.WriteString("Reboot required: yes\n")
 	}
 	return b.String(), nil
 }
@@ -187,11 +195,11 @@ func HumanDuration(seconds int) string {
 	hours, minutes := rest/3600, (rest%3600)/60
 	switch {
 	case days > 0:
-		return fmt.Sprintf("%d Tage %d Std %d Min", days, hours, minutes)
+		return fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
 	case hours > 0:
-		return fmt.Sprintf("%d Std %d Min", hours, minutes)
+		return fmt.Sprintf("%dh %dm", hours, minutes)
 	default:
-		return fmt.Sprintf("%d Min", minutes)
+		return fmt.Sprintf("%dm", minutes)
 	}
 }
 
@@ -231,7 +239,7 @@ func memory(ctx context.Context) (string, error) {
 	}
 	m := MemInfo(readFile("/proc/meminfo"))
 	if total := m["MemTotal"]; total > 0 {
-		out += fmt.Sprintf("\nVerfügbar: %d MB von %d MB (%.0f %% belegt)\n", m["MemAvailable"]/1024, total/1024, float64(total-m["MemAvailable"])*100/float64(total))
+		out += fmt.Sprintf("\nAvailable: %d MB of %d MB (%.0f %% used)\n", m["MemAvailable"]/1024, total/1024, float64(total-m["MemAvailable"])*100/float64(total))
 	}
 	return out, nil
 }
@@ -239,9 +247,9 @@ func memory(ctx context.Context) (string, error) {
 func load() (string, error) {
 	fields := strings.Fields(readFile("/proc/loadavg"))
 	if len(fields) < 3 {
-		return "", errors.New("Auslastung nicht lesbar")
+		return "", errors.New("load not readable")
 	}
-	return fmt.Sprintf("Load (1/5/15 Min): %s %s %s\nCPUs: %d\n", fields[0], fields[1], fields[2], runtime.NumCPU()), nil
+	return fmt.Sprintf("Load (1/5/15 min): %s %s %s\nCPUs: %d\n", fields[0], fields[1], fields[2], runtime.NumCPU()), nil
 }
 
 // head behält die ersten n Zeilen.
@@ -262,7 +270,7 @@ func processes(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "Nach CPU:\n" + head(cpu, 13) + "\nNach Speicher:\n" + head(mem, 13), nil
+	return "By CPU:\n" + head(cpu, 13) + "\nBy memory:\n" + head(mem, 13), nil
 }
 
 func network(ctx context.Context) (string, error) {
@@ -271,12 +279,12 @@ func network(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	b.WriteString("Adressen:\n" + addr)
+	b.WriteString("Addresses:\n" + addr)
 	if route, err := Run(ctx, "ip", "route"); err == nil {
-		b.WriteString("\nRouten:\n" + head(route, 20))
+		b.WriteString("\nRoutes:\n" + head(route, 20))
 	}
 	if ports, err := Run(ctx, "ss", "-tuln"); err == nil {
-		b.WriteString("\nLauschende Ports:\n" + head(ports, 60))
+		b.WriteString("\nListening ports:\n" + head(ports, 60))
 	}
 	return b.String(), nil
 }
@@ -293,16 +301,16 @@ func updates(ctx context.Context) (string, error) {
 		}
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Verfügbare Updates: %d\n", len(packages))
+	fmt.Fprintf(&b, "Available updates: %d\n", len(packages))
 	for i, line := range packages {
 		if i >= 60 {
-			fmt.Fprintf(&b, "… und %d weitere\n", len(packages)-60)
+			fmt.Fprintf(&b, "... and %d more\n", len(packages)-60)
 			break
 		}
 		b.WriteString(line + "\n")
 	}
 	if _, err := os.Stat("/run/reboot-required"); err == nil {
-		b.WriteString("Neustart erforderlich: ja\n")
+		b.WriteString("Reboot required: yes\n")
 	}
 	return b.String(), nil
 }
@@ -310,17 +318,17 @@ func updates(ctx context.Context) (string, error) {
 func users(ctx context.Context) (string, error) {
 	var b strings.Builder
 	if out, err := Run(ctx, "who", "-u"); err == nil {
-		b.WriteString("Angemeldet:\n")
+		b.WriteString("Logged in:\n")
 		if strings.TrimSpace(out) == "" {
-			out = "(niemand)\n"
+			out = "(nobody)\n"
 		}
 		b.WriteString(out)
 	}
 	if out, err := Run(ctx, "last", "-n", "10", "-w"); err == nil {
-		b.WriteString("\nLetzte Anmeldungen:\n" + out)
+		b.WriteString("\nRecent logins:\n" + out)
 	}
 	if b.Len() == 0 {
-		return "", errors.New("who und last sind nicht installiert")
+		return "", errors.New("who and last are not installed")
 	}
 	return b.String(), nil
 }

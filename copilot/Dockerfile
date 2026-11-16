@@ -1,12 +1,13 @@
 # Stufe 1: der Linux-Server-Agent (Go, ohne Netz gebaut: die Abhängigkeit liegt unter agent/vendor). Der Hub im Add-on liefert die
-# beiden Dateien an die Server aus; sie landen unter /opt/copilot/agent-bin.
+# beiden Dateien (und die Fassung in VERSION, aus der der Hub Aktualisierungen anbietet) an die Server aus; sie landen unter /opt/copilot/agent-bin.
 FROM golang:1.24-bookworm AS agent
 ARG BUILD_VERSION=dev
 WORKDIR /src
 COPY agent/ ./
 ENV CGO_ENABLED=0 GOFLAGS=-mod=vendor
 RUN GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${BUILD_VERSION}" -o /out/copilot-agent-linux-amd64 ./cmd/copilot-agent \
- && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${BUILD_VERSION}" -o /out/copilot-agent-linux-arm64 ./cmd/copilot-agent
+ && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=${BUILD_VERSION}" -o /out/copilot-agent-linux-arm64 ./cmd/copilot-agent \
+ && printf '%s\n' "${BUILD_VERSION}" > /out/VERSION
 
 # Stufe 2: das Add-on
 # Debian-Basis, weil das mitgelieferte Claude-CLI des Agent SDK nur für glibc gebaut wird (nicht Alpine/musl).

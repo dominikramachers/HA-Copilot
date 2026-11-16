@@ -24,6 +24,7 @@ class ScriptBody(BaseModel):
     hours: int = Field(default=24, ge=1, le=KEY_MAX_HOURS)
     max_uses: int = Field(default=1, ge=1, le=KEY_MAX_USES)
     changes: bool = True  # lokale Richtlinie des neuen Servers: Änderungen nach Freigabe erlauben (sonst nur lesen)
+    auto_update: bool = True  # lokale Richtlinie des neuen Servers: neue Fassungen des Agenten selbst einspielen (sonst nur auf Knopfdruck)
 
 
 class RenameBody(BaseModel):
@@ -47,7 +48,7 @@ def register_server_routes(
             "summary": hub.summary(),
             "hub": {
                 "port": HUB_PORT, "address": settings.server_hub_address, "fingerprint": hub.pki.ca_fingerprint if hub.pki.dir.exists() else "",
-                "agents": sorted(hub.agent_binaries()),
+                "agents": sorted(hub.agent_binaries()), "agent_version": hub.agent_version(),
             },
             "keys": hub.repo.key_list(),
         }
@@ -82,6 +83,23 @@ def register_server_routes(
         except ServerError as exc:
             raise fail(exc) from None
         return {"ok": True}
+
+    @app.post("/api/servers/{server_id}/renew", dependencies=[Depends(write_guard)])
+    def servers_renew(server_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Das Zertifikat des Servers sofort erneuern lassen (sonst geschieht das von selbst, lange vor dem Ablauf)."""
+        try:
+            hub.renew_now(server_id, actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+        return {"ok": True}
+
+    @app.post("/api/servers/{server_id}/update", dependencies=[Depends(write_guard)])
+    async def servers_update(server_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Den Agenten auf die Fassung im Add-on aktualisieren lassen (er prüft die Datei und setzt bei einem Fehlstart zurück)."""
+        try:
+            return {"ok": True, "message": await hub.update_agent(server_id, actor(profile))}
+        except ServerError as exc:
+            raise fail(exc) from None
 
     @app.delete("/api/servers/{server_id}", dependencies=[Depends(write_guard)])
     def servers_delete(server_id: str, profile: Profile = Depends(current_profile)) -> dict:
@@ -124,6 +142,7 @@ def register_server_routes(
         script = render_script(
             hub=hub_with_port(address), key=key, ca_fingerprint=hub.pki.ca_fingerprint, hub_pin=pin, hashes=hashes,
             expires=expires.replace("T", " ").replace("+00:00", " UTC"), max_uses=body.max_uses, name=(body.name or "").strip(), changes=body.changes,
+            auto_update=body.auto_update,
         )
         return JSONResponse(
             {"script": script, "filename": "install-copilot-agent.sh", "key_id": key_id, "expires": expires},

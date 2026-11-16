@@ -10,6 +10,11 @@ und starten. Seit 0.60.7 kommt ein zweiter, kleiner Dienst dazu (``copilot-helpe
 aus) sowie die **lokale Richtlinie** ``/etc/copilot-agent/policy``: Sie entscheidet auf dem Server selbst, ob die KI dort ändern darf
 (``ki_access=operate``) oder nur lesen (``read``). Eine vorhandene Richtlinie wird nie überschrieben. Mit ``--uninstall`` wird alles
 wieder entfernt.
+
+Seit 0.61 ist **alles, was das Skript auf dem Server ausgibt oder ablegt, englisch** (Meldungen, Kommentare in der Richtlinie, Beschreibung
+der Dienste); die Sprache der App gilt nur in der Oberfläche. Die Richtlinie kennt zusätzlich ``write_paths`` (wo die KI nach Freigabe
+Dateien schreiben darf) und ``update`` (``off``, ``manual`` oder ``auto``: ob und wie sich der Agent selbst aktualisiert); darum
+braucht ein bestehender Server für neue Fassungen kein neues Skript mehr.
 """
 from __future__ import annotations
 
@@ -30,17 +35,21 @@ def hub_with_port(address: str) -> str:
     return f"{address}:{HUB_PORT}"
 
 
-def render_script(*, hub: str, key: str, ca_fingerprint: str, hub_pin: str, hashes: dict[str, str], expires: str, max_uses: int, name: str = "", changes: bool = True) -> str:
-    """Das fertige Skript als Text. Alle Werte werden für die Shell maskiert."""
+def render_script(
+    *, hub: str, key: str, ca_fingerprint: str, hub_pin: str, hashes: dict[str, str], expires: str, max_uses: int, name: str = "",
+    changes: bool = True, auto_update: bool = True,
+) -> str:
+    """Das fertige Skript als Text. Alle Werte werden für die Shell maskiert. Das Skript selbst und alles, was es auf dem Server
+    ausgibt oder ablegt, ist englisch (die Sprache der Oberfläche gilt nur in der App)."""
     if name and not _NAME_RE.match(name):
         name = ""
     q = shlex.quote
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     head = f"""#!/usr/bin/env bash
-# HA Copilot: Server-Agent installieren
-# Erzeugt am {stamp}. Der Registrierungsschlüssel gilt bis {expires} und für höchstens {max_uses} Server.
-# Ausführen als root auf dem Linux-Server (Debian oder Ubuntu):  sudo bash install-copilot-agent.sh
-# Entfernen:  sudo bash install-copilot-agent.sh --uninstall
+# HA Copilot: install the server agent
+# Generated {stamp}. The registration key is valid until {expires} and for at most {max_uses} server(s).
+# Run as root on the Linux server (Debian or Ubuntu):  sudo bash install-copilot-agent.sh
+# Remove again:  sudo bash install-copilot-agent.sh --uninstall
 set -euo pipefail
 
 HUB={q(hub)}
@@ -51,6 +60,7 @@ SHA256_AMD64={q(hashes.get("amd64", ""))}
 SHA256_ARM64={q(hashes.get("arm64", ""))}
 SERVER_NAME={q(name)}
 ALLOW_CHANGES={1 if changes else 0}
+AUTO_UPDATE={1 if auto_update else 0}
 """
     return head + _BODY
 
@@ -65,44 +75,45 @@ POLICY_DIR=/etc/copilot-agent
 POLICY=$POLICY_DIR/policy
 
 say() { printf '%s\n' "$*"; }
-die() { printf 'Fehler: %s\n' "$*" >&2; exit 1; }
+die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 
-[ "$(id -u)" -eq 0 ] || die "Bitte als root ausführen (sudo bash $0)."
-command -v systemctl >/dev/null 2>&1 || die "Dieses Skript braucht systemd."
+[ "$(id -u)" -eq 0 ] || die "Please run as root (sudo bash $0)."
+command -v systemctl >/dev/null 2>&1 || die "This script needs systemd."
 
 if [ "${1:-}" = "--uninstall" ]; then
     systemctl disable --now copilot-agent.service copilot-helper.service >/dev/null 2>&1 || true
-    rm -f "$UNIT" "$HELPER_UNIT" "$BIN"
+    systemctl stop copilot-agent-rollback.timer copilot-agent-rollback.service >/dev/null 2>&1 || true
+    rm -f "$UNIT" "$HELPER_UNIT" "$BIN" "$BIN.prev" "$BIN.new"
     systemctl daemon-reload
     rm -rf "$STATE_DIR" "$POLICY_DIR"
     id "$USER_NAME" >/dev/null 2>&1 && userdel "$USER_NAME" >/dev/null 2>&1 || true
-    say "Der Agent wurde entfernt. Den Eintrag in der Seite Server bitte dort löschen."
+    say "The agent has been removed. Please also delete the entry on the Servers page."
     exit 0
 fi
 
-command -v curl >/dev/null 2>&1 || die "curl fehlt (apt install curl)."
-command -v sha256sum >/dev/null 2>&1 || die "sha256sum fehlt (Paket coreutils)."
-command -v runuser >/dev/null 2>&1 || die "runuser fehlt (Paket util-linux)."
+command -v curl >/dev/null 2>&1 || die "curl is missing (apt install curl)."
+command -v sha256sum >/dev/null 2>&1 || die "sha256sum is missing (package coreutils)."
+command -v runuser >/dev/null 2>&1 || die "runuser is missing (package util-linux)."
 if ! command -v apt-get >/dev/null 2>&1; then
-    say "Hinweis: apt wurde nicht gefunden. Der Agent ist für Debian und Ubuntu gedacht; Updates werden hier nicht angezeigt."
+    say "Note: apt was not found. The agent is meant for Debian and Ubuntu; package updates are not shown here."
 fi
 
 case "$(uname -m)" in
     x86_64|amd64) ARCH=amd64; EXPECTED=$SHA256_AMD64 ;;
     aarch64|arm64) ARCH=arm64; EXPECTED=$SHA256_ARM64 ;;
-    *) die "Nicht unterstützte Architektur: $(uname -m)" ;;
+    *) die "Unsupported architecture: $(uname -m)" ;;
 esac
-[ -n "$EXPECTED" ] || die "Dieser Hub liefert keinen Agenten für $ARCH."
+[ -n "$EXPECTED" ] || die "This hub does not provide an agent for $ARCH."
 
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
-say "Lade den Agenten vom Hub ($HUB) …"
-# Den Hub erkennt curl am angehefteten Schlüssel (HUB_PIN, so verlässt der Registrierungsschlüssel den Server nur zum echten Hub);
-# die Datei selbst sichert zusätzlich die Prüfsumme aus diesem Skript.
+say "Downloading the agent from the hub ($HUB) ..."
+# curl recognises the hub by its pinned key (HUB_PIN), so the registration key only leaves this server towards the real hub;
+# the file itself is protected by the checksum in this script as well.
 curl --fail --silent --show-error --insecure --pinnedpubkey "$HUB_PIN" --max-time 180 "https://$HUB/download/copilot-agent-linux-$ARCH?key=$KEY" -o "$TMP" \
-    || die "Der Hub ist nicht erreichbar oder der Schlüssel ist abgelaufen ($HUB). Firewall: dieser Server muss TCP $HUB erreichen."
+    || die "The hub is not reachable or the key has expired ($HUB). Firewall: this server must be able to reach TCP $HUB."
 ACTUAL=$(sha256sum "$TMP" | cut -d' ' -f1)
-[ "$ACTUAL" = "$EXPECTED" ] || die "Die Prüfsumme der heruntergeladenen Datei stimmt nicht. Es wurde nichts installiert."
+[ "$ACTUAL" = "$EXPECTED" ] || die "The checksum of the downloaded file does not match. Nothing was installed."
 install -m 0755 -o root -g root "$TMP" "$BIN"
 
 if ! id "$USER_NAME" >/dev/null 2>&1; then
@@ -115,53 +126,66 @@ done
 install -d -m 0700 -o "$USER_NAME" -g "$USER_NAME" "$STATE_DIR"
 
 if [ ! -f "$STATE_DIR/agent.crt" ]; then
-    say "Melde diesen Server beim Hub an …"
+    say "Registering this server with the hub ..."
     ENROLL=("$BIN" enroll --hub "$HUB" --ca-fingerprint "$CA_FINGERPRINT" --state-dir "$STATE_DIR")
     if [ -n "$SERVER_NAME" ]; then ENROLL+=(--name "$SERVER_NAME"); fi
-    # der Schlüssel geht über die Umgebung, damit er nicht in der Prozessliste steht
-    runuser -u "$USER_NAME" -- env "COPILOT_AGENT_KEY=$KEY" "${ENROLL[@]}" || die "Die Anmeldung beim Hub ist fehlgeschlagen."
+    # the key is passed through the environment so that it does not show up in the process list
+    runuser -u "$USER_NAME" -- env "COPILOT_AGENT_KEY=$KEY" "${ENROLL[@]}" || die "Registering with the hub failed."
 else
-    say "Dieser Server ist schon angemeldet, die Anmeldung wird übersprungen."
+    say "This server is already registered, registration is skipped."
 fi
 
-# Lokale Richtlinie: hier entscheidet dieser Server selbst, was die KI darf. Weder der Hub noch die KI können sie ändern.
-# Eine vorhandene Datei bleibt unverändert (auch beim erneuten Ausführen des Skripts).
+# Local policy: this server decides on its own what the AI may do. Neither the hub nor the AI can change it.
+# An existing file is left unchanged (also when this script is run again).
 install -d -m 0755 -o root -g root "$POLICY_DIR"
 if [ ! -f "$POLICY" ]; then
     if [ "$ALLOW_CHANGES" = "1" ]; then ACCESS=operate; else ACCESS=read; fi
+    if [ "$AUTO_UPDATE" = "1" ]; then UPDATE=auto; else UPDATE=manual; fi
     cat > "$POLICY" <<EOF
-# HA Copilot: was die KI auf diesem Server darf. Wirkt sofort, ein Neustart ist nicht nötig.
-# Ändern kann nur root auf diesem Server.
+# HA Copilot: what the AI may do on this server. Takes effect immediately, no restart needed.
+# Only root on this server can change it.
 #
-# ki_access   read     = nur lesen (nichts verändern)
-#             operate  = Änderungen sind möglich, aber nur nach Freigabe der Person im Chat
+# ki_access     read     = read only (nothing is changed)
+#               operate  = changes are possible, but only after the person approves them in the chat
 ki_access=$ACCESS
-# max_class   1 = nur umkehrbare Änderungen (Dienst neu starten, Paket installieren)
-#             2 = auch weitreichende (Pakete entfernen oder alle aktualisieren, root-Befehle, Skripte)
+# max_class     1 = only reversible changes (restart a service, install a package)
+#               2 = also far-reaching ones (remove or upgrade all packages, root commands, scripts)
 max_class=2
-# freie Befehle (server_run) erlauben: on oder off
+# allow free commands (server_run): on or off
 run_command=on
-# Befehle mit root-Rechten erlauben: on oder off (off sperrt auch Dienste und apt)
+# allow commands with root rights: on or off (off also blocks services and apt)
 root=on
+# write_paths   directories in which the AI may write files (after approval), separated by commas. Empty = nowhere.
+#               Login, boot and system files (for example /etc/ssh, /etc/passwd) are never written, whatever is set here.
+write_paths=/etc,/opt,/srv,/var/www,/home,/usr/local/etc
+# update        how this agent is updated to the version shipped with the hub:
+#               off     = never
+#               manual  = only when someone presses the button on the Servers page
+#               auto    = as soon as the hub offers a newer version (a version that does not start is rolled back)
+update=$UPDATE
+# update_key    optional: public ed25519 key (base64). If set, only agent files signed with the matching key are installed.
+#update_key=
 EOF
     chmod 0644 "$POLICY"
-    say "Lokale Richtlinie angelegt: $POLICY (ki_access=$ACCESS)."
+    say "Local policy created: $POLICY (ki_access=$ACCESS, update=$UPDATE)."
 else
-    say "Lokale Richtlinie bleibt unverändert: $POLICY"
+    say "Local policy is left unchanged: $POLICY"
+    say "Note: a policy from an older version has no write_paths and update lines. Defaults then apply (writing below /etc, /opt, /srv, /var/www, /home; update=manual)."
 fi
 
-# Root-Helfer: nimmt nur Anfragen des Agenten an, stuft sie selbst noch einmal ein und führt nur Freigegebenes aus (Richtlinie gilt).
+# Root helper: only accepts requests from the agent, classifies them again itself and runs only what was approved (the policy applies).
 cat > "$HELPER_UNIT" <<EOF
 [Unit]
-Description=HA Copilot Root-Helfer (nur nach Freigabe)
+Description=HA Copilot root helper (only after approval)
 Before=copilot-agent.service
 
 [Service]
 Type=simple
 User=root
-ExecStart=$BIN helper --policy $POLICY --socket /run/copilot-agent/helper.sock --agent-user $USER_NAME
+ExecStart=$BIN helper --policy $POLICY --socket /run/copilot-agent/helper.sock --agent-user $USER_NAME --state-dir $STATE_DIR --bin $BIN
 RuntimeDirectory=copilot-agent
 RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
 Restart=always
 RestartSec=5
 NoNewPrivileges=yes
@@ -179,7 +203,7 @@ chmod 0644 "$HELPER_UNIT"
 
 cat > "$UNIT" <<EOF
 [Unit]
-Description=HA Copilot Server-Agent
+Description=HA Copilot server agent
 After=network-online.target copilot-helper.service
 Wants=network-online.target copilot-helper.service
 
@@ -217,21 +241,22 @@ WantedBy=multi-user.target
 EOF
 chmod 0644 "$UNIT"
 systemctl daemon-reload
-# „restart“ statt nur „--now“: bei einem erneuten Ausführen (Update des Agenten) soll die neue Programmdatei laufen
+# "restart" instead of only "--now": when this script is run again (update of the agent), the new program file must run
 systemctl enable copilot-helper.service copilot-agent.service >/dev/null 2>&1
 systemctl restart copilot-helper.service copilot-agent.service
 sleep 2
 if systemctl is-active --quiet copilot-agent.service; then
     say ""
-    say "Fertig. Der Agent läuft."
+    say "Done. The agent is running."
     if [ "$(sed -n 's/^ki_access=//p' "$POLICY" | head -n1)" = "operate" ]; then
-        say "Die KI darf auf diesem Server Änderungen vorschlagen; ausgeführt wird nur, was du im Chat freigibst ($POLICY)."
+        say "The AI may propose changes on this server; only what you approve in the chat is executed ($POLICY)."
     else
-        say "Die KI darf auf diesem Server nur lesen ($POLICY)."
+        say "The AI may only read on this server ($POLICY)."
     fi
-    say "Dieser Server erscheint jetzt im HA Copilot unter Server als „Ausstehend“. Bitte dort bestätigen."
+    say "This server now shows up in HA Copilot under Servers as \"Pending\". Please confirm it there."
+    say "Later updates of the agent do not need this script: use the update button on the Servers page (or update=auto in the policy)."
 else
     systemctl --no-pager status copilot-agent.service || true
-    die "Der Dienst läuft nicht. Siehe journalctl -u copilot-agent"
+    die "The service is not running. See: journalctl -u copilot-agent"
 fi
 '''

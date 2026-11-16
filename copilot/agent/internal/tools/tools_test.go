@@ -27,7 +27,7 @@ func TestCleanStripsControlCharsAndLimitsLength(t *testing.T) {
 		t.Fatalf("Steuerzeichen übrig: %q", out)
 	}
 	long := Clean(strings.Repeat("ä", MaxOutput))
-	if len(long) > MaxOutput+100 || !strings.Contains(long, "gekürzt") {
+	if len(long) > MaxOutput+100 || !strings.Contains(long, "truncated") {
 		t.Fatalf("zu lang oder nicht gekürzt: %d", len(long))
 	}
 }
@@ -63,7 +63,7 @@ func TestCallRejectsUnknownToolsAndBadArguments(t *testing.T) {
 }
 
 func TestEveryNameIsHandled(t *testing.T) {
-	want := []string{"system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users"}
+	want := []string{"system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users", "metrics", "file_read", "package_info", "docker"}
 	if strings.Join(Names, ",") != strings.Join(want, ",") {
 		t.Fatalf("Werkzeugliste weicht vom Hub ab (READ_TOOLS in app/servers.py): %v", Names)
 	}
@@ -99,7 +99,7 @@ func TestMemUsageAndOSRelease(t *testing.T) {
 	if got := OSRelease("NAME=\"Debian\"\nPRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\n"); got != "Debian GNU/Linux 12 (bookworm)" {
 		t.Fatal(got)
 	}
-	if got := HumanDuration(90061); got != "1 Tage 1 Std 1 Min" {
+	if got := HumanDuration(90061); got != "1d 1h 1m" {
 		t.Fatal(got)
 	}
 }
@@ -113,7 +113,7 @@ func TestRunDoesNotUseAShell(t *testing.T) {
 		t.Fatal("fehlendes Programm muss ein Fehler sein")
 	}
 	out, err = Run(context.Background(), "sh", "-c", "echo hi; exit 3")
-	if err != nil || !strings.Contains(out, "Exit-Code 3") {
+	if err != nil || !strings.Contains(out, "exit code 3") {
 		t.Fatalf("Exit-Code gehört in die Ausgabe: %q %v", out, err)
 	}
 }

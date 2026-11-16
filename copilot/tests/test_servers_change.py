@@ -49,9 +49,9 @@ def test_plan_from_an_agent_is_checked_strictly():
                 good_plan(**{"class": 3}), good_plan(**{"class": 0}), good_plan(**{"class": True}), good_plan(**{"class": "1"}),
                 good_plan(command=""), good_plan(command=None)):
         assert serverlib.clean_plan(bad) is None, bad
-    dirty = serverlib.clean_plan(good_plan(command="a\x00b\nc\x1b[31m", summary="x" * 999, preview="p" * 5000, timeout_s=99999))
+    dirty = serverlib.clean_plan(good_plan(command="a\x00b\nc\x1b[31m", summary="x" * 999, preview="p" * 9000, timeout_s=99999))
     assert "\x00" not in dirty["command"] and "\x1b" not in dirty["command"] and "\n" in dirty["command"]
-    assert len(dirty["summary"]) == 200 and len(dirty["preview"]) == 1500 and dirty["timeout_s"] == 60  # Unsinn: Vorgabe
+    assert len(dirty["summary"]) == 200 and len(dirty["preview"]) == serverlib.PREVIEW_CHARS == 6000 and dirty["timeout_s"] == 60  # Unsinn: Vorgabe
 
 
 def test_agent_hub_dialogue_for_changes(tmp_path):
@@ -169,7 +169,7 @@ def change_box(tmp_path, decision="allow", **kw):
 
 def test_change_tools_exist_only_when_questions_are_possible(tmp_path):
     specs, *_ = change_box(tmp_path)
-    assert set(specs) == {"server_list", "server_status", "server_read", "server_service", "server_package", "server_run"}
+    assert set(specs) == {"server_list", "server_status", "server_read", "server_service", "server_package", "server_run", "server_file_write"}
     assert all(specs[n].level == "write" for n in ("server_service", "server_package", "server_run"))
     assert all(specs[n].level == "read" for n in ("server_list", "server_status", "server_read"))
     (tmp_path / "x").mkdir()

@@ -1,5 +1,40 @@
 [
   {
+    "version": "0.61.0",
+    "items": [
+      {
+        "de": {
+          "title": "Server halten sich aktuell",
+          "text": "Mein Helfer auf deinen Servern kann sich jetzt selbst auf den neuesten Stand bringen, wenn du das möchtest. Ein neues Skript brauchst du dafür nicht mehr."
+        },
+        "en": {
+          "title": "Servers stay up to date",
+          "text": "My helper on your servers can now bring itself up to date if you want that. You no longer need a new script for it."
+        }
+      },
+      {
+        "de": {
+          "title": "Verbindung erneuert sich selbst",
+          "text": "Der Sicherheitsschlüssel deiner Server wird von selbst erneuert, lange bevor er abläuft. Du musst nichts tun, damit die Verbindung stabil bleibt."
+        },
+        "en": {
+          "title": "Connection renews itself",
+          "text": "The security key of your servers is renewed by itself long before it runs out. You do not have to do anything to keep the connection stable."
+        }
+      },
+      {
+        "de": {
+          "title": "Mehr Hilfe bei Server-Problemen",
+          "text": "Ich kann auf Servern jetzt den Verlauf ansehen, Dateien lesen und Container prüfen. Dateien ändere ich nur, wenn du zustimmst. Für typische Störungen gibt es Anleitungen."
+        },
+        "en": {
+          "title": "More help with server problems",
+          "text": "I can now look at the history of a server, read files and check containers. I only change files if you agree. There are guides for typical faults."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.8",
     "items": [
       {

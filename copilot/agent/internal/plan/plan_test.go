@@ -249,10 +249,14 @@ func TestParseSimulation(t *testing.T) {
 	if len(removed) != 1 || removed[0] != "nano" {
 		t.Fatalf("entfernt: %v", removed)
 	}
-	for _, want := range []string{"2 Paket", "1 entfernen", "htop, libnl", "nano", "E: Something"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("%q fehlt in %q", want, text)
+	full := text.FullText()
+	for _, want := range []string{"2 package", "1 to remove", "htop, libnl", "nano", "E: Something"} {
+		if !strings.Contains(full, want) {
+			t.Errorf("%q fehlt in %q", want, full)
 		}
+	}
+	if text.Code != "pkg.preview.sim" || text.Params["inst"] != "2" || text.Params["remv"] != "1" {
+		t.Errorf("Code und Parameter fehlen: %+v", text)
 	}
 }
 
@@ -300,7 +304,7 @@ func TestManagerRunNonRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "hallo") || !strings.Contains(out, "erfolgreich") {
+	if !strings.Contains(out, "hallo") || !strings.Contains(out, "successful") {
 		t.Fatalf("Ausgabe: %q", out)
 	}
 	// einmal verwendbar
@@ -319,7 +323,7 @@ func TestManagerFailedCommandReportsExit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "vorher") || !strings.Contains(out, "fehlgeschlagen (Exit-Code 3)") {
+	if !strings.Contains(out, "vorher") || !strings.Contains(out, "failed (exit code 3)") {
 		t.Fatalf("Ausgabe: %q", out)
 	}
 }
@@ -328,16 +332,16 @@ func TestManagerRefusals(t *testing.T) {
 	ctx := context.Background()
 	// nur lesen
 	m := NewManager(policy.Default, nil)
-	if _, err := m.Prepare(ctx, ToolRun, Args{"argv": list("df")}); err == nil || !strings.Contains(err.Error(), "nicht erlaubt") {
+	if _, err := m.Prepare(ctx, ToolRun, Args{"argv": list("df")}); err == nil || !strings.Contains(err.Error(), "not allowed") {
 		t.Fatalf("read-only: %v", err)
 	}
 	// Stufe 3
 	m = NewManager(operate, nil)
-	if _, err := m.Prepare(ctx, ToolRun, Args{"argv": list("reboot")}); err == nil || !strings.Contains(err.Error(), "Abgelehnt") {
+	if _, err := m.Prepare(ctx, ToolRun, Args{"argv": list("reboot")}); err == nil || !strings.Contains(err.Error(), "Refused") {
 		t.Fatalf("Stufe 3: %v", err)
 	}
 	// Root ohne Helfer
-	if _, err := m.Prepare(ctx, ToolService, Args{"unit": "nginx", "action": "restart"}); err == nil || !strings.Contains(err.Error(), "Helfer") {
+	if _, err := m.Prepare(ctx, ToolService, Args{"unit": "nginx", "action": "restart"}); err == nil || !strings.Contains(err.Error(), "helper") {
 		t.Fatalf("ohne Helfer: %v", err)
 	}
 	// unbekanntes Werkzeug
@@ -350,7 +354,7 @@ func TestManagerHashMismatchAndConsumed(t *testing.T) {
 	m := NewManager(operate, nil)
 	ctx := context.Background()
 	p, _ := m.Prepare(ctx, ToolRun, Args{"argv": list("echo", "x")})
-	if _, err := m.Execute(ctx, p.ID, "0000"); err == nil || !strings.Contains(err.Error(), "passt nicht") {
+	if _, err := m.Execute(ctx, p.ID, "0000"); err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("falscher Hash: %v", err)
 	}
 	// auch nach einem Fehlversuch ist der Plan verbraucht
@@ -371,7 +375,7 @@ func TestManagerExpiry(t *testing.T) {
 	m.now = func() time.Time { return now }
 	p, _ := m.Prepare(context.Background(), ToolRun, Args{"argv": list("echo", "x")})
 	m.now = func() time.Time { return now.Add(PlanTTL + time.Second) }
-	if _, err := m.Execute(context.Background(), p.ID, p.Hash); err == nil || !strings.Contains(err.Error(), "abgelaufen") {
+	if _, err := m.Execute(context.Background(), p.ID, p.Hash); err == nil || !strings.Contains(err.Error(), "expired") {
 		t.Fatalf("Ablauf: %v", err)
 	}
 }
@@ -381,7 +385,7 @@ func TestManagerPolicyRecheckedAtExecute(t *testing.T) {
 	m := NewManager(func() policy.Policy { return cur }, nil)
 	p, _ := m.Prepare(context.Background(), ToolRun, Args{"argv": list("echo", "x")})
 	cur = policy.Default() // zwischen Vorbereiten und Ausführen auf „nur lesen“ gestellt
-	if _, err := m.Execute(context.Background(), p.ID, p.Hash); err == nil || !strings.Contains(err.Error(), "nicht erlaubt") {
+	if _, err := m.Execute(context.Background(), p.ID, p.Hash); err == nil || !strings.Contains(err.Error(), "not allowed") {
 		t.Fatalf("Richtlinie: %v", err)
 	}
 }
@@ -423,7 +427,7 @@ func TestManagerSingleWriter(t *testing.T) {
 		done <- out
 	}()
 	time.Sleep(300 * time.Millisecond)
-	if _, err := m.Execute(ctx, other.ID, other.Hash); err == nil || !strings.Contains(err.Error(), "schon eine Änderung") {
+	if _, err := m.Execute(ctx, other.ID, other.Hash); err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("zweite gleichzeitige Änderung: %v", err)
 	}
 	if out := <-done; !strings.Contains(out, "fertig") {

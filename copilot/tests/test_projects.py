@@ -332,7 +332,7 @@ def test_migration_adds_project_description(tmp_path):
     try:
         columns = {r["name"] for r in store._conn.execute("PRAGMA table_info(projects)")}
         assert "description" in columns
-        assert store._conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 36
+        assert store._conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 37
     finally:
         store.close()
 

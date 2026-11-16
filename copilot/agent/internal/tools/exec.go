@@ -51,7 +51,7 @@ const searchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 // außerhalb der Systemverzeichnisse (/tmp, /home, /opt …) werden nie gestartet: ein Auftrag kann so keine abgelegte Datei ausführen.
 func LookPath(name string) (string, error) {
 	name = strings.TrimSpace(name)
-	missing := fmt.Errorf("%s ist auf diesem Server nicht installiert", name)
+	missing := fmt.Errorf("%s is not installed on this server", name)
 	if name == "" || strings.ContainsRune(name, 0) || strings.Contains(name, "\\") {
 		return "", missing
 	}
@@ -62,7 +62,7 @@ func LookPath(name string) (string, error) {
 			return "", missing
 		}
 		if !inSearchPath(filepath.Dir(clean)) {
-			return "", fmt.Errorf("%s liegt nicht in einem Systemverzeichnis (erlaubt: %s)", name, searchPath)
+			return "", fmt.Errorf("%s is not in a system directory (allowed: %s)", name, searchPath)
 		}
 		base = filepath.Base(clean)
 	}
@@ -137,10 +137,10 @@ func RunWith(ctx context.Context, opts Opts, name string, args ...string) (strin
 	runErr := cmd.Run()
 	text := out.buf.String()
 	if out.truncated {
-		text += "\n[… Ausgabe gekürzt]"
+		text += "\n[... output truncated]"
 	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return text, -1, fmt.Errorf("%s hat nicht innerhalb von %d Sekunden geantwortet", name, int(timeout.Seconds()))
+		return text, -1, fmt.Errorf("%s did not answer within %d seconds", name, int(timeout.Seconds()))
 	}
 	var exit *exec.ExitError
 	if errors.As(runErr, &exit) {
@@ -160,7 +160,7 @@ func Run(ctx context.Context, name string, args ...string) (string, error) {
 		return text, err
 	}
 	if code != 0 {
-		return fmt.Sprintf("%s\n[Exit-Code %d]", strings.TrimRight(text, "\n"), code), nil
+		return fmt.Sprintf("%s\n[exit code %d]", strings.TrimRight(text, "\n"), code), nil
 	}
 	return text, nil
 }
@@ -175,7 +175,7 @@ var (
 // Redact entfernt offensichtliche Geheimnisse aus einer Ausgabe (Schlüsselblöcke, „password=…“, Zugangsdaten in Adressen).
 // Das ist ein zusätzlicher Schutz, kein Ersatz dafür, dass die Werkzeuge ohnehin keine Dateien ausgeben.
 func Redact(s string) string {
-	s = privateKeyBlock.ReplaceAllString(s, "[privater Schlüssel entfernt]")
+	s = privateKeyBlock.ReplaceAllString(s, "[private key removed]")
 	s = credentialURL.ReplaceAllString(s, "$1:***@")
 	s = authScheme.ReplaceAllString(s, "$1 ***")
 	return secretAssign.ReplaceAllString(s, "$1$2***")
@@ -196,7 +196,7 @@ func Clean(s string) string {
 		for !utf8.ValidString(cut) && len(cut) > 0 {
 			cut = cut[:len(cut)-1]
 		}
-		out = cut + "\n[… Ausgabe gekürzt]"
+		out = cut + "\n[... output truncated]"
 	}
 	return strings.TrimRight(out, "\n") + "\n"
 }

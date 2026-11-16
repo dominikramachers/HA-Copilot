@@ -66,7 +66,7 @@ def test_agent_enrolls_reports_and_answers_calls(tmp_path, agent_binary):
 
             # falscher Fingerabdruck: der Agent darf dem Hub nicht vertrauen und den Schlüssel nicht preisgeben
             wrong = await sh(str(agent_binary), "enroll", "--hub", address, "--key", key, "--ca-fingerprint", "sha256:" + "0" * 64, "--state-dir", str(tmp_path / "x"))
-            assert wrong.returncode == 1 and "vertrauenswürdig" in wrong.stderr
+            assert wrong.returncode == 1 and "hub not trusted" in wrong.stderr
             assert hub.repo.key_check(key) is not None and hub.repo.server_list() == []
 
             done = await sh(str(agent_binary), "enroll", "--hub", address, "--ca-fingerprint", fingerprint, "--state-dir", str(state),
@@ -93,13 +93,13 @@ def test_agent_enrolls_reports_and_answers_calls(tmp_path, agent_binary):
                     load = await hub.call("integration01", "load")
                     break
                 except serverlib.ServerError as exc:
-                    if "nicht bestätigt" not in str(exc):
+                    if "not been confirmed" not in str(exc):
                         raise
                     await asyncio.sleep(0.5)
-            assert load and "Load (1/5/15 Min)" in load
+            assert load and "Load (1/5/15 min)" in load
             assert "Hostname:" in await hub.call(row["id"], "system")
             assert "Mem" in await hub.call(row["id"], "memory")
-            with pytest.raises(serverlib.ServerError, match="ungültige Zeichen"):
+            with pytest.raises(serverlib.ServerError, match="invalid characters"):
                 await hub.call(row["id"], "service", {"unit": "a;id"})
             with pytest.raises(serverlib.ServerError, match="Priority|priority"):
                 await hub.call(row["id"], "journal", {"priority": "laut"})
@@ -156,33 +156,33 @@ def test_agent_changes_only_with_local_policy_and_after_preparing(tmp_path, agen
                     plan = await hub.prepare("change01", "run_command", {"argv": ["echo", "integration-ok"]})
                     break
                 except serverlib.ServerError as exc:
-                    if "nicht bestätigt" not in str(exc):
+                    if "not been confirmed" not in str(exc):
                         raise
                     await asyncio.sleep(0.5)
             assert plan and plan["class"] == 2 and plan["runner"] == "agent" and plan["command"] == "echo integration-ok"
 
             out = await hub.execute("change01", plan)
-            assert "integration-ok" in out and "== Ergebnis: erfolgreich ==" in out
-            with pytest.raises(serverlib.ServerError, match="unbekannt|abgelaufen|ausgeführt"):
+            assert "integration-ok" in out and "== Result: successful" in out
+            with pytest.raises(serverlib.ServerError, match="unknown, expired"):
                 await hub.execute("change01", plan)  # ein Plan gilt genau einmal
-            with pytest.raises(serverlib.ServerError, match="passt nicht"):
+            with pytest.raises(serverlib.ServerError, match="does not match"):
                 other = await hub.prepare("change01", "run_command", {"argv": ["echo", "zweiter"]})
                 await hub.execute("change01", {**other, "hash": "0" * 64})
 
             # Stufe 3, Root ohne Helfer, ungültige Angaben: abgelehnt, bevor etwas geschieht
-            with pytest.raises(serverlib.ServerError, match="Abgelehnt"):
+            with pytest.raises(serverlib.ServerError, match="Refused"):
                 await hub.prepare("change01", "run_command", {"argv": ["reboot"]})
-            with pytest.raises(serverlib.ServerError, match="Abgelehnt"):
+            with pytest.raises(serverlib.ServerError, match="Refused"):
                 await hub.prepare("change01", "service_action", {"unit": "ssh", "action": "stop"})
-            with pytest.raises(serverlib.ServerError, match="Helfer"):
+            with pytest.raises(serverlib.ServerError, match="root helper"):
                 await hub.prepare("change01", "service_action", {"unit": "nginx", "action": "restart"})
-            with pytest.raises(serverlib.ServerError, match="ungültig"):
+            with pytest.raises(serverlib.ServerError, match="invalid package name"):
                 await hub.prepare("change01", "package", {"action": "install", "packages": ["Foo;id"]})
 
             # die Richtlinie wirkt sofort: vorbereiten, dann auf „nur lesen“ stellen, dann scheitert die Ausführung
             plan = await hub.prepare("change01", "run_command", {"argv": ["echo", "spaet"]})
             policy.write_text("ki_access=read\n")
-            with pytest.raises(serverlib.ServerError, match="nicht erlaubt"):
+            with pytest.raises(serverlib.ServerError, match="not allowed"):
                 await hub.execute("change01", plan)
         finally:
             if agent is not None and agent.returncode is None:

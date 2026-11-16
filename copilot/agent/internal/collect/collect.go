@@ -10,7 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/dominikramachers/ha-copilot/agent/internal/metrics"
 	"github.com/dominikramachers/ha-copilot/agent/internal/tools"
 )
 
@@ -41,6 +43,12 @@ type Heartbeat struct {
 	Operate  bool `json:"operate"`
 	MaxClass int  `json:"max_class"`
 	Helper   bool `json:"helper"`
+	// Zertifikat und Aktualisierung (0.61.0)
+	CertExpires int64  `json:"cert_expires,omitempty"` // Unix-Sekunden
+	UpdateMode  string `json:"update_mode,omitempty"`  // off | manual | auto (lokale Richtlinie)
+	// Ein zurückgesetztes Update (Fassung und Grund), damit die Übersicht es zeigen kann
+	UpdateFailed string `json:"update_failed,omitempty"`
+	UpdateReason string `json:"update_reason,omitempty"`
 }
 
 // Collector merkt sich Werte, die teuer zu bestimmen sind (apt) und deshalb nicht bei jeder Meldung neu gelesen werden.
@@ -220,4 +228,15 @@ func (c *Collector) Collect(ctx context.Context) Heartbeat {
 		c.Annotate(&hb)
 	}
 	return hb
+}
+
+// Sample liest die Werte für den Verlauf (nur aus /proc, ohne Programme).
+func Sample() metrics.Sample {
+	l1, _, _ := ParseLoad(readFile("/proc/loadavg"))
+	s := metrics.Sample{At: time.Now().Unix(), Load1: l1}
+	if _, pct, ok := tools.MemUsage(readFile("/proc/meminfo")); ok {
+		s.MemPct = pct
+	}
+	s.DiskPct, _ = worstDisk()
+	return s
 }

@@ -3,6 +3,7 @@ package config
 
 import (
 	"crypto/ecdsa"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -77,16 +78,16 @@ func (d Dir) Load() (State, error) {
 	var s State
 	data, err := os.ReadFile(d.path(fileState))
 	if errors.Is(err, os.ErrNotExist) {
-		return s, fmt.Errorf("dieser Agent ist noch nicht angemeldet (führe zuerst „copilot-agent enroll“ aus)")
+		return s, fmt.Errorf("this agent is not enrolled yet (run \"copilot-agent enroll\" first)")
 	}
 	if err != nil {
 		return s, err
 	}
 	if err := json.Unmarshal(data, &s); err != nil {
-		return s, fmt.Errorf("agent.json ist beschädigt: %w", err)
+		return s, fmt.Errorf("agent.json is damaged: %w", err)
 	}
 	if s.Hub == "" || s.CAFingerprint == "" {
-		return s, fmt.Errorf("agent.json ist unvollständig")
+		return s, fmt.Errorf("agent.json is incomplete")
 	}
 	return s, nil
 }
@@ -99,4 +100,58 @@ func (d Dir) Enrolled() bool {
 		}
 	}
 	return true
+}
+
+// Erneuerung: Das neue Schlüsselpaar wird zuerst als „.new“ abgelegt und dann über das alte gelegt. Reißt der Vorgang zwischen den
+// beiden Umbenennungen ab, passen Schlüssel und Zertifikat nicht zusammen; LoadKeyPair probiert deshalb alle Kombinationen und
+// schließt eine unterbrochene Erneuerung ab.
+const newSuffix = ".new"
+
+// StageRenewal legt Schlüssel und Zertifikat der Erneuerung als „.new“ ab (noch ohne Wirkung).
+func (d Dir) StageRenewal(key *ecdsa.PrivateKey, certPEM string) error {
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return err
+	}
+	if err := writePrivate(d.path(fileKey+newSuffix), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})); err != nil {
+		return err
+	}
+	return writePrivate(d.path(fileCert+newSuffix), []byte(certPEM))
+}
+
+// PromoteRenewal macht das abgelegte Paar zum gültigen (Schlüssel zuerst, dann Zertifikat).
+func (d Dir) PromoteRenewal() error {
+	for _, name := range []string{fileKey, fileCert} {
+		if _, err := os.Stat(d.path(name + newSuffix)); err != nil {
+			continue
+		}
+		if err := os.Rename(d.path(name+newSuffix), d.path(name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// LoadKeyPair lädt Schlüssel und Zertifikat; passt das Paar nicht zusammen, werden die Dateien einer unterbrochenen Erneuerung
+// einbezogen.
+func (d Dir) LoadKeyPair() (*tls.Certificate, error) {
+	type pair struct{ cert, key string }
+	candidates := []pair{
+		{fileCert, fileKey}, {fileCert + newSuffix, fileKey + newSuffix}, {fileCert + newSuffix, fileKey}, {fileCert, fileKey + newSuffix},
+	}
+	var first error
+	for i, c := range candidates {
+		cert, err := tls.LoadX509KeyPair(d.path(c.cert), d.path(c.key))
+		if err != nil {
+			if i == 0 {
+				first = err
+			}
+			continue
+		}
+		if i > 0 {
+			_ = d.PromoteRenewal()
+		}
+		return &cert, nil
+	}
+	return nil, first
 }

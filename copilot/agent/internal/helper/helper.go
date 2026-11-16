@@ -25,14 +25,18 @@ import (
 	"github.com/dominikramachers/ha-copilot/agent/internal/plan"
 	"github.com/dominikramachers/ha-copilot/agent/internal/policy"
 	"github.com/dominikramachers/ha-copilot/agent/internal/tools"
+	"github.com/dominikramachers/ha-copilot/agent/internal/update"
 )
 
 const (
 	// DefaultSocket liegt im Laufzeitverzeichnis, das die Systemd-Einheit des Helfers anlegt.
 	DefaultSocket = "/run/copilot-agent/helper.sock"
-	maxRequest    = 64 * 1024
+	maxRequest    = 256 * 1024
 	readTimeout   = 10 * time.Second
 	pingTool      = "ping"
+	dockerTool    = "docker"
+	updateTool    = "agent_update"
+	confirmTool   = "agent_update_ok"
 )
 
 // Options steuern Serve.
@@ -41,6 +45,8 @@ type Options struct {
 	AllowUID  int    // nur dieser Benutzer (und root) darf anfragen; -1 = nur root
 	GroupName string // Gruppe des Sockets (leer = unverändert)
 	Policy    func() policy.Policy
+	// Installer führt Updates des Agenten aus (nil = der Helfer nimmt keine an).
+	Installer *update.Installer
 }
 
 // Serve nimmt Anfragen an, bis ctx endet.
@@ -69,7 +75,7 @@ func Serve(ctx context.Context, opt Options) error {
 	s := &server{opt: opt}
 	s.dropOnce.Do(func() { s.canDrop = CanDropPrivileges() })
 	if !s.canDrop {
-		fmt.Fprintln(os.Stderr, "copilot-helper: Benutzerwechsel nicht möglich (CAP_SETUID/CAP_SETGID fehlt); apt läuft ohne Benutzer _apt.")
+		fmt.Fprintln(os.Stderr, "copilot-helper: switching users is not possible (CAP_SETUID/CAP_SETGID missing); apt runs without the _apt user.")
 	}
 	for {
 		conn, err := ln.Accept()
@@ -92,8 +98,8 @@ type server struct {
 }
 
 // unsandboxedNote steht vor der Ausgabe, wenn apt ohne Benutzerwechsel laufen musste.
-const unsandboxedNote = "Hinweis: Auf diesem Server darf der Helfer keinen Benutzerwechsel ausführen (es fehlt das Recht dazu, etwa durch einen Container oder die Systemeinstellungen). " +
-	"apt lädt die Pakete deshalb als root herunter und nicht im eingeschränkten Benutzer _apt (Option APT::Sandbox::User=root). Die Signaturen der Pakete werden trotzdem geprüft.\n\n"
+const unsandboxedNote = "Note: on this server the helper may not switch users (the permission is missing, for example inside a container or because of system settings). " +
+	"apt therefore downloads the packages as root and not as the restricted user _apt (option APT::Sandbox::User=root). The package signatures are still verified.\n\n"
 
 // CanDropPrivileges prüft, ob ein Prozess dieses Prozesses auf einen anderen Benutzer wechseln darf, so wie es apt für seine
 // Download-Prozesse tut (setgroups, setgid, setuid). Fehlt das Recht, scheitert apt sonst mit „seteuid 42 failed“. Nur als root
@@ -154,21 +160,29 @@ func (s *server) handle(ctx context.Context, c *net.UnixConn) {
 	_ = c.SetReadDeadline(time.Now().Add(readTimeout))
 	line, err := bufio.NewReaderSize(io.LimitReader(c, maxRequest), 4096).ReadBytes('\n')
 	if !allowed {
-		reply(c, plan.Response{ExitCode: -1, Error: "Zugriff verweigert"})
+		reply(c, plan.Response{ExitCode: -1, Error: "Access denied"})
 		return
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
-		reply(c, plan.Response{ExitCode: -1, Error: "Anfrage nicht lesbar"})
+		reply(c, plan.Response{ExitCode: -1, Error: "Request not readable"})
 		return
 	}
 	_ = c.SetReadDeadline(time.Time{})
 	var req plan.Request
 	if json.Unmarshal(line, &req) != nil {
-		reply(c, plan.Response{ExitCode: -1, Error: "Anfrage ungültig"})
+		reply(c, plan.Response{ExitCode: -1, Error: "Request invalid"})
 		return
 	}
 	if req.Tool == pingTool {
 		reply(c, plan.Response{Output: "pong"})
+		return
+	}
+	if req.Tool == dockerTool {
+		s.handleDocker(ctx, c, req)
+		return
+	}
+	if req.Tool == updateTool || req.Tool == confirmTool {
+		s.handleUpdate(c, req)
 		return
 	}
 	a, err := plan.Classify(req.Tool, req.Args)
@@ -182,7 +196,7 @@ func (s *server) handle(ctx context.Context, c *net.UnixConn) {
 		return
 	}
 	if !s.busy.TryLock() {
-		reply(c, plan.Response{ExitCode: -1, Error: "Der Helfer führt gerade schon eine Änderung aus."})
+		reply(c, plan.Response{ExitCode: -1, Error: "The helper is already running another change."})
 		return
 	}
 	defer s.busy.Unlock()
@@ -194,10 +208,20 @@ func (s *server) handle(ctx context.Context, c *net.UnixConn) {
 			note = unsandboxedNote
 		}
 	}
-	out, code, runErr := plan.Exec(ctx, a)
+	var out string
+	var code int
+	var runErr error
+	if a.Tool == plan.ToolFileWrite {
+		out, runErr = plan.ApplyFileWrite(a, s.opt.Policy())
+		if runErr != nil {
+			code = 1
+		}
+	} else {
+		out, code, runErr = plan.Exec(ctx, a)
+	}
 	r := plan.Response{Output: note + out, ExitCode: code}
 	if runErr != nil {
-		r.Output += fmt.Sprintf("\n[Fehler: %v]", runErr)
+		r.Output += fmt.Sprintf("\n[Error: %v]", runErr)
 		if out == "" {
 			r.Error = runErr.Error()
 		}
@@ -214,7 +238,7 @@ func (c *Client) roundTrip(ctx context.Context, req plan.Request, limit time.Dur
 	d := net.Dialer{Timeout: 3 * time.Second}
 	conn, err := d.DialContext(ctx, "unix", c.Socket)
 	if err != nil {
-		return plan.Response{}, fmt.Errorf("Der Root-Helfer ist nicht erreichbar: %w", err)
+		return plan.Response{}, fmt.Errorf("The root helper is not reachable: %w", err)
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(limit))
@@ -226,7 +250,7 @@ func (c *Client) roundTrip(ctx context.Context, req plan.Request, limit time.Dur
 		if writeErr != nil {
 			return plan.Response{}, writeErr
 		}
-		return plan.Response{}, fmt.Errorf("Antwort des Root-Helfers nicht lesbar: %w", err)
+		return plan.Response{}, fmt.Errorf("The answer of the root helper is not readable: %w", err)
 	}
 	return resp, nil
 }
@@ -242,4 +266,64 @@ func (c *Client) Available() bool {
 	defer cancel()
 	r, err := c.roundTrip(ctx, plan.Request{Tool: pingTool}, 2*time.Second)
 	return err == nil && r.Output == "pong"
+}
+
+// handleDocker führt einen lesenden Docker-Aufruf aus (nur feste Unterbefehle, siehe tools.DockerArgv). Er braucht keine
+// Freigabe, aber die lokale Richtlinie muss root-Befehle erlauben (root=on).
+func (s *server) handleDocker(ctx context.Context, c net.Conn, req plan.Request) {
+	if !s.opt.Policy().Root {
+		reply(c, plan.Response{ExitCode: -1, Error: "Commands with root rights are switched off locally on this server (root=off)."})
+		return
+	}
+	argv, err := tools.DockerArgv(tools.Args(req.Args))
+	if err != nil {
+		reply(c, plan.Response{ExitCode: -1, Error: err.Error()})
+		return
+	}
+	out, code, runErr := tools.RunWith(ctx, tools.Opts{Timeout: 30 * time.Second}, argv[0], argv[1:]...)
+	r := plan.Response{Output: out, ExitCode: code}
+	if runErr != nil && out == "" {
+		r.Error = runErr.Error()
+	}
+	reply(c, r)
+}
+
+// RootRead gibt eine Funktion für tools.RootRead zurück: lesende Werkzeuge, die root brauchen (Docker), laufen über den Helfer.
+func (c *Client) RootRead() func(ctx context.Context, tool string, args tools.Args) (string, error) {
+	return func(ctx context.Context, tool string, args tools.Args) (string, error) {
+		resp, err := c.roundTrip(ctx, plan.Request{Tool: tool, Args: plan.Args(args)}, 40*time.Second)
+		if err != nil {
+			return "", err
+		}
+		if resp.Error != "" {
+			return "", errors.New(resp.Error)
+		}
+		return resp.Output, nil
+	}
+}
+
+// handleUpdate installiert eine neue Fassung des Agenten (Richtlinie update=…, Prüfung der Datei und Rücksetzen: siehe Paket update).
+func (s *server) handleUpdate(c net.Conn, req plan.Request) {
+	in := s.opt.Installer
+	if in == nil {
+		reply(c, plan.Response{ExitCode: -1, Error: "This helper does not support updates."})
+		return
+	}
+	if req.Tool == confirmTool {
+		in.Confirm()
+		reply(c, plan.Response{Output: "ok"})
+		return
+	}
+	raw, _ := json.Marshal(req.Args)
+	var ur update.Request
+	if json.Unmarshal(raw, &ur) != nil {
+		reply(c, plan.Response{ExitCode: -1, Error: "Request invalid"})
+		return
+	}
+	out, err := in.Install(s.opt.Policy(), ur)
+	if err != nil {
+		reply(c, plan.Response{ExitCode: -1, Error: err.Error()})
+		return
+	}
+	reply(c, plan.Response{Output: out})
 }

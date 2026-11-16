@@ -131,6 +131,32 @@
    ]
   },
   {
+   "id": "linux-ops",
+   "label": {
+    "de": "Linux-Betrieb",
+    "en": "Linux operations"
+   },
+   "icon": "setup",
+   "summary": {
+    "de": "Playbooks für Störungen auf deinen Linux-Servern: Lage erfassen, eingrenzen, beheben. Nutzt die Server-Werkzeuge von HA Copilot.",
+    "en": "Playbooks for faults on your Linux servers: assess, narrow down, fix. Uses the server tools of HA Copilot."
+   },
+   "skills": [
+    "server-stoerung-eingrenzen",
+    "server-dienst-startet-nicht",
+    "server-speicher-voll",
+    "server-langsam",
+    "server-updates-sicher",
+    "runbook",
+    "incident-response"
+   ],
+   "connectors": [],
+   "note": {
+    "de": "Dafür muss auf dem Server der Agent laufen (Seite „Server“). Änderungen laufen immer erst nach deiner Freigabe.",
+    "en": "This needs the agent on the server (page “Servers”). Changes always run only after your approval."
+   }
+  },
+  {
    "id": "project",
    "label": {
     "de": "Projekt & Team",
