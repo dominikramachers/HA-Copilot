@@ -461,3 +461,15 @@ func TestRedactInOutput(t *testing.T) {
 		t.Fatalf("Geheimnis in der Ausgabe: %q", out)
 	}
 }
+
+func TestManagerRefusesProgramsOutsideSystemDirectories(t *testing.T) {
+	m := NewManager(operate, nil)
+	for _, argv := range [][]string{{"/tmp/x"}, {"./x"}, {"/home/a/b"}, {"gibt-es-nicht-xyz"}} {
+		if _, err := m.Prepare(context.Background(), ToolRun, Args{"argv": list(argv...)}); err == nil {
+			t.Errorf("%v müsste schon bei der Vorbereitung scheitern", argv)
+		}
+	}
+	if _, err := m.Prepare(context.Background(), ToolRun, Args{"argv": list("/bin/echo", "ok")}); err != nil {
+		t.Fatalf("/bin/echo: %v", err)
+	}
+}

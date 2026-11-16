@@ -151,6 +151,12 @@ func (m *Manager) Prepare(ctx context.Context, tool string, args Args) (Plan, er
 	if why := Allowed(p, a); why != "" {
 		return Plan{}, errors.New(why)
 	}
+	if a.Tool == ToolRun && len(a.Argv) > 0 {
+		// Läuft das Programm überhaupt (nur Systemverzeichnisse)? Dann scheitert es nicht erst nach der Freigabe.
+		if _, err := tools.LookPath(a.Argv[0]); err != nil {
+			return Plan{}, err
+		}
+	}
 	if a.Root && (m.Root == nil || !m.Root.Available()) {
 		return Plan{}, errors.New("Der Root-Helfer ist auf diesem Server nicht erreichbar (copilot-helper.service prüfen).")
 	}

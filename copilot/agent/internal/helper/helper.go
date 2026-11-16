@@ -109,13 +109,16 @@ func reply(c net.Conn, r plan.Response) {
 
 func (s *server) handle(ctx context.Context, c *net.UnixConn) {
 	defer c.Close()
-	uid, err := peerUID(c)
-	if err != nil || (uid != 0 && uid != s.opt.AllowUID) {
+	uid, uidErr := peerUID(c)
+	allowed := uidErr == nil && (uid == 0 || uid == s.opt.AllowUID)
+	// Die Anfrage wird auch von einem Unberechtigten noch gelesen (begrenzt, mit Zeitlimit), aber nie ausgewertet: so bekommt er
+	// die Ablehnung als Antwort und nicht als abgebrochene Verbindung.
+	_ = c.SetReadDeadline(time.Now().Add(readTimeout))
+	line, err := bufio.NewReaderSize(io.LimitReader(c, maxRequest), 4096).ReadBytes('\n')
+	if !allowed {
 		reply(c, plan.Response{ExitCode: -1, Error: "Zugriff verweigert"})
 		return
 	}
-	_ = c.SetReadDeadline(time.Now().Add(readTimeout))
-	line, err := bufio.NewReaderSize(io.LimitReader(c, maxRequest), 4096).ReadBytes('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
 		reply(c, plan.Response{ExitCode: -1, Error: "Anfrage nicht lesbar"})
 		return
@@ -171,11 +174,12 @@ func (c *Client) roundTrip(ctx context.Context, req plan.Request, limit time.Dur
 	_ = conn.SetDeadline(time.Now().Add(limit))
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
-	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return plan.Response{}, err
-	}
+	writeErr := json.NewEncoder(conn).Encode(req)
 	var resp plan.Response
 	if err := json.NewDecoder(io.LimitReader(conn, 4*1024*1024)).Decode(&resp); err != nil {
+		if writeErr != nil {
+			return plan.Response{}, writeErr
+		}
 		return plan.Response{}, fmt.Errorf("Antwort des Root-Helfers nicht lesbar: %w", err)
 	}
 	return resp, nil

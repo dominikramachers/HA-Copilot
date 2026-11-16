@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -45,21 +46,45 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 // searchPath ist der feste Suchpfad für Programme (nicht der Pfad des Agentenprozesses).
 const searchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-// LookPath findet ein Programm im festen Suchpfad; ein Name mit „/“ wird nur auf Ausführbarkeit geprüft.
+// LookPath findet ein Programm ausschließlich im festen Suchpfad. Ein Name mit „/“ ist nur erlaubt, wenn er in einem dieser
+// Verzeichnisse liegt (etwa /sbin/shutdown); gelöst wird dann über den reinen Dateinamen. Relative Pfade, „..“ und Programme
+// außerhalb der Systemverzeichnisse (/tmp, /home, /opt …) werden nie gestartet: ein Auftrag kann so keine abgelegte Datei ausführen.
 func LookPath(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	missing := fmt.Errorf("%s ist auf diesem Server nicht installiert", name)
+	if name == "" || strings.ContainsRune(name, 0) || strings.Contains(name, "\\") {
+		return "", missing
+	}
+	base := name
 	if strings.Contains(name, "/") {
-		if info, err := os.Stat(name); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
-			return name, nil
+		clean := filepath.Clean(name)
+		if !filepath.IsAbs(clean) {
+			return "", missing
 		}
-		return "", fmt.Errorf("%s ist auf diesem Server nicht vorhanden oder nicht ausführbar", name)
+		if !inSearchPath(filepath.Dir(clean)) {
+			return "", fmt.Errorf("%s liegt nicht in einem Systemverzeichnis (erlaubt: %s)", name, searchPath)
+		}
+		base = filepath.Base(clean)
+	}
+	if base == "." || base == ".." || base == "/" {
+		return "", missing
 	}
 	for _, dir := range strings.Split(searchPath, ":") {
-		path := dir + "/" + name
+		path := dir + "/" + base
 		if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
 			return path, nil
 		}
 	}
-	return "", fmt.Errorf("%s ist auf diesem Server nicht installiert", name)
+	return "", missing
+}
+
+func inSearchPath(dir string) bool {
+	for _, d := range strings.Split(searchPath, ":") {
+		if d == dir {
+			return true
+		}
+	}
+	return false
 }
 
 // Opts steuert RunWith.
