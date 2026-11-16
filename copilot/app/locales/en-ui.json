@@ -1400,5 +1400,10 @@
  "auf Knopfdruck": "on request",
  "aus (lokale Richtlinie)": "off (local policy)",
  "automatisch": "automatic",
- "gültig noch {0} Tage": "valid for {0} more days"
+ "gültig noch {0} Tage": "valid for {0} more days",
+ "Ja, nur signierte Programme": "Yes, signed programs only",
+ "Nein, jedes Programm vom Hub": "No, any program from the hub",
+ "Aktualisierungen nur mit Signatur?": "Updates only with a signature?",
+ "Dann nimmt der Agent nur Programme an, die vom Release signiert sind. Wer das Add-on kontrolliert, kann so keine anderen Programme auf den Server bringen.": "The agent then only accepts programs signed by the release. Whoever controls the add-on cannot put other programs on the server.",
+ "Die Agenten-Programme in diesem Add-on sind nicht signiert. Server nehmen Aktualisierungen deshalb ohne Signaturprüfung an. Wie du das änderst, steht in SECURITY.md.": "The agent programs in this add-on are not signed. Servers therefore accept updates without a signature check. How to change that is described in SECURITY.md."
 }

@@ -18,6 +18,8 @@ Dieses Modul enthält die Zertifizierungsstelle, die Schlüsselverwaltung, die S
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import contextlib
 import hashlib
 import ipaddress
@@ -37,7 +39,8 @@ from typing import Any
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric import ec, ed25519
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from .config import Settings
@@ -1075,6 +1078,29 @@ class ServerHub:
                 if path.is_file():
                     found[arch] = path
         return found
+
+    def update_key(self) -> str:
+        """Der öffentliche Schlüssel (Base64), mit dem die mitgelieferten Agenten-Programme signiert sind; leer, wenn es keinen gibt oder
+        nicht jedes Programm eine gültige Signatur für die mitgelieferte Fassung hat (dann sind sie unsigniert). Der Hub prüft das
+        selbst nach, damit ein Skript nie einen Schlüssel einträgt, mit dem die eigenen Programme nicht angenommen würden."""
+        binaries = self.agent_binaries()
+        version = self.agent_version()
+        if not binaries or not version or not self.agent_dir:
+            return ""
+        try:
+            text = (self.agent_dir / "update_key.pub").read_text(encoding="ascii").strip()
+            raw = base64.b64decode(text, validate=True)
+            key = ed25519.Ed25519PublicKey.from_public_bytes(raw)
+        except (OSError, UnicodeDecodeError, binascii.Error, ValueError):
+            return ""
+        for arch, path in binaries.items():
+            try:
+                sig = base64.b64decode(path.with_name(path.name + ".sig").read_text(encoding="ascii").strip(), validate=True)
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                key.verify(sig, f"ha-copilot-agent\n{version}\n{arch}\n{digest}\n".encode("ascii"))
+            except (OSError, UnicodeDecodeError, binascii.Error, ValueError, InvalidSignature):
+                return ""
+        return text
 
     def agent_hashes(self) -> dict[str, str]:
         return {arch: hashlib.sha256(path.read_bytes()).hexdigest() for arch, path in self.agent_binaries().items()}

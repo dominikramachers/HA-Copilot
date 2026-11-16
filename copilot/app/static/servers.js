@@ -11,7 +11,7 @@ const srvUi = {
   data: null,                 // Antwort von api/servers
   activity: null,
   filter: { server: "", kind: "", days: 7 },
-  form: { hub: "", name: "", hours: 24, uses: 1, changes: true, autoUpdate: true },
+  form: { hub: "", name: "", hours: 24, uses: 1, changes: true, autoUpdate: true, signedOnly: true },
   script: null,               // { script, filename, expires, uses }
   busy: false,
   status: "",
@@ -416,7 +416,7 @@ async function srvCreateScript() {
   try {
     const result = await api("api/servers/install-script", {
       method: "POST",
-      body: JSON.stringify({ hub: form.hub.trim(), name: form.uses === 1 ? form.name.trim() : "", hours: form.hours, max_uses: form.uses, changes: form.changes, auto_update: form.autoUpdate }),
+      body: JSON.stringify({ hub: form.hub.trim(), name: form.uses === 1 ? form.name.trim() : "", hours: form.hours, max_uses: form.uses, changes: form.changes, auto_update: form.autoUpdate, signed_updates: form.signedOnly }),
     });
     srvUi.script = { ...result, uses: form.uses };
     await srvLoad(true);
@@ -494,6 +494,14 @@ function renderServerAdd(wrap) {
     autoUpdate.append(o);
   }
   autoUpdate.addEventListener("change", () => { form.autoUpdate = autoUpdate.value === "true"; });
+  const signedOnly = node("select", "field");
+  for (const [value, text] of [[true, tr("Ja, nur signierte Programme")], [false, tr("Nein, jedes Programm vom Hub")]]) {
+    const o = node("option", "", text);
+    o.value = String(value);
+    o.selected = value === form.signedOnly;
+    signedOnly.append(o);
+  }
+  signedOnly.addEventListener("change", () => { form.signedOnly = signedOnly.value === "true"; });
   fields.append(
     field(tr("Adresse des Hubs"), address, tr("So erreichen die Server diesen Home-Assistant-Rechner. Der Port {0} wird ergänzt.", hub.port)),
     field(tr("Name des Servers (optional)"), name, form.uses === 1 ? tr("Sonst gilt der Hostname.") : tr("Bei mehreren Servern gilt jeweils der Hostname.")),
@@ -502,6 +510,11 @@ function renderServerAdd(wrap) {
     field(tr("Darf die KI dort etwas ändern?"), changes, tr("Das legt nur die Starteinstellung auf dem Server fest. Danach entscheidet allein die Datei /etc/copilot-agent/policy auf dem Server.")),
     field(tr("Soll sich der Agent selbst aktualisieren?"), autoUpdate, tr("Neue Fassungen aus diesem Add-on spielt der Agent dann selbst ein, ohne neues Skript. Das Zertifikat erneuert er in jedem Fall von selbst.")),
   );
+  if (hub.signed) {
+    fields.append(field(tr("Aktualisierungen nur mit Signatur?"), signedOnly, tr("Dann nimmt der Agent nur Programme an, die vom Release signiert sind. Wer das Add-on kontrolliert, kann so keine anderen Programme auf den Server bringen.")));
+  } else {
+    card.append(node("p", "srv-note", tr("Die Agenten-Programme in diesem Add-on sind nicht signiert. Server nehmen Aktualisierungen deshalb ohne Signaturprüfung an. Wie du das änderst, steht in SECURITY.md.")));
+  }
   card.append(fields);
 
   const make = node("button", "pill primary small", srvUi.busy ? tr("Wird erstellt …") : tr("Skript erstellen"));

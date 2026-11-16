@@ -37,7 +37,7 @@ def hub_with_port(address: str) -> str:
 
 def render_script(
     *, hub: str, key: str, ca_fingerprint: str, hub_pin: str, hashes: dict[str, str], expires: str, max_uses: int, name: str = "",
-    changes: bool = True, auto_update: bool = True,
+    changes: bool = True, auto_update: bool = True, update_key: str = "",
 ) -> str:
     """Das fertige Skript als Text. Alle Werte werden für die Shell maskiert. Das Skript selbst und alles, was es auf dem Server
     ausgibt oder ablegt, ist englisch (die Sprache der Oberfläche gilt nur in der App)."""
@@ -61,6 +61,7 @@ SHA256_ARM64={q(hashes.get("arm64", ""))}
 SERVER_NAME={q(name)}
 ALLOW_CHANGES={1 if changes else 0}
 AUTO_UPDATE={1 if auto_update else 0}
+UPDATE_KEY={q(update_key)}
 """
     return head + _BODY
 
@@ -138,9 +139,10 @@ fi
 # Local policy: this server decides on its own what the AI may do. Neither the hub nor the AI can change it.
 # An existing file is left unchanged (also when this script is run again).
 install -d -m 0755 -o root -g root "$POLICY_DIR"
+if [ "$AUTO_UPDATE" = "1" ]; then UPDATE=auto; else UPDATE=manual; fi
+if [ -n "$UPDATE_KEY" ]; then UPDATE_KEY_LINE="update_key=$UPDATE_KEY"; else UPDATE_KEY_LINE="#update_key="; fi
 if [ ! -f "$POLICY" ]; then
     if [ "$ALLOW_CHANGES" = "1" ]; then ACCESS=operate; else ACCESS=read; fi
-    if [ "$AUTO_UPDATE" = "1" ]; then UPDATE=auto; else UPDATE=manual; fi
     cat > "$POLICY" <<EOF
 # HA Copilot: what the AI may do on this server. Takes effect immediately, no restart needed.
 # Only root on this server can change it.
@@ -163,14 +165,23 @@ write_paths=/etc,/opt,/srv,/var/www,/home,/usr/local/etc
 #               manual  = only when someone presses the button on the Servers page
 #               auto    = as soon as the hub offers a newer version (a version that does not start is rolled back)
 update=$UPDATE
-# update_key    optional: public ed25519 key (base64). If set, only agent files signed with the matching key are installed.
-#update_key=
+# update_key    optional: public ed25519 key (base64). If set, only agent files signed with the matching key are installed,
+#               so nobody who controls the hub can put other programs on this server.
+$UPDATE_KEY_LINE
 EOF
     chmod 0644 "$POLICY"
     say "Local policy created: $POLICY (ki_access=$ACCESS, update=$UPDATE)."
 else
     say "Local policy is left unchanged: $POLICY"
-    say "Note: a policy from an older version has no write_paths and update lines. Defaults then apply (writing below /etc, /opt, /srv, /var/www, /home; update=manual)."
+    # Lines that an older version did not know are added, existing values are never changed.
+    if ! grep -q '^update=' "$POLICY"; then
+        printf '\n# update  off | manual | auto (see the hub documentation)\nupdate=%s\n' "$UPDATE" >> "$POLICY"
+        say "Added the missing line update=$UPDATE to the policy."
+    fi
+    if [ -n "$UPDATE_KEY" ] && ! grep -q '^update_key=' "$POLICY"; then
+        printf '\n# update_key  only agent files signed with this public key are installed\nupdate_key=%s\n' "$UPDATE_KEY" >> "$POLICY"
+        say "Added the missing line update_key to the policy."
+    fi
 fi
 
 # Root helper: only accepts requests from the agent, classifies them again itself and runs only what was approved (the policy applies).

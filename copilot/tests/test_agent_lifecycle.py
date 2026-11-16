@@ -3,6 +3,7 @@
 Wird übersprungen, wenn Go fehlt; die Tests mit Root-Helfer laufen nur als root (der Helfer verlangt es).
 """
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -12,6 +13,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from app import servers as serverlib
 from app.server_messages import localize
@@ -275,6 +278,66 @@ def test_update_needs_a_valid_signature_when_update_key_is_set(tmp_path, old_age
             await asyncio.sleep(4)  # der Agent versucht es und die Prüfung der Signatur im Helfer schlägt fehl
             assert setup.installed_version() == "9.9.9"
             assert not (setup.policy_dir / "update-pending").exists()
+        finally:
+            await setup.stop()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(scenario())
+
+
+def signing_pair() -> tuple[Ed25519PrivateKey, str]:
+    key = Ed25519PrivateKey.generate()
+    raw = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    return key, base64.b64encode(raw).decode()
+
+
+def sign_for_hub(setup: "Setup", key: Ed25519PrivateKey, version: str) -> None:
+    """Legt die Signatur des Add-ons für das mitgelieferte Programm ab, genau wie der Release-Workflow (copilot-sign)."""
+    [(arch, path)] = setup.hub.agent_binaries().items()
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    message = f"ha-copilot-agent\n{version}\n{arch}\n{digest}\n".encode()
+    path.with_name(path.name + ".sig").write_text(base64.b64encode(key.sign(message)).decode() + "\n")
+
+
+@needs_root
+def test_a_correctly_signed_update_is_installed_when_update_key_is_set(tmp_path, old_agent, new_agent):
+    async def scenario():
+        key, pub = signing_pair()
+        setup = Setup(tmp_path, old_agent, new_agent, f"ki_access=read\nupdate=auto\nupdate_key={pub}\n")
+        sign_for_hub(setup, key, "9.9.10")
+        hub = setup.hub
+        assert hub.update_key() == ""  # noch ohne öffentlichen Schlüssel im Add-on: nicht als signiert gemeldet
+        (tmp_path / "agent-bin" / "update_key.pub").write_text(pub + "\n")
+        assert hub.update_key() == pub
+        task = await started(hub)
+        try:
+            await enroll(hub, old_agent, setup.state, "update06")
+            await setup.start_helper()
+            await setup.start_agent()
+            await wait_for(lambda: setup.installed_version() == "9.9.10", 40)
+        finally:
+            await setup.stop()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(scenario())
+
+
+@needs_root
+def test_an_update_signed_with_another_key_is_refused(tmp_path, old_agent, new_agent):
+    async def scenario():
+        _, pub = signing_pair()
+        stranger, _ = signing_pair()
+        setup = Setup(tmp_path, old_agent, new_agent, f"ki_access=read\nupdate=auto\nupdate_key={pub}\n")
+        sign_for_hub(setup, stranger, "9.9.10")  # gültig geformt, aber nicht vom Schlüssel der Richtlinie
+        hub = setup.hub
+        task = await started(hub)
+        try:
+            row = await enroll(hub, old_agent, setup.state, "update07")
+            await setup.start_helper()
+            await setup.start_agent()
+            await wait_for(lambda: info_of(hub, row["id"]).get("update_mode") == "auto", 20)
+            await asyncio.sleep(4)
+            assert setup.installed_version() == "9.9.9" and not (setup.policy_dir / "update-pending").exists()
         finally:
             await setup.stop()
             task.cancel()
