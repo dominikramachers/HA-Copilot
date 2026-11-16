@@ -1618,8 +1618,16 @@ def register_chat_routes(
             return remembered[0] if remembered else ""
 
         labels = {p.id: p.label for p in (registry.all() if registry else settings.profiles)}
-        data = usagelib.overview(store, labels, range, settings.usd_eur_rate if euro else 1.0, resolve=label_of)
-        return {**data, "currency": "EUR" if euro else "USD", "ranges": list(usagelib.RANGES)}
+        live: dict[str, dict] = {}  # wer gerade eine Antwort erzeugen lässt (nur Anzahl und ob sie auf Zulassen wartet, nie der Chat)
+        for (owner, _chat), run in list(runs.items()):
+            if not run.finished:
+                entry = live.setdefault(owner, {"active": 0, "waiting": 0})
+                entry["active"] += 1
+                entry["waiting"] += 1 if run.pending else 0
+        data = usagelib.overview(
+            store, labels, range, settings.usd_eur_rate if euro else 1.0, resolve=label_of, claude_billed=not is_subscription(), live=live,
+        )
+        return {**data, "currency": "EUR" if euro else "USD", "ranges": list(usagelib.RANGES), "subscription": is_subscription()}
 
     @app.get("/api/chats")
     def list_chats(profile: Profile = Depends(current_profile)) -> list[dict]:

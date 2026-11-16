@@ -2647,26 +2647,44 @@ class Store:
         """Verbrauch je Person im Zeitraum: frische Einträge nach Zeit, verdichtete Tage nach Datum (``JJJJ-MM-TT``, beide Grenzen eingeschlossen)."""
         rows: dict[str, dict] = {}
 
-        def add(pid: str, calls: int, tin: int, tout: int, cost: float, images: int) -> None:
-            row = rows.setdefault(pid, {"profile_id": pid, "calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "images": 0})
+        def add(pid: str, calls: int, tin: int, tout: int, cost: float, images: int, claude: float) -> None:
+            row = rows.setdefault(pid, {"profile_id": pid, "calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "claude_cost_usd": 0.0, "images": 0})
             row["calls"] += calls
             row["tokens_in"] += tin
             row["tokens_out"] += tout
             row["cost_usd"] += cost
+            row["claude_cost_usd"] += claude  # davon Claude-Aufrufe (ohne Bilder): bei einem Abo nur ein Rechenwert, kein Geld
             row["images"] += images
 
         with self._lock:
             for r in self._conn.execute(
-                "SELECT profile_id, COUNT(*) AS n, SUM(tokens_in) AS ti, SUM(tokens_out) AS to_, SUM(cost_usd) AS c, SUM(images) AS im "
+                "SELECT profile_id, COUNT(*) AS n, SUM(tokens_in) AS ti, SUM(tokens_out) AS to_, SUM(cost_usd) AS c, SUM(images) AS im, "
+                "SUM(CASE WHEN provider = 'claude' AND kind <> 'image' THEN cost_usd ELSE 0 END) AS cl "
                 "FROM usage_events WHERE ts >= ? AND ts < ? GROUP BY profile_id", (start_ts, end_ts),
             ):
-                add(r["profile_id"], r["n"], r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0)
+                add(r["profile_id"], r["n"], r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0, r["cl"] or 0.0)
             for r in self._conn.execute(
-                "SELECT profile_id, SUM(calls) AS n, SUM(tokens_in) AS ti, SUM(tokens_out) AS to_, SUM(cost_usd) AS c, SUM(images) AS im "
+                "SELECT profile_id, SUM(calls) AS n, SUM(tokens_in) AS ti, SUM(tokens_out) AS to_, SUM(cost_usd) AS c, SUM(images) AS im, "
+                "SUM(CASE WHEN provider = 'claude' AND kind <> 'image' THEN cost_usd ELSE 0 END) AS cl "
                 "FROM usage_daily WHERE day >= ? AND day <= ? GROUP BY profile_id", (start_day, end_day),
             ):
-                add(r["profile_id"], r["n"] or 0, r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0)
+                add(r["profile_id"], r["n"] or 0, r["ti"] or 0, r["to_"] or 0, r["c"] or 0.0, r["im"] or 0, r["cl"] or 0.0)
         return list(rows.values())
+
+    def last_activity(self) -> dict[str, int]:
+        """Wann jede Person zuletzt etwas getan hat (Unix-Zeit): jüngster Aufruf der KI oder jüngste Änderung eines Chats. Nur Zeitpunkte, keine Inhalte."""
+        found: dict[str, int] = {}
+        with self._lock:
+            for r in self._conn.execute("SELECT profile_id, MAX(ts) AS t FROM usage_events GROUP BY profile_id"):
+                found[r["profile_id"]] = int(r["t"] or 0)
+            chats = self._conn.execute("SELECT profile_id, MAX(updated_at) AS t FROM chats GROUP BY profile_id").fetchall()
+        for r in chats:
+            try:
+                moment = datetime.fromisoformat(r["t"]).timestamp()
+            except (TypeError, ValueError):
+                continue
+            found[r["profile_id"]] = max(found.get(r["profile_id"], 0), int(moment))
+        return found
 
     def usage_cost_total(self, kind: str, start_ts: int, end_ts: int, start_day: str, end_day: str) -> float:
         """Summe der (geschätzten) Kosten in US-Dollar für eine Art von Aufrufen (z. B. ``image``) im Zeitraum, aller Personen zusammen."""

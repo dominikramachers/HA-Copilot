@@ -94,24 +94,37 @@ def period(name: str, now: datetime | None = None) -> tuple[datetime, datetime]:
     return first, now + timedelta(seconds=1)  # month
 
 
-def overview(store, labels: dict[str, str], name: str, rate: float, now: datetime | None = None, resolve: Callable[[str], str] | None = None) -> dict:
-    """Zahlen für die Admin-Seite: je Person Aufrufe, Token, Bilder und Wert; dazu die Summe und der Anteil je Person."""
+def overview(
+    store, labels: dict[str, str], name: str, rate: float, now: datetime | None = None, resolve: Callable[[str], str] | None = None,
+    claude_billed: bool = True, live: dict[str, dict] | None = None,
+) -> dict:
+    """Zahlen für die Admin-Seite: je Person Aufrufe, Token, Bilder und Geld; dazu die Summe und der Anteil je Person.
+
+    ``cost`` ist echtes Geld: geschätzte Bilder und, nur mit API-Schlüssel (``claude_billed``), die Claude-Aufrufe. Mit einem Claude-Abo sind die
+    Aufrufe durch die Pauschale gedeckt; ihr Preis nach API-Liste steht dann getrennt in ``covered`` (nur ein Rechenwert).
+    ``live`` sagt je Person, ob gerade eine Antwort läuft (``active``) und ob sie auf eine Rückfrage wartet (``waiting``); dazu kommt ``last_active``."""
     if name not in RANGES:
         name = "month"
     start, end = period(name, now)
     rows = store.usage_summary(int(start.timestamp()), int(end.timestamp()), start.strftime("%Y-%m-%d"), (end - timedelta(seconds=1)).strftime("%Y-%m-%d"))
     seen = {row["profile_id"] for row in rows}
-    rows += [{"profile_id": pid, "calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "images": 0} for pid in labels if pid not in seen]  # auch wer nichts genutzt hat
+    rows += [{"profile_id": pid, "calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "claude_cost_usd": 0.0, "images": 0} for pid in labels if pid not in seen]  # auch wer nichts genutzt hat
+    last = store.last_activity()
+    live = live or {}
     out = []
     for row in rows:
         tokens = row["tokens_in"] + row["tokens_out"]
+        pid = row["profile_id"]
+        covered = 0.0 if claude_billed else row["claude_cost_usd"]
         out.append({
-            "id": row["profile_id"], "label": labels.get(row["profile_id"]) or (resolve(row["profile_id"]) if resolve else "") or row["profile_id"], "calls": row["calls"],
+            "id": pid, "label": labels.get(pid) or (resolve(pid) if resolve else "") or pid, "calls": row["calls"],
             "tokens_in": row["tokens_in"], "tokens_out": row["tokens_out"], "tokens": tokens,
-            "images": row["images"], "cost": round(row["cost_usd"] * rate, 2),
+            "images": row["images"], "cost": round(max(0.0, row["cost_usd"] - covered) * rate, 2), "covered": round(covered * rate, 2),
+            "active": int(live.get(pid, {}).get("active", 0)), "waiting": int(live.get(pid, {}).get("waiting", 0)), "last_active": last.get(pid, 0),
         })
     total = {k: sum(r[k] for r in out) for k in ("calls", "tokens_in", "tokens_out", "tokens", "images")}
     total["cost"] = round(sum(r["cost"] for r in out), 2)
+    total["covered"] = round(sum(r["covered"] for r in out), 2)
     for r in out:
         r["share"] = round(100 * r["tokens"] / total["tokens"], 1) if total["tokens"] else 0.0
     out.sort(key=lambda r: (-r["tokens"], -r["images"], r["label"].lower()))

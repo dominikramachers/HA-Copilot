@@ -110,3 +110,77 @@ def test_rate_is_validated(store):
     for bad in (0, 11, "viel"):
         with pytest.raises(ConfigError):
             parse_settings({**RAW, "chat": {"usd_eur_rate": bad}}, frozenset())
+
+
+# ------------------------------------------------------------------ Geld nur, wo es anfällt; wer gerade aktiv ist
+
+def _spend(store, now):
+    store.usage_add("dora", "claude", "m", tokens_in=1000, tokens_out=500, cost_usd=10.0, ts=int(now.timestamp()) - 60)  # Chat über das Abo
+    store.usage_add("dora", "openai", "g", kind="image", images=2, cost_usd=0.5, ts=int(now.timestamp()) - 30)  # Bilder kosten wirklich
+    store.usage_add("adm01", "openai", "g", tokens_in=100, tokens_out=100, ts=int(now.timestamp()) - 90)
+
+
+def test_subscription_calls_are_not_counted_as_money(store):
+    now = datetime(2026, 11, 18, 12, 0)
+    _spend(store, now)
+    names = {"adm01": "Admin", "dora": "Dora"}
+    billed = usagelib.overview(store, names, "month", 1.0, now)  # API-Schlüssel: der gemeldete Preis ist echtes Geld
+    assert billed["total"]["cost"] == 10.5 and billed["total"]["covered"] == 0
+    plan = usagelib.overview(store, names, "month", 0.5, now, claude_billed=False)  # Abo: nur die Bilder, der Rest ist ein Rechenwert
+    dora = next(p for p in plan["people"] if p["id"] == "dora")
+    assert dora["cost"] == 0.25 and dora["covered"] == 5.0 and plan["total"]["cost"] == 0.25 and plan["total"]["covered"] == 5.0
+
+
+def test_overview_endpoint_knows_about_the_subscription(store):
+    store.usage_add("dora", "claude", "m", tokens_in=2_000_000, tokens_out=0, cost_usd=10.0)
+    store.usage_add("dora", "openai", "g", kind="image", images=1, cost_usd=0.2)
+    app = client(store, admins={ADM01}, chat={"claude_oauth_token": "sk-ant-oat01-" + "x" * 40})
+    data = app.get("/api/usage/all?range=month", headers=as_user(ADM01)).json()
+    dora = next(p for p in data["people"] if p["id"] == "dora")
+    assert data["subscription"] is True and dora["cost"] == 0.18 and dora["covered"] == 9.2 and data["total"]["covered"] == 9.2
+    keyed = client(store, admins={ADM01}, chat={"anthropic_api_key": "sk-ant-api03-" + "x" * 40})
+    data = keyed.get("/api/usage/all?range=month", headers=as_user(ADM01)).json()
+    assert data["subscription"] is False and next(p for p in data["people"] if p["id"] == "dora")["cost"] == 9.38
+
+
+def test_last_activity_comes_from_calls_and_chats(store):
+    assert store.last_activity() == {}
+    store.usage_add("dora", "claude", "m", ts=1_700_000_000)
+    chat = store.create_chat("dora", "Hallo", None)["id"]
+    store.add_message(chat, "dora", "user", "Hi")
+    seen = store.last_activity()
+    assert seen["dora"] >= int(time.time()) - 5  # die Chat-Änderung ist jünger als der alte Aufruf
+    data = usagelib.overview(store, {"adm01": "Admin", "dora": "Dora"}, "month", 1.0)
+    assert next(p for p in data["people"] if p["id"] == "adm01")["last_active"] == 0
+    assert next(p for p in data["people"] if p["id"] == "dora")["last_active"] == seen["dora"]
+    assert "Hi" not in str(data)  # nur Zeitpunkte, nie Inhalte
+
+
+def test_overview_shows_who_is_working_right_now(store):
+    import asyncio
+    from test_background_run import SlowBackend, asgi, jget, new_chat, until  # noqa: PLC0415
+
+    profiles = [{"id": "adm01", "label": "Admin", "ha_user_id": ADM01, "admin": True}, {"id": "dora", "label": "Dora", "ha_user_id": DORA}]
+    app = build_ingress_app(parse_settings({**RAW, "profiles": profiles}, frozenset({"testclient"})), store, SlowBackend(hold=True))
+
+    async def scenario():
+        chat = jget(await asgi(app, "POST", "/api/chats", {}, user=DORA))["id"]
+        post = asyncio.create_task(asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hallo KI"}, user=DORA, hang_up_after=1))
+
+        async def working():
+            people = jget(await asgi(app, "GET", "/api/usage/all", user=ADM01))["people"]
+            return next(p for p in people if p["id"] == "dora")["active"] == 1
+
+        await until(working)
+        people = jget(await asgi(app, "GET", "/api/usage/all", user=ADM01))["people"]
+        dora = next(p for p in people if p["id"] == "dora")
+        assert dora["active"] == 1 and dora["waiting"] == 0 and dora["last_active"] > 0
+        assert next(p for p in people if p["id"] == "adm01")["active"] == 0
+        assert "Hallo KI" not in json_text(people)  # keine Inhalte
+        post.cancel()
+
+    def json_text(value):
+        import json
+        return json.dumps(value, ensure_ascii=False)
+
+    asyncio.run(scenario())

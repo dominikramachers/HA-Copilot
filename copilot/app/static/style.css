@@ -1311,6 +1311,10 @@ select.field.conn-bulk { flex: none; width: auto; min-width: 150px; height: 36px
 .usage-row { display: grid; gap: 6px; }
 .usage-head { display: flex; justify-content: space-between; gap: 12px; font-size: 14.5px; }
 .usage-head span, .usage-sub { color: var(--text-2); font-size: 13.5px; }
+.usage-who { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.usage-head .usage-state { font-size: 12.5px; }
+.usage-head .usage-state.on { color: var(--ok, #2e9d5b); font-weight: 600; }
+.usage-head .usage-state.on::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
 .variant-pager { display: inline-flex; align-items: center; gap: 2px; }
 .variant-count { min-width: 30px; text-align: center; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .variant-pager .msg-act:disabled { opacity: .35; cursor: default; }

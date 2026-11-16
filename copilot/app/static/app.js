@@ -9197,12 +9197,23 @@ async function settingsUsage(body, alive) {
 const usageRanges = () => [["24h", tr("24 Stunden")], ["today", tr("Heute")], ["week", tr("Diese Woche")], ["month", tr("Dieser Monat")], ["lastmonth", tr("Letzter Monat")]];
 let usageAllRange = "month";
 
+// Was eine Person gerade tut, ohne Einzelheiten: läuft eine Antwort, wartet sie auf Zulassen, sonst wann zuletzt etwas geschah
+function usageState(r) {
+  let text;
+  let on = false;
+  if (r.waiting) { text = tr("wartet auf Zulassen"); on = true; }
+  else if (r.active) { text = trn(r.active, "arbeitet gerade", "arbeitet gerade ({0} Antworten)", r.active); on = true; }
+  else if (r.last_active) text = tr("zuletzt aktiv {0}", ago(r.last_active));
+  else text = tr("noch nie aktiv");
+  return node("span", on ? "usage-state on" : "usage-state", text);
+}
+
 function usageAllBlock(alive) {
   const box = node("section", "set-block");
   box.append(node("h4", "", tr("Alle Personen")));
   const tabs = node("div", "usage-ranges");
   const list = node("div", "usage-all");
-  const note = node("p", "mem-hint", tr("Nur für Administratoren. Es werden nur Zahlen gezählt, keine Inhalte. Der Wert ist der Preis, den Claude für die Aufrufe meldet; ChatGPT und Bilder haben keinen Wert und zählen nur als Token bzw. Bilder."));
+  const note = node("p", "mem-hint", tr("Nur für Administratoren. Es werden nur Zahlen und Zeitpunkte gezählt, keine Inhalte. Geld zählt nur, wo es wirklich anfällt: Bilder (geschätzt) und Claude mit API-Schlüssel. Claude im Abo ist durch die Pauschale gedeckt, ChatGPT-Token haben keinen Preis."));
   const buttons = new Map();
   let seq = 0;
   const load = async (quiet = false) => {
@@ -9218,14 +9229,17 @@ function usageAllBlock(alive) {
     const rows = data.people.map((r) => {
       const row = node("div", "usage-row");
       const head = node("div", "usage-head");
-      head.append(node("b", "", r.label), node("span", "", r.tokens ? tr("{0} % der Token", String(r.share).replace(".", kiLocale.startsWith("de") ? "," : ".")) : tr("nichts genutzt")));
+      const who = node("span", "usage-who");
+      who.append(node("b", "", r.label), usageState(r));
+      head.append(who, node("span", "", r.tokens ? tr("{0} % der Token", String(r.share).replace(".", kiLocale.startsWith("de") ? "," : ".")) : tr("nichts genutzt")));
       row.append(head);
       if (r.tokens) row.append(usageBar(Math.min(1, r.share / 100)));
       row.append(node("span", "usage-sub", r.tokens || r.images ? line(r) : ""));
       return row;
     });
     const total = node("p", "set-lead", tr("Zusammen: {0}", line(data.total) || tr("noch nichts")));
-    list.replaceChildren(total, ...rows);
+    const covered = data.subscription && data.total.covered > 0 ? [node("p", "mem-hint", tr("Claude im Abo: {0} nach API-Liste, nicht bezahlt", money.format(data.total.covered)))] : [];
+    list.replaceChildren(total, ...covered, ...rows);
   };
   for (const [key, label] of usageRanges()) {
     const button = node("button", "pill ghost small", label);

@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.60.5",
+    "items": [
+      {
+        "de": {
+          "title": "Ich zeige, wer gerade aktiv ist",
+          "text": "Als Administrator siehst du jetzt bei jeder Person, ob ich gerade für sie arbeite oder wann zuletzt etwas war. Es erscheinen nur Zeiten, keine Inhalte."
+        },
+        "en": {
+          "title": "I show who is active right now",
+          "text": "As an administrator you now see for each person whether I am working for them right now or when something last happened. Only times appear, never content."
+        }
+      },
+      {
+        "de": {
+          "title": "Kosten nur, wo wirklich Geld fließt",
+          "text": "Was durch dein Claude-Abo abgedeckt ist, rechne ich nicht mehr als Ausgabe. In Euro zählen nur Bilder und Anfragen, die wirklich abgerechnet werden."
+        },
+        "en": {
+          "title": "Costs only where money is spent",
+          "text": "What your Claude plan covers is no longer counted as spending. In euros I only count images and requests that are really billed."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.4",
     "items": [
       {
