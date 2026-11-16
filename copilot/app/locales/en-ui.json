@@ -1341,7 +1341,7 @@
  "Server hinzufügen": "Add server",
  "Sicherheit": "Security",
  "Skript erstellen": "Create script",
- "Skript kopiert. Auf dem Server als root einfügen.": "Script copied. Paste it on the server as root.",
+ "Skript kopiert.": "Script copied.",
  "So erreichen die Server diesen Home-Assistant-Rechner. Der Port {0} wird ergänzt.": "How the servers reach this Home Assistant machine. Port {0} is added.",
  "Sonst gilt der Hostname.": "Otherwise the hostname is used.",
  "Sperren": "Block",

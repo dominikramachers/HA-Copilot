@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.60.6",
+    "items": [
+      {
+        "de": {
+          "title": "Kopieren zeigt, dass es geklappt hat",
+          "text": "Beim Skript für neue Server färbt sich der Knopf „Kopieren“ kurz grün und zeigt einen Haken. So siehst du gleich, dass das Skript in der Zwischenablage liegt."
+        },
+        "en": {
+          "title": "Copying now shows it worked",
+          "text": "On the script for new servers, the “Copy” button briefly turns green with a tick, so you can see right away that the script is on your clipboard."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.5",
     "items": [
       {
