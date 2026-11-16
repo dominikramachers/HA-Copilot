@@ -19,8 +19,6 @@ import (
 // RootRead führt ein lesendes Werkzeug über den Root-Helfer aus (Docker). Wird beim Start gesetzt; nil = kein Helfer.
 var RootRead func(ctx context.Context, tool string, args Args) (string, error)
 
-var packageRe = regexp.MustCompile(`^[a-z0-9][a-z0-9+.\-]{0,99}(:[a-z0-9]{2,10})?$`)
-
 const (
 	fileReadMax   = 64 * 1024
 	fileTailBytes = 256 * 1024
@@ -125,11 +123,15 @@ func listDir(dir string) (string, error) {
 	return b.String(), nil
 }
 
-// packageInfo zeigt Zustand und Herkunft eines Pakets (apt/dpkg, nur lesend).
+// packageInfo zeigt Zustand und Herkunft eines Pakets (apt/dpkg oder rpm, nur lesend).
 func packageInfo(ctx context.Context, args Args) (string, error) {
 	name := args.text("package")
-	if !packageRe.MatchString(name) {
-		return "", errors.New("package is required (lower-case package name without a version)")
+	manager := PackageManager()
+	if !ValidPackageName(manager, name) {
+		return "", fmt.Errorf("package is required (%s)", PackageNameHint(manager))
+	}
+	if manager == PkgDnf {
+		return dnfPackageInfo(ctx, name)
 	}
 	var b strings.Builder
 	if out, err := Run(ctx, "dpkg-query", "-W", "-f=Package: ${Package}\nStatus: ${Status}\nInstalled version: ${Version}\nSection: ${Section}\nInstalled size (kB): ${Installed-Size}\nDepends: ${Depends}\n", name); err == nil {

@@ -7,7 +7,11 @@ import (
 	"time"
 
 	"github.com/dominikramachers/ha-copilot/agent/internal/policy"
+	"github.com/dominikramachers/ha-copilot/agent/internal/tools"
 )
+
+// Die Tests gehen von apt aus, auch auf einem Rechner ohne apt (die dnf-Tests stehen in dnf_test.go).
+func init() { tools.PackageManager = func() string { return tools.PkgApt } }
 
 func list(items ...string) []any { return toAny(items) }
 

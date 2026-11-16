@@ -1001,6 +1001,10 @@ def register_chat_routes(
             return False
         return await is_admin(profile)
 
+    if scheduler is not None:  # geplante Aufgaben dürfen die Server ansehen (nur lesen), wenn die Person es im Chat dürfte
+        scheduler.server_hub = server_hub
+        scheduler.server_allowed = server_allowed
+
     async def server_profile(profile: Profile = Depends(current_profile)) -> Profile:
         if not await server_allowed(profile):
             raise HTTPException(status_code=403, detail=tr("Kein Zugriff"))

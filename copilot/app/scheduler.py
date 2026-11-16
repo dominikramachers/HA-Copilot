@@ -20,7 +20,7 @@ import logging
 import os
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -40,6 +40,7 @@ from .ha_tools import HaToolbox
 from .identity import Registry
 from .limits import LimitState
 from .outbox import DESIGN_NOTE, OutboxToolbox
+from .server_tools import ServerToolbox
 from .web_tools import WEB_NOTE, WebToolbox
 
 log = logging.getLogger("copilot.scheduler")
@@ -59,7 +60,7 @@ SCHEDULED_NOTE = (
     "Dies ist eine geplante Aufgabe, die automatisch zur eingestellten Zeit läuft. Niemand schaut zu und niemand kann dir "
     "antworten: Stelle keine Rückfragen, sondern liefere das bestmögliche Ergebnis mit den Angaben, die du hast, und nenne am "
     "Ende kurz, was du angenommen hast oder nicht herausfinden konntest. Du darfst in dieser Aufgabe nur lesen (Home Assistant, "
-    "GitHub, Gedächtnis); Änderungen sind nicht möglich und werden nicht verlangt. Beginne direkt mit dem Ergebnis, ohne "
+    "GitHub, Server, Gedächtnis); Änderungen sind nicht möglich und werden nicht verlangt. Beginne direkt mit dem Ergebnis, ohne "
     "Einleitung wie „Gerne“. Die Antwort wird später gelesen: Schreibe sie so, dass sie ohne den Auftrag verständlich ist."
 )
 
@@ -108,6 +109,8 @@ class Scheduler:
         self.clock = clock
         self.connectors = connectors
         self.github_accounts = github_accounts  # persönliche GitHub-Konten; ohne: kein GitHub
+        self.server_hub: Any = None  # Linux-Server (wird von main gesetzt); ohne: keine Server in geplanten Läufen
+        self.server_allowed: Callable[[Profile], Awaitable[bool]] | None = None  # dieselbe Prüfung wie im Chat (Profil, Standard, Administrator)
         self._tasks: set[asyncio.Task] = set()
         self.live: dict[str, tuple[str, str]] = {}  # Aufgabe → Schlüssel des laufenden Laufs
 
@@ -250,7 +253,7 @@ class Scheduler:
         task.add_done_callback(self._tasks.discard)
         return chat["id"]
 
-    def _specs(self, row: dict, profile: Profile, run: Any, chat_id: str, extra: dict) -> list:
+    def _specs(self, row: dict, profile: Profile, run: Any, chat_id: str, extra: dict, *, servers: bool = False) -> list:
         settings = self.settings
         specs: list = []
         level = self.ha_level(profile)
@@ -289,6 +292,11 @@ class Scheduler:
             )
             specs += box.specs()
             connector_note = box.note()
+        server_note = ""
+        if servers:
+            server_box = ServerToolbox(self.server_hub, profile, record=run.push, next_id=run.next_tool_id, ask=None, scheduled=True)  # ohne ask: nur lesende Werkzeuge
+            specs += server_box.specs()
+            server_note = server_box.note()
         web = settings.web_level(profile) == "on" and row.get("web", True)
         if web:
             specs += WebToolbox(run.push, run.next_tool_id).specs()
@@ -301,6 +309,8 @@ class Scheduler:
             note += "\n" + WEB_NOTE
         if connector_note:
             note += "\n" + connector_note
+        if server_note:
+            note += "\n" + server_note
         if gh != "none":
             note += "\n" + GITHUB_NOTE + " " + github_level_text("read", self.github_policy(profile))
         extra["note"] = note
@@ -332,7 +342,8 @@ class Scheduler:
                     # Geplant kann niemand gefragt werden: bei erreichtem Monatslimit läuft die Aufgabe nicht mit ChatGPT
                     raise BackendError(tr("Das Monatslimit für ChatGPT ist erreicht. Die Aufgabe läuft erst im nächsten Monat wieder oder mit einem Claude-Modell."))
                 extra["on_usage"] = lambda tokens: store.token_usage_add(profile.id, month, tokens, "openai")
-            specs = self._specs(row, profile, run, chat_id, extra)
+            servers = self.server_hub is not None and self.server_allowed is not None and await self.server_allowed(profile)
+            specs = self._specs(row, profile, run, chat_id, extra, servers=servers)
             if specs:
                 extra["tools"] = specs
             try:

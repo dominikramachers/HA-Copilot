@@ -27,6 +27,8 @@ const (
 	ToolService = "service_action"
 	ToolPackage = "package"
 	ToolRun     = "run_command"
+	// ToolPackageSim ist keine Änderung: der Trockenlauf einer Paketaktion als root (nur dnf; nur der Agent fragt den Helfer danach).
+	ToolPackageSim = "package_sim"
 )
 
 // Names sind die ändernden Werkzeuge (CHANGE_TOOLS in app/servers.py).
@@ -210,9 +212,15 @@ func classifyService(args Args) (Action, error) {
 // ------------------------------------------------------------------------------------------------ Pakete
 
 var (
-	packageRe = regexp.MustCompile(`^[a-z0-9][a-z0-9+.\-]{0,99}(:[a-z0-9]{2,10})?$`)
-	// Pakete, die nicht entfernt werden (der Server würde unbrauchbar oder unerreichbar)
+	// Pakete, die nicht entfernt werden (der Server würde unbrauchbar oder unerreichbar); Namen von Debian/Ubuntu und von Red Hat/Fedora.
+	// Ein Name mit „-“ am Ende gilt als Anfang.
 	protectedPackages = []string{
+		"glibc", "glibc-common", "glibc-minimal-langpack", "coreutils-single", "openssh", "openssh-clients", "shadow-utils", "util-linux-core",
+		"pam", "dbus-broker", "dbus-daemon", "networkmanager", "firewalld", "dnf", "dnf5", "yum", "rpm", "rpm-libs", "libdnf", "libdnf5",
+		"python3-dnf", "python3-libdnf5", "systemd-libs", "systemd-udev", "systemd-pam", "systemd-resolved", "kernel", "kernel-", "grub2-", "shim-",
+		"selinux-policy", "selinux-policy-", "setup", "filesystem", "basesystem", "initscripts", "polkit", "authselect", "crypto-policies",
+		"redhat-release", "redhat-release-", "fedora-release", "fedora-release-", "rocky-release", "rocky-release-", "almalinux-release", "almalinux-release-",
+		"centos-stream-release", "centos-stream-release-", "oraclelinux-release", "oraclelinux-release-",
 		"openssh-server", "openssh-client", "ssh", "systemd", "systemd-sysv", "libc6", "apt", "dpkg", "sudo", "bash", "coreutils", "login",
 		"init", "util-linux", "netplan.io", "network-manager", "ifupdown", "networkd-dispatcher", "dbus", "ubuntu-minimal", "ubuntu-standard",
 		"ubuntu-server", "debian-archive-keyring", "ubuntu-keyring", "linux-image-", "linux-generic", "linux-base", "grub", "libpam",
@@ -238,7 +246,23 @@ func aptBase() []string {
 	return []string{"apt-get", "-y", "-q", "-o", "DPkg::Lock::Timeout=120", "-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold"}
 }
 
+// dnfBase sind die gemeinsamen Optionen aller dnf-Aufrufe (ohne Rückfragen).
+func dnfBase() []string { return []string{"dnf", "-y"} }
+
+// rpmCheck prüft nach einer Änderung, welche Fassung eines Pakets installiert ist (ohne Rechte, nur lesend).
+func rpmCheck(pkgs []string) []string {
+	return append([]string{"rpm", "-q", "--qf", "%{NAME} %{VERSION}-%{RELEASE}\\n"}, pkgs...)
+}
+
+func dpkgCheck(pkgs []string) []string {
+	return append([]string{"dpkg-query", "-W", "-f=${Package} ${Version} ${db:Status-Abbrev}\\n"}, pkgs...)
+}
+
 func classifyPackage(args Args) (Action, error) {
+	manager := tools.PackageManager()
+	if manager != tools.PkgApt && manager != tools.PkgDnf {
+		return Action{}, errors.New("This server has no supported package manager (apt or dnf).")
+	}
 	action := strings.ToLower(args.text("action"))
 	if _, ok := packageActs[action]; !ok {
 		return Action{}, errors.New("action must be update, install, remove or upgrade")
@@ -248,8 +272,8 @@ func classifyPackage(args Args) (Action, error) {
 		return Action{}, err
 	}
 	for _, p := range pkgs {
-		if !packageRe.MatchString(p) {
-			return Action{}, fmt.Errorf("invalid package name: %q (lower-case names without a version are allowed)", p)
+		if !tools.ValidPackageName(manager, p) {
+			return Action{}, fmt.Errorf("invalid package name: %q (%s)", p, tools.PackageNameHint(manager))
 		}
 	}
 	if (action == "install" || action == "remove") && len(pkgs) == 0 {
@@ -260,32 +284,56 @@ func classifyPackage(args Args) (Action, error) {
 	}
 	a := Action{
 		Tool: ToolPackage, Class: 1, Root: true, Timeout: 15 * time.Minute,
-		Env:  []string{"DEBIAN_FRONTEND=noninteractive", "APT_LISTCHANGES_FRONTEND=none", "NEEDRESTART_MODE=l"},
 		Args: Args{"action": action, "packages": toAny(pkgs)},
 	}
-	argv := aptBase()
+	var argv []string
+	var check []string
+	var tool, undoInstall, undoRemove string
+	if manager == tools.PkgDnf {
+		argv = dnfBase()
+		check = rpmCheck(pkgs)
+		tool, undoInstall, undoRemove = "dnf", "dnf install ", "dnf remove "
+	} else {
+		a.Env = []string{"DEBIAN_FRONTEND=noninteractive", "APT_LISTCHANGES_FRONTEND=none", "NEEDRESTART_MODE=l"}
+		argv = aptBase()
+		check = dpkgCheck(pkgs)
+		tool, undoInstall, undoRemove = "apt-get", "apt-get install ", "apt-get remove "
+	}
+	isDnf := manager == tools.PkgDnf
 	switch action {
 	case "update":
 		a.Timeout = 5 * time.Minute
-		argv = append(argv, "update")
-		a.Summary = T("pkg.summary.update", "Update package lists (apt-get update)")
+		command := "apt-get update"
+		if isDnf {
+			argv = append(argv, "--refresh", "makecache")
+			command = "dnf makecache"
+		} else {
+			argv = append(argv, "update")
+		}
+		a.Summary = T("pkg.summary.update", "Update package lists ({command})", "command", command)
 		a.Reason = T("pkg.reason.update", "Only downloads the package lists, installs nothing.")
 		a.Undo = T("pkg.undo_none", "Not needed.")
 	case "install":
-		argv = append(argv, "install", "--")
+		argv = append(argv, "install")
+		if !isDnf {
+			argv = append(argv, "--")
+		}
 		argv = append(argv, pkgs...)
 		a.Summary = T("pkg.summary.install", "Install: {packages}", "packages", strings.Join(pkgs, ", "))
 		a.Reason = T("pkg.reason.install", "Install packages from the configured sources.")
-		a.Undo = Plain("apt-get remove " + strings.Join(pkgs, " "))
-		a.Check = append([]string{"dpkg-query", "-W", "-f=${Package} ${Version} ${db:Status-Abbrev}\\n"}, pkgs...)
+		a.Undo = Plain(undoRemove + strings.Join(pkgs, " "))
+		a.Check = check
 	case "remove":
-		argv = append(argv, "remove", "--")
+		argv = append(argv, "remove")
+		if !isDnf {
+			argv = append(argv, "--")
+		}
 		argv = append(argv, pkgs...)
 		a.Class = 2
 		a.Summary = T("pkg.summary.remove", "Remove: {packages}", "packages", strings.Join(pkgs, ", "))
 		a.Reason = T("pkg.reason.remove", "Removing packages can affect services and dependencies.")
-		a.Undo = Plain("apt-get install " + strings.Join(pkgs, " "))
-		a.Check = append([]string{"dpkg-query", "-W", "-f=${Package} ${Version} ${db:Status-Abbrev}\\n"}, pkgs...)
+		a.Undo = Plain(undoInstall + strings.Join(pkgs, " "))
+		a.Check = check
 		for _, p := range pkgs {
 			if isProtectedPackage(p) {
 				a.Class, a.Reason = 3, T("pkg.reason.protected", "{package} is part of the base system or of login and is never removed through the AI.", "package", p)
@@ -295,16 +343,20 @@ func classifyPackage(args Args) (Action, error) {
 		if len(pkgs) == 0 {
 			argv = append(argv, "upgrade")
 			a.Class = 2
-			a.Summary = T("pkg.summary.upgrade_all", "Upgrade all packages (apt-get upgrade)")
+			a.Summary = T("pkg.summary.upgrade_all", "Upgrade all packages ({command})", "command", tool+" upgrade")
 			a.Reason = T("pkg.reason.upgrade_all", "Many packages change at once and services are restarted as well.")
 			a.Undo = T("pkg.undo_upgrade_all", "Not easily reversible (old versions would have to be reinstalled one by one).")
 		} else {
-			argv = append(argv, "install", "--only-upgrade", "--")
+			if isDnf {
+				argv = append(argv, "upgrade")
+			} else {
+				argv = append(argv, "install", "--only-upgrade", "--")
+			}
 			argv = append(argv, pkgs...)
 			a.Summary = T("pkg.summary.upgrade", "Upgrade: {packages}", "packages", strings.Join(pkgs, ", "))
 			a.Reason = T("pkg.reason.upgrade", "Only the named packages are brought to the latest version.")
 			a.Undo = T("pkg.undo_upgrade", "Not easily reversible (the old version would have to be reinstalled specifically).")
-			a.Check = append([]string{"dpkg-query", "-W", "-f=${Package} ${Version} ${db:Status-Abbrev}\\n"}, pkgs...)
+			a.Check = check
 		}
 	}
 	a.Argv = argv
@@ -320,7 +372,8 @@ func toAny(items []string) []any {
 	return out
 }
 
-// SimulationArgv ist der Trockenlauf zu einer Paketaktion (ohne -y, ohne Sperre; läuft ohne Rechte).
+// SimulationArgv ist der Trockenlauf zu einer Paketaktion. apt läuft ohne Rechte (-s, ohne Sperre); dnf braucht dafür root
+// (siehe ToolPackageSim) und wird mit --assumeno gestartet, das nie etwas installiert.
 func SimulationArgv(a Action) []string {
 	var out []string
 	for i := 0; i < len(a.Argv); i++ {
@@ -334,6 +387,9 @@ func SimulationArgv(a Action) []string {
 			}
 		}
 		out = append(out, a.Argv[i])
+	}
+	if out[0] == "dnf" {
+		return append([]string{"dnf", "--assumeno"}, out[1:]...)
 	}
 	// nach „apt-get“ die Simulation und ohne Sperre
 	return append([]string{out[0], "-s", "-o", "Debug::NoLocking=1"}, out[1:]...)
@@ -360,10 +416,15 @@ var (
 		"ip":         {"a": true, "addr": true, "address": true, "route": true, "r": true, "link": true, "l": true, "neigh": true, "n": true, "rule": true, "-s": true, "-br": true, "-4": true, "-6": true, "-c": true, "-j": true, "-o": true},
 		"apt":        {"list": true, "show": true, "policy": true, "search": true},
 		"apt-cache":  {"policy": true, "show": true, "search": true, "depends": true, "rdepends": true, "madison": true},
+		"dnf":        dnfRead,
+		"dnf5":       dnfRead,
+		"yum":        dnfRead,
 		"dpkg":       {"-l": true, "-s": true, "-L": true, "-S": true, "--list": true, "--status": true, "--listfiles": true, "--search": true},
 		"docker":     {"ps": true, "logs": true, "inspect": true, "images": true, "stats": true, "top": true, "version": true, "info": true, "port": true},
 		"journalctl": nil, // eigene Prüfung
 	}
+	// Lesende Unterbefehle von dnf (ohne „history“, „makecache“ und alles, was Pakete oder Quellen ändert).
+	dnfRead       = map[string]bool{"list": true, "info": true, "search": true, "repolist": true, "repoquery": true, "provides": true, "whatprovides": true, "check-update": true, "updateinfo": true, "deplist": true}
 	ipWrite       = map[string]bool{"add": true, "del": true, "delete": true, "set": true, "flush": true, "change": true, "replace": true, "append": true, "up": true, "down": true}
 	journalForbid = []string{"--vacuum", "--rotate", "--flush", "--sync", "--setup-keys", "--update-catalog", "--relinquish", "--smart-relinquish", "--sign"}
 )
@@ -529,7 +590,13 @@ func argvClass(argv []string) (int, Msg) {
 			}
 		}
 		return 1, msgRead
-	case "apt", "apt-cache", "dpkg", "docker":
+	case "rpm":
+		// nur Abfragen (-q…) und Überprüfen (-V…); „--eval“ führt Shell-Makros aus, alles andere ändert Pakete
+		if len(rest) > 0 && (strings.HasPrefix(rest[0], "-q") || strings.HasPrefix(rest[0], "-V") || rest[0] == "--query" || rest[0] == "--verify") && !strings.Contains(strings.Join(rest, " "), "--eval") {
+			return 1, msgRead
+		}
+		return 2, T("run.pkg_write", "Changes packages or containers.")
+	case "apt", "apt-cache", "dpkg", "docker", "dnf", "dnf5", "yum":
 		sub := ""
 		for _, s := range rest {
 			if !isFlag(s) || (base == "dpkg" && readSub["dpkg"][s]) {

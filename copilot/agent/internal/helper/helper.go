@@ -35,6 +35,7 @@ const (
 	readTimeout   = 10 * time.Second
 	pingTool      = "ping"
 	dockerTool    = "docker"
+	checkTool     = "pkg_check"
 	updateTool    = "agent_update"
 	confirmTool   = "agent_update_ok"
 )
@@ -181,6 +182,14 @@ func (s *server) handle(ctx context.Context, c *net.UnixConn) {
 		s.handleDocker(ctx, c, req)
 		return
 	}
+	if req.Tool == plan.ToolPackageSim {
+		s.handlePackageSim(ctx, c, req)
+		return
+	}
+	if req.Tool == checkTool {
+		s.handleCheckUpdates(ctx, c)
+		return
+	}
 	if req.Tool == updateTool || req.Tool == confirmTool {
 		s.handleUpdate(c, req)
 		return
@@ -288,10 +297,63 @@ func (s *server) handleDocker(ctx context.Context, c net.Conn, req plan.Request)
 	reply(c, r)
 }
 
+// handlePackageSim führt den Trockenlauf einer Paketaktion aus (dnf --assumeno: löst die Abhängigkeiten auf, installiert nie etwas).
+// Die Anfrage wird wie eine Änderung eingestuft und gegen die lokale Richtlinie geprüft; es gibt also keinen Trockenlauf für etwas,
+// das der Server ohnehin nicht zulassen würde.
+func (s *server) handlePackageSim(ctx context.Context, c net.Conn, req plan.Request) {
+	a, err := plan.Classify(plan.ToolPackage, req.Args)
+	if err != nil {
+		reply(c, plan.Response{ExitCode: -1, Error: err.Error()})
+		return
+	}
+	if why := plan.Allowed(s.opt.Policy(), a); why != "" {
+		reply(c, plan.Response{ExitCode: -1, Error: why})
+		return
+	}
+	sim := plan.SimulationArgv(a)
+	if sim[0] != "dnf" || !containsArg(sim, "--assumeno") {
+		reply(c, plan.Response{ExitCode: -1, Error: "A dry run through the helper is only available for dnf."})
+		return
+	}
+	out, code, runErr := tools.RunWith(ctx, tools.Opts{Timeout: 120 * time.Second, Env: a.Env}, sim[0], sim[1:]...)
+	r := plan.Response{Output: out, ExitCode: code}
+	if runErr != nil && out == "" {
+		r.Error = runErr.Error()
+	}
+	reply(c, r)
+}
+
+func containsArg(argv []string, want string) bool {
+	for _, a := range argv {
+		if a == want {
+			return true
+		}
+	}
+	return false
+}
+
+// handleCheckUpdates fragt dnf nach ausstehenden Aktualisierungen (nur lesen; Ausgabe 100 heißt „es gibt welche“). Wie bei Docker muss
+// die lokale Richtlinie root-Befehle erlauben.
+func (s *server) handleCheckUpdates(ctx context.Context, c net.Conn) {
+	if !s.opt.Policy().Root {
+		reply(c, plan.Response{ExitCode: -1, Error: "Commands with root rights are switched off locally on this server (root=off)."})
+		return
+	}
+	out, code, err := tools.RunWith(ctx, tools.Opts{Timeout: 120 * time.Second}, "dnf", "-q", "check-update")
+	switch {
+	case err != nil:
+		reply(c, plan.Response{ExitCode: -1, Error: err.Error()})
+	case code != 0 && code != 100:
+		reply(c, plan.Response{ExitCode: code, Error: fmt.Sprintf("dnf check-update failed (exit code %d)", code)})
+	default:
+		reply(c, plan.Response{Output: out})
+	}
+}
+
 // RootRead gibt eine Funktion für tools.RootRead zurück: lesende Werkzeuge, die root brauchen (Docker), laufen über den Helfer.
 func (c *Client) RootRead() func(ctx context.Context, tool string, args tools.Args) (string, error) {
 	return func(ctx context.Context, tool string, args tools.Args) (string, error) {
-		resp, err := c.roundTrip(ctx, plan.Request{Tool: tool, Args: plan.Args(args)}, 40*time.Second)
+		resp, err := c.roundTrip(ctx, plan.Request{Tool: tool, Args: plan.Args(args)}, 130*time.Second)
 		if err != nil {
 			return "", err
 		}

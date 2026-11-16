@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.62.0",
+    "items": [
+      {
+        "de": {
+          "title": "Mehr Server-Systeme",
+          "text": "Ich kann jetzt auch Server mit Red Hat, Fedora, Rocky oder Alma betreuen, nicht mehr nur Debian und Ubuntu. Änderungen mache ich weiter nur, wenn du zustimmst."
+        },
+        "en": {
+          "title": "More kinds of servers",
+          "text": "I can now also look after servers running Red Hat, Fedora, Rocky or Alma, not just Debian and Ubuntu. I still only make changes when you agree."
+        }
+      },
+      {
+        "de": {
+          "title": "Server-Berichte per Aufgabe",
+          "text": "In geplanten Aufgaben darf ich deine Server jetzt ansehen, zum Beispiel jeden Morgen nach vollen Platten oder Updates schauen und dir das zusammenfassen. Ändern kann ich dort nichts."
+        },
+        "en": {
+          "title": "Server reports on a schedule",
+          "text": "In scheduled tasks I can now look at your servers, for example check every morning for full disks or updates and sum it up for you. I cannot change anything there."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.61.0",
     "items": [
       {

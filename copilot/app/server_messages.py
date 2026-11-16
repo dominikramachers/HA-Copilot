@@ -40,10 +40,10 @@ TEMPLATES: dict[str, str] = {
     "svc.undo_none": "Nicht nötig: der Dienst läuft danach wie zuvor weiter.",
     "svc.preview": "Zustand jetzt: {state}, beim Start: {boot}",
     # Pakete
-    "pkg.summary.update": "Paketlisten aktualisieren (apt-get update)",
+    "pkg.summary.update": "Paketlisten aktualisieren ({command})",
     "pkg.summary.install": "Installieren: {packages}",
     "pkg.summary.remove": "Entfernen: {packages}",
-    "pkg.summary.upgrade_all": "Alle Pakete aktualisieren (apt-get upgrade)",
+    "pkg.summary.upgrade_all": "Alle Pakete aktualisieren ({command})",
     "pkg.summary.upgrade": "Aktualisieren: {packages}",
     "pkg.reason.update": "Lädt nur die Paketlisten, installiert nichts.",
     "pkg.reason.install": "Pakete aus den eingerichteten Quellen installieren.",
@@ -156,11 +156,15 @@ def _known(msg: dict[str, Any]) -> bool:
     return all(_known(item) for item in msg.get("then", []))
 
 
+# Agenten bis 0.61.0 schickten den Befehl noch im Text und ohne Angabe (sie kannten nur apt)
+_DEFAULT_PARAMS = {"pkg.summary.update": {"command": "apt-get update"}, "pkg.summary.upgrade_all": {"command": "apt-get upgrade"}}
+
+
 def _head(msg: dict[str, Any]) -> str:
     code = msg.get("code")
     if code is None:
         return msg["text"]
-    params = msg.get("params", {})
+    params = {**_DEFAULT_PARAMS.get(code, {}), **msg.get("params", {})}
     text = _PLACEHOLDER.sub(lambda m: params.get(m.group(1), m.group(0)), TEMPLATES[code])
     if params.get("more"):
         text += _PLACEHOLDER.sub(lambda m: params.get(m.group(1), m.group(0)), MORE_DE)
