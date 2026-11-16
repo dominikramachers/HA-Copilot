@@ -11,7 +11,7 @@ const srvUi = {
   data: null,                 // Antwort von api/servers
   activity: null,
   filter: { server: "", kind: "", days: 7 },
-  form: { hub: "", name: "", hours: 24, uses: 1 },
+  form: { hub: "", name: "", hours: 24, uses: 1, changes: true },
   script: null,               // { script, filename, expires, uses }
   busy: false,
   status: "",
@@ -228,6 +228,8 @@ function serverCard(s) {
   if (info.reboot_required) add(tr("Neustart"), tr("erforderlich"), true);
   add(tr("Letzte Meldung"), s.last_seen_at ? srvAgo(s.last_seen_at) : tr("noch nie"));
   if (info.agent_version) add(tr("Agent"), info.agent_version);
+  // Was die lokale Richtlinie auf dem Server erlaubt: nicht über die App änderbar
+  if (s.status !== "pending" && s.status !== "offline" && s.status !== "blocked") add(tr("Änderungen"), info.operate ? tr("erlaubt, nur nach deiner Freigabe") : tr("nur lesen (lokale Richtlinie)"));
   card.append(facts);
 
   const foot = node("div", "sched-foot");
@@ -375,7 +377,7 @@ async function srvCreateScript() {
   try {
     const result = await api("api/servers/install-script", {
       method: "POST",
-      body: JSON.stringify({ hub: form.hub.trim(), name: form.uses === 1 ? form.name.trim() : "", hours: form.hours, max_uses: form.uses }),
+      body: JSON.stringify({ hub: form.hub.trim(), name: form.uses === 1 ? form.name.trim() : "", hours: form.hours, max_uses: form.uses, changes: form.changes }),
     });
     srvUi.script = { ...result, uses: form.uses };
     await srvLoad(true);
@@ -437,11 +439,20 @@ function renderServerAdd(wrap) {
     form.uses = Math.max(1, Math.min(100, Math.floor(Number(uses.value) || 1)));
     renderServers();
   });
+  const changes = node("select", "field");
+  for (const [value, text] of [[true, tr("Ja, nach meiner Freigabe im Chat")], [false, tr("Nein, nur lesen")]]) {
+    const o = node("option", "", text);
+    o.value = String(value);
+    o.selected = value === form.changes;
+    changes.append(o);
+  }
+  changes.addEventListener("change", () => { form.changes = changes.value === "true"; });
   fields.append(
     field(tr("Adresse des Hubs"), address, tr("So erreichen die Server diesen Home-Assistant-Rechner. Der Port {0} wird ergänzt.", hub.port)),
     field(tr("Name des Servers (optional)"), name, form.uses === 1 ? tr("Sonst gilt der Hostname.") : tr("Bei mehreren Servern gilt jeweils der Hostname.")),
     field(tr("Das Skript gilt"), hours, tr("Danach ist der Schlüssel im Skript ungültig.")),
     field(tr("Für wie viele Server"), uses, tr("Der Schlüssel wird nach so vielen Anmeldungen ungültig.")),
+    field(tr("Darf die KI dort etwas ändern?"), changes, tr("Das legt nur die Starteinstellung auf dem Server fest. Danach entscheidet allein die Datei /etc/copilot-agent/policy auf dem Server.")),
   );
   card.append(fields);
 

@@ -184,7 +184,7 @@ SECURITY_HEADERS = {
 
 
 # Aktionsarten, nach denen fremde Inhalte im Chat sein können: danach fragen schreibende Werkzeuge immer nach
-TAINTING_KINDS = frozenset({"read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext", "mcp-read", "mcp-write", "srv-read"})
+TAINTING_KINDS = frozenset({"read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext", "mcp-read", "mcp-write", "srv-read", "srv-write"})
 
 
 class TitleBody(BaseModel):
@@ -3005,15 +3005,17 @@ def register_chat_routes(
             if first_exchange:
                 store.replace_title_if(profile.id, chat_id, provisional, chat.get("title") or default_title())
 
-        async def ask_about(topic: str, label: str, details: str, offer_chat: bool) -> str:
-            """Rückfrage an die Person: wartet, bis im Chat Zulassen oder Ablehnen gedrückt wurde (topic: ha, memory, github)."""
+        async def ask_about(topic: str, label: str, details: str, offer_chat: bool, extra: dict | None = None) -> str:
+            """Rückfrage an die Person: wartet, bis im Chat Zulassen oder Ablehnen gedrückt wurde (topic: ha, memory, github, server …).
+
+            ``extra`` ergänzt die Karte um Angaben wie Risikostufe und Server (nur Anzeige)."""
             if spoken:
                 return "deny"  # per Sprache gibt es keine Rückfragen: heikle Aktionen gehen nur getippt
             run.approval_seq += 1
             aid = run.approval_seq
             future: asyncio.Future = asyncio.get_running_loop().create_future()
             run.pending[aid] = future
-            run.push({"type": "approval", "id": aid, "label": label, "details": details, "chat_ok": offer_chat, "topic": topic})
+            run.push({"type": "approval", "id": aid, "label": label, "details": details, "chat_ok": offer_chat, "topic": topic, **(extra or {})})
             try:
                 return await asyncio.wait_for(future, APPROVAL_TIMEOUT)
             except TimeoutError:
@@ -3040,6 +3042,10 @@ def register_chat_routes(
         async def ask_connector(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("connector", label, details, offer_chat)
 
+        async def ask_server(label: str, details: str, offer_chat: bool, extra: dict) -> str:
+            # Änderungen auf Servern: nie „im Chat immer zulassen“, jede einzeln mit dem genauen Befehl
+            return await ask_about("server", label, details, False, extra)
+
         images_enabled = settings.files_enabled and settings.images_enabled and not spoken
         stored_files: list[str] = []
         skipped_files: list[str] = []
@@ -3056,7 +3062,7 @@ def register_chat_routes(
                 limit_to_exposed=settings.ha_limit_to_exposed,
                 confirm_writes=settings.ha_write_confirm == "ask",
                 # Dateien können eingeschleuste Anweisungen enthalten: dann nichts ohne ausdrückliches Zulassen
-                force_confirm=lambda: bool(files) or imported or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write", "srv-read") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or imported or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write", "srv-read", "srv-write") for a in run.actions.values()),
                 ask=ask,
                 record=run.push,
                 chat_allowed=lambda: key in chat_allow,
@@ -3128,7 +3134,7 @@ def register_chat_routes(
         specs += connector_specs
         server_note = ""
         if not spoken and await server_allowed(profile):
-            server_box = ServerToolbox(server_hub, profile, record=run.push, next_id=run.next_tool_id)
+            server_box = ServerToolbox(server_hub, profile, record=run.push, next_id=run.next_tool_id, ask=ask_server)
             specs += server_box.specs()
             server_note = server_box.note()
         if web_on:

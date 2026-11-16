@@ -23,6 +23,7 @@ class ScriptBody(BaseModel):
     name: str = Field(default="", max_length=60)
     hours: int = Field(default=24, ge=1, le=KEY_MAX_HOURS)
     max_uses: int = Field(default=1, ge=1, le=KEY_MAX_USES)
+    changes: bool = True  # lokale Richtlinie des neuen Servers: Änderungen nach Freigabe erlauben (sonst nur lesen)
 
 
 class RenameBody(BaseModel):
@@ -122,7 +123,7 @@ def register_server_routes(
         hub.repo.audit_add("event", tr("Registrierungsschlüssel erzeugt"), actor=actor(profile), result="ok", detail=f"{label[:60]} · {body.max_uses}×")
         script = render_script(
             hub=hub_with_port(address), key=key, ca_fingerprint=hub.pki.ca_fingerprint, hub_pin=pin, hashes=hashes,
-            expires=expires.replace("T", " ").replace("+00:00", " UTC"), max_uses=body.max_uses, name=(body.name or "").strip(),
+            expires=expires.replace("T", " ").replace("+00:00", " UTC"), max_uses=body.max_uses, name=(body.name or "").strip(), changes=body.changes,
         )
         return JSONResponse(
             {"script": script, "filename": "install-copilot-agent.sh", "key_id": key_id, "expires": expires},

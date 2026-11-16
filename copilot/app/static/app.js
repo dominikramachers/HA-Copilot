@@ -6685,12 +6685,17 @@ function approvalCard(chatId, ev) {
   const card = node("div", "ask-card");
   card.setAttribute("role", "group");
   card.setAttribute("aria-label", tr("Rückfrage"));
-  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), research: tr("Soll die Recherche gestartet werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?"), skill: tr("Soll dieses Skill gespeichert werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
+  const question = { github: tr("Soll diese Änderung bei GitHub ausgeführt werden?"), memory: tr("Soll die KI das im Gedächtnis ändern?"), connector: tr("Soll diese Änderung über den Konnektor ausgeführt werden?"), image: tr("Soll dieses Bild erzeugt werden?"), research: tr("Soll die Recherche gestartet werden?"), tokens: tr("Soll die Antwort trotz erreichtem Monatslimit erzeugt werden?"), skill: tr("Soll dieses Skill gespeichert werden?"), server: tr("Soll diese Änderung auf dem Server ausgeführt werden?") }[ev.topic] || tr("Soll diese Änderung in Home Assistant ausgeführt werden?");
   card.append(node("div", "ask-title", question), node("div", "ask-what", ev.label));
+  if (ev.topic === "server" && ev.risk) {
+    // Risikostufe, vom Agenten auf dem Server berechnet (nicht von der KI)
+    const heavy = ev.risk >= 2;
+    card.append(node("div", `ask-risk${heavy ? " heavy" : ""}`, heavy ? tr("Stufe 2: weitreichend, bitte genau prüfen") : tr("Stufe 1: umkehrbar")));
+  }
   if (ev.details) {
     const more = document.createElement("details");
     more.className = "ask-details";
-    more.open = ev.topic === "research" || ev.topic === "skill"; // Deep Research: Zeit und Kosten; Skill: die Vorschau der Anleitung soll man vor dem Zulassen sehen
+    more.open = ev.topic === "research" || ev.topic === "skill" || ev.topic === "server"; // Deep Research: Zeit und Kosten; Skill: die Vorschau der Anleitung; Server: der genaue Befehl soll man vor dem Zulassen sehen
     more.append(node("summary", "", tr("Einzelheiten")), node("pre", "", ev.details));
     card.append(more);
   }

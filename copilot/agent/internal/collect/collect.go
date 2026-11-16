@@ -37,13 +37,19 @@ type Heartbeat struct {
 	FailedUnitNames []string `json:"failed_unit_names"`
 	Updates         *int     `json:"updates,omitempty"` // nil = unbekannt (apt fehlt oder noch nicht geprüft)
 	RebootRequired  bool     `json:"reboot_required"`
+	// Etappe 2: was die lokale Richtlinie erlaubt (der Hub kann das nicht erweitern)
+	Operate  bool `json:"operate"`
+	MaxClass int  `json:"max_class"`
+	Helper   bool `json:"helper"`
 }
 
 // Collector merkt sich Werte, die teuer zu bestimmen sind (apt) und deshalb nicht bei jeder Meldung neu gelesen werden.
 type Collector struct {
 	Version string
-	updates *int
-	ticks   int
+	// Annotate ergänzt die Meldung um Angaben, die nicht aus dem System gelesen werden (Richtlinie, Helfer).
+	Annotate func(*Heartbeat)
+	updates  *int
+	ticks    int
 }
 
 // updatesEvery: apt wird nur bei jeder N-ten Meldung gefragt (bei 30 s Takt etwa alle 15 Minuten).
@@ -210,5 +216,8 @@ func (c *Collector) Collect(ctx context.Context) Heartbeat {
 	}
 	c.ticks++
 	hb.Updates = c.updates
+	if c.Annotate != nil {
+		c.Annotate(&hb)
+	}
 	return hb
 }

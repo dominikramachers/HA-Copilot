@@ -25,6 +25,7 @@ import (
 
 	"github.com/dominikramachers/ha-copilot/agent/internal/collect"
 	"github.com/dominikramachers/ha-copilot/agent/internal/config"
+	"github.com/dominikramachers/ha-copilot/agent/internal/plan"
 	"github.com/dominikramachers/ha-copilot/agent/internal/tlsutil"
 	"github.com/dominikramachers/ha-copilot/agent/internal/tools"
 )
@@ -58,6 +59,8 @@ type message struct {
 	Interval int             `json:"interval"`
 	Msg      string          `json:"msg"`
 	ServerID string          `json:"server_id"`
+	PlanID   string          `json:"plan_id"`
+	PlanHash string          `json:"plan_hash"`
 	Cert     string          `json:"cert"`
 	CA       string          `json:"ca"`
 }
@@ -178,6 +181,8 @@ type Agent struct {
 	Interval time.Duration
 	// MinBackoff überschreibt den ersten Wartewert beim Wiederverbinden (nur für Tests).
 	MinBackoff time.Duration
+	// Changes führt ändernde Aufträge aus (Etappe 2). nil = der Agent kann nur lesen.
+	Changes *plan.Manager
 }
 
 // Run verbindet sich, meldet sich regelmäßig und beantwortet Aufrufe, bis ctx endet. Verbindungsabbrüche werden mit wachsender
@@ -243,7 +248,7 @@ func (a *Agent) session(ctx context.Context, state config.State, tlsConfig *tls.
 	if a.Interval > 0 {
 		interval = a.Interval
 	}
-	collector := &collect.Collector{Version: a.Version}
+	collector := &collect.Collector{Version: a.Version, Annotate: a.annotate}
 	send := func(v any) error {
 		data, err := json.Marshal(v)
 		if err != nil {
@@ -290,6 +295,7 @@ func (a *Agent) session(ctx context.Context, state config.State, tlsConfig *tls.
 	}()
 
 	sem := make(chan struct{}, maxParallel)
+	semWrite := make(chan struct{}, maxParallel)
 	go func() {
 		for {
 			_, data, err := conn.Read(ctx)
@@ -315,6 +321,19 @@ func (a *Agent) session(ctx context.Context, state config.State, tlsConfig *tls.
 					}
 				}
 				mu.Unlock()
+			case "prepare", "execute":
+				mu.Lock()
+				ok := active
+				mu.Unlock()
+				select {
+				case semWrite <- struct{}{}:
+					go func(m message) {
+						defer func() { <-semWrite }()
+						_ = send(a.change(ctx, m, ok))
+					}(m)
+				default:
+					_ = send(map[string]any{"t": "result", "id": m.ID, "ok": false, "error": "Der Agent ist gerade ausgelastet."})
+				}
 			case "call":
 				mu.Lock()
 				ok := active
@@ -373,4 +392,62 @@ func answer(ctx context.Context, m message, active bool) map[string]any {
 		return fail(msg)
 	}
 	return map[string]any{"t": "result", "id": m.ID, "ok": true, "text": text}
+}
+
+// annotate trägt ein, was die lokale Richtlinie erlaubt und ob der Root-Helfer antwortet.
+func (a *Agent) annotate(hb *collect.Heartbeat) {
+	if a.Changes == nil {
+		return
+	}
+	p := a.Changes.Policy()
+	hb.Operate, hb.MaxClass = p.Operate, p.MaxClass
+	hb.Helper = a.Changes.Root != nil && a.Changes.Root.Available()
+}
+
+// change beantwortet „prepare“ (einstufen, nichts verändern) und „execute“ (einen freigegebenen Plan ausführen).
+func (a *Agent) change(ctx context.Context, m message, active bool) map[string]any {
+	fail := func(text string) map[string]any {
+		if len(text) > 600 {
+			text = strings.ToValidUTF8(text[:600], "") + "…"
+		}
+		return map[string]any{"t": "result", "id": m.ID, "ok": false, "error": text}
+	}
+	if !active {
+		return fail("Dieser Server ist noch nicht bestätigt.")
+	}
+	if a.Changes == nil {
+		return fail("Dieser Agent kann nur lesen.")
+	}
+	switch m.T {
+	case "prepare":
+		known := false
+		for _, name := range plan.Names {
+			if m.Tool == name {
+				known = true
+			}
+		}
+		if !known {
+			return fail("Unbekanntes Werkzeug.")
+		}
+		args := plan.Args{}
+		if len(m.Args) > 0 {
+			if err := json.Unmarshal(m.Args, &args); err != nil {
+				return fail("Die Argumente sind kein gültiges Objekt.")
+			}
+		}
+		p, err := a.Changes.Prepare(ctx, m.Tool, args)
+		if err != nil {
+			return fail(err.Error())
+		}
+		raw, _ := json.Marshal(p)
+		return map[string]any{"t": "result", "id": m.ID, "ok": true, "text": string(raw)}
+	case "execute":
+		// Eine begonnene Änderung wird nicht mittendrin abgebrochen, nur weil die Verbindung abreißt (das Zeitlimit des Plans gilt).
+		text, err := a.Changes.Execute(context.WithoutCancel(ctx), m.PlanID, m.PlanHash)
+		if err != nil {
+			return fail(err.Error())
+		}
+		return map[string]any{"t": "result", "id": m.ID, "ok": true, "text": text}
+	}
+	return fail("Unbekannte Nachricht.")
 }

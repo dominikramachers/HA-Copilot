@@ -68,6 +68,11 @@ READ_TOOLS = (
     "system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users",
 )
 
+# Ändernde Aufträge (Etappe 2): nur nach Einstufung durch den Agenten und Freigabe in der App
+CHANGE_TOOLS = ("service_action", "package", "run_command")
+EXECUTE_GRACE = 60  # Sekunden über dem Zeitlimit des Plans, bis der Hub eine Ausführung als verloren ansieht
+PREPARE_TIMEOUT = 120  # der Trockenlauf von apt kann dauern
+
 _CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f  ]")
 _HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$")
 
@@ -136,7 +141,12 @@ def clean_heartbeat(data: Any) -> dict[str, Any] | None:
         "arch": clean_text(data.get("arch"), 16),
         "agent_version": clean_text(data.get("agent_version"), 20),
         "reboot_required": data.get("reboot_required") is True,
+        # Etappe 2: was die lokale Richtlinie des Servers erlaubt (der Hub kann das nicht erweitern)
+        "operate": data.get("operate") is True,
+        "helper": data.get("helper") is True,
     }
+    max_class = _number(data.get("max_class"), 0, 3)
+    out["max_class"] = min(2, max(0, int(max_class))) if max_class is not None else 0
     for key, low, high in (
         ("uptime_s", 0, 10**9), ("load1", 0, 100000), ("load5", 0, 100000), ("load15", 0, 100000), ("cpus", 1, 100000),
         ("mem_total_mb", 0, 10**8), ("mem_used_pct", 0, 100), ("disk_worst_pct", 0, 100), ("failed_units", 0, 100000), ("updates", 0, 100000),
@@ -147,6 +157,44 @@ def clean_heartbeat(data: Any) -> dict[str, Any] | None:
     names = data.get("failed_unit_names")
     out["failed_unit_names"] = [clean_text(n, 100) for n in (names if isinstance(names, list) else [])[:20] if isinstance(n, str) and clean_text(n, 100)]
     return out
+
+
+_PLAN_ID = re.compile(r"^[0-9a-f]{24}$")
+_PLAN_HASH = re.compile(r"^[0-9a-f]{64}$")
+
+
+def clean_plan(data: Any) -> dict[str, Any] | None:
+    """Den Plan eines Agenten streng prüfen. Er geht in die Freigabekarte: Texte sind fremder Inhalt und werden gekürzt."""
+    if not isinstance(data, dict):
+        return None
+    plan_id, plan_hash = data.get("id"), data.get("hash")
+    if not isinstance(plan_id, str) or not _PLAN_ID.match(plan_id) or not isinstance(plan_hash, str) or not _PLAN_HASH.match(plan_hash):
+        return None
+    tool = data.get("tool")
+    klass = data.get("class")
+    if tool not in CHANGE_TOOLS or isinstance(klass, bool) or klass not in (1, 2):
+        return None  # Stufe 3 führt kein Agent aus; ein Plan mit Stufe 3 ist ein Fehler
+    command = clean_text_block(data.get("command"), 4300)
+    if not command:
+        return None
+    timeout = _number(data.get("timeout_s"), 1, 1800)
+    return {
+        "id": plan_id, "hash": plan_hash, "tool": tool, "class": int(klass),
+        "reason": clean_text(data.get("reason"), 300), "summary": clean_text(data.get("summary"), 200),
+        "command": command, "runner": "root" if data.get("runner") == "root" else "agent",
+        "preview": clean_text_block(data.get("preview"), 1500), "undo": clean_text(data.get("undo"), 300),
+        "timeout_s": int(timeout) if timeout is not None else 60,
+    }
+
+
+_CTRL_BLOCK = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def clean_text_block(value: Any, limit: int) -> str:
+    """Mehrzeiliger Text eines Agenten (Befehl, Vorschau): Zeilenumbrüche bleiben, Steuerzeichen nicht."""
+    if not isinstance(value, str):
+        return ""
+    return _CTRL_BLOCK.sub(" ", value.replace("\r\n", "\n")).strip()[:limit]
 
 
 # ------------------------------------------------------------------------------------------------ Zertifizierungsstelle
@@ -610,10 +658,8 @@ class ServerHub:
 
     # -- Aufrufe (von der KI)
 
-    async def call(self, server_ref: str, tool: str, args: dict[str, Any] | None = None) -> str:
-        """Einen lesenden Aufruf an einen bestätigten, verbundenen Server schicken und auf die Antwort warten."""
-        if tool not in READ_TOOLS:
-            raise ServerError(tr("Dieses Werkzeug gibt es nicht."))
+    def _connection(self, server_ref: str) -> tuple[dict[str, Any], AgentConn]:
+        """Den bestätigten, verbundenen Server zu einem Namen oder einer Kennung finden (sonst eine verständliche Meldung)."""
         row = self.get(server_ref)
         if row is None:
             raise ServerError(tr("Diesen Server kenne ich nicht. Frag mit server_list nach den bekannten Servern."), 404)
@@ -624,13 +670,17 @@ class ServerHub:
         conn = self._conns.get(row["id"])
         if conn is None or self._clock() - conn.seen > OFFLINE_AFTER:
             raise ServerError(tr("Der Server {name} ist gerade offline.", name=row["name"]), 503)
+        return row, conn
+
+    async def _request(self, row: dict[str, Any], conn: AgentConn, message: dict[str, Any], timeout: float) -> str:
+        """Eine Nachricht an den Agenten schicken und auf seine Antwort warten."""
         conn.next_id += 1
         call_id = conn.next_id
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         conn.pending[call_id] = future
         try:
-            await conn.ws.send(json.dumps({"t": "call", "id": call_id, "tool": tool, "args": args or {}}, ensure_ascii=False))
-            return await asyncio.wait_for(future, CALL_TIMEOUT)
+            await conn.ws.send(json.dumps({**message, "id": call_id}, ensure_ascii=False))
+            return await asyncio.wait_for(future, timeout)
         except TimeoutError:
             raise ServerError(tr("Der Server {name} hat nicht rechtzeitig geantwortet.", name=row["name"]), 504) from None
         except ServerError:
@@ -639,6 +689,40 @@ class ServerHub:
             raise ServerError(tr("Die Verbindung zum Server {name} ist abgebrochen.", name=row["name"]), 503) from None
         finally:
             conn.pending.pop(call_id, None)
+
+    async def call(self, server_ref: str, tool: str, args: dict[str, Any] | None = None) -> str:
+        """Einen lesenden Aufruf an einen bestätigten, verbundenen Server schicken und auf die Antwort warten."""
+        if tool not in READ_TOOLS:
+            raise ServerError(tr("Dieses Werkzeug gibt es nicht."))
+        row, conn = self._connection(server_ref)
+        return await self._request(row, conn, {"t": "call", "tool": tool, "args": args or {}}, CALL_TIMEOUT)
+
+    # -- Änderungen (Etappe 2): vorbereiten (der Agent stuft ein, nichts passiert) und nach Freigabe ausführen
+
+    def can_change(self, row: dict[str, Any]) -> bool:
+        """Erlaubt die lokale Richtlinie des Servers Änderungen? (Meldung des Agenten, nicht verhandelbar.)"""
+        return _json(row["info"]).get("operate") is True
+
+    async def prepare(self, server_ref: str, tool: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Einen ändernden Auftrag vom Agenten einstufen lassen. Verändert nichts; liefert den Plan zur Freigabe."""
+        if tool not in CHANGE_TOOLS:
+            raise ServerError(tr("Dieses Werkzeug gibt es nicht."))
+        row, conn = self._connection(server_ref)
+        if not self.can_change(row):
+            raise ServerError(tr("Auf dem Server {name} sind Änderungen durch die KI nicht erlaubt (lokale Richtlinie). Ich kann dort nur lesen.", name=row["name"]), 403)
+        text = await self._request(row, conn, {"t": "prepare", "tool": tool, "args": args or {}}, PREPARE_TIMEOUT)
+        plan = clean_plan(_json(text))
+        if plan is None:
+            raise ServerError(tr("Der Server hat keinen gültigen Plan geliefert."), 502)
+        return plan
+
+    async def execute(self, server_ref: str, plan: dict[str, Any]) -> str:
+        """Einen freigegebenen Plan ausführen lassen. Der Agent prüft Hash, Ablauf und seine Richtlinie noch einmal."""
+        row, conn = self._connection(server_ref)
+        if not self.can_change(row):
+            raise ServerError(tr("Auf dem Server {name} sind Änderungen durch die KI nicht erlaubt (lokale Richtlinie). Ich kann dort nur lesen.", name=row["name"]), 403)
+        message = {"t": "execute", "plan_id": plan["id"], "plan_hash": plan["hash"]}
+        return await self._request(row, conn, message, int(plan.get("timeout_s") or 60) + EXECUTE_GRACE)
 
     # -- Verbindungen der Agenten
 
@@ -762,7 +846,7 @@ class ServerHub:
         if data.get("ok") is True:
             future.set_result(str(data.get("text") or "")[:MAX_RESULT_CHARS])
         else:
-            future.set_exception(ServerError(clean_text(data.get("error"), 300, default=tr("Der Server hat den Aufruf abgelehnt."))))
+            future.set_exception(ServerError(clean_text(data.get("error"), 600, default=tr("Der Server hat den Aufruf abgelehnt."))))
 
     # -- HTTP: Download des Agenten (gleicher Port, gleiche TLS-Verbindung)
 

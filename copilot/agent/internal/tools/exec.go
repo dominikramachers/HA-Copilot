@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 )
@@ -40,21 +42,59 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 	return l.buf.Write(p)
 }
 
-// Run führt ein Programm ohne Shell aus (feste Argumentliste), mit Zeitlimit, begrenzter Ausgabe und festem Umfeld.
-// Ein Exit-Code ungleich 0 ist kein Fehler: viele Befehle (systemctl status) melden damit nur einen Zustand.
-func Run(ctx context.Context, name string, args ...string) (string, error) {
-	path, err := exec.LookPath(name)
-	if err != nil {
-		return "", fmt.Errorf("%s ist auf diesem Server nicht installiert", name)
+// searchPath ist der feste Suchpfad für Programme (nicht der Pfad des Agentenprozesses).
+const searchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+// LookPath findet ein Programm im festen Suchpfad; ein Name mit „/“ wird nur auf Ausführbarkeit geprüft.
+func LookPath(name string) (string, error) {
+	if strings.Contains(name, "/") {
+		if info, err := os.Stat(name); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return name, nil
+		}
+		return "", fmt.Errorf("%s ist auf diesem Server nicht vorhanden oder nicht ausführbar", name)
 	}
-	ctx, cancel := context.WithTimeout(ctx, cmdTimeout)
+	for _, dir := range strings.Split(searchPath, ":") {
+		path := dir + "/" + name
+		if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("%s ist auf diesem Server nicht installiert", name)
+}
+
+// Opts steuert RunWith.
+type Opts struct {
+	Timeout time.Duration // 0 = cmdTimeout
+	Env     []string      // zusätzlich zum festen Umfeld
+	Dir     string        // Arbeitsverzeichnis, Vorgabe „/“
+}
+
+// RunWith führt ein Programm ohne Shell aus: Argumentliste, Zeitlimit, begrenzte Ausgabe, festes Umfeld. Bei Zeitüberschreitung wird die
+// ganze Prozessgruppe beendet. Gibt die Ausgabe (Standard- und Fehlerausgabe zusammen), den Exit-Code (-1 = nicht gestartet oder
+// abgebrochen) und einen Fehler nur zurück, wenn das Programm nicht laufen konnte oder die Zeit abgelaufen ist.
+func RunWith(ctx context.Context, opts Opts, name string, args ...string) (string, int, error) {
+	path, err := LookPath(name)
+	if err != nil {
+		return "", -1, err
+	}
+	timeout := opts.Timeout
+	if timeout <= 0 {
+		timeout = cmdTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = []string{
-		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-		"LANG=C.UTF-8", "LC_ALL=C.UTF-8", "SYSTEMD_PAGER=", "SYSTEMD_COLORS=0", "TERM=dumb",
+	cmd.Env = append([]string{
+		"PATH=" + searchPath, "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "SYSTEMD_PAGER=", "SYSTEMD_COLORS=0", "TERM=dumb", "HOME=/nonexistent",
+	}, opts.Env...)
+	cmd.Dir = "/"
+	if opts.Dir != "" {
+		cmd.Dir = opts.Dir
 	}
 	cmd.Stdin = nil
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = 5 * time.Second
 	out := &limitedBuffer{}
 	cmd.Stdout = out
 	cmd.Stderr = out
@@ -64,14 +104,27 @@ func Run(ctx context.Context, name string, args ...string) (string, error) {
 		text += "\n[… Ausgabe gekürzt]"
 	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return text, fmt.Errorf("%s hat nicht innerhalb von %d Sekunden geantwortet", name, int(cmdTimeout.Seconds()))
+		return text, -1, fmt.Errorf("%s hat nicht innerhalb von %d Sekunden geantwortet", name, int(timeout.Seconds()))
 	}
 	var exit *exec.ExitError
 	if errors.As(runErr, &exit) {
-		return fmt.Sprintf("%s\n[Exit-Code %d]", strings.TrimRight(text, "\n"), exit.ExitCode()), nil
+		return text, exit.ExitCode(), nil
 	}
 	if runErr != nil {
-		return text, runErr
+		return text, -1, runErr
+	}
+	return text, 0, nil
+}
+
+// Run führt ein lesendes Programm ohne Shell aus (feste Argumentliste), mit Zeitlimit, begrenzter Ausgabe und festem Umfeld.
+// Ein Exit-Code ungleich 0 ist kein Fehler: viele Befehle (systemctl status) melden damit nur einen Zustand.
+func Run(ctx context.Context, name string, args ...string) (string, error) {
+	text, code, err := RunWith(ctx, Opts{}, name, args...)
+	if err != nil {
+		return text, err
+	}
+	if code != 0 {
+		return fmt.Sprintf("%s\n[Exit-Code %d]", strings.TrimRight(text, "\n"), code), nil
 	}
 	return text, nil
 }

@@ -6,7 +6,10 @@ dort als root aus, oder lädt es herunter. Es ist bewusst lesbar gehalten: wer e
 
 Was es tut: Programmdatei vom Hub laden (Prüfsumme wird gegen den Wert im Skript geprüft), Benutzer ``copilot-agent`` ohne Anmeldung
 anlegen, den Server beim Hub anmelden (der Schlüssel wird dabei verbraucht), einen systemd-Dienst mit scharfen Einschränkungen einrichten
-und starten. Mit ``--uninstall`` wird alles wieder entfernt.
+und starten. Seit 0.60.7 kommt ein zweiter, kleiner Dienst dazu (``copilot-helper``, läuft als root und führt nur freigegebene Änderungen
+aus) sowie die **lokale Richtlinie** ``/etc/copilot-agent/policy``: Sie entscheidet auf dem Server selbst, ob die KI dort ändern darf
+(``ki_access=operate``) oder nur lesen (``read``). Eine vorhandene Richtlinie wird nie überschrieben. Mit ``--uninstall`` wird alles
+wieder entfernt.
 """
 from __future__ import annotations
 
@@ -27,7 +30,7 @@ def hub_with_port(address: str) -> str:
     return f"{address}:{HUB_PORT}"
 
 
-def render_script(*, hub: str, key: str, ca_fingerprint: str, hub_pin: str, hashes: dict[str, str], expires: str, max_uses: int, name: str = "") -> str:
+def render_script(*, hub: str, key: str, ca_fingerprint: str, hub_pin: str, hashes: dict[str, str], expires: str, max_uses: int, name: str = "", changes: bool = True) -> str:
     """Das fertige Skript als Text. Alle Werte werden für die Shell maskiert."""
     if name and not _NAME_RE.match(name):
         name = ""
@@ -47,6 +50,7 @@ HUB_PIN={q(hub_pin)}
 SHA256_AMD64={q(hashes.get("amd64", ""))}
 SHA256_ARM64={q(hashes.get("arm64", ""))}
 SERVER_NAME={q(name)}
+ALLOW_CHANGES={1 if changes else 0}
 """
     return head + _BODY
 
@@ -56,6 +60,9 @@ BIN=/usr/local/bin/copilot-agent
 USER_NAME=copilot-agent
 STATE_DIR=/var/lib/copilot-agent
 UNIT=/etc/systemd/system/copilot-agent.service
+HELPER_UNIT=/etc/systemd/system/copilot-helper.service
+POLICY_DIR=/etc/copilot-agent
+POLICY=$POLICY_DIR/policy
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'Fehler: %s\n' "$*" >&2; exit 1; }
@@ -64,10 +71,10 @@ die() { printf 'Fehler: %s\n' "$*" >&2; exit 1; }
 command -v systemctl >/dev/null 2>&1 || die "Dieses Skript braucht systemd."
 
 if [ "${1:-}" = "--uninstall" ]; then
-    systemctl disable --now copilot-agent.service >/dev/null 2>&1 || true
-    rm -f "$UNIT" "$BIN"
+    systemctl disable --now copilot-agent.service copilot-helper.service >/dev/null 2>&1 || true
+    rm -f "$UNIT" "$HELPER_UNIT" "$BIN"
     systemctl daemon-reload
-    rm -rf "$STATE_DIR"
+    rm -rf "$STATE_DIR" "$POLICY_DIR"
     id "$USER_NAME" >/dev/null 2>&1 && userdel "$USER_NAME" >/dev/null 2>&1 || true
     say "Der Agent wurde entfernt. Den Eintrag in der Seite Server bitte dort löschen."
     exit 0
@@ -117,11 +124,64 @@ else
     say "Dieser Server ist schon angemeldet, die Anmeldung wird übersprungen."
 fi
 
+# Lokale Richtlinie: hier entscheidet dieser Server selbst, was die KI darf. Weder der Hub noch die KI können sie ändern.
+# Eine vorhandene Datei bleibt unverändert (auch beim erneuten Ausführen des Skripts).
+install -d -m 0755 -o root -g root "$POLICY_DIR"
+if [ ! -f "$POLICY" ]; then
+    if [ "$ALLOW_CHANGES" = "1" ]; then ACCESS=operate; else ACCESS=read; fi
+    cat > "$POLICY" <<EOF
+# HA Copilot: was die KI auf diesem Server darf. Wirkt sofort, ein Neustart ist nicht nötig.
+# Ändern kann nur root auf diesem Server.
+#
+# ki_access   read     = nur lesen (nichts verändern)
+#             operate  = Änderungen sind möglich, aber nur nach Freigabe der Person im Chat
+ki_access=$ACCESS
+# max_class   1 = nur umkehrbare Änderungen (Dienst neu starten, Paket installieren)
+#             2 = auch weitreichende (Pakete entfernen oder alle aktualisieren, root-Befehle, Skripte)
+max_class=2
+# freie Befehle (server_run) erlauben: on oder off
+run_command=on
+# Befehle mit root-Rechten erlauben: on oder off (off sperrt auch Dienste und apt)
+root=on
+EOF
+    chmod 0644 "$POLICY"
+    say "Lokale Richtlinie angelegt: $POLICY (ki_access=$ACCESS)."
+else
+    say "Lokale Richtlinie bleibt unverändert: $POLICY"
+fi
+
+# Root-Helfer: nimmt nur Anfragen des Agenten an, stuft sie selbst noch einmal ein und führt nur Freigegebenes aus (Richtlinie gilt).
+cat > "$HELPER_UNIT" <<EOF
+[Unit]
+Description=HA Copilot Root-Helfer (nur nach Freigabe)
+Before=copilot-agent.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=$BIN helper --policy $POLICY --socket /run/copilot-agent/helper.sock --agent-user $USER_NAME
+RuntimeDirectory=copilot-agent
+RuntimeDirectoryMode=0755
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectClock=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 0644 "$HELPER_UNIT"
+
 cat > "$UNIT" <<EOF
 [Unit]
 Description=HA Copilot Server-Agent
-After=network-online.target
-Wants=network-online.target
+After=network-online.target copilot-helper.service
+Wants=network-online.target copilot-helper.service
 
 [Service]
 Type=simple
@@ -157,11 +217,18 @@ WantedBy=multi-user.target
 EOF
 chmod 0644 "$UNIT"
 systemctl daemon-reload
-systemctl enable --now copilot-agent.service
+# „restart“ statt nur „--now“: bei einem erneuten Ausführen (Update des Agenten) soll die neue Programmdatei laufen
+systemctl enable copilot-helper.service copilot-agent.service >/dev/null 2>&1
+systemctl restart copilot-helper.service copilot-agent.service
 sleep 2
 if systemctl is-active --quiet copilot-agent.service; then
     say ""
     say "Fertig. Der Agent läuft."
+    if [ "$(sed -n 's/^ki_access=//p' "$POLICY" | head -n1)" = "operate" ]; then
+        say "Die KI darf auf diesem Server Änderungen vorschlagen; ausgeführt wird nur, was du im Chat freigibst ($POLICY)."
+    else
+        say "Die KI darf auf diesem Server nur lesen ($POLICY)."
+    fi
     say "Dieser Server erscheint jetzt im HA Copilot unter Server als „Ausstehend“. Bitte dort bestätigen."
 else
     systemctl --no-pager status copilot-agent.service || true
