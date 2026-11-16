@@ -28,6 +28,7 @@ In der Konfigurationsdatei: `users:` mit den Feldern darunter.
 | `connector_access` | `none` \| `use` \| `own` \| `global` | **Konnektoren (optional).** Was die KI für diesen Benutzer bei Konnektoren (MCP-Server wie Microsoft 365, Google Workspace oder Zabbix) darf: none = keine, use = freigegebene (globale) Konnektoren nutzen, own = zusätzlich eigene anlegen, global = zusätzlich globale Konnektoren für alle anlegen und ändern (auch Adressen im Heimnetz). Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“. |
 | `web_access` | `on` \| `off` | **Websuche (optional).** on = die KI darf für diesen Benutzer im Web suchen und Seiten lesen, off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“. |
 | `voice_access` | `on` \| `off` | **Sprechen mit der KI (optional).** on = diese Person darf per Sprache mit der KI sprechen (Mikrofon-Knopf im Chat), off = nicht. Leer: es gilt der Standard dieser Option in der Gruppe „Chat (Claude & OpenAI)“ bzw. „Sprechen mit der KI“. |
+| `server_access` | `on` \| `off` | **Zugriff auf Linux-Server (optional).** on = diese Person darf über den Copiloten auf alle angebundenen Linux-Server zugreifen (Seite „Server“, Befehle der KI mit Zulassungshinweis), off = nicht. Es gibt bewusst nur ganz oder gar nicht, keine Abstufungen und keine Rechte pro Server. Leer: es gilt der Standard der Gruppe „Linux-Server“. Wirkt nur bei eingeschaltetem Server-Hub. |
 | `admin` | an/aus | **Administrator der App (optional).** An = diese Person sieht unter Einstellungen → Nutzung die Übersicht „Alle Personen“ (wer wie viel genutzt hat, nur Zahlen, keine Inhalte). Administratoren von Home Assistant sind es automatisch; dieses Feld ist für Personen, die in Home Assistant keine Administratoren sind, oder für die Anmeldung über die Domain. Leer/aus: nur wer in Home Assistant Administrator ist. |
 | `notify_service` | Text | **Benachrichtigungsdienst (optional).** Home-Assistant-Dienst, über den dieser Benutzer aufs Handy benachrichtigt wird, z. B. notify.mobile_app_pixel (siehe Entwicklerwerkzeuge → Aktionen, Suche „notify“). Vorgabe für die Geräte dieser Person (jede Person wählt ihre Geräte selbst unter Einstellungen → Benachrichtigungen; ohne Auswahl gelten die Geräte ihrer Person in Home Assistant). Leer: keine Vorgabe. |
 | `id` | a–z, 0–9, `-`, `_` (2 bis 32 Zeichen) | **Kurzname (optional).** Interne Kennung, a–z, 0–9, Bindestrich. Leer lassen: wird aus dem Anzeigenamen gebildet. Nachträglich nicht mehr ändern, die Chats hängen daran. |
@@ -111,6 +112,18 @@ In der Konfigurationsdatei: `domain:` mit den Feldern darunter.
 | `domain.public_trusted_proxies` | Liste | leer | **Vertrauenswürdige Proxys.** Adressen von Reverse-Proxys (z. B. Cloudflare-Tunnel-Container), deren Weiterleitungs-Header gelten dürfen. |
 | `domain.app_access` | an/aus | aus | **Mobile App zulassen.** Erlaubt der App „HA Copilot“ für iPhone und iPad, sich über die Domain anzumelden. Aus ist der Standard; die Geräte siehst und sperrst du in den Einstellungen unter „Geräte“. |
 | `domain.device_days` | Zahl 1 bis 180 | `90` | **Gültigkeit eines App-Geräts (Tage).** Wie lange ein Gerät ohne Erneuerung angemeldet bleibt (1–180). Die App erneuert sich bei Nutzung selbst. |
+
+## Linux-Server (`servers`)
+
+Optional und aus: Linux-Server melden sich beim Hub im Add-on, die KI darf sie ansehen. Ausführlich in der [Dokumentation](../copilot/DOCS.md#linux-server-ab-0604).
+
+In der Konfigurationsdatei: `servers:` mit den Feldern darunter.
+
+| Option | Werte | Standard | Bedeutung |
+|---|---|---|---|
+| `servers.enabled` | an/aus | aus | **Server-Hub einschalten.** Aus (Standard): kein Listener, die Seite „Server“ bleibt verborgen. An: der Hub nimmt Verbindungen der Agenten an. Neue Server erscheinen als „Ausstehend“, bis sie in der App bestätigt werden. |
+| `servers.access_default` | `on` \| `off` | `off` | **Standard – wer darf auf Server zugreifen.** Gilt für alle Benutzer ohne eigene Angabe: off (Standard) = niemand, on = alle. Ganz oder gar nicht, keine Abstufungen. |
+| `servers.hub_address` | Text | leer | **Adresse des Hubs (optional).** Name oder IP-Adresse (optional mit :Port), unter der die Server den Hub erreichen, z. B. ha.example.lan oder 10.20.0.5:8101. Sie landet im Installationsskript. Leer: die App schlägt die Adresse vor, unter der Sie sie geöffnet haben; dort lässt sie sich vor dem Erzeugen ändern. |
 
 ## Personalisierung (`look`)
 

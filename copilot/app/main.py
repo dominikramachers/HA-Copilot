@@ -91,6 +91,9 @@ from .github_accounts import AccountError, GithubAccounts
 from . import connector_catalog, connector_icons
 from .connectors import ConnectorError, ConnectorService, ConnectorToolbox
 from .vault import Vault
+from . import servers as serverlib
+from .server_routes import register_server_routes
+from .server_tools import ServerToolbox
 from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
 from .ha_scan import OverviewScanner
 from .db import DESCRIPTION_MAX, INSTRUCTIONS_MAX, Store
@@ -115,6 +118,8 @@ REQUEST_TIMEOUT = 600  # Sekunden
 TOOL_EXTRA_TIMEOUT = 1500  # zusätzlich, wenn die KI Home Assistant benutzen darf (Rückfragen dauern)
 APPROVAL_TIMEOUT = 600  # so lange wartet eine Rückfrage auf Antwort, danach gilt sie als abgelehnt
 HA_BACKUP_DIR = DB_PATH.parent / "ha-backups"
+SERVER_DIR = DB_PATH.parent / "servers"  # Zertifizierungsstelle und Schlüssel des Server-Hubs (nur im Datenordner)
+AGENT_BIN_DIR = Path(os.environ.get("COPILOT_AGENT_DIR", "/opt/copilot/agent-bin"))  # mitgelieferte Programmdateien des Server-Agenten
 VAULT_PATH = DB_PATH.parent / "connector.key"  # Schlüssel der Konnektoren: im Datenordner, nicht im Config-Ordner und nicht in den Schnappschüssen
 TITLE_TIMEOUT = 40  # Sekunden für den automatischen Chat-Titel
 SUMMARY_TIMEOUT = 240  # Sekunden für das Zusammenfassen eines langen Verlaufs
@@ -179,7 +184,7 @@ SECURITY_HEADERS = {
 
 
 # Aktionsarten, nach denen fremde Inhalte im Chat sein können: danach fragen schreibende Werkzeuge immer nach
-TAINTING_KINDS = frozenset({"read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext", "mcp-read", "mcp-write"})
+TAINTING_KINDS = frozenset({"read", "execute", "write", "knowledge", "gh-read", "gh-write", "web", "file-read", "skill-ext", "mcp-read", "mcp-write", "srv-read"})
 
 
 class TitleBody(BaseModel):
@@ -909,6 +914,7 @@ def register_chat_routes(
     if scheduler is not None:
         scheduler.phone_services = notifier.selected  # geplante Aufgaben melden an dieselben Geräte
     model_ids = {m["id"] for m in settings.model_choices()}
+    server_hub = serverlib.hub_for(store, settings, SERVER_DIR, AGENT_BIN_DIR)
 
     def user_default_model(profile_id: str) -> str:
         """Standardmodell der Person für neue Chats ('' = Auto); ein nicht mehr wählbares Modell zählt als Auto."""
@@ -1003,6 +1009,7 @@ def register_chat_routes(
             "voice": voice_allowed(profile),
             "voice_wake": settings.app_name if voice_allowed(profile) else "",
             "connectors": connectors.level(profile.id) >= 1,
+            "servers": settings.server_level(profile) == "on",
             "models": settings.model_choices(),
             "default_model": settings.model,
             "user_model": user_default_model(profile.id),
@@ -1302,6 +1309,8 @@ def register_chat_routes(
             "write_confirm": settings.connector_write_confirm,
             "allow_private": settings.connector_allow_private,
         }
+
+    register_server_routes(app, settings, server_hub, current_profile, write_guard)
 
     @app.get("/api/connectors")
     def connectors_list(profile: Profile = Depends(current_profile)) -> dict:
@@ -3025,7 +3034,7 @@ def register_chat_routes(
                 limit_to_exposed=settings.ha_limit_to_exposed,
                 confirm_writes=settings.ha_write_confirm == "ask",
                 # Dateien können eingeschleuste Anweisungen enthalten: dann nichts ohne ausdrückliches Zulassen
-                force_confirm=lambda: bool(files) or imported or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write") for a in run.actions.values()),
+                force_confirm=lambda: bool(files) or imported or any(a["kind"] in ("web", "gh-read", "file-read", "skill-ext", "mcp-read", "mcp-write", "srv-read") for a in run.actions.values()),
                 ask=ask,
                 record=run.push,
                 chat_allowed=lambda: key in chat_allow,
@@ -3095,12 +3104,19 @@ def register_chat_routes(
         )
         connector_specs = [] if spoken else connector_box.specs()
         specs += connector_specs
+        server_note = ""
+        if not spoken and settings.server_level(profile) == "on":
+            server_box = ServerToolbox(server_hub, profile, record=run.push, next_id=run.next_tool_id)
+            specs += server_box.specs()
+            server_note = server_box.note()
         if web_on:
             specs += WebToolbox(run.push, run.next_tool_id).specs()
             extra.update(web=True, record=run.push, next_id=run.next_tool_id)
         if specs:
             extra["tools"] = specs
         extra["note"] = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
+        if server_note:
+            extra["note"] += "\n" + server_note
         if incognito:
             extra["note"] += "\n" + INCOGNITO_NOTE
         if switched_from:
@@ -3899,6 +3915,30 @@ async def _scan_loop(scanner: OverviewScanner, settings: Settings) -> None:
         await asyncio.sleep(SCAN_CHECK_SECONDS)
 
 
+async def _hub_loop(settings: Settings, store: Store, ha: HaApi) -> None:
+    """Server-Hub (Port 8101): nimmt die Verbindungen der Agenten an. Scheitert er (z. B. Port belegt), läuft der Rest des Add-ons weiter."""
+    hub = serverlib.hub_for(store, settings, SERVER_DIR, AGENT_BIN_DIR)
+
+    async def notify(title: str, message: str) -> None:
+        if not ha.enabled:
+            return
+        try:
+            await ha.call({
+                "type": "call_service", "domain": "persistent_notification", "service": "create",
+                "service_data": {"title": title[:120], "message": message[:500], "notification_id": "copilot_server_" + hashlib.sha256(title.encode()).hexdigest()[:10]},
+            })
+        except HaApiError as exc:
+            log.warning("Server-Hub: Meldung in Home Assistant fehlgeschlagen: %s", exc)
+
+    hub.notify = notify
+    try:
+        await hub.serve()
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.error("Server-Hub konnte nicht starten (Port %d belegt oder Zertifikate nicht lesbar?)", serverlib.HUB_PORT, exc_info=True)
+
+
 class _QuietServer(uvicorn.Server):
     """uvicorn ohne eigene Signalbehandlung: sonst löst es SIGTERM nach dem Herunterfahren erneut aus (Exit-Code 143)."""
 
@@ -3957,6 +3997,8 @@ async def _serve(
     tasks = [snapshots, sweeper]
     if settings.schedules_enabled:
         tasks.append(asyncio.create_task(scheduler.loop()))
+    if settings.servers_enabled:
+        tasks.append(asyncio.create_task(_hub_loop(settings, store, ha)))
     if ha.enabled:
         tasks.append(asyncio.create_task(_resolve_loop(registry, ha)))
     if scanner is not None and settings.memory_enabled:

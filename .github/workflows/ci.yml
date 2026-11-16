@@ -25,11 +25,21 @@ jobs:
           cache-dependency-path: |
             copilot/requirements.txt
             copilot/requirements-files.txt
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: copilot/agent/go.mod
+          cache-dependency-path: copilot/agent/go.sum
       - name: Abhängigkeiten installieren
         working-directory: copilot
         run: |
           pip install -r requirements.txt pytest pyyaml
           pip install -r requirements-files.txt
+      - name: Server-Agent (Go)
+        working-directory: copilot/agent
+        run: |
+          test -z "$(gofmt -l .)"
+          GOFLAGS=-mod=vendor go vet ./...
+          GOFLAGS=-mod=vendor go test ./...
       - name: Tests
         working-directory: copilot
         run: python -m pytest -q
