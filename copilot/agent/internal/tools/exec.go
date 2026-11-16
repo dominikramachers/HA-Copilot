@@ -69,10 +69,21 @@ func LookPath(name string) (string, error) {
 	if base == "." || base == ".." || base == "/" {
 		return "", missing
 	}
+	// Der Pfad wird nie aus der Eingabe gebaut: Wir lesen die festen Verzeichnisse und verwenden den Namen, den das
+	// Dateisystem selbst liefert, sobald er mit der Eingabe übereinstimmt.
 	for _, dir := range strings.Split(searchPath, ":") {
-		path := dir + "/" + base
-		if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
-			return path, nil
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.Name() != base {
+				continue
+			}
+			path := dir + "/" + e.Name()
+			if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+				return path, nil
+			}
 		}
 	}
 	return "", missing
