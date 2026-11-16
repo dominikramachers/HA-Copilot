@@ -50,6 +50,19 @@ SIZES = {  # Bildformat -> (OpenAI-Größe, Google-Seitenverhältnis)
     "portrait": ("1024x1536", "2:3"),
 }
 QUALITY = {"draft": "low", "standard": "medium", "high": "high"}  # nur OpenAI; Google kennt keine Stufen
+
+# Geschätzter Preis je Bild in US-Dollar für die Kostenanzeige (Listenpreise vergleichbarer Modelle, gerundet). Abgerechnet wird beim Anbieter;
+# die Zahl ist nur eine Orientierung und steht in der Oberfläche als „geschätzt“.
+PRICE_OPENAI_USD = {("square", "low"): 0.01, ("square", "medium"): 0.04, ("square", "high"): 0.17,
+                    ("wide", "low"): 0.015, ("wide", "medium"): 0.06, ("wide", "high"): 0.25}
+PRICE_GOOGLE_USD = 0.04
+
+
+def estimate_cost_usd(provider: str, size: str, quality: str) -> float:
+    """Geschätzter Preis eines Bildes in US-Dollar (OpenAI nach Format und Qualität, Google pauschal)."""
+    if provider != "openai":
+        return PRICE_GOOGLE_USD
+    return PRICE_OPENAI_USD.get(("square" if size == "square" else "wide", QUALITY.get(quality, "medium")), 0.06)
 EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}
 
 DENIED_TAGS = {
@@ -492,7 +505,7 @@ class ImageToolbox:
             file = self._store(tid, title or "bild", args.get("reference"), data, found[0], found[1], found[2], provider)
             self.store.image_usage_add(self.profile_id, self.month())
             with contextlib.suppress(Exception):  # Verbrauchsprotokoll: nur Zähler, darf das Bild nie verhindern
-                self.store.usage_add(self.profile_id, provider, self.service.model_of(provider), kind="image", images=1)
+                self.store.usage_add(self.profile_id, provider, self.service.model_of(provider), kind="image", images=1, cost_usd=estimate_cost_usd(provider, size, quality))
         except ToolError as exc:
             self._event(tid, label, "error", str(exc)[:200])
             raise

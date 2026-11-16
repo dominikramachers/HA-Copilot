@@ -16,7 +16,26 @@ def client(store, **options):
 
 def test_usage_without_images_and_limits(store):
     data = client(store).get("/api/usage", headers=as_user(ADM01)).json()
-    assert data["limits"] == [] and data["images"] == {"enabled": False, "month": datetime.now().strftime("%Y-%m"), "used": 0, "limit": data["images"]["limit"]}
+    assert data["limits"] == [] and data["images"] == {"enabled": False, "month": datetime.now().strftime("%Y-%m"), "used": 0, "limit": data["images"]["limit"], "cost": 0.0, "currency": "EUR"}
+
+
+def test_image_cost_estimate_uses_list_prices():
+    from app import images  # noqa: PLC0415
+    assert images.estimate_cost_usd("google", "square", "standard") == 0.04
+    assert images.estimate_cost_usd("openai", "square", "high") == 0.17
+    assert images.estimate_cost_usd("openai", "portrait", "high") == 0.25
+    assert images.estimate_cost_usd("openai", "landscape", "draft") == 0.015
+    assert images.estimate_cost_usd("openai", "unbekannt", "unbekannt") == 0.06  # unbekannte Kombination: mittlerer Preis
+
+
+def test_usage_shows_estimated_image_cost_in_euro(store):
+    app = client(store, openai_api_key="sk-test-abcdefghijklmnop", chat={"usd_eur_rate": 0.5})
+    store.usage_add("adm01", "openai", "gpt-image", kind="image", cost_usd=0.2, images=1)
+    store.usage_add("adm01", "openai", "gpt-image", kind="image", cost_usd=0.2, images=1)
+    store.usage_add("adm01", "claude", "x", kind="chat", cost_usd=9.0)  # andere Art zählt nicht mit
+    images = app.get("/api/usage", headers=as_user(ADM01)).json()["images"]
+    assert images["currency"] == "EUR" and images["cost"] == 0.2
+    assert store.usage_cost_total("image", 0, 4_000_000_000, "0000-00-00", "9999-99-99") == 0.4
 
 
 def test_usage_counts_images_for_everyone_together(store):

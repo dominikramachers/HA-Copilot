@@ -340,20 +340,20 @@ def test_level_none_and_missing_connection_offer_no_ha_tools(store):
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
         assert not [t for t in seen["tools"] if t.startswith("ha_")]
-        # ohne Home Assistant und ohne Gedächtnis bleiben nur Dateiwerkzeug und Web ...
+        # ohne Home Assistant und ohne Gedächtnis bleiben nur Dateiwerkzeug, Web und Skills (skill_save) ...
         app, backend, seen = ha_app(store, offline, memory_enabled=False)
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert seen["tools"] == ["artifact_create", "artifact_read", "artifact_update", "design_guide", "file_create", "file_edit", "file_list", "file_preview", "file_read", "image_svg", "web_fetch"]
+        assert seen["tools"] == ["artifact_create", "artifact_read", "artifact_update", "design_guide", "file_create", "file_edit", "file_list", "file_preview", "file_read", "image_svg", "skill_save", "web_fetch"]
         app, backend, seen = ha_app(store, offline, memory_enabled=False, web_access_default="off")
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert seen["tools"] == ["artifact_create", "artifact_read", "artifact_update", "design_guide", "file_create", "file_edit", "file_list", "file_preview", "file_read", "image_svg"]
+        assert seen["tools"] == ["artifact_create", "artifact_read", "artifact_update", "design_guide", "file_create", "file_edit", "file_list", "file_preview", "file_read", "image_svg", "skill_save"]
         # ... und ohne das gar keine Werkzeuge
         app, backend, seen = ha_app(store, offline, memory_enabled=False, files_enabled=False, web_access_default="off")
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert seen["tools"] == ["artifact_create", "artifact_read", "artifact_update"]
+        assert seen["tools"] == ["artifact_create", "artifact_read", "artifact_update", "skill_save"]
 
     asyncio.run(scenario())
 
