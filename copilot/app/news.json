@@ -1,5 +1,50 @@
 [
   {
+    "version": "0.60.7",
+    "items": [
+      {
+        "de": {
+          "title": "Ich kann auf Servern etwas tun",
+          "text": "Auf deinen Servern kann ich jetzt Dienste neu starten, Programme installieren und Befehle ausführen. Ich zeige dir vorher genau, was passiert, und mache es nur, wenn du zustimmst."
+        },
+        "en": {
+          "title": "I can act on your servers",
+          "text": "On your servers I can now restart services, install programs and run commands. I show you exactly what will happen first and only do it if you agree."
+        }
+      },
+      {
+        "de": {
+          "title": "Server für Administratoren sofort da",
+          "text": "Bist du Administrator, siehst du die Seite „Server“ jetzt gleich und ich darf deine Server ansehen. Eine extra Freigabe ist nicht mehr nötig. Andere Personen brauchen sie weiterhin."
+        },
+        "en": {
+          "title": "Servers ready for administrators",
+          "text": "If you are an administrator, you now see the “Servers” page right away and I may look at your servers. No extra approval is needed any more. Other people still need one."
+        }
+      },
+      {
+        "de": {
+          "title": "Bestätigen klappt ohne Fehlermeldung",
+          "text": "Wenn du einen neuen Server bestätigst, bekommst du jetzt keine Fehlermeldung mehr. Der Server erfährt es sofort und muss nicht warten."
+        },
+        "en": {
+          "title": "Confirming works without an error",
+          "text": "When you confirm a new server, you no longer get an error message. The server learns about it right away and does not have to wait."
+        }
+      },
+      {
+        "de": {
+          "title": "„Online“ leuchtet grün",
+          "text": "Server, die in Ordnung sind, siehst du jetzt in Grün. So erkennst du auf einen Blick, bei welchen alles läuft."
+        },
+        "en": {
+          "title": "“Online” shows in green",
+          "text": "Servers that are fine now show in green, so you can see at a glance where everything is running."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.60.6",
     "items": [
       {

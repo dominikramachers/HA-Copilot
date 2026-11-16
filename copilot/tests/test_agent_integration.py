@@ -115,3 +115,79 @@ def test_agent_enrolls_reports_and_answers_calls(tmp_path, agent_binary):
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
     asyncio.run(scenario())
+
+
+def test_agent_changes_only_with_local_policy_and_after_preparing(tmp_path, agent_binary):
+    async def scenario():
+        hub = make_hub(tmp_path)
+        task = await started(hub)
+        state = tmp_path / "state"
+        policy = tmp_path / "policy"
+        agent = None
+        try:
+            _, key, _ = hub.repo.key_create("Admin", "Integration", 1, 1)
+            address = f"127.0.0.1:{hub.port}"
+            done = await sh(str(agent_binary), "enroll", "--hub", address, "--ca-fingerprint", hub.pki.ca_fingerprint, "--state-dir", str(state),
+                            "--name", "change01", env={"COPILOT_AGENT_KEY": key})
+            assert done.returncode == 0, done.stderr
+            [row] = hub.repo.server_list()
+            hub.confirm(row["id"], "Admin")  # vor dem Start: die erste Antwort des Hubs nennt den Zustand schon als bestätigt
+            run = [str(agent_binary), "run", "--state-dir", str(state), "--policy", str(policy), "--helper-socket", str(tmp_path / "kein-helfer.sock")]
+
+            # ohne Richtlinie: nur lesen, der Hub fragt den Agenten gar nicht erst
+            agent = await asyncio.create_subprocess_exec(*run, stderr=asyncio.subprocess.PIPE)
+            await wait_for(lambda: "hostname" in json.loads(hub.repo.server_get(row["id"])["info"] or "{}"))
+            info = json.loads(hub.repo.server_get(row["id"])["info"])
+            assert info["operate"] is False and info["helper"] is False
+            with pytest.raises(serverlib.ServerError, match="nicht erlaubt"):
+                await hub.prepare("change01", "run_command", {"argv": ["echo", "x"]})
+            agent.terminate()
+            await asyncio.wait_for(agent.wait(), 10)
+
+            # mit Richtlinie „operate“
+            policy.write_text("# Test\nki_access=operate\nmax_class=2\n")
+            agent = await asyncio.create_subprocess_exec(*run, stderr=asyncio.subprocess.PIPE)
+            await wait_for(lambda: hub.can_change(hub.get(row["id"])))
+            assert json.loads(hub.repo.server_get(row["id"])["info"])["max_class"] == 2
+
+            plan = None
+            for _ in range(20):
+                try:
+                    plan = await hub.prepare("change01", "run_command", {"argv": ["echo", "integration-ok"]})
+                    break
+                except serverlib.ServerError as exc:
+                    if "nicht bestätigt" not in str(exc):
+                        raise
+                    await asyncio.sleep(0.5)
+            assert plan and plan["class"] == 2 and plan["runner"] == "agent" and plan["command"] == "echo integration-ok"
+
+            out = await hub.execute("change01", plan)
+            assert "integration-ok" in out and "== Ergebnis: erfolgreich ==" in out
+            with pytest.raises(serverlib.ServerError, match="unbekannt|abgelaufen|ausgeführt"):
+                await hub.execute("change01", plan)  # ein Plan gilt genau einmal
+            with pytest.raises(serverlib.ServerError, match="passt nicht"):
+                other = await hub.prepare("change01", "run_command", {"argv": ["echo", "zweiter"]})
+                await hub.execute("change01", {**other, "hash": "0" * 64})
+
+            # Stufe 3, Root ohne Helfer, ungültige Angaben: abgelehnt, bevor etwas geschieht
+            with pytest.raises(serverlib.ServerError, match="Abgelehnt"):
+                await hub.prepare("change01", "run_command", {"argv": ["reboot"]})
+            with pytest.raises(serverlib.ServerError, match="Abgelehnt"):
+                await hub.prepare("change01", "service_action", {"unit": "ssh", "action": "stop"})
+            with pytest.raises(serverlib.ServerError, match="Helfer"):
+                await hub.prepare("change01", "service_action", {"unit": "nginx", "action": "restart"})
+            with pytest.raises(serverlib.ServerError, match="ungültig"):
+                await hub.prepare("change01", "package", {"action": "install", "packages": ["Foo;id"]})
+
+            # die Richtlinie wirkt sofort: vorbereiten, dann auf „nur lesen“ stellen, dann scheitert die Ausführung
+            plan = await hub.prepare("change01", "run_command", {"argv": ["echo", "spaet"]})
+            policy.write_text("ki_access=read\n")
+            with pytest.raises(serverlib.ServerError, match="nicht erlaubt"):
+                await hub.execute("change01", plan)
+        finally:
+            if agent is not None and agent.returncode is None:
+                agent.terminate()
+                await asyncio.wait_for(agent.wait(), 10)
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(scenario())

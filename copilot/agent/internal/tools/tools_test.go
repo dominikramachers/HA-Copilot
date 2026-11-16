@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 )
@@ -114,5 +115,27 @@ func TestRunDoesNotUseAShell(t *testing.T) {
 	out, err = Run(context.Background(), "sh", "-c", "echo hi; exit 3")
 	if err != nil || !strings.Contains(out, "Exit-Code 3") {
 		t.Fatalf("Exit-Code gehört in die Ausgabe: %q %v", out, err)
+	}
+}
+
+func TestLookPathOnlyUsesSystemDirectories(t *testing.T) {
+	if p, err := LookPath("sh"); err != nil || !strings.HasSuffix(p, "/sh") {
+		t.Fatalf("sh: %q %v", p, err)
+	}
+	if p, err := LookPath("/bin/sh"); err != nil || !strings.HasSuffix(p, "/sh") {
+		t.Fatalf("/bin/sh: %q %v", p, err)
+	}
+	dir := t.TempDir()
+	script := dir + "/evil"
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho x\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		script, "./evil", "../bin/sh", "bin/sh", "/tmp/../tmp/x", "/usr/bin/../../tmp/x", "", " ", "..", ".", "/", "a\\b", "sh\x00",
+		"/home/x/sh", "/opt/tool/sh", "/usr/bin/sub/sh",
+	} {
+		if p, err := LookPath(name); err == nil {
+			t.Errorf("%q darf nicht gefunden werden, gefunden: %q", name, p)
+		}
 	}
 }

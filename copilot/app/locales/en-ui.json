@@ -1371,5 +1371,14 @@
  "arbeitet gerade ({0} Antworten)": "working now ({0} answers)",
  "zuletzt aktiv {0}": "last active {0}",
  "noch nie aktiv": "never active",
- "Claude im Abo: {0} nach API-Liste, nicht bezahlt": "Claude on the plan: {0} at API list prices, not billed"
+ "Claude im Abo: {0} nach API-Liste, nicht bezahlt": "Claude on the plan: {0} at API list prices, not billed",
+ "Darf die KI dort etwas ändern?": "May the AI change anything there?",
+ "Das legt nur die Starteinstellung auf dem Server fest. Danach entscheidet allein die Datei /etc/copilot-agent/policy auf dem Server.": "This only sets the initial setting on the server. After that, only the file /etc/copilot-agent/policy on the server decides.",
+ "Ja, nach meiner Freigabe im Chat": "Yes, after my approval in the chat",
+ "Nein, nur lesen": "No, read only",
+ "Soll diese Änderung auf dem Server ausgeführt werden?": "Should this change be carried out on the server?",
+ "Stufe 1: umkehrbar": "Level 1: reversible",
+ "Stufe 2: weitreichend, bitte genau prüfen": "Level 2: far-reaching, please check carefully",
+ "erlaubt, nur nach deiner Freigabe": "allowed, only after your approval",
+ "nur lesen (lokale Richtlinie)": "read only (local policy)"
 }

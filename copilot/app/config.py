@@ -228,10 +228,17 @@ class Settings:
         return profile.connector_access or self.connector_access_default
 
     def server_level(self, profile: Profile) -> str:
-        """Darf diese Person über den Copiloten auf Server zugreifen? (on | off, nur mit eingeschaltetem Hub)"""
+        """Darf diese Person über den Copiloten auf Server zugreifen? (on | off, nur mit eingeschaltetem Hub)
+
+        Ein ausdrückliches ``server_access`` im Profil gilt immer; ohne Eintrag haben Administratoren der App Zugriff
+        (Schalter „Administrator der App“), alle anderen den Standard ``servers.access_default``. Administratoren, die nur
+        in Home Assistant Administrator sind, kennt erst ``main.server_allowed``.
+        """
         if not self.servers_enabled:
             return "off"
-        return profile.server_access or self.server_access_default
+        if profile.server_access:
+            return profile.server_access
+        return "on" if profile.admin else self.server_access_default
 
     def web_level(self, profile: Profile) -> str:
         """Darf diese Person die Websuche nutzen? (on | off)"""
