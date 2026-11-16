@@ -93,3 +93,35 @@ func TestClientWithoutHelper(t *testing.T) {
 		t.Fatal("Fehler erwartet")
 	}
 }
+
+func TestWithoutAptSandbox(t *testing.T) {
+	got := withoutAptSandbox([]string{"apt-get", "-y", "install", "--", "htop"})
+	want := []string{"apt-get", "-o", "APT::Sandbox::User=root", "-y", "install", "--", "htop"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("got %v", got)
+	}
+	if other := withoutAptSandbox([]string{"systemctl", "restart", "x"}); len(other) != 3 || other[0] != "systemctl" {
+		t.Fatalf("andere Befehle bleiben unverändert: %v", other)
+	}
+	if len(withoutAptSandbox(nil)) != 0 {
+		t.Fatal("leere Liste bleibt leer")
+	}
+}
+
+// Als root mit allen Rechten ist der Benutzerwechsel möglich; ohne CAP_SETUID (etwa Container) nicht. Der zweite Fall wird in der CI
+// nicht erzwungen, lässt sich aber so prüfen: capsh --drop=cap_setuid -- -c "COPILOT_EXPECT_NO_DROP=1 ./helper.test -test.run CanDrop"
+func TestCanDropPrivileges(t *testing.T) {
+	got := CanDropPrivileges()
+	if os.Getenv("COPILOT_EXPECT_NO_DROP") == "1" {
+		if got {
+			t.Fatal("ohne CAP_SETUID darf der Benutzerwechsel nicht als möglich gelten")
+		}
+		return
+	}
+	if os.Geteuid() == 0 && !got {
+		t.Skip("dieser Root-Prozess darf keinen Benutzer wechseln")
+	}
+	if os.Geteuid() != 0 && !got {
+		t.Fatal("ohne root gilt der Wechsel als möglich (nicht aussagekräftig)")
+	}
+}

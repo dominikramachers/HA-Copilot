@@ -421,7 +421,24 @@ def test_status_shows_degraded_with_reasons(tmp_path):
         ws = None
     hub._conns["srv-1"] = serverlib.AgentConn(Dummy(), "srv-1", "10.0.0.1")
     view = hub.view(hub.repo.server_get("srv-1"))
-    assert view["status"] == "degraded" and len(view["reasons"]) == 2
+    # Nur ein voller Datenträger schränkt ein; fehlgeschlagene Dienste sind ein Hinweis, der Server bleibt „online“.
+    assert view["status"] == "degraded" and len(view["reasons"]) == 1 and len(view["hints"]) == 1
+
+
+def test_failed_units_are_only_a_hint(tmp_path):
+    hub = make_hub(tmp_path)
+    hub.repo.server_create("srv-1", "mon01", "cd" * 32, "k")
+    hub.repo.server_state("srv-1", "active")
+    hub.repo.server_seen("srv-1", "10.0.0.1", {**serverlib.clean_heartbeat(HEARTBEAT), "failed_units": 1, "reboot_required": True})
+
+    class Dummy:
+        ws = None
+    hub._conns["srv-1"] = serverlib.AgentConn(Dummy(), "srv-1", "10.0.0.1")
+    view = hub.view(hub.repo.server_get("srv-1"))
+    assert view["status"] == "online" and view["reasons"] == []
+    assert view["hints"] == ["1 Dienst fehlgeschlagen", "Neustart erforderlich"]
+    hub._conns.clear()
+    assert hub.view(hub.repo.server_get("srv-1"))["hints"] == []  # offline: keine Hinweise aus alten Daten
 
 
 # ------------------------------------------------------------------------------------------------ Skript

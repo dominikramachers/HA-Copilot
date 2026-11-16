@@ -746,5 +746,7 @@
  "root muss true oder false sein.": "root must be true or false.",
  "script muss ein Text von höchstens 4000 Zeichen sein.": "script must be a text of at most 4000 characters.",
  "timeout_s muss eine Zahl von 1 bis 600 sein.": "timeout_s must be a number from 1 to 600.",
- "update braucht keine Pakete.": "update needs no packages."
+ "update braucht keine Pakete.": "update needs no packages.",
+ "{n} Dienst fehlgeschlagen": "{n} service failed",
+ "Neustart erforderlich": "Restart required"
 }
