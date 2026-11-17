@@ -2655,14 +2655,20 @@ function knowledgePanel(project) {
         }
         loadAll().catch(() => {});
       });
-      parts.push(node("p", "mem-hint", tr("Text, Markdown, YAML, Word, Excel, PDF, Bilder oder ein ZIP davon. Das Original bleibt erhalten. Die KI durchsucht den Kontext bei Bedarf und liest gezielt hinein, nur in den Chats dieses Projekts, und legt auf Wunsch eigene Dateien hier ab.")), add, picker, status);
+      parts.push(node("p", "mem-hint", tr("Text, Markdown, YAML, Word, Excel, PDF, Bilder oder ein ZIP davon. Das Original bleibt erhalten. Die KI schlägt bei Bedarf selbst nach, nur in den Chats dieses Projekts, und hält Wichtiges aus euren Gesprächen als Notizen im Ordner KI fest, damit es in allen Chats des Projekts bereitsteht. Notizen lassen sich lesen und bearbeiten.")), add, picker, status);
       const list = node("div", "know-list");
       if (data.files.length === 0) list.append(node("p", "mem-empty", tr("Noch keine Dateien. Importiere zum Beispiel Notizen, Anleitungen oder Konfigurationen.")));
       for (const f of data.files) {
         const row = node("div", "know-file");
-        const name = node("span", "know-name", f.name);
+        const readable = !f.has_file || (f.mime || "").startsWith("text/");
+        const name = node(readable ? "button" : "span", "know-name", f.name);
         name.title = f.name;
-        row.append(icon("file"), name, node("small", "mem-meta", f.has_file && !(f.mime || "").startsWith("text/") ? tr("{0} · Original", formatSize(f.file_size)) : tr("{0} Text", formatSize(f.size))));
+        if (readable) {
+          name.type = "button";
+          name.classList.add("know-open");
+          name.addEventListener("click", () => openContextNote(project.id, f.id).catch(() => toast(tr("Die Notiz konnte nicht geöffnet werden."))));
+        }
+        row.append(icon("file"), name, ...(!f.has_file && f.name.startsWith("KI/") ? [node("small", "know-ai", tr("KI"))] : []), node("small", "mem-meta", f.has_file && !(f.mime || "").startsWith("text/") ? tr("{0} · Original", formatSize(f.file_size)) : tr("{0} Text", formatSize(f.size))));
         if (f.has_file) {
           const get = node("button", "icon-btn");
           get.type = "button";
@@ -2703,7 +2709,7 @@ async function downloadProjectFile(project, entry) {
 async function openKnowledge(project) {
   await openSheet({
     title: tr("Kontext: {0}", project.name),
-    sub: tr("Dateien, aus denen die KI in diesem Projekt nachschlagen darf."),
+    sub: tr("Dateien und Notizen, aus denen die KI in diesem Projekt nachschlagen darf."),
     ok: tr("Fertig"),
     panel: knowledgePanel(project),
   });
@@ -4913,10 +4919,14 @@ function fileChip(file, removable) {
   return attachCard(file, removable ? { onEdit: () => editPasted(file, renderTray), onRemove: () => removeFile(file) } : {});
 }
 
-// Aktionen der KI in Home Assistant: eine einklappbare Liste, die sich während der Antwort laufend aktualisiert.
+// Aktionen der KI (Home Assistant, Server, Web, Dateien …): eine Zeile mit Zusammenfassung und Pfeil, aufgeklappt die ganze Liste (wie bei Claude).
+// Sie ist auch während der Antwort eingeklappt; was gerade läuft, zeigt die Warteanzeige darunter (makeBusy). Die Liste aktualisiert sich laufend.
 const ACTION_TEXT = {
   running: tr("läuft …"), waiting: tr("wartet auf deine Antwort"), ok: "", error: tr("fehlgeschlagen"), denied: tr("abgelehnt"), abgebrochen: tr("abgebrochen"),
 };
+
+// Aktionsarten, die in der Zusammenfassung der Liste eine eigene Angabe haben; alle anderen zählen als „weitere Schritte“.
+const ACTION_KINDS = ["read", "execute", "write", "knowledge", "knowledge-write", "memory", "memory-read", "skill", "skill-ext", "skill-write", "file", "file-edit", "file-read", "image", "web", "gh-read", "gh-write", "mcp-read", "mcp-write", "srv-read", "srv-write"];
 
 function actionsEl(list = [], open = false) {
   const box = document.createElement("details");
@@ -4943,6 +4953,8 @@ function actionsEl(list = [], open = false) {
     const mcp = items.filter((a) => a.kind === "mcp-read" || a.kind === "mcp-write");
     const mcpChanges = mcp.filter((a) => a.kind === "mcp-write" && a.status === "ok").length;
     const other = items.filter((a) => a.kind === "memory-read").length;
+    const srv = items.filter((a) => a.kind === "srv-read" || a.kind === "srv-write");
+    const srvChanges = srv.filter((a) => a.kind === "srv-write" && a.status === "ok").length;
     const web = items.filter((a) => a.kind === "web");
     const searches = web.filter((a) => a.label.startsWith(tr("Websuche"))).length;
     const pages = web.length - searches;
@@ -4956,6 +4968,7 @@ function actionsEl(list = [], open = false) {
     if (ha.length) parts.push(trn(ha.length, "1 Aktion in Home Assistant", "{0} Aktionen in Home Assistant") + (changes ? trn(changes, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (gh.length) parts.push(trn(gh.length, "1 Aktion bei GitHub", "{0} Aktionen bei GitHub") + (ghChanges ? trn(ghChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (mcp.length) parts.push(trn(mcp.length, "1 Aktion über Konnektoren", "{0} Aktionen über Konnektoren") + (mcpChanges ? trn(mcpChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
+    if (srv.length) parts.push(trn(srv.length, "1 Aktion auf Servern", "{0} Aktionen auf Servern") + (srvChanges ? trn(srvChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (kontext) parts.push(trn(kontext, "im Kontext nachgeschlagen", "{0}× im Kontext nachgeschlagen"));
     if (skillsSaved) parts.push(trn(skillsSaved, "Skill gespeichert", "{0} Skills gespeichert"));
     if (skillsUsed) parts.push(trn(skillsUsed, "Skill genutzt", "{0} Skills genutzt"));
@@ -4973,7 +4986,13 @@ function actionsEl(list = [], open = false) {
     const lookedUp = items.filter((a) => a.kind === "memory-read" && a.label.startsWith(tr("Smarthome-Überblick"))).length;
     if (!parts.length && other - lookedUp > 0) parts.push(tr("Gedächtnis angesehen"));
     if (!parts.length && lookedUp) parts.push(tr("Smarthome-Überblick nachgesehen"));
+    // Arten ohne eigene Zeile oben zählen als „weitere Schritte“; die Zusammenfassung ist nie leer (sonst bliebe nur der Pfeil)
+    const rest = items.filter((a) => !ACTION_KINDS.includes(a.kind)).length;
+    if (rest) parts.push(trn(rest, "1 weiterer Schritt", "{0} weitere Schritte"));
+    if (!parts.length && items.length) parts.push(trn(items.length, "1 Schritt", "{0} Schritte"));
+    const problems = items.filter((a) => ["error", "denied", "abgebrochen"].includes(a.status)).length;
     head.textContent = parts.join(" · ");
+    if (problems) head.append(parts.length ? " · " : "", node("span", "act-problem", trn(problems, "1 nicht ausgeführt", "{0} nicht ausgeführt"))); // nur dieser Teil ist rot
     box.hidden = items.length === 0;
     box.lastChild.replaceChildren(...items.map(actionLine));
   };
@@ -5624,6 +5643,103 @@ function refreshArtifactCards(id) {
   document.querySelectorAll(`.art-card[data-artifact="${id}"] small`).forEach((el) => { el.textContent = `${artifactKindText(data)} · ${tr("Version {0}", data.latest)}`; });
 }
 
+// Notizen im Projektkontext: Hat die KI eine festgehalten (oder ergänzt), steht unter der Antwort eine Karte, die sie öffnet (wie ein Dokument in Claude).
+// Die Ansicht zeigt den Text und lässt ihn bearbeiten; geschrieben wird nur in Dateien ohne gespeichertes Original.
+const contextVerbs = () => ({ created: tr("angelegt"), appended: tr("ergänzt"), replaced: tr("aktualisiert") });
+
+function contextTitle(name) {
+  const stem = name.split("/").pop().replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim() || name;
+  return stem.charAt(0).toUpperCase() + stem.slice(1);
+}
+
+function contextCard(c) {
+  const card = node("button", "out-card ctx-card");
+  card.type = "button";
+  card.dataset.knowledge = String(c.id);
+  card.setAttribute("aria-label", tr("{0} öffnen", contextTitle(c.name)));
+  const tile = node("span", "out-tile");
+  tile.append(icon("note"));
+  const meta = node("span", "out-meta");
+  meta.append(node("b", "", contextTitle(c.name)), node("small", "", `${tr("Notiz im Projektkontext")} · ${contextVerbs()[c.verb] || contextVerbs().created}`));
+  card.append(tile, meta);
+  card.addEventListener("click", () => openContextNote(c.project, c.id).catch(() => toast(tr("Die Notiz konnte nicht geöffnet werden."))));
+  return card;
+}
+
+function contextCardsEl(actions) {
+  const box = node("div", "out-cards ctx-cards");
+  box.update = (items) => {
+    const done = new Map();
+    for (const a of items) if (a.context && a.status === "ok") done.set(a.context.id, a.context); // dieselbe Notiz mehrfach: der letzte Stand zählt
+    box.hidden = done.size === 0;
+    box.replaceChildren(...[...done.values()].map(contextCard));
+  };
+  box.update(actions);
+  return box;
+}
+
+async function openContextNote(projectId, id) {
+  const data = await api(`api/projects/${encodeURIComponent(projectId)}/knowledge/${encodeURIComponent(id)}/text`);
+  let text = data.content;
+  await openSheet({
+    title: contextTitle(data.name),
+    sub: [data.name, formatSize(data.size), tr("geändert {0}", exactTime(data.updated_at)), data.ai ? tr("von der KI festgehalten") : ""].filter(Boolean).join(" · "),
+    ok: tr("Schließen"),
+    wide: true,
+    panel: (body) => {
+      const show = () => {
+        const doc = node("div", "ctx-view");
+        doc.append(window.renderMarkdown(text));
+        const bar = node("div", "ctx-bar");
+        const copy = node("button", "pill ghost small", tr("Kopieren"));
+        copy.type = "button";
+        copy.addEventListener("click", async () => { try { await navigator.clipboard.writeText(text); toast(tr("Kopiert.")); } catch { toast(tr("Kopieren nicht möglich.")); } });
+        bar.append(copy);
+        if (data.editable) {
+          const edit = node("button", "pill ghost small", tr("Bearbeiten"));
+          edit.type = "button";
+          edit.addEventListener("click", change);
+          bar.append(edit);
+        }
+        const parts = [doc, bar];
+        if (data.truncated) parts.unshift(node("p", "mem-hint", tr("Nur der Anfang wird angezeigt, die Datei ist sehr lang.")));
+        body.replaceChildren(...parts);
+      };
+      const change = () => {
+        const area = document.createElement("textarea");
+        area.className = "field area pasted-area";
+        area.value = text;
+        area.maxLength = 60000;
+        area.spellcheck = false;
+        area.setAttribute("aria-label", tr("Text der Notiz"));
+        const save = node("button", "pill primary small", tr("Speichern"));
+        save.type = "button";
+        const cancel = node("button", "pill ghost small", tr("Abbrechen"));
+        cancel.type = "button";
+        cancel.addEventListener("click", show);
+        save.addEventListener("click", async () => {
+          if (!area.value.trim()) { toast(tr("Der Text darf nicht leer sein.")); return; }
+          save.disabled = true;
+          try {
+            await api(`api/projects/${encodeURIComponent(projectId)}/knowledge/${encodeURIComponent(id)}/text`, { method: "PUT", body: JSON.stringify({ content: area.value }) });
+            text = area.value;
+            toast(tr("Gespeichert."));
+            show();
+          } catch (err) {
+            toast(errorText(err, tr("Speichern hat nicht geklappt.")));
+            save.disabled = false;
+          }
+        });
+        const bar = node("div", "ctx-bar");
+        bar.append(save, cancel);
+        body.replaceChildren(area, bar);
+        area.focus();
+      };
+      show();
+    },
+  });
+}
+
 // Sichtbarer Hinweis unter der Antwort, wenn die KI etwas im Gedächtnis geändert hat (wie „In Erinnerungen gespeichert“ in Claude),
 // mit „Rückgängig“ für jede Änderung. Der Server prüft, ob der Eintrag noch so ist, wie die KI ihn hinterlassen hat.
 function memoryNoteEl(actions) {
@@ -5885,6 +6001,7 @@ function messageEl(role, text, files = [], actions = [], meta = {}) {
     el.append(window.renderMarkdown(text));
     if (actions.some((a) => a.file)) el.append(fileCardsEl(actions));
     if (actions.some((a) => a.kind === "artifact" && a.artifact)) el.append(artifactCardsEl(actions));
+    if (actions.some((a) => a.context && a.status === "ok")) el.append(contextCardsEl(actions));
     if (actions.some((a) => a.kind === "memory" && a.status === "ok")) el.append(memoryNoteEl(actions));
     const at = meta.at || new Date().toISOString();
     el.dataset.at = at;
@@ -6429,13 +6546,14 @@ async function consume(response, run, bubble) {
   run.cards = cards;
   const build = () => {
     if (parts.text) return;
-    parts.log = actionsEl([], true);
+    parts.log = actionsEl([]);
     parts.log.hidden = true;
     parts.text = node("div", "act-text");
     parts.files = fileCardsEl([]);
     parts.arts = artifactCardsEl([]);
+    parts.ctx = contextCardsEl([]);
     parts.mem = memoryNoteEl([]);
-    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.arts, parts.mem, ...(run.busy ? [run.busy.el] : []));
+    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.arts, parts.ctx, parts.mem, ...(run.busy ? [run.busy.el] : []));
   };
   // Was die Warteanzeige gerade zeigt: laufende Aktion, Rückfrage, Hinweistext oder (sobald Text kommt) nur das kleine Zeichen
   let statusText = "";
@@ -6464,10 +6582,10 @@ async function consume(response, run, bubble) {
       } else if (ev.type === "status") {
         statusText = ev.text.replace(/\s*…\s*$/, "");
       } else if (ev.type === "tool") {
-        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null, artifact: ev.artifact || null });
+        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null, artifact: ev.artifact || null, context: ev.context || null });
         out.actions = [...byId.values()];
         if (!run.detached) {
-          build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.arts.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble);
+          build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.arts.update(out.actions); parts.ctx.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble);
           // Ein neues oder geändertes Artefakt öffnet sich am Laptop und Tablet gleich neben dem Chat (am Handy erst per Karte)
           if (ev.artifact && ev.status === "ok" && window.matchMedia("(min-width: 1000px)").matches && (artifactUi.id === ev.artifact.id || !artifactUi.seen.has(ev.artifact.id + ":" + ev.id))) {
             artifactUi.seen.add(ev.artifact.id + ":" + ev.id);

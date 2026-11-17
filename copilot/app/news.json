@@ -21,6 +21,26 @@
           "title": "Server page updates itself",
           "text": "The page for adding new servers now shows by itself when a server has reported in. You can show your script again as long as it is still valid."
         }
+      },
+      {
+        "de": {
+          "title": "Meine Schritte, aufgeräumt",
+          "text": "Was ich unterwegs tue, steht jetzt in einer ruhigen Zeile mit Pfeil. Ein Klick zeigt jeden Schritt. Während ich arbeite, siehst du nur, was ich gerade mache."
+        },
+        "en": {
+          "title": "My steps, tidied up",
+          "text": "What I do along the way now appears in one calm line with an arrow. One click shows every step. While I am working, you only see what I am doing right now."
+        }
+      },
+      {
+        "de": {
+          "title": "Ich halte Wichtiges selbst fest",
+          "text": "Ich schreibe Entscheidungen und den Stand eines Projekts selbst in den Projektkontext. So weiß ich in jedem Chat des Projekts Bescheid. Du kannst alles lesen und ändern."
+        },
+        "en": {
+          "title": "I note down what matters",
+          "text": "I write decisions and the state of a project into the project context myself. That way I know where we stand in every chat of the project. You can read and edit everything."
+        }
       }
     ]
   },

@@ -150,7 +150,8 @@ def handler(box, name):
 
 def test_knowledge_tools_only_in_projects_with_files(store):
     pid = store.create_project("dora", "Smarthome")["id"]
-    assert not [s for s in toolbox(store, project_id=pid).specs() if s.name in ("knowledge_search", "knowledge_read")]
+    assert not [s for s in toolbox(store).specs() if s.name in ("knowledge_search", "knowledge_read")]  # Chat ohne Projekt
+    assert {s.name for s in toolbox(store, project_id=pid).specs()} >= {"knowledge_search", "knowledge_read"}  # eigenes Projekt, auch noch leer: die KI soll Notizen finden können
     store.add_knowledge("dora", pid, "heizung.md", "# Heizung\nHeizkurve Keller 0,6\n" + "x\n" * 50)
     store.add_knowledge("dora", pid, "kiosk.md", "Kiosk Tablet Wetter")
     box = toolbox(store, project_id=pid)
@@ -404,3 +405,106 @@ def test_household_save_reminds_that_everyone_sees_it(store):
     save = handler(toolbox(store, "dora"), "memory_save")
     assert "alle Personen" in run(save({"scope": "household", "topic": "Heizplan", "content": "Wohnzimmer 21 Grad ab 17 Uhr."}))
     assert "alle Personen" not in run(save({"scope": "person", "topic": "Ausbildung", "content": "Zweite Ausbildung."}))
+
+
+# ------------------------------------------------------------------ Selbstständiger Projektkontext (0.63.0)
+
+def test_context_note_lists_ai_notes_with_summary_and_inlines_the_overview(store):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    store.add_knowledge("dora", pid, "heizung.md", "# Heizung\nHochgeladen.")
+    box = toolbox(store, project_id=pid)
+    save = handler(box, "knowledge_save")
+    run(save({"name": "zabbix.md", "content": "# Zabbix MCP\nEndpunkt liegt auf Port 8080 und braucht keinen Login im LAN."}))
+    run(save({"name": "stand.md", "content": "# Stand\nHeizung fertig, Zabbix offen."}))
+    note = box.note(["Dora"], "read", False)
+    assert "Dateien des Nutzers" in note and "heizung.md" in note
+    assert "KI/zabbix.md" in note and "Endpunkt liegt auf Port 8080" in note  # Verzeichnis mit Kurzfassung
+    assert "Heizung fertig, Zabbix offen." in note  # Übersichtsnotiz steht im Wortlaut oben
+    assert "knowledge_search" in note and "chat_search" in note  # erst im Kontext und in den Chats nachsehen
+    # Ohne Gedächtnis gibt es die vorsichtige Regel, mit Gedächtnis die selbstständige
+    auto = toolbox(store, project_id=pid, memory=True).note(["Dora"], "read", False)
+    manual = toolbox(store, project_id=pid, memory=False).note(["Dora"], "read", False)
+    assert "stand.md" in auto and "stand.md" not in manual.split("Notizen im Projekt")[0]
+    assert auto != manual
+
+
+def test_knowledge_save_event_carries_the_note_for_the_card(store):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    box = toolbox(store, project_id=pid)
+    save = handler(box, "knowledge_save")
+    run(save({"name": "heizplan.md", "content": "# Heizplan\nVorlauf 35 Grad."}))
+    event = [e for e in box.events if e["status"] == "ok"][-1]
+    assert event["kind"] == "knowledge-write" and event["context"]["name"] == "KI/heizplan.md" and event["context"]["verb"] == "created"
+    assert event["context"]["project"] == pid and isinstance(event["context"]["id"], int)
+    run(save({"name": "heizplan.md", "content": "Ergänzung.", "mode": "append"}))
+    assert [e for e in box.events if e["status"] == "ok"][-1]["context"]["verb"] == "appended"
+    run(save({"name": "heizplan.md", "content": "Alles neu."}))
+    assert [e for e in box.events if e["status"] == "ok"][-1]["context"]["verb"] == "replaced"
+    # Fehler und Ablehnungen tragen keine Karte
+    with pytest.raises(ToolError):
+        run(save({"name": "x.md", "content": "Passwort: Hunter2xyz"}))
+    assert len([e for e in box.events if "context" in e]) == 3  # nur die drei gelungenen Speicherungen
+
+
+def test_knowledge_save_never_overwrites_uploaded_files(store):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    entry = store.add_knowledge("dora", pid, "KI/eigene.md", "Vom Nutzer im KI-Ordner abgelegt.", data=b"Vom Nutzer im KI-Ordner abgelegt.", mime="text/markdown")
+    box = toolbox(store, project_id=pid)
+    with pytest.raises(ToolError):
+        run(handler(box, "knowledge_save")({"name": "eigene.md", "content": "Überschrieben?"}))
+    assert store.get_knowledge("dora", pid, "KI/eigene.md") == "Vom Nutzer im KI-Ordner abgelegt." and entry
+
+
+def test_reading_only_own_notes_does_not_count_as_foreign_content(store):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    store.add_knowledge("dora", pid, "heizung.md", "Hochgeladen")
+    box = toolbox(store, project_id=pid)
+    run(handler(box, "knowledge_save")({"name": "eigen.md", "content": "Meine Notiz über Wärmepumpen."}))
+    run(handler(box, "knowledge_read")({"name": "KI/eigen"}))
+    assert [e for e in box.events if e["kind"] == "knowledge" and e["status"] == "ok"][-1].get("own") is True
+    run(handler(box, "knowledge_read")({"name": "heizung"}))
+    assert not [e for e in box.events if e["kind"] == "knowledge" and e["status"] == "ok"][-1].get("own")
+
+
+def test_context_note_view_and_edit_api(client, store):
+    pid = project(client)
+    upload(client, pid, "heizung.md", b"# Heizung\nHochgeladen.")
+    fid = client.get(f"/api/projects/{pid}/knowledge", headers=as_user(DORA)).json()["files"][0]["id"]
+    # Hochgeladene Dateien behalten ihr Original: lesbar, aber hier nicht bearbeitbar
+    got = client.get(f"/api/projects/{pid}/knowledge/{fid}/text", headers=as_user(DORA))
+    assert got.status_code == 200 and got.json()["content"].startswith("# Heizung") and got.json()["editable"] is False and got.json()["ai"] is False
+    assert "no-store" in got.headers["cache-control"]
+    assert client.put(f"/api/projects/{pid}/knowledge/{fid}/text", json={"content": "Neu"}, headers=as_user(DORA, True)).status_code == 422
+    # Notiz der KI: wird erkannt, ist bearbeitbar
+    box = toolbox(store, project_id=pid)
+    run(handler(box, "knowledge_save")({"name": "zabbix.md", "content": "# Zabbix\nNotiz der KI."}))
+    notes = store.knowledge_notes("dora", pid)
+    assert [n["name"] for n in notes] == ["KI/zabbix.md"]
+    nid = notes[0]["id"]
+    ai = client.get(f"/api/projects/{pid}/knowledge/{nid}/text", headers=as_user(DORA)).json()
+    assert ai["ai"] is True and ai["editable"] is True
+    r = client.put(f"/api/projects/{pid}/knowledge/{nid}/text", json={"content": "# Zabbix\nNeu\r\nzeile"}, headers=as_user(DORA, True))
+    assert r.status_code == 200 and r.json()["size"] == len("# Zabbix\nNeu\nzeile")
+    assert client.get(f"/api/projects/{pid}/knowledge/{nid}/text", headers=as_user(DORA)).json()["content"] == "# Zabbix\nNeu\nzeile"
+    assert client.put(f"/api/projects/{pid}/knowledge/{nid}/text", json={"content": "   "}, headers=as_user(DORA, True)).status_code == 422
+    assert client.put(f"/api/projects/{pid}/knowledge/{nid}/text", json={"content": "x"}, headers=as_user(DORA)).status_code == 403  # ohne Schutz-Header
+    # fremde Person und falsche IDs
+    assert client.get(f"/api/projects/{pid}/knowledge/{nid}/text", headers=as_user(ADM01)).status_code == 404
+    assert client.put(f"/api/projects/{pid}/knowledge/{nid}/text", json={"content": "Fremd"}, headers=as_user(ADM01, True)).status_code == 404
+    assert client.get(f"/api/projects/{pid}/knowledge/99999/text", headers=as_user(DORA)).status_code == 404
+
+
+def test_context_card_survives_saving_and_loading_the_answer(store):
+    pid = store.create_project("dora", "Smarthome")["id"]
+    chat = store.create_chat("dora", "Heizung", pid)["id"]
+    box = toolbox(store, project_id=pid)
+    run(handler(box, "knowledge_save")({"name": "heizplan.md", "content": "# Heizplan\nVorlauf 35 Grad."}))
+    run(handler(box, "knowledge_read")({"name": "KI/heizplan"}))
+    events = [e for e in box.events if e["status"] == "ok"]
+    actions = [{k: e.get(k, "") for k in ("label", "kind", "status", "note")} | ({"context": e["context"]} if e.get("context") else {}) | ({"own": True} if e.get("own") else {}) for e in events]
+    store.add_message("dora", chat, "user", "Halte das fest")
+    store.add_message("dora", chat, "assistant", "Erledigt.", tools=actions)
+    loaded = store.list_messages("dora", chat)[-1]["tools"]
+    saved = next(t for t in loaded if t.get("context"))
+    assert saved["context"]["name"] == "KI/heizplan.md" and saved["context"]["verb"] == "created" and saved["context"]["project"] == pid
+    assert any(t.get("own") for t in loaded)

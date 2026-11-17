@@ -627,6 +627,14 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
                 "prev": undo["prev"][:2000] if isinstance(undo.get("prev"), str) else None,
                 "now": undo["now"][:2000] if isinstance(undo.get("now"), str) else None,
             }
+        ctx = i.get("context")
+        if isinstance(ctx, dict) and isinstance(ctx.get("id"), int) and isinstance(ctx.get("name"), str):  # Notiz im Projektkontext: Karte unter der Antwort
+            entry["context"] = {
+                "project": str(ctx.get("project") or "")[:64], "id": ctx["id"], "name": ctx["name"][:200],
+                "verb": ctx.get("verb") if ctx.get("verb") in ("created", "appended", "replaced") else "created",
+            }
+        if i.get("own") is True:
+            entry["own"] = True
         out.append(entry)
     return out
 
@@ -1649,6 +1657,47 @@ class Store:
                 (project_id, profile_id, name),
             ).fetchone()
         return row["content"] if row else None
+
+    def knowledge_notes(self, profile_id: str, project_id: str, head: int = 600) -> list[dict[str, Any]]:
+        """Notizen, die die KI selbst im Ordner ``KI/`` führt (ohne gespeichertes Original): Name, Größe, Stand und Anfang des Textes.
+
+        Daraus entsteht das Verzeichnis in der Systemanweisung (mit einem Satz je Notiz), ohne alle Texte zu laden.
+        """
+        _require(profile_id)
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, name, length(content) AS size, updated_at, substr(content, 1, ?) AS head FROM knowledge "
+                "WHERE project_id = ? AND profile_id = ? AND file_id IS NULL AND name LIKE 'KI/%' ESCAPE '\\' "
+                "ORDER BY updated_at DESC, name COLLATE NOCASE",
+                (head, project_id, profile_id),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def knowledge_text(self, profile_id: str, project_id: str, knowledge_id: int, limit: int = 0) -> dict[str, Any] | None:
+        """Eine Datei des Kontexts mit Text (für die Ansicht in der Oberfläche); ``None``, wenn es sie nicht gibt oder sie nicht gehört."""
+        _require(profile_id)
+        cut = f"substr(content, 1, {int(limit)})" if limit > 0 else "content"
+        with self._lock:
+            row = self._conn.execute(
+                f"SELECT id, name, {cut} AS content, length(content) AS size, updated_at, file_id IS NOT NULL AS has_file, mime FROM knowledge "
+                "WHERE id = ? AND project_id = ? AND profile_id = ?",
+                (knowledge_id, project_id, profile_id),
+            ).fetchone()
+        return {**dict(row), "has_file": bool(row["has_file"])} if row else None
+
+    def knowledge_set_text(self, profile_id: str, project_id: str, knowledge_id: int, content: str) -> dict[str, Any] | None:
+        """Text einer Datei ohne gespeichertes Original ersetzen (Bearbeiten in der Oberfläche); ``None``, wenn es sie nicht gibt oder sie ein Original hat."""
+        _require(profile_id)
+        now = _now()
+        with self._lock:
+            with self._conn:
+                cur = self._conn.execute(
+                    "UPDATE knowledge SET content = ?, updated_at = ? WHERE id = ? AND project_id = ? AND profile_id = ? AND file_id IS NULL",
+                    (content, now, knowledge_id, project_id, profile_id),
+                )
+            if cur.rowcount != 1:
+                return None
+        return {"id": knowledge_id, "size": len(content), "updated_at": now}
 
     def delete_knowledge(self, profile_id: str, project_id: str, knowledge_id: int) -> bool:
         _require(profile_id)

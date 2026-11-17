@@ -769,6 +769,7 @@
  "path muss ein absoluter Pfad sein, z. B. /etc/nginx/conf.d/site.conf.": "path must be an absolute path, e.g. /etc/nginx/conf.d/site.conf.",
  "path muss ein absoluter Pfad sein, z. B. /etc/nginx/nginx.conf.": "path must be an absolute path, e.g. /etc/nginx/nginx.conf.",
  "{name} (geplante Aufgabe)": "{name} (scheduled task)",
+ "Diese Datei hat ein gespeichertes Original und lässt sich hier nicht bearbeiten.": "This file has a stored original and cannot be edited here.",
  "Dieses Skript ist nicht mehr abrufbar: Der Schlüssel ist verbraucht, abgelaufen oder widerrufen, oder das Add-on wurde neu gestartet. Erstelle ein neues Skript.": "This script is no longer available: the key is used up, expired or revoked, or the add-on was restarted. Create a new script.",
  "Neuer Server wartet auf Bestätigung": "New server is waiting for confirmation",
  "{name} hat sich gemeldet. Bestätige ihn in der Server-Übersicht.": "{name} has reported in. Confirm it in the server overview."
