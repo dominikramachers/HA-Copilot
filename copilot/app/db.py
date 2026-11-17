@@ -2587,6 +2587,24 @@ class Store:
         info["latest_id"] = latest["id"] if latest else row["id"]
         return info
 
+    def outfile_versions(self, profile_id: str, file_id: str) -> list[dict[str, Any]] | None:
+        """Alle noch abrufbaren Fassungen der Datei (gleicher Chat, gleicher Name), älteste zuerst. ``None``: Datei unbekannt oder abgelaufen."""
+        _require(profile_id)
+        if not _FILE_ID.fullmatch(file_id or ""):
+            return None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT chat_id, name FROM outfiles WHERE id = ? AND profile_id = ? AND expires_at > ?", (file_id, profile_id, _now())
+            ).fetchone()
+            if not row:
+                return None
+            rows = self._conn.execute(
+                "SELECT id, size, origin, created_at FROM outfiles WHERE profile_id = ? AND chat_id = ? AND name = ? AND expires_at > ? "
+                "ORDER BY created_at ASC, rowid ASC",
+                (profile_id, row["chat_id"], row["name"], _now()),
+            ).fetchall()
+        return [dict(r) for r in rows if self._outfile_path(r["id"]).is_file()]
+
     def outfile_bytes(self, profile_id: str, chat_id: str, name: str) -> bytes | None:
         """Inhalt der zuletzt in diesem Chat erzeugten Datei mit diesem Namen (für Commits zu GitHub)."""
         _require(profile_id)

@@ -80,7 +80,7 @@ from .context_tools import is_ai_note as context_is_ai_note
 from .ha_tools import HaToolbox, ToolError
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
 from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox, clean_name
-from . import filepreview
+from . import filepages, filepreview
 from . import exporter
 from . import limits as limitlib
 from . import notifier as notifierlib
@@ -1888,7 +1888,73 @@ def register_chat_routes(
         latest = info["latest_id"] == info["id"]
         shown.update(id=info["id"], name=info["name"], size=info["size"], created_at=info["created_at"], expires_at=info["expires_at"], latest_id=info["latest_id"])
         shown["editable"] = bool(shown["editable"] and latest)
+        shown["view"] = filepages.capability(info["name"])  # ``pages``/``sheets``: es gibt zusätzlich eine echte Vorschau (siehe ``/view``)
         return JSONResponse(shown, headers={"Cache-Control": "private, no-store"})
+
+    @app.get("/api/files/{file_id}/versions")
+    def file_versions(file_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Alle noch abrufbaren Fassungen einer Datei (``n`` zählt ab 1, die älteste zuerst)."""
+        versions = store.outfile_versions(profile.id, file_id)
+        if not versions:
+            raise HTTPException(status_code=404, detail=tr("Die Datei ist abgelaufen oder gehört nicht zu diesem Konto."))
+        last = len(versions)
+        return {"current": file_id, "versions": [{**v, "n": n, "latest": n == last} for n, v in enumerate(versions, 1)]}
+
+    @app.post("/api/files/{file_id}/restore", dependencies=[Depends(write_guard)])
+    def file_restore(file_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """Eine ältere Fassung wieder zur neuesten machen: Sie wird unverändert als neue Fassung unter demselben Namen abgelegt."""
+        found = store.outfile_open(profile.id, file_id)
+        info = store.outfile_info(profile.id, file_id)
+        if found is None or info is None:
+            raise HTTPException(status_code=404, detail=tr("Die Datei ist abgelaufen oder gehört nicht zu diesem Konto."))
+        if info["latest_id"] == info["id"]:
+            raise HTTPException(status_code=409, detail=tr("Das ist schon die neueste Fassung."))
+        data = found[1].read_bytes()
+        if store.outfile_usage(profile.id) + len(data) > MAX_PROFILE_BYTES:
+            raise HTTPException(status_code=409, detail=tr("Der Speicher für erzeugte Dateien ist voll."))
+        meta = store.outfile_add(profile.id, info["chat_id"], info["name"], info["mime"], data, settings.files_keep_days)
+        if meta is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"id": meta["id"], "name": meta["name"], "size": meta["size"]}
+
+    @app.get("/api/files/{file_id}/view")
+    async def file_view(file_id: str, profile: Profile = Depends(current_profile)) -> JSONResponse:
+        """Echte Vorschau: Seitengrößen (PDF, Word, PowerPoint; die Bilder holt die Oberfläche je Seite) oder die Blätter einer Excel-Datei."""
+        found = store.outfile_open(profile.id, file_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Die Datei ist abgelaufen oder gehört nicht zu diesem Konto."))
+        meta, path = found
+        mode = filepages.capability(meta["name"])
+        if mode is None:
+            raise HTTPException(status_code=415, detail=tr("Für diese Dateiart gibt es keine Seitenansicht."))
+        data = await asyncio.to_thread(path.read_bytes)
+        try:
+            if mode == "sheets":
+                payload = await asyncio.to_thread(filepages.sheets, data)
+            else:
+                pdf = await filepages.pdf_for(file_id, meta["name"], data)
+                sizes, total = await asyncio.to_thread(filepages.page_sizes, pdf)
+                payload = {"mode": "pages", "pages": sizes, "total": total}
+        except filepages.ViewError as exc:
+            raise HTTPException(status_code=415, detail=str(exc)) from None
+        return JSONResponse(payload, headers={"Cache-Control": "private, no-store"})
+
+    @app.get("/api/files/{file_id}/page/{number}")
+    async def file_page(file_id: str, number: int, w: int = Query(filepages.DEFAULT_WIDTH, ge=1, le=10000), profile: Profile = Depends(current_profile)) -> Response:
+        """Eine Seite als PNG (die Kennung einer Datei ändert sich mit jeder Fassung, deshalb bleiben gerade gezeichnete Seiten kurz im Speicher)."""
+        found = store.outfile_open(profile.id, file_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail=tr("Die Datei ist abgelaufen oder gehört nicht zu diesem Konto."))
+        meta, path = found
+        if filepages.capability(meta["name"]) != "pages":
+            raise HTTPException(status_code=415, detail=tr("Für diese Dateiart gibt es keine Seitenansicht."))
+        data = await asyncio.to_thread(path.read_bytes)
+        try:
+            pdf = await filepages.pdf_for(file_id, meta["name"], data)
+            png = await asyncio.to_thread(filepages.render_page, pdf, number - 1, w, file_id)
+        except filepages.ViewError as exc:
+            raise HTTPException(status_code=415, detail=str(exc)) from None
+        return Response(png, media_type="image/png", headers={"Content-Security-Policy": "sandbox; default-src 'none'", "X-Content-Type-Options": "nosniff"})
 
     @app.put("/api/files/{file_id}/text", dependencies=[Depends(write_guard)])
     def file_set_text(file_id: str, body: FileTextBody, profile: Profile = Depends(current_profile)) -> dict:

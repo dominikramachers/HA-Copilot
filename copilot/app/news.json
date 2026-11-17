@@ -1,5 +1,40 @@
 [
   {
+    "version": "0.65.0",
+    "items": [
+      {
+        "de": {
+          "title": "Dateien sehe ich jetzt richtig",
+          "text": "Word, Excel, PowerPoint und PDF zeige ich dir jetzt wie in echt: Seiten als Bild, Tabellen mit Farben und Zahlenformaten. Zum Ansehen musst du nichts mehr herunterladen."
+        },
+        "en": {
+          "title": "I now show files properly",
+          "text": "I now show Word, Excel, PowerPoint and PDF files as they really look: pages as pictures, tables with colours and number formats. You no longer have to download a file just to look at it."
+        }
+      },
+      {
+        "de": {
+          "title": "Frühere Fassungen ansehen",
+          "text": "Ändere ich eine Datei oder du selbst, kannst du alle Fassungen durchblättern. Eine ältere kannst du mit einem Klick wieder zur neuesten machen."
+        },
+        "en": {
+          "title": "Look at earlier versions",
+          "text": "When I or you change a file, you can flip through all its versions. You can make an older one the newest again with one click."
+        }
+      },
+      {
+        "de": {
+          "title": "Diagramme als Bild speichern",
+          "text": "Meine Diagramme kannst du jetzt als PNG oder SVG speichern, zum Beispiel für eine Präsentation oder ein Dokument."
+        },
+        "en": {
+          "title": "Save diagrams as pictures",
+          "text": "You can now save my diagrams as PNG or SVG, for example for a presentation or a document."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.64.0",
     "items": [
       {

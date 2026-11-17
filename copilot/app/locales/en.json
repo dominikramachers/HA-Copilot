@@ -780,5 +780,15 @@
  "Es gibt eine neuere Fassung dieser Datei. Öffne die neueste, um sie zu ändern.": "There is a newer version of this file. Open the latest one to change it.",
  "Für diese Dateiart gibt es keine Vorschau.": "There is no preview for this type of file.",
  "Für diesen Server im Chat zugelassen": "Allowed for this server in this chat",
- ", Chat-Freigabe für diesen Server": ", chat approval for this server"
+ ", Chat-Freigabe für diesen Server": ", chat approval for this server",
+ "Für diese Dateiart gibt es keine Seitenansicht.": "There is no page view for this type of file.",
+ "Die Seitenansicht ist gerade nicht möglich (LibreOffice fehlt oder hat die Datei nicht lesen können). Es bleibt die Textvorschau.": "The page view is not possible right now (LibreOffice is missing or could not read the file). The text preview remains.",
+ "Die Seitenansicht ist in diesem Add-on nicht möglich.": "The page view is not possible in this add-on.",
+ "Das PDF lässt sich nicht öffnen (beschädigt oder mit Kennwort geschützt).": "The PDF cannot be opened (damaged or password-protected).",
+ "Die Datei hat keine Seiten.": "The file has no pages.",
+ "Diese Seite gibt es nicht.": "There is no such page.",
+ "Diese Arbeitsmappe ist für die Tabellenansicht zu groß. Es bleibt die Textvorschau.": "This workbook is too large for the table view. The text preview remains.",
+ "Die Tabelle konnte nicht gelesen werden.": "The spreadsheet could not be read.",
+ "Die Tabelle hat kein sichtbares Blatt.": "The spreadsheet has no visible sheet.",
+ "Das ist schon die neueste Fassung.": "This is already the newest version."
 }
