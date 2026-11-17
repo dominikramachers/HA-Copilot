@@ -4912,10 +4912,14 @@ function fileChip(file, removable) {
   return attachCard(file, removable ? { onEdit: () => editPasted(file, renderTray), onRemove: () => removeFile(file) } : {});
 }
 
-// Aktionen der KI in Home Assistant: eine einklappbare Liste, die sich während der Antwort laufend aktualisiert.
+// Aktionen der KI (Home Assistant, Server, Web, Dateien …): eine Zeile mit Zusammenfassung und Pfeil, aufgeklappt die ganze Liste (wie bei Claude).
+// Sie ist auch während der Antwort eingeklappt; was gerade läuft, zeigt die Warteanzeige darunter (makeBusy). Die Liste aktualisiert sich laufend.
 const ACTION_TEXT = {
   running: tr("läuft …"), waiting: tr("wartet auf deine Antwort"), ok: "", error: tr("fehlgeschlagen"), denied: tr("abgelehnt"), abgebrochen: tr("abgebrochen"),
 };
+
+// Aktionsarten, die in der Zusammenfassung der Liste eine eigene Angabe haben; alle anderen zählen als „weitere Schritte“.
+const ACTION_KINDS = ["read", "execute", "write", "knowledge", "knowledge-write", "memory", "memory-read", "skill", "skill-ext", "skill-write", "file", "file-edit", "file-read", "image", "web", "gh-read", "gh-write", "mcp-read", "mcp-write", "srv-read", "srv-write"];
 
 function actionsEl(list = [], open = false) {
   const box = document.createElement("details");
@@ -4942,6 +4946,8 @@ function actionsEl(list = [], open = false) {
     const mcp = items.filter((a) => a.kind === "mcp-read" || a.kind === "mcp-write");
     const mcpChanges = mcp.filter((a) => a.kind === "mcp-write" && a.status === "ok").length;
     const other = items.filter((a) => a.kind === "memory-read").length;
+    const srv = items.filter((a) => a.kind === "srv-read" || a.kind === "srv-write");
+    const srvChanges = srv.filter((a) => a.kind === "srv-write" && a.status === "ok").length;
     const web = items.filter((a) => a.kind === "web");
     const searches = web.filter((a) => a.label.startsWith(tr("Websuche"))).length;
     const pages = web.length - searches;
@@ -4955,6 +4961,7 @@ function actionsEl(list = [], open = false) {
     if (ha.length) parts.push(trn(ha.length, "1 Aktion in Home Assistant", "{0} Aktionen in Home Assistant") + (changes ? trn(changes, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (gh.length) parts.push(trn(gh.length, "1 Aktion bei GitHub", "{0} Aktionen bei GitHub") + (ghChanges ? trn(ghChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (mcp.length) parts.push(trn(mcp.length, "1 Aktion über Konnektoren", "{0} Aktionen über Konnektoren") + (mcpChanges ? trn(mcpChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
+    if (srv.length) parts.push(trn(srv.length, "1 Aktion auf Servern", "{0} Aktionen auf Servern") + (srvChanges ? trn(srvChanges, ", davon 1 Änderung", ", davon {0} Änderungen") : ""));
     if (kontext) parts.push(trn(kontext, "im Kontext nachgeschlagen", "{0}× im Kontext nachgeschlagen"));
     if (skillsSaved) parts.push(trn(skillsSaved, "Skill gespeichert", "{0} Skills gespeichert"));
     if (skillsUsed) parts.push(trn(skillsUsed, "Skill genutzt", "{0} Skills genutzt"));
@@ -4972,7 +4979,13 @@ function actionsEl(list = [], open = false) {
     const lookedUp = items.filter((a) => a.kind === "memory-read" && a.label.startsWith(tr("Smarthome-Überblick"))).length;
     if (!parts.length && other - lookedUp > 0) parts.push(tr("Gedächtnis angesehen"));
     if (!parts.length && lookedUp) parts.push(tr("Smarthome-Überblick nachgesehen"));
+    // Arten ohne eigene Zeile oben zählen als „weitere Schritte“; die Zusammenfassung ist nie leer (sonst bliebe nur der Pfeil)
+    const rest = items.filter((a) => !ACTION_KINDS.includes(a.kind)).length;
+    if (rest) parts.push(trn(rest, "1 weiterer Schritt", "{0} weitere Schritte"));
+    if (!parts.length && items.length) parts.push(trn(items.length, "1 Schritt", "{0} Schritte"));
+    const problems = items.filter((a) => ["error", "denied", "abgebrochen"].includes(a.status)).length;
     head.textContent = parts.join(" · ");
+    if (problems) head.append(parts.length ? " · " : "", node("span", "act-problem", trn(problems, "1 nicht ausgeführt", "{0} nicht ausgeführt"))); // nur dieser Teil ist rot
     box.hidden = items.length === 0;
     box.lastChild.replaceChildren(...items.map(actionLine));
   };
@@ -6428,7 +6441,7 @@ async function consume(response, run, bubble) {
   run.cards = cards;
   const build = () => {
     if (parts.text) return;
-    parts.log = actionsEl([], true);
+    parts.log = actionsEl([]);
     parts.log.hidden = true;
     parts.text = node("div", "act-text");
     parts.files = fileCardsEl([]);

@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.63.0",
+    "items": [
+      {
+        "de": {
+          "title": "Meine Schritte, aufgeräumt",
+          "text": "Was ich unterwegs tue, steht jetzt in einer ruhigen Zeile mit Pfeil. Ein Klick zeigt jeden Schritt. Während ich arbeite, siehst du nur, was ich gerade mache."
+        },
+        "en": {
+          "title": "My steps, tidied up",
+          "text": "What I do along the way now appears in one calm line with an arrow. One click shows every step. While I am working, you only see what I am doing right now."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.62.0",
     "items": [
       {

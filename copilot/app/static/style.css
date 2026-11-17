@@ -800,13 +800,17 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 40px; 
 .pop-search::placeholder { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .popover { animation: none; } }
 
-/* Aktionen der KI in Home Assistant */
-.act-log { margin: 0 0 12px; font-size: 14px; color: var(--text-2); }
-.act-log > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--r-1); background: var(--chip); font-weight: 600; }
+/* Aktionen der KI: Zusammenfassung mit Pfeil, aufgeklappt die Liste */
+.act-log { margin: 0 0 10px; font-size: 14px; color: var(--text-2); }
+/* Eine ruhige Zeile mit Pfeil rechts vom Text (wie bei Claude), kein Knopf */
+.act-log > summary { display: block; cursor: pointer; list-style: none; padding: 3px 0; border-radius: var(--r-1); color: var(--text-2); line-height: 1.45; transition: color .15s; }
+.act-log > summary:hover { color: var(--text); }
 .act-log > summary::-webkit-details-marker { display: none; }
-.act-log > summary::before { content: ""; width: 6px; height: 6px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .15s; }
-.act-log[open] > summary::before { transform: rotate(45deg); }
-.act-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.act-log > summary::after { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 2px 2px 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .15s; vertical-align: middle; }
+.act-log[open] > summary::after { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { .act-log > summary, .act-log > summary::after { transition: none; } }
+.act-problem { color: var(--danger); }
+.act-list { margin: 6px 0 0 3px; padding: 2px 0 2px 12px; list-style: none; display: grid; gap: 4px; border-left: 2px solid var(--line-2); }
 .act-line { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .act-line .icon { flex: none; width: 16px; height: 16px; }
 .act-line.ok .icon { color: var(--accent); }

@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.63.0
+Chat: Die Aktionen der KI stehen wie bei Claude in einer ruhigen Zeile mit Pfeil; aufgeklappt sieht man jeden Schritt.
+- **Eine Zeile statt Knopf.** Die Zusammenfassung über der Antwort (`actionsEl`) ist kein grau hinterlegter Knopf mehr, sondern eine gedämpfte Textzeile mit Pfeil **hinter** dem Text (`.act-log > summary::after`, dreht sich beim Öffnen; Farbe `--text-2`, beim Darüberfahren `--text`). Aufgeklappt steht die Liste der Schritte eingerückt neben einer dünnen Linie (`.act-list`, `border-left`).
+- **Auch während der Antwort eingeklappt.** `consume()` legte die Liste bisher aufgeklappt an (`actionsEl([], true)`) und füllte sie Schritt für Schritt; jetzt bleibt sie zu. Was gerade läuft, zeigt wie bisher die Warteanzeige unter dem Text (`makeBusy`: laufende Aktion, Rückfrage, Hinweis). Nur wer den Pfeil öffnet, sieht alles; die geöffnete Liste aktualisiert sich dabei weiter, ohne zuzuklappen (das `<details>`-Element bleibt bestehen, nur die Zeilen werden ersetzt).
+- **Zusammenfassung nie leer.** Die Aktionsart `srv-read`/`srv-write` (Linux-Server, ab 0.60.4) kam in der Zusammenfassung nicht vor: Bei reinen Server-Antworten stand nur ein Pfeil ohne Text. Neu: „N Aktionen auf Servern“ (mit „davon M Änderungen“ für gelungene `srv-write`). Arten ohne eigene Angabe zählen als „N weitere Schritte“ (`ACTION_KINDS` listet die bekannten), und gäbe es sonst keinen Text, steht „N Schritte“.
+- **Fehler bleiben sichtbar.** Schlägt ein Schritt fehl, wird abgelehnt oder abgebrochen, hängt an der Zeile „N nicht ausgeführt“, rot hervorgehoben (`.act-problem`), auch wenn die Liste zu ist. Der Pfeil folgt jetzt unmittelbar auf den Text (`summary` als Blockelement), auch bei langen, umbrochenen Zeilen.
+- Neue Texte mit englischer Übersetzung in `locales/en-ui.json`. Gespeicherte Chats und der Markdown-Export ändern sich nicht (nur die Darstellung).
+
 ## 0.62.0
 Linux-Server: Red-Hat-Familie (dnf) wird unterstützt, geplante Aufgaben dürfen Server ansehen (nur lesen). Dies ist auch die erste Fassung, die sich über die signierte Selbstaktualisierung auf einen Server bringen lässt.
 - **Paketverwaltung erkennen (`internal/tools/pkgmgr.go`).** `tools.PackageManager()` bestimmt einmalig `apt` (hat Vorrang, wenn `apt-get` da ist) oder `dnf`. `package_info`, die Update-Liste, `server_package` und der Sammler (Zahl der Updates, Feld `reboot`) nutzen beides. Paketnamen werden je Verwaltung geprüft (`ValidPackageName`, `PackageNameHint`); der Hub erlaubt Großbuchstaben und Unterstriche (`NetworkManager`, `glibc_common`), die endgültige Prüfung macht der Agent.

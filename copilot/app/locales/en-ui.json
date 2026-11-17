@@ -1405,5 +1405,13 @@
  "Nein, jedes Programm vom Hub": "No, any program from the hub",
  "Aktualisierungen nur mit Signatur?": "Updates only with a signature?",
  "Dann nimmt der Agent nur Programme an, die vom Release signiert sind. Wer das Add-on kontrolliert, kann so keine anderen Programme auf den Server bringen.": "The agent then only accepts programs signed by the release. Whoever controls the add-on cannot put other programs on the server.",
- "Die Agenten-Programme in diesem Add-on sind nicht signiert. Server nehmen Aktualisierungen deshalb ohne Signaturprüfung an. Wie du das änderst, steht in SECURITY.md.": "The agent programs in this add-on are not signed. Servers therefore accept updates without a signature check. How to change that is described in SECURITY.md."
+ "Die Agenten-Programme in diesem Add-on sind nicht signiert. Server nehmen Aktualisierungen deshalb ohne Signaturprüfung an. Wie du das änderst, steht in SECURITY.md.": "The agent programs in this add-on are not signed. Servers therefore accept updates without a signature check. How to change that is described in SECURITY.md.",
+ "1 Aktion auf Servern": "1 action on servers",
+ "{0} Aktionen auf Servern": "{0} actions on servers",
+ "1 weiterer Schritt": "1 more step",
+ "{0} weitere Schritte": "{0} more steps",
+ "1 Schritt": "1 step",
+ "{0} Schritte": "{0} steps",
+ "1 nicht ausgeführt": "1 not carried out",
+ "{0} nicht ausgeführt": "{0} not carried out"
 }
