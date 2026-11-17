@@ -313,3 +313,69 @@ def test_install_script_route_passes_the_choice_on(tmp_path, monkeypatch):
     default = client.post("/api/servers/install-script", json={}, headers=headers).json()["script"]
     read_only = client.post("/api/servers/install-script", json={"changes": False}, headers=headers).json()["script"]
     assert "ALLOW_CHANGES=1" in default and "ALLOW_CHANGES=0" in read_only
+
+
+# ------------------------------------------------------------------------------- „Für diesen Server im Chat immer“
+
+
+def chat_allow_box(tmp_path, decisions, allowed, plan_class=None):
+    hub = make_hub(tmp_path)
+    for sid, name, fill in (("srv-1", "web01", "ff"), ("srv-2", "db02", "ee")):
+        hub.repo.server_create(sid, name, fill * 32, "k" + sid)
+        hub.repo.server_state(sid, "active")
+    fake = FakeChangeHub(hub)
+    if plan_class is not None:
+        fake.plan = {**fake.plan, "class": plan_class}
+    events, asked = [], []
+
+    async def ask(label, details, offer_chat, extra):
+        asked.append((label, offer_chat, extra))
+        return decisions.pop(0)
+
+    box = ServerToolbox(fake, settings().profiles[0], record=events.append, next_id=iter(range(1, 99)).__next__, ask=ask,
+                        chat_allowed=lambda sid: sid in allowed, allow_chat=allowed.add)
+    return {s.name: s for s in box.specs()}, fake, events, asked, hub
+
+
+def test_allowing_for_the_chat_applies_to_that_server_only(tmp_path):
+    allowed: set[str] = set()
+    specs, fake, events, asked, hub = chat_allow_box(tmp_path, ["allow_chat", "allow"], allowed)
+    run = specs["server_service"].handler
+    asyncio.run(run({"server": "web01", "unit": "nginx.service", "action": "restart"}))
+    assert asked[0][1] is True and allowed == {"srv-1"}  # die Karte bietet es an; gemerkt wird die Kennung des einen Servers
+    assert len(fake.executed) == 1
+    asyncio.run(run({"server": "web01", "unit": "nginx.service", "action": "reload"}))
+    assert len(asked) == 1 and len(fake.executed) == 2  # derselbe Server: keine Rückfrage mehr
+    assert any(e["note"] == "Für diesen Server im Chat zugelassen" for e in events)
+    entry = hub.repo.audit_list(kind="change")[0]
+    assert entry["result"] == "ok" and "Chat-Freigabe" in entry["detail"] and entry["command"] == fake.plan["command"]
+    asyncio.run(run({"server": "db02", "unit": "postgresql.service", "action": "restart"}))
+    assert len(asked) == 2 and asked[1][2]["server"] == "db02" and len(fake.executed) == 3  # anderer Server: wieder fragen
+    assert allowed == {"srv-1"}  # das einmalige Zulassen dort merkt sich nichts
+
+
+def test_chat_allow_can_be_given_for_a_second_server_separately(tmp_path):
+    allowed: set[str] = set()
+    specs, fake, events, asked, hub = chat_allow_box(tmp_path, ["allow_chat", "allow_chat"], allowed)
+    run = specs["server_service"].handler
+    asyncio.run(run({"server": "web01", "unit": "nginx.service", "action": "restart"}))
+    asyncio.run(run({"server": "db02", "unit": "postgresql.service", "action": "restart"}))
+    assert allowed == {"srv-1", "srv-2"}
+    asyncio.run(run({"server": "db02", "unit": "postgresql.service", "action": "stop"}))
+    assert len(asked) == 2 and len(fake.executed) == 3
+
+
+def test_chat_allow_is_not_offered_or_used_for_level_3(tmp_path):
+    allowed = {"srv-1"}
+    specs, fake, events, asked, hub = chat_allow_box(tmp_path, ["allow"], allowed, plan_class=3)
+    asyncio.run(specs["server_run"].handler({"server": "web01", "script": "exit 2"}))
+    assert asked[0][1] is False and len(asked) == 1  # trotz Freigabe wird bei Stufe 3 gefragt und nichts angeboten
+
+
+def test_a_refused_plan_is_not_auto_allowed(tmp_path):
+    allowed = {"srv-1"}
+    specs, fake, events, asked, hub = chat_allow_box(tmp_path, [], allowed)
+    fake.prepare_error = "Abgelehnt: Aussperrgefahr"
+    with pytest.raises(ToolError):
+        asyncio.run(specs["server_service"].handler({"server": "web01", "unit": "ssh", "action": "stop"}))
+    assert asked == [] and fake.executed == []

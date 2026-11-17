@@ -925,6 +925,7 @@ def register_chat_routes(
     chat_allow: set[tuple[str, str]] = set()  # Chats, in denen Änderungen in Home Assistant dauerhaft erlaubt wurden (nur Arbeitsspeicher)
     github_allow: set[tuple[str, str]] = set()  # dasselbe für GitHub
     connector_allow: set[tuple[str, str, int]] = set()  # dasselbe je Konnektor: (Person, Chat, Konnektor)
+    server_allow: set[tuple[str, str, str]] = set()  # dasselbe je Linux-Server: (Person, Chat, Server-Kennung); nur im Speicher
     connectors = connectors or make_connectors(settings, store, registry or Registry.from_settings(settings, store))
     limits = limitlib.shared(store)
     welcome = newslib.Welcome(store)
@@ -1964,6 +1965,7 @@ def register_chat_routes(
         chat_allow.discard((profile.id, chat_id))
         github_allow.discard((profile.id, chat_id))
         connector_allow.difference_update({k for k in connector_allow if k[:2] == (profile.id, chat_id)})
+        server_allow.difference_update({k for k in server_allow if k[:2] == (profile.id, chat_id)})
         run = runs.pop((profile.id, chat_id), None)
         if run and not run.finished and run.task:
             run.task.cancel()  # niemand wartet mehr auf diese Antwort
@@ -2016,7 +2018,7 @@ def register_chat_routes(
         count = store.delete_all_chats(profile.id)
         for key in [k for k in runs if k[0] == profile.id]:
             runs.pop(key, None)
-        for allowed in (chat_allow, github_allow, connector_allow):
+        for allowed in (chat_allow, github_allow, connector_allow, server_allow):
             for key in [k for k in allowed if k[0] == profile.id]:
                 allowed.discard(key)
         return {"deleted": count}
@@ -3156,8 +3158,8 @@ def register_chat_routes(
             return await ask_about("connector", label, details, offer_chat)
 
         async def ask_server(label: str, details: str, offer_chat: bool, extra: dict) -> str:
-            # Änderungen auf Servern: nie „im Chat immer zulassen“, jede einzeln mit dem genauen Befehl
-            return await ask_about("server", label, details, False, extra)
+            # Änderungen auf Servern: mit dem genauen Befehl; „im Chat immer“ gilt nur für den einen Server (server_allow)
+            return await ask_about("server", label, details, offer_chat, extra)
 
         images_enabled = settings.files_enabled and settings.images_enabled and not spoken
         stored_files: list[str] = []
@@ -3247,7 +3249,11 @@ def register_chat_routes(
         specs += connector_specs
         server_note = ""
         if not spoken and await server_allowed(profile):
-            server_box = ServerToolbox(server_hub, profile, record=run.push, next_id=run.next_tool_id, ask=ask_server)
+            server_box = ServerToolbox(
+                server_hub, profile, record=run.push, next_id=run.next_tool_id, ask=ask_server,
+                chat_allowed=lambda sid: (profile.id, chat_id, sid) in server_allow,
+                allow_chat=lambda sid: server_allow.add((profile.id, chat_id, sid)),
+            )
             specs += server_box.specs()
             server_note = server_box.note()
         if web_on:

@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.64.0
+Server-Änderungen im Chat: neuer Knopf „Für <Server> im Chat immer“ auf der Freigabekarte. Er spart das ständige Zulassen und gilt nur für genau diesen einen Server.
+- **Neue Antwort auf der Karte.** `ask_server` bietet `allow_chat` an (`offer_chat` wird durchgereicht, vorher fest `False`), wenn die Einstufung Stufe 1 oder 2 hat; bei Stufe 3 gibt es den Knopf nicht und eine Chat-Freigabe greift dort nie (der Agent führt Stufe 3 ohnehin nicht aus). Beschriftung in `approvalCard` (`app.js`): „Für {Servername} im Chat immer“ (Name ab 24 Zeichen gekürzt), mit Tooltip.
+- **Nur dieser Server, nur dieser Chat.** `server_allow` in `main.py` merkt `(Person, Chat, Server-Kennung)` (nicht den Namen; Vorbild `connector_allow`), nur im Arbeitsspeicher. Es wird beim Löschen eines Chats und bei „Alle Chats löschen“ geleert und geht mit einem Neustart des Add-ons verloren. Ein anderer Server hat eine andere Kennung und fragt wieder (einmalig oder für den Chat); die Freigabe für `web01` gilt nie für `db02`.
+- **Ablauf bleibt gleich.** `ServerToolbox.change()` bereitet den Plan weiter beim Agenten vor (Einstufung, Prüfsumme, Vorschau); abgelehnte Pläne (`ServerError`) kommen nie zur Freigabe. Ist der Server im Chat freigegeben, entfällt nur die Karte: Der Plan wird mit derselben Prüfsumme ausgeführt, im Chat steht die Zeile mit dem Befehl und dem Zusatz „Für diesen Server im Chat zugelassen“, im Protokoll („Aktivität“) steht der Befehl mit „Chat-Freigabe für diesen Server“.
+- **Sicherheit.** Ausgaben von Servern bleiben Fremdinhalt (`srv-read`/`srv-write`). Wer der KI nach dem Lesen von Serverausgaben nicht zutraut, nur eigene Absichten zu verfolgen, wählt weiter nur „Zulassen“. Die Karte zeigt den Befehl bei jeder Einzelfreigabe wie bisher.
+- Tests: `tests/test_servers_change.py` (Freigabe gilt nur für den einen Server, zweiter Server fragt und kann getrennt freigegeben werden, Stufe 3 und abgelehnte Pläne nie automatisch, Protokolleintrag); neue Texte in `locales/en-ui.json` und `en.json`.
+
 ## 0.63.1
 Server-Hub meldet Ausfälle nicht mehr in Home Assistant (Standard). Chat: Dateien der KI öffnen wie bei Claude in einem Fenster neben dem Chat, mit Vorschau, Bearbeiten, Kopieren und Herunterladen.
 - Neue Option `servers.ha_notifications` (Standard `false`, in `config.yaml`, `translations/de.yaml`/`en.yaml`, `Settings.server_ha_notifications`). Aus: `hub_notifier()` liefert `None`, der Hub legt keine `persistent_notification` mehr an („Server … ist offline“, 90 Sekunden ohne Meldung) und der Ersatz für den Handy-Hinweis bei wartendem Server (nur ohne Gerät) entfällt ebenfalls. Der Eintrag im Reiter „Aktivität“ (`audit_add("event", …)`) bleibt in jedem Fall. An: Verhalten wie bis 0.63.0.
