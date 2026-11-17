@@ -209,3 +209,36 @@ def test_presence_counts_any_open_page_and_expires():
     assert not presence.watching("adm01", "ein-chat")  # eine Seite ist kein Chat
     now[0] += notifierlib.PRESENCE_TTL + 1
     assert not presence.active("adm01")
+
+
+# ----------------------------------------------------------------------------------------- Meldungen in Home Assistant (0.63.1)
+
+def test_home_assistant_notices_of_the_hub_are_off_by_default():
+    assert parse_settings({**RAW}).server_ha_notifications is False
+    assert parse_settings({**RAW, "servers": {"enabled": True}}).server_ha_notifications is False
+    assert parse_settings({**RAW, "servers": {"enabled": True, "ha_notifications": True}}).server_ha_notifications is True
+    with pytest.raises(Exception, match="ha_notifications"):
+        parse_settings({**RAW, "servers": {"ha_notifications": "ja"}})
+
+
+def test_the_hub_only_writes_to_the_home_assistant_bell_when_switched_on():
+    from app.main import hub_notifier
+    ha = PhoneHa()
+    assert hub_notifier(parse_settings({**RAW, "servers": {"enabled": True}}), ha) is None
+    notify = hub_notifier(parse_settings({**RAW, "servers": {"enabled": True, "ha_notifications": True}}), ha)
+    assert notify is not None
+    asyncio.run(notify("Server web01 ist offline", "Text"))
+    (call,) = [c for c in ha.calls if c.get("domain") == "persistent_notification"]
+    assert call["service"] == "create" and call["service_data"]["title"] == "Server web01 ist offline"
+
+
+def test_an_offline_server_is_still_logged_but_not_announced_without_the_option(tmp_path):
+    hub = make_hub(tmp_path)
+    hub.repo.server_create("srv-1", "web01", "ff" * 32, "k")
+    hub.repo.server_state("srv-1", "active")
+    hub.notify = None  # Standard: keine Meldung in Home Assistant
+    hub.status_of = lambda row: ("online", {})
+    asyncio.run(hub.check_online())  # erste Beobachtung
+    hub.status_of = lambda row: ("offline", {})
+    asyncio.run(hub.check_online())
+    assert any("offline" in e["summary"].lower() for e in hub.repo.audit_list(kind="event"))

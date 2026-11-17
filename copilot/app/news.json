@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.63.1",
+    "items": [
+      {
+        "de": {
+          "title": "Weniger Meldungen zu Servern",
+          "text": "Wenn sich ein Server nicht mehr meldet, schreibe ich das nicht mehr in die Glocke von Home Assistant. Du siehst es weiterhin in der Aktivität. Wer es braucht, kann es einschalten."
+        },
+        "en": {
+          "title": "Fewer server messages",
+          "text": "When a server stops reporting, I no longer write it to the Home Assistant bell. You still see it under Activity. If you need it, you can switch it back on."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.63.0",
     "items": [
       {

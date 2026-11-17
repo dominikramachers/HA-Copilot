@@ -18,7 +18,7 @@ import sqlite3
 import time
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import Literal
 
@@ -1020,7 +1020,8 @@ def register_chat_routes(
     async def server_pending(server: dict, key: dict) -> None:
         """Ein neuer Server wartet auf Bestätigung: Meldung aufs Handy der Person, die das Skript erstellt hat (bei ihr gilt der Name als
         „erstellt von“); ist sie nicht mehr zu finden oder darf keine Server verwalten, an alle, die es dürfen. Wer die Oberfläche gerade
-        offen hat, braucht keine Meldung. Geht es nicht aufs Handy (kein Gerät, Home Assistant nicht erreichbar), erscheint sie in Home Assistant."""
+        offen hat, braucht keine Meldung. Geht es nicht aufs Handy (kein Gerät, Home Assistant nicht erreichbar), erscheint sie in Home Assistant,
+        sofern ``servers.ha_notifications`` an ist."""
         creator = [p for p in settings.profiles if (p.label or p.id) == key.get("created_by")]
         recipients = [p for p in creator if await server_allowed(p)]
         if not recipients:
@@ -4010,9 +4011,11 @@ async def _scan_loop(scanner: OverviewScanner, settings: Settings) -> None:
         await asyncio.sleep(SCAN_CHECK_SECONDS)
 
 
-async def _hub_loop(settings: Settings, store: Store, ha: HaApi) -> None:
-    """Server-Hub (Port 8101): nimmt die Verbindungen der Agenten an. Scheitert er (z. B. Port belegt), läuft der Rest des Add-ons weiter."""
-    hub = serverlib.hub_for(store, settings, SERVER_DIR, AGENT_BIN_DIR)
+def hub_notifier(settings: Settings, ha: HaApi) -> Callable[[str, str], Awaitable[None]] | None:
+    """Meldungen des Server-Hubs in die Glocke von Home Assistant (Server offline u. Ä.). Standard aus (``servers.ha_notifications``):
+    Ausfälle fängt in der Regel eine Überwachung wie Zabbix ab; in der Server-Seite stehen sie weiterhin unter „Aktivität“."""
+    if not settings.server_ha_notifications:
+        return None
 
     async def notify(title: str, message: str) -> None:
         if not ha.enabled:
@@ -4024,8 +4027,14 @@ async def _hub_loop(settings: Settings, store: Store, ha: HaApi) -> None:
             })
         except HaApiError as exc:
             log.warning("Server-Hub: Meldung in Home Assistant fehlgeschlagen: %s", exc)
+    return notify
 
-    hub.notify = notify
+
+async def _hub_loop(settings: Settings, store: Store, ha: HaApi) -> None:
+    """Server-Hub (Port 8101): nimmt die Verbindungen der Agenten an. Scheitert er (z. B. Port belegt), läuft der Rest des Add-ons weiter."""
+    hub = serverlib.hub_for(store, settings, SERVER_DIR, AGENT_BIN_DIR)
+
+    hub.notify = hub_notifier(settings, ha)
     try:
         await hub.serve()
     except asyncio.CancelledError:
