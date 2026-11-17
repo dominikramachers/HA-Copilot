@@ -37,20 +37,63 @@ body{display:flex;align-items:flex-start;justify-content:center;padding:16px;box
 (function () {
   var out = document.getElementById("out");
   var n = 0;
+  var last = "";
   function send(msg) { parent.postMessage(msg, "*"); }
+  function setup(plain) {
+    var m = window.__esbuild_esm_mermaid_nm.mermaid.default;
+    var cfg = {startOnLoad: false, securityLevel: "strict", theme: "default", suppressErrorRendering: true, fontFamily: "system-ui, sans-serif"};
+    if (plain) { cfg.htmlLabels = false; cfg.flowchart = {htmlLabels: false}; cfg["class"] = {htmlLabels: false}; cfg.state = {htmlLabels: false}; }
+    m.initialize(cfg);
+    return m;
+  }
+  // Das Bild für den Export: mit Größe, ohne Skripte und auf weißem Grund. Das macht der Rahmen, denn nur hier sind Inline-Stile erlaubt.
+  function finishSvg(text) {
+    var doc = new DOMParser().parseFromString(text, "image/svg+xml");
+    var root = doc.documentElement;
+    if (!root || root.nodeName.toLowerCase() !== "svg" || doc.getElementsByTagName("parsererror").length) throw new Error("svg");
+    [].slice.call(root.querySelectorAll("script")).forEach(function (el) { el.parentNode.removeChild(el); });
+    [].slice.call(root.querySelectorAll("*")).forEach(function (el) {
+      [].slice.call(el.attributes).forEach(function (a) { if (/^on/i.test(a.name)) el.removeAttribute(a.name); });
+    });
+    var box = (root.getAttribute("viewBox") || "").trim().split(/[ ,]+/).map(Number);
+    var ok = box.length === 4 && box.every(isFinite);
+    var x = ok ? box[0] : 0, y = ok ? box[1] : 0;
+    var w = ok ? box[2] : (parseFloat(root.getAttribute("width")) || 800), h = ok ? box[3] : (parseFloat(root.getAttribute("height")) || 600);
+    root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    root.setAttribute("viewBox", x + " " + y + " " + w + " " + h);
+    root.setAttribute("width", String(Math.ceil(w)));
+    root.setAttribute("height", String(Math.ceil(h)));
+    root.removeAttribute("style");
+    var back = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+    back.setAttribute("x", x); back.setAttribute("y", y); back.setAttribute("width", w); back.setAttribute("height", h); back.setAttribute("fill", "#ffffff");
+    root.insertBefore(back, root.firstChild);
+    return {svg: new XMLSerializer().serializeToString(root), width: Math.ceil(w), height: Math.ceil(h)};
+  }
   window.addEventListener("message", function (e) {
     var d = e.data;
-    if (e.source !== parent || !d || d.type !== "render" || typeof d.source !== "string") return;
-    var m = window.__esbuild_esm_mermaid_nm.mermaid.default;
-    m.initialize({startOnLoad: false, securityLevel: "strict", theme: "default", suppressErrorRendering: true, fontFamily: "system-ui, sans-serif"});
-    n += 1;
-    m.render("mm" + n, d.source).then(function (r) {
-      out.innerHTML = r.svg;
-      send({type: "done"});
-    }, function (err) {
-      out.textContent = "";
-      send({type: "error", message: String((err && err.message) || err).slice(0, 400)});
-    });
+    if (e.source !== parent || !d || typeof d !== "object") return;
+    if (d.type === "render" && typeof d.source === "string") {
+      var m = setup(false);
+      last = d.source;
+      n += 1;
+      m.render("mm" + n, d.source).then(function (r) {
+        out.innerHTML = r.svg;
+        send({type: "done"});
+      }, function (err) {
+        out.textContent = "";
+        send({type: "error", message: String((err && err.message) || err).slice(0, 400)});
+      });
+    } else if (d.type === "export" && last) {
+      // Zum Speichern als Bild: dasselbe Diagramm noch einmal, mit schlichten SVG-Beschriftungen statt HTML.
+      var plain = setup(true);
+      n += 1;
+      plain.render("mm" + n, last).then(function (r) {
+        var file = finishSvg(r.svg);
+        send({type: "svg", id: d.id, svg: file.svg, width: file.width, height: file.height});
+      }, function (err) {
+        send({type: "svg", id: d.id, error: String((err && err.message) || err).slice(0, 200)});
+      });
+    }
   });
   send({type: "ready"});
 })();

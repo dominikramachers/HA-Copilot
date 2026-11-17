@@ -5293,7 +5293,7 @@ function artifactKindText(a) {
 
 const artifactUi = { id: null, data: null, tab: "preview", seen: new Set(), editing: false };
 // Erzeugte Dateien öffnen im selben Fenster wie Artefakte; es ist immer nur eins von beiden offen.
-const fileUi = { id: null, data: null, file: null, tab: "preview", editing: false };
+const fileUi = { id: null, data: null, file: null, tab: "preview", editing: false, versions: null, view: null, viewError: "" };
 
 function artifactCard(a) {
   const [, ic] = artifactKinds()[a.kind] || [0, "code"];
@@ -5334,13 +5334,15 @@ function artifactCardsEl(actions) {
   return box;
 }
 
+function resetFileUi() {
+  Object.assign(fileUi, { id: null, data: null, file: null, editing: false, versions: null, view: null, viewError: "" });
+}
+
 function closeArtifact() {
   const panel = $("artifact-panel");
   artifactUi.id = null;
   artifactUi.data = null;
-  fileUi.id = null;
-  fileUi.data = null;
-  fileUi.file = null;
+  resetFileUi();
   document.querySelectorAll(".file-card.open").forEach((c) => c.classList.remove("open"));
   panel.hidden = true;
   panel.replaceChildren();
@@ -5350,9 +5352,7 @@ function closeArtifact() {
 
 async function openArtifact(id, version = null, tab = null) {
   const data = await api(`api/artifacts/${encodeURIComponent(id)}${version ? `?version=${version}` : ""}`);
-  fileUi.id = null;
-  fileUi.data = null;
-  fileUi.file = null;
+  resetFileUi();
   document.querySelectorAll(".file-card.open").forEach((c) => c.classList.remove("open"));
   artifactUi.id = id;
   artifactUi.data = data;
@@ -5390,7 +5390,58 @@ function mermaidFrame(data) {
   };
   window.addEventListener("message", listener);
   box.append(frame, problem);
+  // Für den Export zeichnet der Rahmen das Diagramm noch einmal ohne HTML-Beschriftungen (reines SVG, das jedes Programm und jeder Browser darstellt).
+  box.exportSvg = () => new Promise((resolve, reject) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    const finish = (fn, value) => { clearTimeout(timer); window.removeEventListener("message", answer); fn(value); };
+    const answer = (event) => {
+      if (event.source !== frame.contentWindow || !event.data || event.data.type !== "svg" || event.data.id !== id) return;
+      if (event.data.error || typeof event.data.svg !== "string") finish(reject, new Error(String(event.data.error || "")));
+      else finish(resolve, { text: event.data.svg, width: Number(event.data.width) || 800, height: Number(event.data.height) || 600 });
+    };
+    const timer = setTimeout(() => finish(reject, new Error("timeout")), 15000);
+    window.addEventListener("message", answer);
+    frame.contentWindow.postMessage({ type: "export", id }, "*");
+  });
   return box;
+}
+
+// Mermaid als Bild speichern: SVG (Vektor) oder PNG (Pixel), immer auf weißem Grund wie in der Vorschau. Das fertige SVG kommt aus dem abgeschotteten Rahmen.
+async function mermaidPng(svg) {
+  const url = URL.createObjectURL(new Blob([svg.text], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error("img")); img.src = url; });
+    const scale = Math.max(1, Math.min(3, 4000 / Math.max(svg.width, svg.height)));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(svg.width * scale);
+    canvas.height = Math.round(svg.height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("png");
+    return blob;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function exportMermaid(data, anchor) {
+  const box = document.querySelector("#artifact-panel .art-mermaid-box");
+  if (!box || !box.exportSvg) { toast(tr("Wechsle zur Vorschau, um das Diagramm als Bild zu speichern.")); return; }
+  const choice = await openPopover(anchor, [
+    { value: "png", icon: "picture", label: tr("Als PNG speichern"), detail: tr("Pixelbild") },
+    { value: "svg", icon: "code", label: tr("Als SVG speichern"), detail: tr("Vektor") },
+  ], { compact: true });
+  if (!choice) return;
+  const base = (data.title || "diagram").replace(/[^\p{L}\p{N}._-]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "diagram";
+  try {
+    const svg = await box.exportSvg();
+    if (choice === "svg") await saveFile(`${base}.svg`, svg.text, "image/svg+xml");
+    else await saveFile(`${base}.png`, await mermaidPng(svg), "image/png");
+  } catch (err) {
+    toast(tr("Das Bild konnte nicht erstellt werden. Das Diagramm bleibt als Text (.mmd) erhalten."));
+  }
 }
 
 function artifactPreview(data) {
@@ -5477,6 +5528,8 @@ function drawArtifact() {
     link.click();
     link.remove();
   });
+  const asImage = data.kind === "mermaid" && artifactUi.tab === "preview" && !artifactUi.editing
+    ? actionButton(tr("Als Bild speichern"), "picture", "msg-act", (button) => exportMermaid(data, button)) : null;
   const del = actionButton(tr("Artefakt löschen"), "trash", "msg-act", async () => {
     if (!del.classList.contains("confirm")) {
       del.classList.add("confirm");
@@ -5502,7 +5555,7 @@ function drawArtifact() {
     })
     : null;
   const shareBtn = canShare() ? actionButton(tr("Artefakt teilen"), "share", "msg-act", () => shareArtifact(data)) : null;
-  actions.append(...[edit, copy, download, toProject, shareBtn, del].filter(Boolean));
+  actions.append(...[edit, copy, asImage, download, toProject, shareBtn, del].filter(Boolean));
   bar.append(tabs, actions);
 
   const body = node("div", "art-body");
@@ -5608,6 +5661,7 @@ function filePreview(data) {
       pre.append(node("code", "", data.content));
       wrap.append(pre);
     }
+    if (fileUi.viewError) wrap.append(node("p", "art-note", fileUi.viewError));
     wrap.append(node("p", "art-note", tr("Textvorschau: Formatierung und Layout siehst du in der heruntergeladenen Datei.")));
     return wrap;
   }
@@ -5629,11 +5683,196 @@ async function openFile(file, card = null) {
   fileUi.id = data.id;
   fileUi.data = data;
   fileUi.editing = false;
-  fileUi.tab = data.kind === "extract" || FILE_PREVIEW[(data.name.split(".").pop() || "").toLowerCase()] ? "preview" : "code";
+  fileUi.versions = null;
+  fileUi.view = null;
+  fileUi.viewError = "";
+  fileUi.tab = defaultFileTab(data);
   $("app").classList.add("with-artifact");
   $("artifact-panel").hidden = false;
   document.querySelectorAll(".file-card").forEach((c) => c.classList.toggle("open", c.dataset.file === file.id));
   drawFile();
+  loadFileVersions();
+}
+
+// Welcher Reiter zuerst: bei Office und PDF die echte Vorschau (wenn es sie gibt), sonst der Text; bei Textdateien Vorschau oder Code.
+function defaultFileTab(data) {
+  if (data.kind === "extract") return data.view ? "preview" : "text";
+  return FILE_PREVIEW[(data.name.split(".").pop() || "").toLowerCase()] ? "preview" : "code";
+}
+
+async function loadFileVersions() {
+  const id = fileUi.id;
+  if (!id) return;
+  try {
+    const answer = await api(`api/files/${encodeURIComponent(id)}/versions`);
+    if (fileUi.id !== id) return;
+    fileUi.versions = answer.versions;
+  } catch { fileUi.versions = null; }
+  if (fileUi.id === id && !fileUi.editing) drawFile();
+}
+
+// Die Karten im Chat halten nur eine Kennung; nach einer neuen Fassung zeigen sie auf diese.
+function retargetFileCards(newId) {
+  const known = new Set([...(fileUi.versions || []).map((v) => v.id), fileUi.id, fileUi.file && fileUi.file.id].filter(Boolean));
+  document.querySelectorAll(".file-card").forEach((c) => { if (known.has(c.dataset.file)) c.dataset.file = newId; });
+  if (fileUi.file) fileUi.file.id = newId;
+}
+
+async function showFileVersion(id) {
+  try {
+    const data = await api(`api/files/${encodeURIComponent(id)}/text`);
+    fileUi.id = data.id;
+    fileUi.data = data;
+    fileUi.editing = false;
+    fileUi.view = null;
+    fileUi.viewError = "";
+    const valid = data.kind === "extract" ? (data.view ? ["preview", "text"] : ["text"]) : FILE_PREVIEW[(data.name.split(".").pop() || "").toLowerCase()] ? ["preview", "code"] : ["code"];
+    if (!valid.includes(fileUi.tab)) fileUi.tab = defaultFileTab(data);
+    drawFile();
+  } catch (err) { toast(errorText(err, tr("Diese Fassung konnte nicht geöffnet werden."))); }
+}
+
+async function restoreFileVersion(data, button) {
+  button.disabled = true;
+  try {
+    const saved = await api(`api/files/${encodeURIComponent(data.id)}/restore`, { method: "POST" });
+    retargetFileCards(saved.id);
+    fileUi.id = saved.id;
+    fileUi.data = await api(`api/files/${encodeURIComponent(saved.id)}/text`);
+    fileUi.view = null;
+    fileUi.viewError = "";
+    fileUi.editing = false;
+    await loadFileVersions();
+    toast(tr("Die Fassung ist wiederhergestellt und jetzt die neueste."));
+    drawFile();
+  } catch (err) { button.disabled = false; toast(errorText(err, tr("Wiederherstellen hat nicht geklappt."))); }
+}
+
+// Echte Vorschau: Seiten als Bild (PDF, Word, PowerPoint) oder Tabellenblätter (Excel). Gibt es sie nicht, bleibt der Text.
+function viewPreview(data) {
+  const wrap = node("div", "art-preview art-view");
+  const show = (view) => {
+    wrap.replaceChildren(view.mode === "sheets" ? sheetsView(view) : pagesView(view, data));
+  };
+  const cached = fileUi.view && fileUi.view.id === data.id ? fileUi.view.payload : null;
+  if (cached) { show(cached); return wrap; }
+  wrap.append(node("p", "art-note art-wait", tr("Wird aufbereitet …")));
+  api(`api/files/${encodeURIComponent(data.id)}/view`).then((view) => {
+    if (fileUi.id !== data.id) return;
+    fileUi.view = { id: data.id, payload: view };
+    if (wrap.isConnected) show(view);
+  }).catch((err) => {
+    if (fileUi.id !== data.id) return;
+    fileUi.viewError = errorText(err, tr("Die Vorschau ist nicht möglich."));
+    fileUi.tab = "text";
+    drawFile();
+  });
+  return wrap;
+}
+
+function pagesView(view, data) {
+  const column = node("div", "art-pages");
+  const width = (window.devicePixelRatio || 1) > 1.5 ? 1400 : 1000;
+  view.pages.forEach(([w, h], index) => {
+    const page = node("figure", "art-page");
+    page.style.aspectRatio = `${w} / ${h}`;
+    const img = document.createElement("img");
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.alt = tr("Seite {0}", index + 1);
+    img.src = `api/files/${encodeURIComponent(data.id)}/page/${index + 1}?w=${width}`;
+    img.addEventListener("error", () => { page.classList.add("failed"); page.replaceChildren(node("span", "art-page-fail", tr("Diese Seite konnte nicht geladen werden."))); });
+    page.append(img, node("figcaption", "art-page-no", `${index + 1} / ${view.total}`));
+    column.append(page);
+  });
+  if (view.total > view.pages.length) column.append(node("p", "art-note", tr("Gezeigt werden die ersten {0} Seiten.", view.pages.length)));
+  return column;
+}
+
+function columnName(index) {
+  let name = "";
+  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
+  return name;
+}
+
+function sheetsView(view) {
+  const wrap = node("div", "art-sheets");
+  const holder = node("div", "art-sheet-scroll");
+  const notes = node("div", "art-sheet-notes");
+  let current = 0;
+  const draw = () => {
+    const sheet = view.sheets[current];
+    const covered = new Set();
+    const origin = new Map();
+    for (const [r1, c1, r2, c2] of sheet.merges) {
+      origin.set(`${r1},${c1}`, [r2 - r1 + 1, c2 - c1 + 1]);
+      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) if (r !== r1 || c !== c1) covered.add(`${r},${c}`);
+    }
+    const table = node("table", "art-grid");
+    const cols = document.createElement("colgroup");
+    const corner = document.createElement("col");
+    corner.style.width = "42px";
+    cols.append(corner);
+    for (const w of sheet.widths) { const col = document.createElement("col"); col.style.width = `${w}px`; cols.append(col); }
+    const head = node("tr");
+    head.append(node("th", "art-grid-corner"));
+    sheet.widths.forEach((_, i) => head.append(node("th", "art-grid-col", columnName(i))));
+    const thead = document.createElement("thead");
+    thead.append(head);
+    const tbody = document.createElement("tbody");
+    let formulas = false;
+    sheet.rows.forEach((line, r) => {
+      const row = node("tr");
+      row.append(node("th", "art-grid-row", String(r + 1)));
+      line.forEach((cell, c) => {
+        if (covered.has(`${r + 1},${c + 1}`)) return;
+        const [text, style] = Array.isArray(cell) ? cell : [cell, -1];
+        const td = node("td", "", text);
+        const span = origin.get(`${r + 1},${c + 1}`);
+        if (span) { td.rowSpan = span[0]; td.colSpan = span[1]; }
+        const look = style >= 0 ? view.styles[style] : null;
+        if (look) {
+          if (look.b) td.style.fontWeight = "600";
+          if (look.i) td.style.fontStyle = "italic";
+          if (look.c) td.style.color = look.c;
+          if (look.f) td.style.backgroundColor = look.f;
+          if (look.a) td.style.textAlign = look.a;
+          if (look.w) td.style.whiteSpace = "pre-wrap";
+        }
+        if (!look && text.startsWith("=")) { td.classList.add("fx"); formulas = true; }
+        row.append(td);
+      });
+      tbody.append(row);
+    });
+    table.style.width = `${42 + sheet.widths.reduce((sum, w) => sum + w, 0)}px`;
+    table.append(cols, thead, tbody);
+    holder.replaceChildren(table);
+    const lines = [];
+    if (sheet.truncated) lines.push(tr("Gezeigt werden die ersten {0} Zeilen und {1} Spalten.", Math.min(sheet.rows_total, view.limit.rows), Math.min(sheet.cols_total, view.limit.cols)));
+    if (formulas) lines.push(tr("Formeln ohne gespeicherten Wert werden als Formel angezeigt."));
+    if (sheet.extras.charts || sheet.extras.images) lines.push(tr("Diagramme und Bilder dieses Blatts siehst du in der heruntergeladenen Datei."));
+    notes.replaceChildren(...lines.map((line) => node("p", "art-note", line)));
+  };
+  const tabs = node("div", "art-sheet-tabs");
+  tabs.setAttribute("role", "tablist");
+  if (view.sheets.length > 1) {
+    view.sheets.forEach((sheet, index) => {
+      const tab = node("button", "art-sheet-tab", sheet.name);
+      tab.type = "button";
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(index === current));
+      tab.addEventListener("click", () => {
+        current = index;
+        tabs.querySelectorAll(".art-sheet-tab").forEach((t, i) => t.setAttribute("aria-selected", String(i === current)));
+        draw();
+      });
+      tabs.append(tab);
+    });
+  }
+  draw();
+  wrap.append(holder, notes);
+  if (view.sheets.length > 1) wrap.append(tabs);
+  return wrap;
 }
 
 // Ein geöffnetes Artefakt weicht der Datei, ohne das Fenster zu schließen.
@@ -5658,13 +5897,29 @@ function drawFile() {
   close.setAttribute("aria-label", tr("Schließen"));
   close.append(icon("close"));
   close.addEventListener("click", closeArtifact);
-  head.append(titleBox, close);
+  head.append(titleBox);
+  if (fileUi.versions && fileUi.versions.length > 1) {
+    const select = node("select", "field art-versions");
+    select.setAttribute("aria-label", tr("Fassung"));
+    for (const v of [...fileUi.versions].reverse()) {
+      const when = new Date(v.created_at).toLocaleString(kiLocale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+      const option = node("option", "", `${tr("Fassung {0}", v.n)} · ${when}${v.latest ? ` (${tr("neueste")})` : ""}`);
+      option.value = v.id;
+      option.selected = v.id === data.id;
+      select.append(option);
+    }
+    select.addEventListener("change", () => showFileVersion(select.value));
+    head.append(select);
+  }
+  head.append(close);
 
   const bar = node("div", "art-bar");
   const tabs = node("div", "art-tabs");
   tabs.setAttribute("role", "tablist");
   const ext = (data.name.split(".").pop() || "").toLowerCase();
-  const tabList = data.kind === "extract" ? [["preview", tr("Vorschau")]] : FILE_PREVIEW[ext] ? [["preview", tr("Vorschau")], ["code", tr("Code")]] : [["code", tr("Code")]];
+  const tabList = data.kind === "extract"
+    ? (data.view && !fileUi.viewError ? [["preview", tr("Vorschau")], ["text", tr("Text")]] : [["text", tr("Vorschau")]])
+    : FILE_PREVIEW[ext] ? [["preview", tr("Vorschau")], ["code", tr("Code")]] : [["code", tr("Code")]];
   for (const [key, label] of tabList) {
     const tab = node("button", "skills-tab", label);
     tab.type = "button";
@@ -5709,13 +5964,14 @@ function drawFile() {
       try {
         const saved = await api(`api/files/${encodeURIComponent(data.id)}/text`, { method: "PUT", body: JSON.stringify({ content: area.value }) });
         // Die Karte im Chat zeigt ab jetzt die neue Fassung (sie hält nur die Kennung der Datei).
-        if (fileUi.file) { fileUi.file.id = saved.id; fileUi.file.size = saved.size; }
-        document.querySelectorAll(".file-card").forEach((c) => { if (c.dataset.file === data.id) c.dataset.file = saved.id; });
+        retargetFileCards(saved.id);
+        if (fileUi.file) fileUi.file.size = saved.size;
         fileUi.id = saved.id;
         fileUi.data = await api(`api/files/${encodeURIComponent(saved.id)}/text`);
         fileUi.editing = false;
         toast(tr("Gespeichert als neue Fassung."));
         drawFile();
+        loadFileVersions();
       } catch (err) { save.disabled = false; toast(errorText(err, tr("Speichern hat nicht geklappt."))); }
     });
     const cancel = node("button", "pill ghost small", tr("Abbrechen"));
@@ -5723,16 +5979,26 @@ function drawFile() {
     cancel.addEventListener("click", () => { fileUi.editing = false; drawFile(); });
     foot.append(node("span", "art-foot-text", tr("Beim Speichern entsteht eine neue Fassung dieser Datei.")), cancel, save);
   } else {
-    if (fileUi.tab === "preview") body.append(filePreview(data));
+    if (fileUi.tab === "preview") body.append(data.kind === "extract" ? viewPreview(data) : filePreview(data));
+    else if (fileUi.tab === "text") body.append(filePreview(data));
     else {
       const pre = node("pre", "art-code");
       pre.tabIndex = 0;
       pre.append(node("code", "", data.content));
       body.append(pre);
     }
-    foot = node("p", "art-foot", data.truncated ? tr("Nur der Anfang der Datei wird gezeigt. Zum Bearbeiten bitte herunterladen.")
-      : data.kind === "extract" ? tr("Word, Excel, PowerPoint und PDF lassen sich hier nur ansehen. Änderungen übernimmt die KI auf Wunsch.")
-      : data.editable ? tr("Neueste Fassung") : tr("Diese Datei lässt sich hier nicht bearbeiten."));
+    const older = fileUi.versions && fileUi.versions.length > 1 && data.latest_id !== data.id;
+    if (older) {
+      foot = node("div", "art-foot art-foot-row");
+      const restore = node("button", "pill primary small", tr("Diese Fassung wiederherstellen"));
+      restore.type = "button";
+      restore.addEventListener("click", () => restoreFileVersion(data, restore));
+      foot.append(node("span", "art-foot-text", tr("Das ist eine ältere Fassung. Wiederherstellen legt sie als neueste Fassung ab.")), restore);
+    } else {
+      foot = node("p", "art-foot", data.truncated ? tr("Nur der Anfang der Datei wird gezeigt. Zum Bearbeiten bitte herunterladen.")
+        : data.kind === "extract" ? tr("Word, Excel, PowerPoint und PDF lassen sich hier nur ansehen. Änderungen übernimmt die KI auf Wunsch.")
+        : data.editable ? tr("Neueste Fassung") : tr("Diese Datei lässt sich hier nicht bearbeiten."));
+    }
   }
   panel.replaceChildren(head, bar, body, foot);
 }
