@@ -778,5 +778,7 @@
  "Diese Datei ist kein lesbarer Text (UTF-8).": "This file is not readable text (UTF-8).",
  "Diese Dateiart lässt sich hier nicht bearbeiten.": "This type of file cannot be edited here.",
  "Es gibt eine neuere Fassung dieser Datei. Öffne die neueste, um sie zu ändern.": "There is a newer version of this file. Open the latest one to change it.",
- "Für diese Dateiart gibt es keine Vorschau.": "There is no preview for this type of file."
+ "Für diese Dateiart gibt es keine Vorschau.": "There is no preview for this type of file.",
+ "Für diesen Server im Chat zugelassen": "Allowed for this server in this chat",
+ ", Chat-Freigabe für diesen Server": ", chat approval for this server"
 }

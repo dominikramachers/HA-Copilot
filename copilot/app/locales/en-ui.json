@@ -1445,5 +1445,7 @@
  "Nur der Anfang der Datei wird gezeigt. Zum Bearbeiten bitte herunterladen.": "Only the beginning of the file is shown. Please download it to edit.",
  "Text kopieren": "Copy text",
  "Textvorschau: Formatierung und Layout siehst du in der heruntergeladenen Datei.": "Text preview: you will see formatting and layout in the downloaded file.",
- "Word, Excel, PowerPoint und PDF lassen sich hier nur ansehen. Änderungen übernimmt die KI auf Wunsch.": "Word, Excel, PowerPoint and PDF can only be viewed here. The AI makes changes on request."
+ "Word, Excel, PowerPoint und PDF lassen sich hier nur ansehen. Änderungen übernimmt die KI auf Wunsch.": "Word, Excel, PowerPoint and PDF can only be viewed here. The AI makes changes on request.",
+ "Für {0} im Chat immer": "Always for {0} in this chat",
+ "Alle weiteren Änderungen auf {0} in diesem Chat ohne Rückfrage zulassen. Andere Server fragen weiter nach.": "Allow all further changes on {0} in this chat without asking. Other servers still ask."
 }

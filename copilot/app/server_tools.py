@@ -242,8 +242,14 @@ def plan_details(plan: dict[str, Any], server: str, purpose: str) -> str:
 class ServerToolbox:
     """Die Server-Werkzeuge einer Person für genau eine Antwort."""
 
-    def __init__(self, hub: ServerHub, profile: Profile, *, record: Record, next_id: Callable[[], int], ask: Ask | None = None, scheduled: bool = False) -> None:
+    def __init__(
+        self, hub: ServerHub, profile: Profile, *, record: Record, next_id: Callable[[], int], ask: Ask | None = None, scheduled: bool = False,
+        chat_allowed: Callable[[str], bool] | None = None, allow_chat: Callable[[str], None] | None = None,
+    ) -> None:
         self._hub = hub
+        # „Für diesen Server im Chat immer zulassen“: je Server-Kennung (nie für alle Server zusammen)
+        self._chat_allowed = chat_allowed
+        self._allow_chat = allow_chat
         self._scheduled = scheduled  # geplante Aufgabe: niemand sieht zu, also nur lesen; im Protokoll steht es dabei
         self._profile = profile
         self._record = record
@@ -343,12 +349,21 @@ class ServerToolbox:
             label = f"{name}: {summary}"
             self._event(tid, label, "waiting", kind="srv-write")
             assert self._ask is not None
-            decision = await self._ask(label, plan_details(plan, name, purpose), False, {"risk": plan["class"], "server": name, "command": plan["command"]})
+            offer_chat = self._allow_chat is not None and plan["class"] in (1, 2)  # Stufe 3 führt der Agent ohnehin nie aus
+            if offer_chat and self._chat_allowed is not None and self._chat_allowed(row["id"]):
+                decision, auto = "allow", True  # für genau diesen Server in diesem Chat schon zugelassen
+            else:
+                decision = await self._ask(label, plan_details(plan, name, purpose), offer_chat, {"risk": plan["class"], "server": name, "command": plan["command"]})
+                auto = False
+                if decision == "allow_chat" and offer_chat:
+                    assert self._allow_chat is not None
+                    self._allow_chat(row["id"])
+                    decision = "allow"
             if decision != "allow":
                 self._event(tid, label, "denied", kind="srv-write")
                 log("denied", summary, plan["command"], localize(plan, "reason", sep=" "))
                 return tr("Die Person hat diese Änderung abgelehnt. Führe sie nicht erneut aus und frage nach, was sie stattdessen möchte.")
-            self._event(tid, label, "running", kind="srv-write")
+            self._event(tid, label, "running", tr("Für diesen Server im Chat zugelassen") if auto else "", kind="srv-write")
             try:
                 text = await hub.execute(ref.strip(), plan)
             except ServerError as exc:
@@ -357,7 +372,7 @@ class ServerToolbox:
                 raise ToolError(str(exc)) from None
             failed = "== Result: failed" in text or "== Ergebnis: fehlgeschlagen" in text  # (das zweite stammt von Agenten bis 0.60)
             self._event(tid, label, "error" if failed else "ok", tr("Der Befehl ist fehlgeschlagen.") if failed else "", kind="srv-write")
-            log("failed" if failed else "ok", summary, plan["command"], f"Stufe {plan['class']}")
+            log("failed" if failed else "ok", summary, plan["command"], f"Stufe {plan['class']}" + (tr(", Chat-Freigabe für diesen Server") if auto else ""))
             return DATA_NOTE.format(name=name) + (text or tr("(leere Antwort)"))
 
         async def server_service(args: dict[str, Any]) -> str:

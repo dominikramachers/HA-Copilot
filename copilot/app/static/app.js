@@ -7036,7 +7036,13 @@ function approvalCard(chatId, ev) {
     return b;
   };
   row.append(mk(tr("Zulassen"), "primary", "allow"), mk(tr("Ablehnen"), "ghost", "deny"));
-  if (ev.chat_ok) row.append(mk(tr("In diesem Chat immer zulassen"), "ghost", "allow_chat"));
+  if (ev.chat_ok) {
+    // Server: gilt nur für genau diesen Server, deshalb mit Namen und kurz
+    const label = ev.topic === "server" && ev.server ? tr("Für {0} im Chat immer", ev.server.length > 24 ? `${ev.server.slice(0, 23)}…` : ev.server) : tr("In diesem Chat immer zulassen");
+    const b = mk(label, "ghost", "allow_chat");
+    if (ev.topic === "server" && ev.server) b.title = tr("Alle weiteren Änderungen auf {0} in diesem Chat ohne Rückfrage zulassen. Andere Server fragen weiter nach.", ev.server);
+    row.append(b);
+  }
   card.append(row);
   return card;
 }
