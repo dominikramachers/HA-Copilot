@@ -3,8 +3,8 @@
 // Nutzt die Hilfen aus app.js ($, node, icon, api, tr, toast, state, skillHead, errorText, ago, kiLocale, setView …).
 //
 // Die Seite zeigt nur, was der Hub im Add-on weiß. Ein neuer Server erscheint als „Ausstehend“ und wird erst nach der
-// Bestätigung hier für die KI nutzbar (nur lesend). Das Skript enthält einen frischen Registrierungsschlüssel, die Adresse des Hubs
-// und den Fingerabdruck der Hub-CA; es wird nur im Arbeitsspeicher gehalten, nie gespeichert.
+// Bestätigung hier für die KI nutzbar. Das Skript enthält einen frischen Registrierungsschlüssel, die Adresse des Hubs
+// und den Fingerabdruck der Hub-CA; der Hub hält es nur im Arbeitsspeicher (nie auf der Platte), solange der Schlüssel gilt.
 
 const srvUi = {
   tab: "overview",            // overview | activity | add
@@ -18,6 +18,8 @@ const srvUi = {
   editing: false,             // Name wird gerade geändert: Aktualisierung pausiert
   open: new Set(),            // Kennungen der aufgeklappten Server (bleibt bei der Aktualisierung erhalten)
   timer: 0,
+  last: 0,                    // Zeitpunkt der letzten Aktualisierung (ms)
+  live: null,                 // { keys, state, tab }: Teile des Reiters „Server hinzufügen“, die sich von selbst erneuern
 };
 
 const SRV_STATUS = {
@@ -62,11 +64,17 @@ async function openServers(tab = "overview") {
   renderServers();
   await srvLoad();
   srvStop();
-  srvUi.timer = setInterval(() => { if (state.view === "servers" && !document.hidden) srvLoad(true).catch(() => {}); }, 15000);
+  // Alle 15 Sekunden; solange ein Skript angezeigt wird und auf seinen Server wartet, alle 5 Sekunden.
+  srvUi.timer = setInterval(() => {
+    if (state.view !== "servers" || document.hidden) return;
+    const waiting = srvUi.tab === "add" && srvUi.script;
+    if (waiting || Date.now() - srvUi.last >= 14000) srvLoad(true).catch(() => {});
+  }, 5000);
   $("servers").scrollTop = 0;
 }
 
 async function srvLoad(quiet = false) {
+  srvUi.last = Date.now();
   try {
     srvUi.data = await api("api/servers");
     if (!srvUi.form.hub) srvUi.form.hub = srvUi.data.hub.address || location.hostname || "";
@@ -74,7 +82,23 @@ async function srvLoad(quiet = false) {
   } catch (err) {
     if (!quiet) srvUi.status = errorText(err, tr("Die Server sind gerade nicht erreichbar."));
   }
-  if (state.view === "servers" && !(quiet && (srvUi.editing || srvUi.tab === "add"))) renderServers();
+  if (state.view !== "servers") return;
+  // Im Reiter „Server hinzufügen“ bleibt das Formular unangetastet; nur Schlüsselliste, Skriptstatus und Zähler erneuern sich.
+  if (quiet && srvUi.tab === "add") srvRefreshAdd();
+  else if (!(quiet && srvUi.editing)) renderServers();
+}
+
+function srvRefreshAdd() {
+  const live = srvUi.live;
+  if (!live || !live.keys.isConnected || !srvUi.data) return;
+  srvFillKeys(live.keys);
+  if (live.state.isConnected) srvFillScriptState(live.state);
+  const tab = live.tab;
+  if (tab?.isConnected) {
+    tab.querySelector(".srv-count")?.remove();
+    const pending = srvUi.data.summary?.pending || 0;
+    if (pending) tab.append(node("span", "srv-count", String(pending)));
+  }
 }
 
 async function srvLoadActivity(skipRender = false) {
@@ -126,7 +150,7 @@ async function srvAct(path, method, body, done) {
 function renderServers() {
   const wrap = $("servers-wrap");
   wrap.replaceChildren();
-  skillHead(wrap, tr("Server"), tr("Deine Linux-Server melden sich hier von selbst. Die KI darf sie nur ansehen, nichts verändern."));
+  skillHead(wrap, tr("Server"), tr("Deine Linux-Server melden sich hier von selbst. Die KI sieht sie an und ändert etwas nur nach deiner Freigabe im Chat."));
 
   const bar = node("div", "skills-bar");
   const tabs = node("div", "skills-tabs");
@@ -138,6 +162,7 @@ function renderServers() {
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", String(srvUi.tab === id));
     if (id === "overview" && pending) tab.append(node("span", "srv-count", String(pending)));
+    if (id === "overview") srvUi.overviewTab = tab;
     tab.addEventListener("click", () => {
       srvUi.tab = id;
       srvUi.status = "";
@@ -525,26 +550,11 @@ function renderServerAdd(wrap) {
   card.append(make);
   wrap.append(card);
 
+  const keysHost = node("section", "srv-keys");
+  srvUi.live = { keys: keysHost, state: null, tab: srvUi.overviewTab };
   if (srvUi.script) wrap.append(renderScriptResult(srvUi.script, hub));
-
-  const active = keys.filter((k) => k.active);
-  const list = node("section", "srv-keys");
-  list.append(node("h3", "", tr("Gültige Schlüssel")));
-  if (!active.length) {
-    list.append(node("p", "srv-note", tr("Zurzeit gibt es keinen gültigen Schlüssel. Für jedes neue Skript entsteht ein neuer.")));
-  } else {
-    for (const k of active) {
-      const row = node("div", "srv-key");
-      const text = node("div", "srv-key-text");
-      text.append(node("b", "", k.label || tr("Installationsskript")), node("small", "", tr("{0} von {1} genutzt · gültig bis {2} · erstellt von {3}", k.uses, k.max_uses, srvTime(k.expires_at), k.created_by || "–")));
-      const revoke = node("button", "pill ghost", tr("Widerrufen"));
-      revoke.type = "button";
-      revoke.addEventListener("click", () => srvAct(`api/servers/keys/${k.id}`, "DELETE", null, tr("Der Schlüssel ist widerrufen.")));
-      row.append(text, revoke);
-      list.append(row);
-    }
-  }
-  wrap.append(list);
+  srvFillKeys(keysHost);
+  wrap.append(keysHost);
 
   const finger = node("section", "srv-keys");
   finger.append(node("h3", "", tr("Sicherheit")), node("p", "srv-note", tr("Der Agent baut die Verbindung selbst auf und prüft den Hub über diesen Fingerabdruck. Wenn sich der Fingerabdruck ändert, ist die CA neu erzeugt worden und alle Server müssen neu angemeldet werden.")));
@@ -552,9 +562,83 @@ function renderServerAdd(wrap) {
   wrap.append(finger);
 }
 
+function srvFillKeys(host) {
+  const keys = srvUi.data?.keys || [];
+  host.replaceChildren(node("h3", "", tr("Gültige Schlüssel")));
+  const active = keys.filter((k) => k.active);
+  if (!active.length) {
+    host.append(node("p", "srv-note", tr("Zurzeit gibt es keinen gültigen Schlüssel. Für jedes neue Skript entsteht ein neuer.")));
+    return;
+  }
+  for (const k of active) {
+    const row = node("div", "srv-key");
+    const text = node("div", "srv-key-text");
+    const joined = (k.servers || []).map((x) => x.name);
+    const line = tr("{0} von {1} genutzt · gültig bis {2} · erstellt von {3}", k.uses, k.max_uses, srvTime(k.expires_at), k.created_by || "–");
+    text.append(node("b", "", k.label || tr("Installationsskript")), node("small", "", joined.length ? `${line} · ${tr("angemeldet")}: ${joined.join(", ")}` : line));
+    if (!k.has_script) text.append(node("small", "srv-hint", tr("Das Skript ist nicht mehr abrufbar (das Add-on wurde neu gestartet). Widerrufe den Schlüssel und erstelle ein neues.")));
+    const buttons = node("div", "srv-key-buttons");
+    if (k.has_script) {
+      const show = node("button", "pill ghost", tr("Skript anzeigen"));
+      show.type = "button";
+      show.addEventListener("click", () => srvShowScript(k.id));
+      buttons.append(show);
+    }
+    const revoke = node("button", "pill ghost", tr("Widerrufen"));
+    revoke.type = "button";
+    revoke.addEventListener("click", () => srvAct(`api/servers/keys/${k.id}`, "DELETE", null, tr("Der Schlüssel ist widerrufen.")));
+    buttons.append(revoke);
+    row.append(text, buttons);
+    host.append(row);
+  }
+}
+
+// Ein früher erstelltes Skript noch einmal zeigen, solange sein Schlüssel gilt (der Hub hält es im Arbeitsspeicher).
+async function srvShowScript(keyId) {
+  try {
+    const found = await api(`api/servers/keys/${encodeURIComponent(keyId)}/script`);
+    srvUi.script = { ...found };
+    srvUi.status = "";
+  } catch (err) {
+    srvUi.status = errorText(err, tr("Das Skript konnte nicht geladen werden."));
+    await srvLoad(true).catch(() => {});
+  }
+  renderServers();
+  $("servers").scrollTop = 0;
+}
+
+// Was ist aus dem Skript geworden? Wartet es noch, hat sich ein Server gemeldet, ist der Schlüssel verbraucht?
+function srvFillScriptState(host) {
+  const script = srvUi.script;
+  host.replaceChildren();
+  if (!script) return;
+  const key = (srvUi.data?.keys || []).find((k) => k.id === script.key_id);
+  const joined = (key?.servers || []);
+  let text;
+  if (!key) text = tr("Dieser Schlüssel ist nicht mehr bekannt.");
+  else if (joined.length) {
+    const names = joined.map((x) => x.name).join(", ");
+    text = key.active ? tr("{0} von {1} Servern angemeldet: {2}. Das Skript gilt noch für weitere.", key.uses, key.max_uses, names) : tr("Angemeldet: {0}. Der Schlüssel ist verbraucht.", names);
+  } else if (key.active) text = tr("Wartet darauf, dass der Server das Skript ausführt …");
+  else text = tr("Der Schlüssel gilt nicht mehr (abgelaufen oder widerrufen).");
+  const line = node("p", key && joined.length ? "srv-script-state done" : "srv-script-state", text);
+  line.setAttribute("role", "status");
+  host.append(line);
+  if (joined.some((x) => x.state === "pending")) {
+    const go = node("button", "pill primary small", tr("Zur Übersicht und bestätigen"));
+    go.type = "button";
+    go.addEventListener("click", () => { srvUi.tab = "overview"; srvUi.script = null; rememberDetail("overview"); renderServers(); });
+    host.append(go);
+  }
+}
+
 function renderScriptResult(script, hub) {
   const box = node("section", "srv-script");
   box.append(node("h3", "", tr("Dein Skript")));
+  const stateHost = node("div", "srv-script-status");
+  srvFillScriptState(stateHost);
+  if (srvUi.live) srvUi.live.state = stateHost;
+  box.append(stateHost);
   box.append(node("p", "srv-note", tr("Enthält einen geheimen Schlüssel für {0} Server, gültig bis {1}. Nicht weitergeben und nicht in Chats oder Tickets einfügen.", script.uses, srvTime(script.expires))));
   const area = node("textarea", "srv-code");
   area.readOnly = true;

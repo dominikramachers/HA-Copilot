@@ -529,9 +529,17 @@ class ServerRepo:
 
     def key_list(self) -> list[dict[str, Any]]:
         rows = self._q("SELECT id, label, created_by, created_at, expires_at, max_uses, uses, revoked_at FROM server_keys ORDER BY created_at DESC LIMIT 50")
+        joined: dict[str, list[dict[str, str]]] = {}
+        for server in self._q("SELECT id, name, state, key_id FROM servers WHERE key_id != '' ORDER BY created_at"):
+            joined.setdefault(server["key_id"], []).append({"id": server["id"], "name": server["name"], "state": server["state"]})
         for row in rows:
             row["active"] = self._key_valid(row)
+            row["servers"] = joined.get(row["id"], [])  # Server, die sich mit diesem Schlüssel angemeldet haben
         return rows
+
+    def key_row(self, key_id: str) -> dict[str, Any] | None:
+        rows = self._q("SELECT id, label, created_by, created_at, expires_at, max_uses, uses, revoked_at FROM server_keys WHERE id = ?", (key_id,))
+        return rows[0] if rows else None
 
     def key_revoke(self, key_id: str) -> bool:
         return self._x("UPDATE server_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", (_now(), key_id)) > 0
@@ -580,6 +588,8 @@ class AgentConn:
 
 
 Notify = Callable[[str, str], Awaitable[None]]  # (Titel, Text) -> Meldung in Home Assistant
+Pending = Callable[[dict[str, Any], dict[str, Any]], Awaitable[None]]  # (neuer Server, verwendeter Schlüssel) -> Hinweis an die Person
+SCRIPT_CACHE_MAX = 30  # so viele Skripte hält der Hub gleichzeitig im Arbeitsspeicher
 
 
 class ServerHub:
@@ -598,8 +608,33 @@ class ServerHub:
         self._download_limit = RateLimiter(30, 600)
         self._offers: dict[str, tuple[tuple[int, int, int, int], dict[str, Any]]] = {}
         self.notify: Notify | None = None
+        self.on_pending: Pending | None = None  # ein neuer Server wartet auf Bestätigung (gesetzt von main.py)
+        self._scripts: dict[str, dict[str, Any]] = {}  # Installationsskripte je Schlüssel, nur im Arbeitsspeicher
         self._server: Any = None
         self.port = 0
+
+    # -- Installationsskripte (nur im Arbeitsspeicher: solange der Schlüssel gilt, bleibt das Skript abrufbar)
+
+    def script_remember(self, key_id: str, script: str, filename: str, expires: str, uses: int) -> None:
+        """Skript zum Schlüssel merken. Es steht nie auf der Platte und verschwindet mit einem Neustart des Add-ons."""
+        self.script_prune()
+        while len(self._scripts) >= SCRIPT_CACHE_MAX:
+            self._scripts.pop(next(iter(self._scripts)))
+        self._scripts[key_id] = {"script": script, "filename": filename, "expires": expires, "uses": uses}
+
+    def script_prune(self) -> None:
+        """Skripte verwerfen, deren Schlüssel nicht mehr gilt (abgelaufen, widerrufen oder aufgebraucht)."""
+        for key_id in list(self._scripts):
+            row = self.repo.key_row(key_id)
+            if row is None or not self.repo._key_valid(row):
+                del self._scripts[key_id]
+
+    def script_has(self, key_id: str) -> bool:
+        return key_id in self._scripts
+
+    def script_get(self, key_id: str) -> dict[str, Any] | None:
+        self.script_prune()
+        return self._scripts.get(key_id)
 
     # -- Zustand
 
@@ -964,6 +999,11 @@ class ServerHub:
         log.info("Server-Hub: %s (%s) hat sich angemeldet und wartet auf Bestätigung", name, peer)
         await self._send(ws, {"t": "enrolled", "server_id": server_id, "cert": cert_pem, "ca": self.pki.ca_pem})
         await ws.close(1000, "enrolled")
+        if self.on_pending is not None:
+            try:
+                await self.on_pending({"id": server_id, "name": name}, key)
+            except Exception:  # der Hinweis darf die Anmeldung nie stören
+                log.warning("Server-Hub: Hinweis auf wartenden Server fehlgeschlagen", exc_info=True)
 
     async def _agent(self, ws: Any, peer: str) -> None:
         ssl_object = ws.transport.get_extra_info("ssl_object")

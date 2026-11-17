@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.63.0",
+    "items": [
+      {
+        "de": {
+          "title": "Server melden sich bei dir",
+          "text": "Wenn ein neuer Server auf deine Bestätigung wartet und du die App gerade nicht offen hast, sage ich dir per Handy-Meldung Bescheid."
+        },
+        "en": {
+          "title": "Servers get in touch",
+          "text": "When a new server is waiting for your approval and you do not have the app open, I let you know with a message on your phone."
+        }
+      },
+      {
+        "de": {
+          "title": "Server-Seite aktualisiert sich",
+          "text": "Die Seite zum Einrichten neuer Server zeigt jetzt von selbst, wenn sich ein Server gemeldet hat. Dein Skript kannst du wieder anzeigen, solange es noch gilt."
+        },
+        "en": {
+          "title": "Server page updates itself",
+          "text": "The page for adding new servers now shows by itself when a server has reported in. You can show your script again as long as it is still valid."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.62.0",
     "items": [
       {
