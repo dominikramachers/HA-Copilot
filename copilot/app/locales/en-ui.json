@@ -1433,5 +1433,17 @@
  "Angemeldet: {0}. Der Schlüssel ist verbraucht.": "Registered: {0}. The key is used up.",
  "Wartet darauf, dass der Server das Skript ausführt …": "Waiting for the server to run the script …",
  "Der Schlüssel gilt nicht mehr (abgelaufen oder widerrufen).": "The key is no longer valid (expired or revoked).",
- "Zur Übersicht und bestätigen": "Go to overview and confirm"
+ "Zur Übersicht und bestätigen": "Go to overview and confirm",
+ "Beim Speichern entsteht eine neue Fassung dieser Datei.": "Saving creates a new version of this file.",
+ "Die Datei konnte nicht geöffnet werden.": "The file could not be opened.",
+ "Diese Datei lässt sich hier nicht bearbeiten.": "This file cannot be edited here.",
+ "Für diese Dateiart gibt es keine Vorschau.": "There is no preview for this type of file.",
+ "Gespeichert als neue Fassung.": "Saved as a new version.",
+ "Gezeigt werden die ersten {0} Zeilen.": "Showing the first {0} rows.",
+ "In dieser Datei wurde kein Text gefunden.": "No text was found in this file.",
+ "Neueste Fassung": "Latest version",
+ "Nur der Anfang der Datei wird gezeigt. Zum Bearbeiten bitte herunterladen.": "Only the beginning of the file is shown. Please download it to edit.",
+ "Text kopieren": "Copy text",
+ "Textvorschau: Formatierung und Layout siehst du in der heruntergeladenen Datei.": "Text preview: you will see formatting and layout in the downloaded file.",
+ "Word, Excel, PowerPoint und PDF lassen sich hier nur ansehen. Änderungen übernimmt die KI auf Wunsch.": "Word, Excel, PowerPoint and PDF can only be viewed here. The AI makes changes on request."
 }

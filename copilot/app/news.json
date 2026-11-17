@@ -11,6 +11,16 @@
           "title": "Fewer server messages",
           "text": "When a server stops reporting, I no longer write it to the Home Assistant bell. You still see it under Activity. If you need it, you can switch it back on."
         }
+      },
+      {
+        "de": {
+          "title": "Meine Dateien öffnen im Fenster",
+          "text": "Skripte, Texte und Dokumente, die ich dir erstelle, öffnen jetzt neben dem Chat. Du siehst eine Vorschau, kannst sie ändern, kopieren und herunterladen."
+        },
+        "en": {
+          "title": "My files open in a window",
+          "text": "Scripts, texts and documents I create for you now open next to the chat. You can see a preview, change them, copy them and download them."
+        }
       }
     ]
   },
