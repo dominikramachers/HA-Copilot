@@ -43,12 +43,13 @@ def handler(b, name):
 
 def test_upload_keeps_the_original_and_serves_it_back(client, store):
     pid = project(client)
-    r = upload(client, pid, "angebot.docx", docx_bytes())
+    original = docx_bytes()  # nur einmal erzeugen: die Datei trägt einen Zeitstempel, ein zweiter Aufruf kann in der nächsten Sekunde anders ausfallen
+    r = upload(client, pid, "angebot.docx", original)
     assert r.status_code == 200 and r.json()["added"] == ["angebot.docx"]
     entry = client.get(f"/api/projects/{pid}/knowledge", headers=as_user(DORA)).json()["files"][0]
     assert entry["has_file"] and entry["origin"] == "upload" and "Heizung" in store.knowledge_texts("dora", pid)[0][1]
     got = client.get(f"/api/projects/{pid}/knowledge/{entry['id']}/file", headers=as_user(DORA))
-    assert got.status_code == 200 and got.content == docx_bytes() and "attachment" in got.headers["content-disposition"]
+    assert got.status_code == 200 and got.content == original and "attachment" in got.headers["content-disposition"]
     assert "sandbox" in got.headers["content-security-policy"]
     # fremde Person kommt nicht an das Original
     assert client.get(f"/api/projects/{pid}/knowledge/{entry['id']}/file", headers=as_user(ADM01)).status_code == 404
