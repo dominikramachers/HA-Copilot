@@ -51,8 +51,17 @@ def register_server_routes(
                 "port": HUB_PORT, "address": settings.server_hub_address, "fingerprint": hub.pki.ca_fingerprint if hub.pki.dir.exists() else "",
                 "agents": sorted(hub.agent_binaries()), "agent_version": hub.agent_version(), "signed": bool(hub.update_key()),
             },
-            "keys": hub.repo.key_list(),
+            "keys": [{**k, "has_script": k["active"] and hub.script_has(k["id"])} for k in hub.repo.key_list()],
         }
+
+    @app.get("/api/servers/keys/{key_id}/script")
+    def servers_key_script(key_id: str, profile: Profile = Depends(current_profile)) -> JSONResponse:
+        """Das Skript zu einem noch gültigen Schlüssel erneut abrufen (nur aus dem Arbeitsspeicher des Hubs)."""
+        found = hub.script_get(key_id)
+        row = hub.repo.key_row(key_id)
+        if found is None or row is None:
+            raise HTTPException(status_code=404, detail=tr("Dieses Skript ist nicht mehr abrufbar: Der Schlüssel ist verbraucht, abgelaufen oder widerrufen, oder das Add-on wurde neu gestartet. Erstelle ein neues Skript."))
+        return JSONResponse({**found, "key_id": key_id}, headers={"Cache-Control": "no-store"})
 
     @app.patch("/api/servers/{server_id}", dependencies=[Depends(write_guard)])
     def servers_rename(server_id: str, body: RenameBody, profile: Profile = Depends(current_profile)) -> dict:
@@ -145,6 +154,7 @@ def register_server_routes(
             expires=expires.replace("T", " ").replace("+00:00", " UTC"), max_uses=body.max_uses, name=(body.name or "").strip(), changes=body.changes,
             auto_update=body.auto_update, update_key=hub.update_key() if body.signed_updates else "",
         )
+        hub.script_remember(key_id, script, "install-copilot-agent.sh", expires, body.max_uses)
         return JSONResponse(
             {"script": script, "filename": "install-copilot-agent.sh", "key_id": key_id, "expires": expires},
             headers={"Cache-Control": "no-store"},

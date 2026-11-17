@@ -1295,7 +1295,6 @@
  "Das Skript gilt": "The script is valid for",
  "Das Skript konnte nicht erstellt werden.": "The script could not be created.",
  "Dein Skript": "Your script",
- "Deine Linux-Server melden sich hier von selbst. Die KI darf sie nur ansehen, nichts verändern.": "Your Linux servers report here by themselves. The AI may only look at them, not change anything.",
  "Der Agent baut die Verbindung selbst auf und prüft den Hub über diesen Fingerabdruck. Wenn sich der Fingerabdruck ändert, ist die CA neu erzeugt worden und alle Server müssen neu angemeldet werden.": "The agent opens the connection itself and checks the hub using this fingerprint. If the fingerprint changes, the CA was created anew and all servers have to be enrolled again.",
  "Der Schlüssel ist widerrufen.": "The key has been revoked.",
  "Der Schlüssel wird nach so vielen Anmeldungen ungültig.": "The key becomes invalid after this many enrolments.",
@@ -1423,5 +1422,16 @@
  "von der KI festgehalten": "saved by the AI",
  "Nur der Anfang wird angezeigt, die Datei ist sehr lang.": "Only the beginning is shown, the file is very long.",
  "Text der Notiz": "Text of the note",
- "KI": "AI"
+ "KI": "AI",
+ "Deine Linux-Server melden sich hier von selbst. Die KI sieht sie an und ändert etwas nur nach deiner Freigabe im Chat.": "Your Linux servers report here by themselves. The AI looks at them and only changes something after your approval in the chat.",
+ "angemeldet": "registered",
+ "Das Skript ist nicht mehr abrufbar (das Add-on wurde neu gestartet). Widerrufe den Schlüssel und erstelle ein neues.": "The script is no longer available (the add-on was restarted). Revoke the key and create a new one.",
+ "Skript anzeigen": "Show script",
+ "Das Skript konnte nicht geladen werden.": "The script could not be loaded.",
+ "Dieser Schlüssel ist nicht mehr bekannt.": "This key is no longer known.",
+ "{0} von {1} Servern angemeldet: {2}. Das Skript gilt noch für weitere.": "{0} of {1} servers registered: {2}. The script is still valid for more.",
+ "Angemeldet: {0}. Der Schlüssel ist verbraucht.": "Registered: {0}. The key is used up.",
+ "Wartet darauf, dass der Server das Skript ausführt …": "Waiting for the server to run the script …",
+ "Der Schlüssel gilt nicht mehr (abgelaufen oder widerrufen).": "The key is no longer valid (expired or revoked).",
+ "Zur Übersicht und bestätigen": "Go to overview and confirm"
 }
