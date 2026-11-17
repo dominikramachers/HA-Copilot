@@ -207,6 +207,9 @@ configuration:
       hub_address:
         name: Hub address (optional)
         description: 'Name or IP address (optionally with :port) under which the servers reach the hub, e.g. ha.example.lan or 10.20.0.5:8101. It goes into the install script. Empty: the app suggests the address you opened it with; you can change it there before generating.'
+      ha_notifications:
+        name: Notifications in Home Assistant
+        description: 'Off (default): the hub writes nothing to the Home Assistant bell, for example that a server has not reported for more than 90 seconds (a monitoring tool such as Zabbix usually covers that; the Servers page still shows it under “Activity”). On: such messages also appear as a notification in Home Assistant. The phone notice for a new, waiting server is not affected.'
   look:
     name: Personalisation
     description: 'All optional: name, language, sign-in page, logo and colours.'

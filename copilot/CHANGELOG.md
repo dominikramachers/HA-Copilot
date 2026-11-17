@@ -1,5 +1,12 @@
 # Änderungen
 
+## 0.63.1
+Server-Hub meldet Ausfälle nicht mehr in Home Assistant (Standard).
+- Neue Option `servers.ha_notifications` (Standard `false`, in `config.yaml`, `translations/de.yaml`/`en.yaml`, `Settings.server_ha_notifications`). Aus: `hub_notifier()` liefert `None`, der Hub legt keine `persistent_notification` mehr an („Server … ist offline“, 90 Sekunden ohne Meldung) und der Ersatz für den Handy-Hinweis bei wartendem Server (nur ohne Gerät) entfällt ebenfalls. Der Eintrag im Reiter „Aktivität“ (`audit_add("event", …)`) bleibt in jedem Fall. An: Verhalten wie bis 0.63.0.
+- Die Meldung aufs Handy bei einem neuen, wartenden Server ist davon unberührt.
+- Wer die Meldungen bisher genutzt hat, setzt `servers.ha_notifications: true`.
+- Tests: `tests/test_server_page.py` (Standard aus, Prüfung der Option, `hub_notifier`, Ausfall wird ohne Option nur protokolliert).
+
 ## 0.63.0
 Chat: Die Aktionen der KI stehen wie bei Claude in einer ruhigen Zeile mit Pfeil; aufgeklappt sieht man jeden Schritt. Projekte: Die KI hält Wichtiges selbstständig im Projektkontext fest und schlägt dort von sich aus nach. Server-Seite: Skript wieder abrufbar, Seite erneuert sich beim Onboarding, Hinweis aufs Handy bei wartendem Server, Kopfzeile korrigiert.
 - **Eine Zeile statt Knopf.** Die Zusammenfassung über der Antwort (`actionsEl`) ist kein grau hinterlegter Knopf mehr, sondern eine gedämpfte Textzeile mit Pfeil **hinter** dem Text (`.act-log > summary::after`, dreht sich beim Öffnen; Farbe `--text-2`, beim Darüberfahren `--text`). Aufgeklappt steht die Liste der Schritte eingerückt neben einer dünnen Linie (`.act-list`, `border-left`).

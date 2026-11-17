@@ -175,6 +175,7 @@ class Settings:
     # Linux-Server: ein zentraler Hub im Add-on, die Agenten auf den Servern melden sich dort (siehe servers.py)
     servers_enabled: bool = False  # Hub einschalten (lauscht auf Port 8101); aus = kein Listener, die Seite „Server“ bleibt verborgen
     server_access_default: str = "off"  # wer auf Server zugreifen darf (on | off), pro Benutzer überschreibbar (server_access)
+    server_ha_notifications: bool = False  # Meldungen des Hubs in der Glocke von Home Assistant (Server offline u. Ä.); Standard aus, Zabbix & Co. melden das schon
     server_hub_address: str = ""  # Adresse, unter der die Server den Hub erreichen (Name oder IP, optional mit :Port); leer = die Oberfläche schlägt eine vor
     # Domain-Zugang (nur relevant, wenn public_enabled)
     public_base_url: str = ""
@@ -535,13 +536,16 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
     voice_access_default = str(voice.get("access_default") or "off").strip().lower()
     if voice_access_default not in VOICE_ACCESS_LEVELS:
         raise ConfigError("voice.access_default muss on oder off sein")
-    servers = _group(raw, "servers", "enabled, access_default, hub_address")
+    servers = _group(raw, "servers", "enabled, access_default, hub_address, ha_notifications")
     server_access_default = str(servers.get("access_default") or "off").strip().lower()
     if server_access_default not in SERVER_ACCESS_LEVELS:
         raise ConfigError("servers.access_default muss on oder off sein")
     servers_enabled = servers.get("enabled", False)
     if not isinstance(servers_enabled, bool):
         raise ConfigError("servers.enabled muss true oder false sein")
+    server_ha_notifications = servers.get("ha_notifications", False)
+    if not isinstance(server_ha_notifications, bool):
+        raise ConfigError("servers.ha_notifications muss true oder false sein")
     server_hub_address = str(servers.get("hub_address") or "").strip().lower()
     if server_hub_address and not _HUB_ADDRESS_RE.match(server_hub_address):
         raise ConfigError("servers.hub_address muss ein Name oder eine IP-Adresse sein, optional mit :Port (z. B. ha.example.lan oder 10.20.0.5:8101)")
@@ -683,6 +687,7 @@ def parse_settings(raw: dict[str, Any], ingress_peers: frozenset[str] | None = N
         voice_access_default=voice_access_default,
         servers_enabled=servers_enabled,
         server_access_default=server_access_default,
+        server_ha_notifications=server_ha_notifications,
         server_hub_address=server_hub_address,
         voice_output=voice_output,
         voice_browser_stt=bool(voice.get("browser_stt", True)),

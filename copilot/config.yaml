@@ -1,5 +1,5 @@
 name: HA Copilot
-version: "0.63.0"
+version: "0.63.1"
 slug: copilot
 url: https://github.com/dominikramachers/HA-Copilot
 description: Privater KI-Chat in Home Assistant mit getrennten Chats pro Profil
@@ -94,6 +94,7 @@ options:
     enabled: false
     access_default: "off"
     hub_address: ""
+    ha_notifications: false
   look:
     app_name: HA Copilot
     language: de
@@ -176,6 +177,7 @@ schema:
     enabled: bool?
     access_default: list(on|off)?
     hub_address: str?
+    ha_notifications: bool?
   look:
     app_name: str?
     language: list(de|en)?
