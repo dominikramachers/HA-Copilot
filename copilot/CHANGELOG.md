@@ -1,11 +1,16 @@
 # Änderungen
 
 ## 0.63.1
-Server-Hub meldet Ausfälle nicht mehr in Home Assistant (Standard).
+Server-Hub meldet Ausfälle nicht mehr in Home Assistant (Standard). Chat: Dateien der KI öffnen wie bei Claude in einem Fenster neben dem Chat, mit Vorschau, Bearbeiten, Kopieren und Herunterladen.
 - Neue Option `servers.ha_notifications` (Standard `false`, in `config.yaml`, `translations/de.yaml`/`en.yaml`, `Settings.server_ha_notifications`). Aus: `hub_notifier()` liefert `None`, der Hub legt keine `persistent_notification` mehr an („Server … ist offline“, 90 Sekunden ohne Meldung) und der Ersatz für den Handy-Hinweis bei wartendem Server (nur ohne Gerät) entfällt ebenfalls. Der Eintrag im Reiter „Aktivität“ (`audit_add("event", …)`) bleibt in jedem Fall. An: Verhalten wie bis 0.63.0.
 - Die Meldung aufs Handy bei einem neuen, wartenden Server ist davon unberührt.
 - Wer die Meldungen bisher genutzt hat, setzt `servers.ha_notifications: true`.
 - Tests: `tests/test_server_page.py` (Standard aus, Prüfung der Option, `hub_notifier`, Ausfall wird ohne Option nur protokolliert).
+- **Dateien im Fenster (Chat).** Ein Klick auf die Dateikarte unter einer Antwort (Skript, Markdown, CSV, Word, PDF …) lädt die Datei nicht mehr sofort herunter, sondern öffnet sie im selben Fenster wie Artefakte (`#artifact-panel`, `openFile`/`drawFile` in `app.js`; es ist immer nur ein Artefakt oder eine Datei offen). Der Pfeil rechts auf der Karte lädt weiter direkt herunter (`.file-card` mit `.out-open` und `.out-get`; die Karte ist jetzt ein `div` mit zwei Knöpfen).
+- **Vorschau je Dateiart.** Markdown und HTML wie bei Artefakten (HTML abgeschottet ohne Netzwerk), SVG als Bild, CSV/TSV als Tabelle (erste 500 Zeilen), alle übrigen Textdateien (`.sh`, `.ps1`, `.py`, `.json`, `.yaml` …) als Code. Word, Excel, PowerPoint und PDF zeigen ihren Text (`office.*_to_text`, `pdf_to_text`), nur zum Lesen, mit dem Hinweis, dass Formatierung und Layout in der heruntergeladenen Datei stehen.
+- **Selbst bearbeiten.** Bei Textdateien gibt es im Reiter „Code“ **Bearbeiten**; **Speichern** legt eine neue Fassung unter demselben Namen an (`outfile_add`, die Karte im Chat zeigt ab dann die neue Fassung). Zeilenenden und BOM bleiben wie beim Erzeugen (`render_text`: `.bat`/`.cmd`/`.reg` mit CRLF, `.ps1`/`.csv` mit BOM). Bearbeitet wird nur die neueste Fassung; ältere Karten öffnen automatisch die neueste. Grenze 200 000 Zeichen, sonst nur Ansicht.
+- **Neu im Server.** `GET /api/files/{id}/text` (Inhalt, `kind` = `text`/`extract`, `editable`, `latest_id`; 404 bei fremden oder abgelaufenen Dateien, 415 ohne Vorschau) und `PUT /api/files/{id}/text` (nur Textdateien, 409 bei älterer Fassung oder vollem Speicher), neues Modul `filepreview.py`, `Store.outfile_info()`; Anfragegrenze wie bei Artefakten (700 KB).
+- Tests: `tests/test_file_preview.py` (Aufbereitung, Zeilenenden/BOM, Lesen, Bearbeiten, neue Fassung, Rechte, abgelaufen); neue Texte mit englischer Übersetzung in `locales/en-ui.json` und `en.json`.
 
 ## 0.63.0
 Chat: Die Aktionen der KI stehen wie bei Claude in einer ruhigen Zeile mit Pfeil; aufgeklappt sieht man jeden Schritt. Projekte: Die KI hält Wichtiges selbstständig im Projektkontext fest und schlägt dort von sich aus nach. Server-Seite: Skript wieder abrufbar, Seite erneuert sich beim Onboarding, Hinweis aufs Handy bei wartendem Server, Kopfzeile korrigiert.

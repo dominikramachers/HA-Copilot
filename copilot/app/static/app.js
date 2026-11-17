@@ -5048,24 +5048,48 @@ async function downloadOutFile(file, card) {
   }
 }
 
+// Klick auf die Karte öffnet die Datei im Fenster neben dem Chat (Vorschau, Bearbeiten, Kopieren); der Pfeil rechts lädt sie herunter.
 function fileCard(file) {
   const [label, tone] = fileTypeOf(file.name);
-  const card = node("button", `out-card tone-${tone}${file.gone ? " gone" : ""}`);
-  card.type = "button";
-  card.disabled = !!file.gone;
-  card.setAttribute("aria-label", file.gone ? tr("{0} (abgelaufen)", file.name) : tr("{0} herunterladen", file.name));
+  const card = node("div", `out-card file-card tone-${tone}${file.gone ? " gone" : ""}${fileUi.id && fileUi.file && fileUi.file.id === file.id ? " open" : ""}`);
+  card.dataset.file = file.id;
+  const open = node("button", "out-open");
+  open.type = "button";
+  open.disabled = !!file.gone;
+  open.setAttribute("aria-label", file.gone ? tr("{0} (abgelaufen)", file.name) : tr("{0} öffnen", file.name));
   const tile = node("span", "out-tile");
   tile.append(icon("file"));
   const meta = node("span", "out-meta");
   meta.append(node("b", "", file.name), node("small", "", file.gone ? tr("Abgelaufen") : `${label} · ${formatSize(file.size)}`));
-  const get = node("span", "out-get");
+  open.append(tile, meta);
+  const get = node("button", "out-get");
+  get.type = "button";
+  get.disabled = !!file.gone;
+  get.title = tr("Herunterladen");
+  get.setAttribute("aria-label", file.gone ? tr("{0} (abgelaufen)", file.name) : tr("{0} herunterladen", file.name));
   get.append(icon("download"));
-  card.append(tile, meta, get);
-  card.addEventListener("click", () => downloadOutFile(file, card));
+  open.addEventListener("click", () => openFile(file, card).catch(() => toast(tr("Die Datei konnte nicht geöffnet werden."))));
+  get.addEventListener("click", () => downloadOutFile(file, card));
+  card.append(open, get);
   return card;
 }
 
 // In einem Projekt-Chat steht neben der Dateikarte ein Knopf, der die Datei im Projekt ablegt (dann bleibt sie, statt nach einigen Tagen abzulaufen).
+async function saveFileToProject(file, button) {
+  const chat = state.chats.find((c) => c.id === state.activeId);
+  if (!chat) return;
+  button.disabled = true;
+  try {
+    const answer = await api(`api/chats/${encodeURIComponent(chat.id)}/files/${encodeURIComponent(file.id)}/to-project`, { method: "POST" });
+    button.classList.add("done");
+    toast(answer.replaced ? tr("Im Projekt ersetzt: {0}", answer.name) : tr("Im Projekt abgelegt: {0}", answer.name));
+    loadAll().catch(() => {});
+  } catch (err) {
+    button.disabled = false;
+    toast(errorText(err, tr("Ablegen hat nicht geklappt.")));
+  }
+}
+
 function fileCardWithSave(file) {
   const card = fileCard(file);
   const chat = state.chats.find((c) => c.id === state.activeId);
@@ -5076,18 +5100,7 @@ function fileCardWithSave(file) {
   save.title = tr("Im Projekt ablegen");
   save.setAttribute("aria-label", tr("{0} im Projekt ablegen", file.name));
   save.append(icon("stack"));
-  save.addEventListener("click", async () => {
-    save.disabled = true;
-    try {
-      const answer = await api(`api/chats/${encodeURIComponent(chat.id)}/files/${encodeURIComponent(file.id)}/to-project`, { method: "POST" });
-      save.classList.add("done");
-      toast(answer.replaced ? tr("Im Projekt ersetzt: {0}", answer.name) : tr("Im Projekt abgelegt: {0}", answer.name));
-      loadAll().catch(() => {});
-    } catch (err) {
-      save.disabled = false;
-      toast(errorText(err, tr("Ablegen hat nicht geklappt.")));
-    }
-  });
+  save.addEventListener("click", () => saveFileToProject(file, save));
   wrap.append(card, save);
   return wrap;
 }
@@ -5279,6 +5292,8 @@ function artifactKindText(a) {
 }
 
 const artifactUi = { id: null, data: null, tab: "preview", seen: new Set(), editing: false };
+// Erzeugte Dateien öffnen im selben Fenster wie Artefakte; es ist immer nur eins von beiden offen.
+const fileUi = { id: null, data: null, file: null, tab: "preview", editing: false };
 
 function artifactCard(a) {
   const [, ic] = artifactKinds()[a.kind] || [0, "code"];
@@ -5323,6 +5338,10 @@ function closeArtifact() {
   const panel = $("artifact-panel");
   artifactUi.id = null;
   artifactUi.data = null;
+  fileUi.id = null;
+  fileUi.data = null;
+  fileUi.file = null;
+  document.querySelectorAll(".file-card.open").forEach((c) => c.classList.remove("open"));
   panel.hidden = true;
   panel.replaceChildren();
   $("app").classList.remove("with-artifact");
@@ -5331,6 +5350,10 @@ function closeArtifact() {
 
 async function openArtifact(id, version = null, tab = null) {
   const data = await api(`api/artifacts/${encodeURIComponent(id)}${version ? `?version=${version}` : ""}`);
+  fileUi.id = null;
+  fileUi.data = null;
+  fileUi.file = null;
+  document.querySelectorAll(".file-card.open").forEach((c) => c.classList.remove("open"));
   artifactUi.id = id;
   artifactUi.data = data;
   artifactUi.editing = false;
@@ -5531,6 +5554,185 @@ function drawArtifact() {
       });
       foot.append(node("span", "art-foot-text", tr("Das ist eine frühere Version.")), restore);
     } else foot = node("p", "art-foot", tr("Aktuelle Version"));
+  }
+  panel.replaceChildren(head, bar, body, foot);
+}
+
+// ----------------------------------------------------------------------------------------------------------------
+// Dateien im Fenster: Textdateien (Skripte, Markdown, CSV, HTML …) mit Vorschau, Code, Bearbeiten, Kopieren und Herunterladen.
+// Word, Excel, PowerPoint und PDF zeigen ihren Text (nur lesen). Jede eigene Änderung legt auf dem Server eine neue Fassung unter demselben Namen an.
+const FILE_PREVIEW = { md: "markdown", html: "html", htm: "html", svg: "svg", csv: "table", tsv: "table" };
+
+function csvRows(text, delimiter) {
+  const rows = [];
+  let row = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"' && !cell) quoted = true;
+    else if (c === delimiter) { row.push(cell); cell = ""; }
+    else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+function tablePreview(text, delimiter) {
+  const wrap = node("div", "art-preview art-table-wrap");
+  const all = csvRows(text, delimiter);
+  const rows = all.slice(0, 500);
+  const table = node("table", "art-table");
+  const width = Math.max(1, ...rows.map((r) => r.length));
+  rows.forEach((r, index) => {
+    const tr_ = node("tr");
+    for (let i = 0; i < width; i++) tr_.append(node(index === 0 ? "th" : "td", "", r[i] ?? ""));
+    table.append(tr_);
+  });
+  wrap.append(table);
+  if (all.length > rows.length) wrap.append(node("p", "art-note", tr("Gezeigt werden die ersten {0} Zeilen.", rows.length)));
+  return wrap;
+}
+
+function filePreview(data) {
+  const ext = (data.name.split(".").pop() || "").toLowerCase();
+  if (data.kind === "extract") {
+    const wrap = node("div", "art-preview");
+    if (!data.content) wrap.append(node("p", "mem-empty", tr("In dieser Datei wurde kein Text gefunden.")));
+    else {
+      const pre = node("pre", "art-code art-extract");
+      pre.tabIndex = 0;
+      pre.append(node("code", "", data.content));
+      wrap.append(pre);
+    }
+    wrap.append(node("p", "art-note", tr("Textvorschau: Formatierung und Layout siehst du in der heruntergeladenen Datei.")));
+    return wrap;
+  }
+  const mode = FILE_PREVIEW[ext];
+  if (mode === "table") return tablePreview(data.content, ext === "tsv" ? "\t" : ",");
+  return artifactPreview({ kind: mode, content: data.content, title: data.name });
+}
+
+async function openFile(file, card = null) {
+  let data = await api(`api/files/${encodeURIComponent(file.id)}/text`).catch(async (err) => {
+    if (err && err.status === 404) { card?.classList.add("gone"); toast(tr("Diese Datei ist abgelaufen.")); return null; }
+    if (err && err.status === 415) { toast(errorText(err, tr("Für diese Dateiart gibt es keine Vorschau."))); if (card) await downloadOutFile(file, card); return null; }
+    throw err;
+  });
+  if (!data) return;
+  if (data.latest_id !== data.id) data = await api(`api/files/${encodeURIComponent(data.latest_id)}/text`); // immer die neueste Fassung zeigen
+  closeArtifactOnly();
+  fileUi.file = file;
+  fileUi.id = data.id;
+  fileUi.data = data;
+  fileUi.editing = false;
+  fileUi.tab = data.kind === "extract" || FILE_PREVIEW[(data.name.split(".").pop() || "").toLowerCase()] ? "preview" : "code";
+  $("app").classList.add("with-artifact");
+  $("artifact-panel").hidden = false;
+  document.querySelectorAll(".file-card").forEach((c) => c.classList.toggle("open", c.dataset.file === file.id));
+  drawFile();
+}
+
+// Ein geöffnetes Artefakt weicht der Datei, ohne das Fenster zu schließen.
+function closeArtifactOnly() {
+  artifactUi.id = null;
+  artifactUi.data = null;
+  artifactUi.editing = false;
+  document.querySelectorAll(".art-card.open").forEach((c) => c.classList.remove("open"));
+}
+
+function drawFile() {
+  const data = fileUi.data;
+  const panel = $("artifact-panel");
+  if (!data) return;
+  const [kindLabel] = fileTypeOf(data.name);
+  const head = node("div", "art-head");
+  const titleBox = node("div", "art-titles");
+  titleBox.append(node("h2", "art-title", data.name), node("small", "art-sub", `${kindLabel} · ${formatSize(data.size)}`));
+  const close = node("button", "icon-btn art-close");
+  close.type = "button";
+  close.title = tr("Schließen");
+  close.setAttribute("aria-label", tr("Schließen"));
+  close.append(icon("close"));
+  close.addEventListener("click", closeArtifact);
+  head.append(titleBox, close);
+
+  const bar = node("div", "art-bar");
+  const tabs = node("div", "art-tabs");
+  tabs.setAttribute("role", "tablist");
+  const ext = (data.name.split(".").pop() || "").toLowerCase();
+  const tabList = data.kind === "extract" ? [["preview", tr("Vorschau")]] : FILE_PREVIEW[ext] ? [["preview", tr("Vorschau")], ["code", tr("Code")]] : [["code", tr("Code")]];
+  for (const [key, label] of tabList) {
+    const tab = node("button", "skills-tab", label);
+    tab.type = "button";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(fileUi.tab === key));
+    tab.addEventListener("click", () => { fileUi.tab = key; fileUi.editing = false; drawFile(); });
+    tabs.append(tab);
+  }
+  const actions = node("div", "art-actions");
+  const canEdit = data.editable && fileUi.tab === "code" && !fileUi.editing;
+  const edit = canEdit ? actionButton(tr("Selbst bearbeiten"), "edit", "msg-act", () => { fileUi.editing = true; drawFile(); }) : null;
+  const copy = actionButton(data.kind === "extract" ? tr("Text kopieren") : tr("Code kopieren"), "copy", "msg-act", async () => {
+    try {
+      await navigator.clipboard.writeText(data.content);
+      copy.replaceChildren(icon("check"));
+      setTimeout(() => copy.replaceChildren(icon("copy")), 1600);
+    } catch { toast(tr("Kopieren nicht möglich.")); }
+  });
+  const download = actionButton(tr("Herunterladen"), "download", "msg-act", (button) => downloadOutFile({ id: data.id, name: data.name }, button));
+  const chat = state.chats.find((c) => c.id === state.activeId);
+  const toProject = chat && chat.project_id
+    ? actionButton(tr("Im Projekt ablegen"), "folder", "msg-act", (button) => saveFileToProject({ id: data.id, name: data.name }, button))
+    : null;
+  actions.append(...[edit, copy, download, toProject].filter(Boolean));
+  bar.append(tabs, actions);
+
+  const body = node("div", "art-body");
+  let foot;
+  if (fileUi.editing) {
+    const area = node("textarea", "art-edit");
+    area.value = data.content;
+    area.spellcheck = false;
+    area.setAttribute("aria-label", tr("Inhalt bearbeiten"));
+    body.append(area);
+    foot = node("div", "art-foot art-foot-row");
+    const save = node("button", "pill primary small", tr("Speichern"));
+    save.type = "button";
+    save.addEventListener("click", async () => {
+      if (area.value === data.content) { fileUi.editing = false; drawFile(); return; }
+      if (!area.value.trim()) { toast(tr("Der Text darf nicht leer sein.")); return; }
+      save.disabled = true;
+      try {
+        const saved = await api(`api/files/${encodeURIComponent(data.id)}/text`, { method: "PUT", body: JSON.stringify({ content: area.value }) });
+        // Die Karte im Chat zeigt ab jetzt die neue Fassung (sie hält nur die Kennung der Datei).
+        if (fileUi.file) { fileUi.file.id = saved.id; fileUi.file.size = saved.size; }
+        document.querySelectorAll(".file-card").forEach((c) => { if (c.dataset.file === data.id) c.dataset.file = saved.id; });
+        fileUi.id = saved.id;
+        fileUi.data = await api(`api/files/${encodeURIComponent(saved.id)}/text`);
+        fileUi.editing = false;
+        toast(tr("Gespeichert als neue Fassung."));
+        drawFile();
+      } catch (err) { save.disabled = false; toast(errorText(err, tr("Speichern hat nicht geklappt."))); }
+    });
+    const cancel = node("button", "pill ghost small", tr("Abbrechen"));
+    cancel.type = "button";
+    cancel.addEventListener("click", () => { fileUi.editing = false; drawFile(); });
+    foot.append(node("span", "art-foot-text", tr("Beim Speichern entsteht eine neue Fassung dieser Datei.")), cancel, save);
+  } else {
+    if (fileUi.tab === "preview") body.append(filePreview(data));
+    else {
+      const pre = node("pre", "art-code");
+      pre.tabIndex = 0;
+      pre.append(node("code", "", data.content));
+      body.append(pre);
+    }
+    foot = node("p", "art-foot", data.truncated ? tr("Nur der Anfang der Datei wird gezeigt. Zum Bearbeiten bitte herunterladen.")
+      : data.kind === "extract" ? tr("Word, Excel, PowerPoint und PDF lassen sich hier nur ansehen. Änderungen übernimmt die KI auf Wunsch.")
+      : data.editable ? tr("Neueste Fassung") : tr("Diese Datei lässt sich hier nicht bearbeiten."));
   }
   panel.replaceChildren(head, bar, body, foot);
 }

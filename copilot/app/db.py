@@ -2567,6 +2567,26 @@ class Store:
             return None
         return dict(row), path
 
+    def outfile_info(self, profile_id: str, file_id: str) -> dict[str, Any] | None:
+        """Angaben zu einer Datei (nur eigene, nicht abgelaufen), samt der Kennung ihrer neuesten Fassung im selben Chat."""
+        _require(profile_id)
+        if not _FILE_ID.fullmatch(file_id or ""):
+            return None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, chat_id, name, mime, size, origin, created_at, expires_at FROM outfiles WHERE id = ? AND profile_id = ? AND expires_at > ?",
+                (file_id, profile_id, _now()),
+            ).fetchone()
+            if not row:
+                return None
+            latest = self._conn.execute(
+                "SELECT id FROM outfiles WHERE profile_id = ? AND chat_id = ? AND name = ? AND expires_at > ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                (profile_id, row["chat_id"], row["name"], _now()),
+            ).fetchone()
+        info = dict(row)
+        info["latest_id"] = latest["id"] if latest else row["id"]
+        return info
+
     def outfile_bytes(self, profile_id: str, chat_id: str, name: str) -> bytes | None:
         """Inhalt der zuletzt in diesem Chat erzeugten Datei mit diesem Namen (für Commits zu GitHub)."""
         _require(profile_id)

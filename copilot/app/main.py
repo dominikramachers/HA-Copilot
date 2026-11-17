@@ -80,6 +80,7 @@ from .context_tools import is_ai_note as context_is_ai_note
 from .ha_tools import HaToolbox, ToolError
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
 from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox, clean_name
+from . import filepreview
 from . import exporter
 from . import limits as limitlib
 from . import notifier as notifierlib
@@ -196,6 +197,10 @@ class FileBody(BaseModel):
     name: str = Field(max_length=255)
     data: str = Field(max_length=filelib.MAX_BASE64_CHARS)  # Base64; wird nur im Arbeitsspeicher verarbeitet
     pasted: bool = False  # eingefügter langer Text (Textanhang der Person selbst, bleibt im Chat stehen)
+
+
+class FileTextBody(BaseModel):
+    content: str = Field(max_length=filepreview.EDIT_CHARS)
 
 
 class ArtifactBody(BaseModel):
@@ -423,6 +428,7 @@ SEND_PATH = re.compile(r"^/api/chats/[^/]+/send$")
 PREVIEW_PATH = re.compile(r"^/api/previews$")
 ARTIFACT_PATH = re.compile(r"^/api/artifacts/[0-9a-f]{12}$")
 ARTIFACT_BODY_BYTES = 700_000  # CONTENT_MAX Zeichen, im Anfragetext als JSON mit Maskierungen
+FILE_TEXT_PATH = re.compile(r"^/api/files/[0-9a-f]{32}/text$")
 KNOWLEDGE_PATH = re.compile(r"^/api/projects/[^/]+/knowledge$")
 KNOWLEDGE_BODY_BYTES = knowlib.MAX_BASE64_CHARS + 64 * 1024
 SKILLS_PATH = re.compile(r"^/api/skills(/preview)?$")
@@ -457,6 +463,7 @@ class BodyLimit:
             filelib.MAX_BODY_BYTES if SEND_PATH.match(scope["path"])
             else PREVIEW_BODY_BYTES if PREVIEW_PATH.match(scope["path"])
             else ARTIFACT_BODY_BYTES if ARTIFACT_PATH.match(scope["path"])
+            else ARTIFACT_BODY_BYTES if FILE_TEXT_PATH.match(scope["path"])
             else KNOWLEDGE_BODY_BYTES if KNOWLEDGE_PATH.match(scope["path"])
             else skilllib.MAX_BASE64_CHARS + 64 * 1024 if SKILLS_PATH.match(scope["path"])
             else PLUGINS_BODY_BYTES if PLUGINS_PATH.match(scope["path"])
@@ -1864,6 +1871,44 @@ def register_chat_routes(
             path, media_type=meta["mime"], filename=meta["name"], content_disposition_type="attachment",
             headers={"Content-Security-Policy": "sandbox; default-src 'none'", "Cache-Control": "private, no-store"},
         )
+
+    @app.get("/api/files/{file_id}/text")
+    def file_text(file_id: str, profile: Profile = Depends(current_profile)) -> JSONResponse:
+        """Inhalt einer erzeugten Datei für das Fenster neben dem Chat: Text zum Lesen und Bearbeiten, bei Office und PDF nur der enthaltene Text."""
+        found = store.outfile_open(profile.id, file_id)
+        info = store.outfile_info(profile.id, file_id)
+        if found is None or info is None:
+            raise HTTPException(status_code=404, detail=tr("Die Datei ist abgelaufen oder gehört nicht zu diesem Konto."))
+        _, path = found
+        try:
+            shown = filepreview.describe(info["name"], path.read_bytes())
+        except filepreview.PreviewError as exc:
+            raise HTTPException(status_code=415, detail=str(exc)) from None
+        latest = info["latest_id"] == info["id"]
+        shown.update(id=info["id"], name=info["name"], size=info["size"], created_at=info["created_at"], expires_at=info["expires_at"], latest_id=info["latest_id"])
+        shown["editable"] = bool(shown["editable"] and latest)
+        return JSONResponse(shown, headers={"Cache-Control": "private, no-store"})
+
+    @app.put("/api/files/{file_id}/text", dependencies=[Depends(write_guard)])
+    def file_set_text(file_id: str, body: FileTextBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Die Person ändert eine Textdatei selbst: Es entsteht eine neue Fassung unter demselben Namen (die alte bleibt bis zum Ablauf abrufbar)."""
+        info = store.outfile_info(profile.id, file_id)
+        if info is None:
+            raise HTTPException(status_code=404, detail=tr("Die Datei ist abgelaufen oder gehört nicht zu diesem Konto."))
+        if info["latest_id"] != info["id"]:
+            raise HTTPException(status_code=409, detail=tr("Es gibt eine neuere Fassung dieser Datei. Öffne die neueste, um sie zu ändern."))
+        if not body.content.strip():
+            raise HTTPException(status_code=422, detail=tr("Der Text darf nicht leer sein."))
+        try:
+            data = filepreview.encode(info["name"], body.content)
+        except filepreview.PreviewError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        if store.outfile_usage(profile.id) + len(data) > MAX_PROFILE_BYTES:
+            raise HTTPException(status_code=409, detail=tr("Der Speicher für erzeugte Dateien ist voll."))
+        meta = store.outfile_add(profile.id, info["chat_id"], info["name"], info["mime"], data, settings.files_keep_days)
+        if meta is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return {"id": meta["id"], "name": meta["name"], "size": meta["size"]}
 
     @app.get("/api/chats/{chat_id}/messages")
     def messages(chat_id: str, profile: Profile = Depends(current_profile)) -> list[dict]:
