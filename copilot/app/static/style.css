@@ -1765,6 +1765,11 @@ select.art-lib-project { flex: none; width: auto; min-width: 150px; max-width: 4
 .srv-key:first-of-type { margin-top: 8px; }
 .srv-key-text { min-width: 0; }
 .srv-key-text small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.srv-key-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.srv-script-status { margin: 6px 0 2px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.srv-script-state { margin: 0; font-size: 13.5px; color: var(--muted); }
+.srv-script-state.done { color: color-mix(in srgb, var(--ok, #2e9d5b) 75%, var(--text)); font-weight: 600; }
+@media (max-width: 640px) { .srv-key { flex-wrap: wrap; } .srv-key-buttons { justify-content: flex-start; } }
 .srv-print { display: block; margin-top: 6px; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; color: var(--text-2); }
 @media (max-width: 800px) {
   .srv-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }

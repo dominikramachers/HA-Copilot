@@ -1008,7 +1008,8 @@ function presenceClient() {
 
 function syncPresence() {
   if (!state.me) return;
-  const target = state.view === "chat" && !document.hidden && state.activeId ? state.activeId : null;
+  // Im Chat: dessen Kennung. Auf jeder anderen Seite (zum Beispiel „Server“): „view:<Seite>“, damit der Server weiß, dass die Person da ist.
+  const target = document.hidden ? null : (state.view === "chat" ? state.activeId || "view:chat" : `view:${state.view}`);
   const stale = Date.now() - presence.at > 20000;
   if (target === presence.sent && !(target && stale)) return;
   presence.sent = target;

@@ -15,7 +15,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 import weakref
 
@@ -51,6 +51,11 @@ class Presence:
     def watching(self, profile_id: str, chat_id: str) -> bool:
         self._expire(profile_id)
         return any(chat == chat_id for chat, _ in self._seen.get(profile_id, {}).values())
+
+    def active(self, profile_id: str) -> bool:
+        """Hat die Person die Oberfläche gerade irgendwo sichtbar offen (egal ob Chat oder eine andere Seite)?"""
+        self._expire(profile_id)
+        return bool(self._seen.get(profile_id))
 
     def _expire(self, profile_id: str) -> None:
         clients = self._seen.get(profile_id)
@@ -209,6 +214,51 @@ class Notifier:
         if sent:
             self._sent[(profile.id, chat_id)] = sent
         return bool(sent)
+
+    def spawn_text(self, profile: Profile, tag: str, title: str, message: str, *, fallback: Callable[[], Awaitable[None]] | None = None) -> None:
+        """Im Hintergrund: einen Hinweis aufs Handy schicken, falls die Person die Oberfläche gerade nicht offen hat."""
+        task = asyncio.ensure_future(self._text_then_fallback(profile, tag, title, message, fallback))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _text_then_fallback(self, profile: Profile, tag: str, title: str, message: str, fallback: Callable[[], Awaitable[None]] | None) -> None:
+        try:
+            result = await self.announce_text(profile, tag, title, message)
+            if result == "nodevice" and fallback is not None:
+                await fallback()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.warning("Hinweis aufs Handy fehlgeschlagen", exc_info=True)
+
+    async def announce_text(self, profile: Profile, tag: str, title: str, message: str) -> str:
+        """Hinweis ohne Chat (zum Beispiel „Ein Server wartet“). Ergebnis: ``sent`` (rausgegangen), ``present`` (die Person ist in der
+        Oberfläche, nichts nötig), ``off`` (Meldungen ausgeschaltet) oder ``nodevice`` (kein Gerät oder Home Assistant nicht erreichbar)."""
+        if not self.enabled(profile):
+            return "off"
+        if self.presence.active(profile.id):
+            return "present"
+        if self.delay > 0:
+            await asyncio.sleep(self.delay)  # Schonfrist: ein Neuladen oder Seitenwechsel löst nichts aus
+            if self.presence.active(profile.id):
+                return "present"
+        devices = await self.selected(profile) if self.available else []
+        if not devices:
+            return "nodevice"
+        data: dict[str, Any] = {"tag": tag, "group": "copilot"}
+        base = self.settings.public_base_url
+        if base:
+            data.update(url=base, clickAction=base)
+        payload = {"title": title[:120], "message": message[:300], "data": data}
+        sent = 0
+        for device in devices:
+            _, _, name = device.partition(".")
+            try:
+                await self.ha.call({"type": "call_service", "domain": "notify", "service": name, "service_data": payload})  # type: ignore[union-attr]
+                sent += 1
+            except HaApiError as exc:
+                log.warning("Benachrichtigung an %s fehlgeschlagen: %s", device, exc)
+        return "sent" if sent else "nodevice"
 
     async def clear(self, profile_id: str, chat_id: str) -> None:
         """Der Chat wurde gelesen: die Meldung von den Geräten entfernen."""

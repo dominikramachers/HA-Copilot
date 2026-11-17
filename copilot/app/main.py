@@ -1005,6 +1005,25 @@ def register_chat_routes(
         scheduler.server_hub = server_hub
         scheduler.server_allowed = server_allowed
 
+    async def server_pending(server: dict, key: dict) -> None:
+        """Ein neuer Server wartet auf Bestätigung: Meldung aufs Handy der Person, die das Skript erstellt hat (bei ihr gilt der Name als
+        „erstellt von“); ist sie nicht mehr zu finden oder darf keine Server verwalten, an alle, die es dürfen. Wer die Oberfläche gerade
+        offen hat, braucht keine Meldung. Geht es nicht aufs Handy (kein Gerät, Home Assistant nicht erreichbar), erscheint sie in Home Assistant."""
+        creator = [p for p in settings.profiles if (p.label or p.id) == key.get("created_by")]
+        recipients = [p for p in creator if await server_allowed(p)]
+        if not recipients:
+            recipients = [p for p in settings.profiles if await server_allowed(p)]
+        title = tr("Neuer Server wartet auf Bestätigung")
+        message = tr("{name} hat sich gemeldet. Bestätige ihn in der Server-Übersicht.", name=server["name"])
+
+        async def fallback() -> None:
+            if server_hub.notify is not None:
+                await server_hub.notify(title, message)
+        for profile in recipients:
+            notifier.spawn_text(profile, f"copilot-server-{server['id']}", title, message, fallback=fallback)
+
+    server_hub.on_pending = server_pending
+
     async def server_profile(profile: Profile = Depends(current_profile)) -> Profile:
         if not await server_allowed(profile):
             raise HTTPException(status_code=403, detail=tr("Kein Zugriff"))
