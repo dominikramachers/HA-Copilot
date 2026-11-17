@@ -768,5 +768,6 @@
  "package muss ein Paketname sein (ohne Versionsangabe und Platzhalter).": "package must be a package name (without a version or wildcards).",
  "path muss ein absoluter Pfad sein, z. B. /etc/nginx/conf.d/site.conf.": "path must be an absolute path, e.g. /etc/nginx/conf.d/site.conf.",
  "path muss ein absoluter Pfad sein, z. B. /etc/nginx/nginx.conf.": "path must be an absolute path, e.g. /etc/nginx/nginx.conf.",
- "{name} (geplante Aufgabe)": "{name} (scheduled task)"
+ "{name} (geplante Aufgabe)": "{name} (scheduled task)",
+ "Diese Datei hat ein gespeichertes Original und lässt sich hier nicht bearbeiten.": "This file has a stored original and cannot be edited here."
 }

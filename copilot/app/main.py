@@ -76,6 +76,7 @@ from . import memory_import as memlib
 from .context_tools import (
     CONTENT_MAX, HOUSEHOLD_LIMIT, PERSON_LIMIT, PROJECT_LIMIT, RESERVED_TEXT, TOPIC_MAX, ContextToolbox, _RESERVED, _SECRET,
 )
+from .context_tools import is_ai_note as context_is_ai_note
 from .ha_tools import HaToolbox, ToolError
 from .images import IMAGES_NOTE, ImageService, ImageToolbox
 from .outbox import DESIGN_NOTE, FILES_NOTE, MAX_PROFILE_BYTES, OutboxToolbox, clean_name
@@ -668,6 +669,10 @@ class Run:
                 self.actions[event["id"]]["link"] = event["link"]
             if event.get("undo"):
                 self.actions[event["id"]]["undo"] = event["undo"]
+            if event.get("context"):
+                self.actions[event["id"]]["context"] = event["context"]  # Notiz im Projektkontext: die Oberfläche zeigt eine Karte
+            if event.get("own"):
+                self.actions[event["id"]]["own"] = True  # nur eigene Notizen der KI gelesen: zählt nicht als Fremdinhalt
         self.wake()
 
     def next_tool_id(self) -> int:
@@ -801,6 +806,13 @@ def _index_page(branding: Branding, version: str, embed: str) -> HTMLResponse:
 class KnowledgeBody(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     data: str = Field(max_length=knowlib.MAX_BASE64_CHARS)  # Base64; Datei oder ZIP, wird nur im Arbeitsspeicher verarbeitet
+
+
+KNOWLEDGE_EDIT_CHARS = 60_000  # Bearbeiten in der Oberfläche (die Anfrage ist auf 128 KB begrenzt)
+
+
+class KnowledgeTextBody(BaseModel):
+    content: str = Field(min_length=1, max_length=KNOWLEDGE_EDIT_CHARS)
 
 
 class SkillGithubBody(BaseModel):
@@ -2259,6 +2271,38 @@ def register_chat_routes(
             headers={"Content-Security-Policy": "sandbox; default-src 'none'", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
         )
 
+    KNOWLEDGE_VIEW_CHARS = 200_000
+
+    @app.get("/api/projects/{project_id}/knowledge/{knowledge_id}/text")
+    def knowledge_text(project_id: str, knowledge_id: int, profile: Profile = Depends(current_profile)) -> JSONResponse:
+        """Text einer Datei des Projektkontexts (Ansicht in der Oberfläche); nur der Besitzer des Projekts."""
+        row = store.knowledge_text(profile.id, project_id, knowledge_id, KNOWLEDGE_VIEW_CHARS)
+        if row is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        row["truncated"] = row["size"] > KNOWLEDGE_VIEW_CHARS
+        row["editable"] = not row["has_file"] and row["size"] <= KNOWLEDGE_EDIT_CHARS
+        row["ai"] = context_is_ai_note(row)
+        return JSONResponse(row, headers={"Cache-Control": "private, no-store"})
+
+    @app.put("/api/projects/{project_id}/knowledge/{knowledge_id}/text", dependencies=[Depends(write_guard)])
+    def knowledge_set_text(project_id: str, knowledge_id: int, body: KnowledgeTextBody, profile: Profile = Depends(current_profile)) -> dict:
+        """Text einer Datei ohne Original ändern (Notizen der KI und hochgeladene Textdateien)."""
+        current = store.knowledge_text(profile.id, project_id, knowledge_id, 1)
+        if current is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        if current["has_file"]:
+            raise HTTPException(status_code=422, detail=tr("Diese Datei hat ein gespeichertes Original und lässt sich hier nicht bearbeiten."))
+        text = body.content.replace("\r\n", "\n").replace("\r", "\n")
+        if not text.strip():
+            raise HTTPException(status_code=422, detail=tr("Der Text darf nicht leer sein."))
+        total_files, total_chars = store.knowledge_totals(profile.id, project_id)
+        if len(text) > knowlib.MAX_FILE_CHARS or total_chars - current["size"] + len(text) > knowlib.MAX_PROJECT_CHARS:
+            raise HTTPException(status_code=422, detail=tr("Speichergrenze des Projekts erreicht"))
+        saved = store.knowledge_set_text(profile.id, project_id, knowledge_id, text)
+        if saved is None:
+            raise HTTPException(status_code=404, detail=tr("Nicht gefunden"))
+        return saved
+
     @app.post("/api/chats/{chat_id}/files/{file_id}/to-project", dependencies=[Depends(write_guard)])
     async def file_to_project(chat_id: str, file_id: str, profile: Profile = Depends(current_profile)) -> dict:
         """Eine Datei aus diesem Chat im Projekt des Chats ablegen (Knopf an der Dateikarte)."""
@@ -3083,7 +3127,7 @@ def register_chat_routes(
             household_write=household_writable(profile),
             force_confirm=bool(foreign_files) or imported,
             ask=ask_memory, ask_skill=ask_skill, skills_write=not incognito, record=run.push, next_id=run.next_tool_id,
-            tainted=lambda: any(a["kind"] in TAINTING_KINDS for a in run.actions.values()),
+            tainted=lambda: any(a["kind"] in TAINTING_KINDS and not a.get("own") for a in run.actions.values()),
             overview=overview_allowed(profile),
         )
         specs += context.specs()
