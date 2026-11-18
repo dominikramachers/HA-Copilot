@@ -1,7 +1,8 @@
 # Änderungen
 
 ## 0.65.1
-Seitenleiste: zwischen den Chats ist jetzt ein kleiner Abstand.
+Seitenleiste: zwischen den Chats ist jetzt ein kleiner Abstand. Seite „Server“: Die Serverliste passt jetzt auf das Handy.
+- **Serverliste auf dem Handy.** Ursache des Überlaufens: `.srv-list` ist ein Raster mit automatischer Spalte, und die Knopfzeile (`.sched-foot`) übernimmt auf dem Handy die Regel der geplanten Aufgaben (`flex-wrap: nowrap`, Text ohne Umbruch). Bei fünf bis sechs Knöpfen wurde die Spalte dadurch breiter als der Bildschirm, Karte, Werte („Debian GNU/Linu…“) und Knöpfe liefen rechts aus dem Bild. Jetzt: `.srv-list` mit `minmax(0, 1fr)` und `min-width: 0` an den Karten (überall), dazu ab 640 px Breite ein eigenes Mobil-Layout in `style.css`: Kacheln mit Zahl links und Status rechts (die fünfte über die volle Breite), Angaben als Zeilen mit Bezeichnung links und Wert rechts (lange Werte brechen um), Knöpfe in zwei Spalten mit mindestens 40 px Höhe (Untersuchen über die volle Breite, Text darf umbrechen). Geprüft bei 393, 360 und 320 px Breite: kein seitliches Scrollen, auch mit „Agent aktualisieren“ und „Wirklich entfernen?“. Nur Darstellung, keine Funktion geändert; die Breite am Rechner bleibt wie sie war.
 - Die Zeilen der Chatlisten (`.row` in `style.css`) haben 3 px Abstand nach unten; vorher berührten sich Hover- und Auswahlflächen benachbarter Chats. Projektzeilen nutzen denselben Abstand (der eigene Wert von 2 px entfällt). Nur Darstellung, keine Funktion geändert.
 
 ## 0.65.0

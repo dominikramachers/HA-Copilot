@@ -1780,6 +1780,29 @@ select.art-lib-project { flex: none; width: auto; min-width: 150px; max-width: 4
   .srv-form { grid-template-columns: minmax(0, 1fr); }
   .srv-card, .srv-add, .srv-script, .srv-keys { padding-left: 14px; padding-right: 14px; }
 }
+/* Auf dem Handy: nichts darf breiter werden als der Bildschirm (die Karten wuchsen sonst mit der Knopfzeile nach rechts) */
+.srv-list { grid-template-columns: minmax(0, 1fr); }
+.srv-card, .srv-pending { min-width: 0; }
+@media (max-width: 640px) {
+  .srv-wrap { padding: 14px 14px 32px; }
+  /* Kacheln: Zahl links, Status rechts; die fünfte nimmt die ganze Breite */
+  .srv-tiles { gap: 8px; margin: 10px 0 14px; }
+  .srv-tile { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; }
+  .srv-tile b { font-size: 22px; }
+  .srv-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  /* Angaben: Bezeichnung links, Wert rechts, lange Werte brechen um */
+  .srv-body { padding: 2px 14px 12px; }
+  .srv-facts { grid-template-columns: minmax(0, 9rem) minmax(0, 1fr); gap: 8px 12px; margin-top: 10px; }
+  .srv-facts dt { align-self: start; padding-top: 1px; line-height: 1.35; }
+  .srv-facts dd { margin: 0; line-height: 1.35; }
+  /* Knöpfe: zwei je Zeile, groß genug zum Tippen, Text darf umbrechen */
+  .srv-body .sched-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; padding-top: 12px; }
+  .srv-body .sched-foot .pill { flex: none; width: 100%; min-height: 40px; height: auto; padding: 6px 10px; line-height: 1.25; white-space: normal; text-align: center; justify-content: center; }
+  .srv-body .sched-foot .pill.primary:first-child { grid-column: 1 / -1; }
+  .srv-pending { padding: 12px 12px 4px; }
+  .srv-add, .srv-script, .srv-keys { padding: 14px; }
+  .srv-key-buttons .pill { min-height: 40px; }
+}
 
 /* Dateien im Fenster: echte Vorschau (Seiten als Bild, Excel-Blätter als Tabelle) und Fassungen */
 .art-head .art-versions { max-width: 210px; }
