@@ -62,7 +62,7 @@
 .sec-body > .group-label:first-child { margin-top: 6px; }
 .hint { padding: 6px 12px 8px; font-size: 13px; line-height: 1.4; color: var(--muted); }
 
-.row { display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 4px 0 12px; border-radius: var(--r-2); cursor: pointer; transition: background .15s; }
+.row { display: flex; align-items: center; gap: 4px; min-height: 34px; margin-bottom: 3px; padding: 0 4px 0 12px; border-radius: var(--r-2); cursor: pointer; transition: background .15s; }
 .row:hover { background: var(--chip); }
 .row.active { background: var(--chip); }
 .row .name { flex: 1; min-width: 0; padding: 6px 0; overflow: hidden; text-overflow: clip; white-space: nowrap; font-size: 15px; font-weight: 500; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent); }
@@ -90,7 +90,7 @@
 .project-row .more { width: 26px; }
 .project-children .hint { padding: 4px 12px 6px; }
 
-.project-row { padding-left: 6px; margin-bottom: 2px; }
+.project-row { padding-left: 6px; }
 @media (pointer: coarse) { .row { min-height: 38px; } .row .name { padding: 8px 0; } }
 .project-row > .icon.folder { flex: none; width: 18px; height: 18px; color: var(--text-2); stroke-width: 1.8; transition: color .18s; }
 .project-row > .icon.folder path { transition: opacity .18s, transform .22s cubic-bezier(.2, .8, .2, 1); transform-origin: 3px 18px; transform-box: view-box; }
