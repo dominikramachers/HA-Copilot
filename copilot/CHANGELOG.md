@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.65.1
+Seitenleiste: zwischen den Chats ist jetzt ein kleiner Abstand.
+- Die Zeilen der Chatlisten (`.row` in `style.css`) haben 3 px Abstand nach unten; vorher berührten sich Hover- und Auswahlflächen benachbarter Chats. Projektzeilen nutzen denselben Abstand (der eigene Wert von 2 px entfällt). Nur Darstellung, keine Funktion geändert.
+
 ## 0.65.0
 Dateifenster ausgebaut: echte Vorschau für Word, Excel, PowerPoint und PDF, Fassungen einer Datei durchblättern und wiederherstellen, Mermaid-Diagramme als PNG oder SVG speichern.
 - **Echte Vorschau (Reiter „Vorschau“, daneben „Text“).** Neues Modul `filepages.py`, Schnittstellen `GET /api/files/{id}/view` (Seitengrößen oder Blätter) und `GET /api/files/{id}/page/{n}?w=` (eine Seite als PNG). `GET /api/files/{id}/text` meldet zusätzlich `view` (`pages`, `sheets` oder `null`).
