@@ -11,6 +11,16 @@
           "title": "More room in the sidebar",
           "text": "There is now a small gap between your chats in the sidebar. That makes each chat easier to see and tap."
         }
+      },
+      {
+        "de": {
+          "title": "Serverliste fürs Handy",
+          "text": "Auf dem Handy passt die Liste deiner Server jetzt ganz auf den Bildschirm. Die Angaben brechen um und die Knöpfe sind größer und leichter zu treffen."
+        },
+        "en": {
+          "title": "Server list for your phone",
+          "text": "On your phone, the list of your servers now fits the screen. The details wrap and the buttons are bigger and easier to tap."
+        }
       }
     ]
   },
