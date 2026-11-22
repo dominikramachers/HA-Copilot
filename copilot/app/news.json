@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.66.1",
+    "items": [
+      {
+        "de": {
+          "title": "Plugins sind aufgeräumter",
+          "text": "Die Seite „Plugins“ sieht jetzt ruhiger aus: Reiter oben, eine schmale Zeile für Suche, Filter und „Hinzufügen“ und mehr Platz zwischen Überschriften und Kacheln."
+        },
+        "en": {
+          "title": "Plugins look tidier",
+          "text": "The “Plugins” page looks calmer now: tabs at the top, a slim row for search, filter and “Add”, and more space between headings and tiles."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.66.0",
     "items": [
       {
