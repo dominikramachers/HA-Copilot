@@ -2867,16 +2867,21 @@ function renderSkillList(wrap) {
   status.textContent = skillsUi.status;
   wrap.append(status);
 
-  const tools = node("div", "skills-tools");
-  const seg = node("div", "seg" + (tabs.length === 3 ? " three" : ""));
+  const bar = node("div", "skills-bar");
+  const tabBox = node("div", "skills-tabs");
+  tabBox.setAttribute("role", "tablist");
   for (const [id, label] of tabs) {
-    const b = node("button", "", label);
+    const b = node("button", "skills-tab", label);
     b.type = "button";
-    b.setAttribute("aria-pressed", String(skillsUi.tab === id));
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(skillsUi.tab === id));
     b.addEventListener("click", () => { skillsUi.tab = id; skillsUi.status = ""; renderSkills(); });
-    seg.append(b);
+    tabBox.append(b);
   }
-  const add = node("button", "pill primary");
+  bar.append(tabBox);
+  wrap.append(bar);
+
+  const add = node("button", "pill primary compact-add");
   add.type = "button";
   add.disabled = skillsUi.busy;
   add.setAttribute("aria-haspopup", "menu");
@@ -2903,16 +2908,15 @@ function renderSkillList(wrap) {
     else if (choice === "conn-own") connForm(null);
     else if (choice === "plugin-github") await pluginGithub();
   });
-  tools.append(seg, add);
-  wrap.append(tools);
-
   const placeholder = skillsUi.tab === "community" ? tr("Im Register suchen")
     : { all: tr("Plugins, Konnektoren und Skills durchsuchen"), connectors: tr("Konnektoren durchsuchen"), skills: tr("Skills durchsuchen") }[section];
-  const bar = node("div", "skills-filter types");
+  const tools = node("div", "skills-toolbar");
   const search = searchInput(placeholder, skillsUi.q);
   skillsUi.search = search;
   search.addEventListener("input", () => { skillsUi.q = search.value; skillsUi.onSearch?.(); });
-  const kinds = node("div", "seg");
+  const searchBox = node("label", "skills-search");
+  searchBox.append(icon("search"), search);
+  const kinds = node("div", "seg small");
   kinds.setAttribute("role", "group");
   kinds.setAttribute("aria-label", tr("Art"));
   for (const [id, label] of filters) {
@@ -2922,8 +2926,8 @@ function renderSkillList(wrap) {
     b.addEventListener("click", () => { skillsUi.section = id; skillsUi.category = "all"; skillsUi.status = ""; rememberDetail(id); renderSkills(); });
     kinds.append(b);
   }
-  bar.append(search, kinds);
-  wrap.append(bar);
+  tools.append(searchBox, kinds, add);
+  wrap.append(tools);
 
   const body = node("div", "skills-body");
   wrap.append(body);

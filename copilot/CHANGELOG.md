@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.66.1
+Plugins-Seite: Kopfzeile nach dem Vorbild von Claude, mehr Abstand zu den Kacheln.
+- `renderSkillList` (`app.js`): **Meine | Entdecken | Community** sind jetzt Reiter mit Unterstrich (`skills-bar`, `skills-tab`, `role="tablist"`) statt eines Umschalters. Darunter steht eine einzige schmale Zeile `skills-toolbar`: Suchfeld mit Lupe (`skills-search`, höchstens 340 px breit, vorher über die ganze Breite), Filter **Alle | Konnektoren | Skills** (`seg small`, 28 px hohe Knöpfe) und rechts **Hinzufügen** (36 px). Auf dem Handy bricht die Suche in eine eigene Zeile, Filter und Knopf teilen sich die zweite.
+- Abstände: Zwischenüberschriften wie „Konnektoren“ und „Skills“ haben 14 px Abstand zu den Kacheln (vorher 0), die Reiterzeile 20 px zur Einleitung (`style.css`). Die alten Regeln `.skills-filter.types` entfallen.
+- Keine neuen Texte, keine Änderung an Funktion, Daten oder Berechtigungen.
+
 ## 0.66.0
 Konnektoren: Berechtigung je Werkzeug (Immer erlauben / Genehmigung erforderlich / Blockiert) wie bei Claude, „In diesem Chat immer zulassen“ bei jeder Rückfrage. Die Seite „Anpassungen“ heißt jetzt „Plugins“ und zeigt Konnektoren, Skills und Plugins in einer Liste.
 - **Drei Stufen je Werkzeug.** `connectors.py`: neue Konstante `LEVELS = ("allow", "ask", "block")`, `tool_level(tool, state)` und `level_value()`. Gespeichert wird weiter im JSON `tool_state` von `connector_accounts` (keine Datenbank-Änderung, Schema bleibt 37), jetzt mit den Stufen als Text statt Wahrheitswert. Alte Einträge werden gelesen: `true` bei einem lesenden Werkzeug wird `allow`, `true` bei einem ändernden `ask`, `false` wird `block`. Vorgabe ohne Eintrag: lesend `allow`, sonst `block`. `PUT /api/connectors/{id}/account` nimmt `tools` als `{Name: true|false|"allow"|"ask"|"block"}` an (`AccountBody`), die Ansicht (`_view`) liefert je Werkzeug `level`, `description`, `read_only`, `enabled` (= nicht blockiert) und `inputs`.
