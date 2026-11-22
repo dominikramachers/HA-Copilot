@@ -542,7 +542,7 @@ class ContextToolbox:
                 files = {**{p: t for p, t in (kept["files"] if kept else {}).items() if p != "SKILL.md"}, **files}
             self.store.skill_save(self.profile_id, pkg.name, pkg.description, files, origin="own")
             self.skills = self.store.skills_active(self.profile_id)
-            return f"Skill „{pkg.name}“ {'ersetzt' if old else 'gespeichert'}. Es steht ab jetzt in der Skill-Liste des Nutzers und gilt in allen Chats (Seite „Anpassungen“, Skills)."
+            return f"Skill „{pkg.name}“ {'ersetzt' if old else 'gespeichert'}. Es steht ab jetzt in der Skill-Liste des Nutzers und gilt in allen Chats (Seite „Plugins“, Skills)."
 
         return await self._run(label, "skill-write", action, confirm=True, always=True, details=details[:12000], ask=self._ask_skill)
 

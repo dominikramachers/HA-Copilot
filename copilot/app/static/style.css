@@ -1210,6 +1210,8 @@ button.mem-group-toggle { flex: 1; min-width: 0; display: flex; align-items: cen
   .skills-tools .pill.compact { width: 40px; padding: 0; justify-content: center; }
   .skills-tools .pill.compact span { display: none; }
   .skills-filter select.field { min-width: 0; max-width: 42%; }
+  .skills-filter.types .seg { flex: 1 1 100%; }
+  .level-btn { padding: 0 8px 0 10px; }
   .skills-cats { flex-wrap: nowrap; overflow-x: auto; margin-right: -16px; padding-right: 16px; scrollbar-width: none; }
   .skills-cats::-webkit-scrollbar { display: none; }
   .skills-scope .field { flex: 1; max-width: none; }
@@ -1230,11 +1232,40 @@ button.conn-group-toggle { margin-left: -6px; padding: 6px 8px 6px 4px; border-r
 .conn-group-toggle[aria-expanded="true"] .icon { transform: rotate(90deg); }
 .conn-group-name .skills-label { margin: 0; font-size: 14px; }
 .conn-count { padding: 0 8px; border-radius: 999px; background: var(--chip); color: var(--text-2); font-size: 12px; font-weight: 600; line-height: 20px; }
-select.field.conn-bulk { flex: none; width: auto; min-width: 150px; height: 36px; margin: 0; font-size: 14px; }
-.conn-tool { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 8px 0; border-top: 1px solid var(--line-2); }
 .conn-tool-text { display: grid; gap: 2px; min-width: 0; }
 .conn-tool-text strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .conn-tool-text small { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.conn-tool-open .conn-tool-text small { -webkit-line-clamp: 1; }
+.conn-tool-row { border-top: 1px solid var(--line-2); }
+.conn-tool-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.conn-tool-open { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; padding: 2px 4px 2px 0; border-radius: var(--r-1); font: inherit; color: inherit; text-align: left; }
+.conn-tool-open .icon { flex: none; width: 14px; height: 14px; margin-top: 3px; stroke-width: 2.4; color: var(--muted); transition: transform .18s; }
+.conn-tool-open[aria-expanded="true"] .icon { transform: rotate(90deg); }
+.conn-tool-detail { display: grid; gap: 6px; padding: 0 0 14px 22px; }
+.conn-tool-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; }
+.conn-tool-name .skills-label { margin: 0; }
+.conn-tool-name code, .conn-inputs code { padding: 1px 6px; border-radius: 6px; background: var(--chip); font: 12.5px var(--mono, ui-monospace, monospace); overflow-wrap: anywhere; }
+.conn-inputs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.conn-inputs li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 13px; }
+.conn-inputs em { font-style: normal; font-size: 12px; color: var(--muted); }
+.conn-input-desc { flex-basis: 100%; color: var(--text-2); overflow-wrap: anywhere; }
+.level-btn { display: inline-flex; align-items: center; flex: none; gap: 6px; height: 34px; padding: 0 10px 0 12px; font-size: 13.5px; white-space: nowrap; }
+.level-btn .icon { width: 15px; height: 15px; }
+.level-btn .icon:last-child { width: 13px; height: 13px; opacity: .7; transform: rotate(90deg); }
+.conn-summary { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-2); }
+.conn-summary .skills-label { margin: 0; }
+.conn-summary .skills-hint { margin: 2px 0 4px; }
+.conn-summary .pill { justify-self: start; }
+.conn-sum-row { display: flex; gap: 12px; margin: 0; font-size: 13.5px; color: var(--text-2); }
+.conn-sum-row strong { flex: none; min-width: 52px; font-weight: 600; color: var(--text); }
+.skills-filter.types { flex-wrap: wrap; align-items: center; }
+.skills-filter.types .seg { flex: none; }
+.skills-filter.types .seg button { flex: 0 0 auto; min-width: 0; padding: 0 14px; white-space: nowrap; }
+.skills-filter.sort-only { justify-content: flex-end; }
+@media (max-width: 640px) {
+  .skills-filter.types .seg { flex: 1 1 100%; }
+  .skills-filter.types .seg button { flex: 1 1 0; padding: 0 8px; }
+}
 .conn-flow { display: grid; gap: 6px; margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line-2); }
 .conn-flow .pill { justify-self: start; display: inline-flex; align-items: center; height: 38px; padding: 0 16px; text-decoration: none; }
 .conn-secret { margin-top: 12px; }

@@ -287,7 +287,7 @@ class Scheduler:
         connector_note = ""
         if self.connectors is not None and self.connectors.level(profile.id) >= 1:
             box = ConnectorToolbox(  # geplante Läufe nutzen nur lesende Werkzeuge der Konnektoren
-                self.connectors, profile.id, confirm_writes=True, force_confirm=lambda: True, ask=_no_ask, record=run.push,
+                self.connectors, profile.id, confirm_writes=True, ask=_no_ask, record=run.push,
                 chat_allowed=lambda cid: False, allow_chat=lambda cid: None, next_id=run.next_tool_id, read_only=True,
             )
             specs += box.specs()

@@ -247,7 +247,7 @@ class OauthFinishBody(BaseModel):
 
 class AccountBody(BaseModel):
     enabled: bool | None = None
-    tools: dict[str, bool] | None = None
+    tools: dict[str, bool | Literal["allow", "ask", "block"]] | None = None  # je Werkzeug: Stufe (oder Ja/Nein wie bis 0.65)
 
 
 class SeenBody(BaseModel):
@@ -3305,7 +3305,6 @@ def register_chat_routes(
         connector_box = ConnectorToolbox(
             connectors, profile.id,
             confirm_writes=settings.connector_write_confirm == "ask",
-            force_confirm=lambda: bool(foreign_files) or imported or any(a["kind"] in TAINTING_KINDS - {"mcp-write"} for a in run.actions.values()),
             ask=ask_connector, record=run.push,
             chat_allowed=lambda cid: (profile.id, chat_id, cid) in connector_allow,
             allow_chat=lambda cid: connector_allow.add((profile.id, chat_id, cid)),

@@ -148,7 +148,7 @@ class Settings:
     research_daily_limit: int = 3  # Läufe je Person und Tag
     usd_eur_rate: float = 0.92  # Euro je US-Dollar für den Wert in der Verbrauchsübersicht (nur bei deutscher Sprache)
     sharing: str = "instance"  # Chats teilen: off | instance (nur in dieser Instanz) | public (zusätzlich Link ohne Anmeldung über die Domain)
-    connector_write_confirm: str = "ask"  # fest: jede Änderung über einen Konnektor wird im Chat bestätigt
+    connector_write_confirm: str = "ask"  # fest: Werkzeuge mit der Stufe „Genehmigung erforderlich“ fragen im Chat nach („Immer erlauben“ nie, „Blockiert“ stehen gar nicht bereit)
     connector_allow_private: bool = True  # fest: wer Konnektoren anlegen darf, darf auch Adressen im Heimnetz und mit http eintragen (Gesperrtes bleibt gesperrt)
     # Dateien, die die KI erzeugt (Word, Excel, PDF, PowerPoint, Skripte …)
     files_enabled: bool = True
