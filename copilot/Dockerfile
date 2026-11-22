@@ -1,7 +1,7 @@
 # Stufe 1: der Linux-Server-Agent (Go, ohne Netz gebaut: die Abhängigkeit liegt unter agent/vendor). Der Hub im Add-on liefert die
 # beiden Dateien (und die Fassung in VERSION, aus der der Hub Aktualisierungen anbietet) an die Server aus; sie landen unter /opt/copilot/agent-bin.
 # Sind sie vom Release signiert, liegen daneben die .sig-Dateien und update_key.pub.
-FROM golang:1.24-bookworm AS agent
+FROM golang:1.27-bookworm AS agent
 ARG BUILD_VERSION=dev
 WORKDIR /src
 COPY agent/ ./
