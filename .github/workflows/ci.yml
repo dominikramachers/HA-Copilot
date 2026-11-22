@@ -25,7 +25,7 @@ jobs:
           cache-dependency-path: |
             copilot/requirements.txt
             copilot/requirements-files.txt
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: copilot/agent/go.mod
           cache-dependency-path: copilot/agent/go.sum

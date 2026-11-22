@@ -2719,9 +2719,10 @@ async function openKnowledge(project) {
 
 const SKILL_ACCEPT = ".skill,.zip,.md,text/markdown,text/plain";
 const SKILL_MAX = 4 * 1024 * 1024;
-const skillsUi = { mode: "list", section: "skills", tab: "mine", mineQuery: "", query: "", category: "all", sort: "popular", detail: null, preview: null, data: null, status: "", busy: false };
+// section = Filter der Liste (all | connectors | skills), tab = mine | discover | community, q = gemeinsame Suche, onSearch = wer gerade auf die Suche hört
+const skillsUi = { mode: "list", section: "all", tab: "mine", q: "", onSearch: null, search: null, category: "all", sort: "popular", detail: null, preview: null, data: null, status: "", busy: false };
 
-async function openSkills(section = "skills") {
+async function openSkills(section = "all") {
   if (!state.me) return;
   setView("skills");
   rememberDetail(section);
@@ -2733,14 +2734,14 @@ async function openSkills(section = "skills") {
   state.heldUnread = null;
   renderSide();
   closeMenu();
-  setTitle(tr("Anpassungen"));
-  Object.assign(skillsUi, { mode: "list", section, tab: "mine", mineQuery: "", query: "", category: "all", detail: null, preview: null, status: "", busy: false });
-  Object.assign(connUi, { id: null, form: null, flow: null, setup: null, tab: "mine", mineQuery: "", query: "", category: "all" });
+  setTitle(tr("Plugins"));
+  Object.assign(skillsUi, { mode: "list", section, tab: "mine", q: "", onSearch: null, search: null, category: "all", detail: null, preview: null, status: "", busy: false });
+  Object.assign(connUi, { id: null, form: null, flow: null, setup: null, detailTab: "overview", category: "all" });
   Object.assign(connUi.registry, { q: "", items: [], next: "", loaded: false, error: "" });
-  Object.assign(plUi, { data: null, tab: "mine", query: "", detail: null, preview: null, result: null, busy: false });
+  Object.assign(plUi, { data: null, detail: null, preview: null, result: null, busy: false });
   await loadSkills();
-  if (section === "connectors") loadConnectors();
-  if (section === "plugins") loadPlugins();
+  if (connectorsAvailable()) loadConnectors();
+  loadPlugins();
   $("skills").scrollTop = 0;
 }
 
@@ -2787,7 +2788,7 @@ function skillHead(wrap, title, intro, ...buttons) {
   wrap.append(head);
 }
 
-function skillBack(wrap, label = tr("Zurück zu den Anpassungen")) {
+function skillBack(wrap, label = tr("Zurück zu den Plugins")) {
   const back = node("button", "skills-back");
   back.type = "button";
   back.append(icon("chevron"), node("span", "", label));
@@ -2824,8 +2825,22 @@ function skillBadges(s) {
 
 // ---- Liste
 
+function connectorsAvailable() {
+  return state.me?.connectors !== false;
+}
+
+function canAddConnectors() {
+  const can = connUi.data?.can_create;
+  return !!can && (can.private || can.global);
+}
+
+function resetSearch() {
+  skillsUi.q = "";
+  if (skillsUi.search) { skillsUi.search.value = ""; skillsUi.search.focus(); }
+}
+
+// Plugins, Konnektoren und Skills in einer Liste: oben Suche und Filter (Alle, Konnektoren, Skills), darunter „Meine“ und „Entdecken“
 function renderSkillList(wrap) {
-  const data = skillsUi.data;
   const picker = node("input");
   picker.type = "file";
   picker.accept = SKILL_ACCEPT;
@@ -2835,32 +2850,17 @@ function renderSkillList(wrap) {
     picker.value = "";
     if (file) await previewSkillFile(file);
   });
-  skillHead(wrap, tr("Anpassungen"), tr("Hier legst du fest, was die KI zusätzlich kann und wie sie arbeitet."), picker);
+  skillHead(wrap, tr("Plugins"), tr("Hier legst du fest, was die KI zusätzlich kann: Konnektoren zu Diensten, Skills als Anleitungen und Plugins als Pakete aus beidem."), picker);
 
-  const bar = node("div", "skills-bar");
-  const tabs = node("div", "skills-tabs");
-  tabs.setAttribute("role", "tablist");
-  for (const [id, label] of [["skills", tr("Skills")], ["connectors", tr("Konnektoren")], ["plugins", tr("Plugins")]]) {
-    if (id === "connectors" && state.me?.connectors === false) continue;
-    const tab = node("button", "skills-tab", label);
-    tab.type = "button";
-    tab.setAttribute("role", "tab");
-    tab.setAttribute("aria-selected", String(skillsUi.section === id));
-    tab.addEventListener("click", () => {
-      skillsUi.section = id;
-      skillsUi.status = "";
-      rememberDetail(id);
-      renderSkills();
-      if (id === "connectors") loadConnectors();
-      if (id === "plugins") loadPlugins();
-    });
-    tabs.append(tab);
-  }
-  bar.append(tabs);
-  wrap.append(bar);
-
-  if (skillsUi.section === "connectors") { renderConnectors(wrap); return; }
-  if (skillsUi.section === "plugins") { renderPlugins(wrap); return; }
+  const filters = [["all", tr("Alle")], ...(connectorsAvailable() ? [["connectors", tr("Konnektoren")]] : []), ["skills", tr("Skills")]];
+  if (!filters.some(([id]) => id === skillsUi.section)) skillsUi.section = "all";
+  const section = skillsUi.section;
+  const canAdd = canAddConnectors();
+  const tabs = [["mine", tr("Meine")]];
+  if (section !== "connectors" || canAdd) tabs.push(["discover", tr("Entdecken")]);
+  if (section === "connectors" && canAdd) tabs.push(["community", tr("Community")]);
+  if (!tabs.some(([id]) => id === skillsUi.tab)) skillsUi.tab = "mine";
+  skillsUi.onSearch = null;
 
   const status = node("p", "skills-status");
   status.setAttribute("role", "status");
@@ -2868,8 +2868,8 @@ function renderSkillList(wrap) {
   wrap.append(status);
 
   const tools = node("div", "skills-tools");
-  const seg = node("div", "seg");
-  for (const [id, label] of [["mine", tr("Meine")], ["recommended", tr("Entdecken")]]) {
+  const seg = node("div", "seg" + (tabs.length === 3 ? " three" : ""));
+  for (const [id, label] of tabs) {
     const b = node("button", "", label);
     b.type = "button";
     b.setAttribute("aria-pressed", String(skillsUi.tab === id));
@@ -2882,28 +2882,194 @@ function renderSkillList(wrap) {
   add.setAttribute("aria-haspopup", "menu");
   add.append(icon("plus"), node("span", "", tr("Hinzufügen")));
   add.addEventListener("click", async () => {
-    const entries = [
-      { value: "import", icon: "upload", label: tr("Skill importieren") },
-      { value: "github", icon: "code", label: tr("Von GitHub-Link") },
-      { value: "write", icon: "edit", label: tr("Selbst schreiben") },
-    ];
-    const choice = wideScreen() ? await openPopover(add, entries) : await openSheet({ title: tr("Skill hinzufügen"), items: entries });
-    if (choice === "import") picker.click();
-    else if (choice === "github") await previewSkillGithub();
-    else if (choice === "write") skillsGo("write");
+    const entries = [];
+    if (section !== "connectors") entries.push(
+      { value: "skill-import", icon: "upload", label: tr("Skill importieren") },
+      { value: "skill-github", icon: "code", label: tr("Skill von GitHub-Link") },
+      { value: "skill-write", icon: "edit", label: tr("Skill selbst schreiben") },
+    );
+    if (section !== "skills" && connectorsAvailable() && canAdd) entries.push(
+      { value: "conn-catalog", icon: "stack", label: tr("Konnektor aus dem Katalog") },
+      { value: "conn-registry", icon: "globe", label: tr("Konnektor im Register suchen") },
+      { value: "conn-own", icon: "bolt", label: tr("Konnektor selbst eintragen") },
+    );
+    if (section === "all") entries.push({ value: "plugin-github", icon: "link", label: tr("Plugin von GitHub-Link") });
+    const choice = wideScreen() ? await openPopover(add, entries) : await openSheet({ title: tr("Hinzufügen"), items: entries });
+    if (choice === "skill-import") picker.click();
+    else if (choice === "skill-github") await previewSkillGithub();
+    else if (choice === "skill-write") skillsGo("write");
+    else if (choice === "conn-catalog") { skillsUi.section = "connectors"; skillsUi.tab = "discover"; renderSkills(); }
+    else if (choice === "conn-registry") { skillsUi.section = "connectors"; skillsUi.tab = "community"; renderSkills(); }
+    else if (choice === "conn-own") connForm(null);
+    else if (choice === "plugin-github") await pluginGithub();
   });
   tools.append(seg, add);
   wrap.append(tools);
 
-  if (!data) { wrap.append(node("p", "mem-empty", skillsUi.status || tr("Die Skills sind gerade nicht erreichbar."))); return; }
-  if (skillsUi.tab === "recommended") renderDiscover(wrap, data);
-  else renderMine(wrap, data);
-  wrap.append(node("p", "skills-note", tr("Skripte in Skills werden nie ausgeführt. Ein importiertes Skill gilt als fremder Inhalt: Hat die KI eines genutzt, fragt sie vor Änderungen in Home Assistant oder bei GitHub und vor Bildern erst bei dir nach.")));
+  const placeholder = skillsUi.tab === "community" ? tr("Im Register suchen")
+    : { all: tr("Plugins, Konnektoren und Skills durchsuchen"), connectors: tr("Konnektoren durchsuchen"), skills: tr("Skills durchsuchen") }[section];
+  const bar = node("div", "skills-filter types");
+  const search = searchInput(placeholder, skillsUi.q);
+  skillsUi.search = search;
+  search.addEventListener("input", () => { skillsUi.q = search.value; skillsUi.onSearch?.(); });
+  const kinds = node("div", "seg");
+  kinds.setAttribute("role", "group");
+  kinds.setAttribute("aria-label", tr("Art"));
+  for (const [id, label] of filters) {
+    const b = node("button", "", label);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(section === id));
+    b.addEventListener("click", () => { skillsUi.section = id; skillsUi.category = "all"; skillsUi.status = ""; rememberDetail(id); renderSkills(); });
+    kinds.append(b);
+  }
+  bar.append(search, kinds);
+  wrap.append(bar);
+
+  const body = node("div", "skills-body");
+  wrap.append(body);
+  if (skillsUi.tab === "community") renderConnCommunity(body);
+  else if (skillsUi.tab === "discover") renderDiscoverTab(body);
+  else renderMineTab(body);
+  wrap.append(node("p", "skills-note", tr("Ein Plugin legt Skills und Konnektoren an; beim Entfernen verschwindet nur, was es selbst angelegt hat. Was ein Konnektor liefert (Mails, Dokumente, Tickets) und importierte Skills gelten als fremder Inhalt: Danach fragt die KI vor Änderungen in Home Assistant oder bei GitHub und vor Bildern bei dir nach. Skripte in Skills werden nie ausgeführt.")));
+}
+
+// ---- Meine: alles, was hinzugefügt wurde (Plugins nur unter „Alle“)
+
+function renderMineTab(wrap) {
+  const f = skillsUi.section;
+  const wantSkills = f !== "connectors";
+  const wantConns = f !== "skills" && connectorsAvailable();
+  const wantPlugins = f === "all";
+  const canAdd = canAddConnectors();
+  const skills = wantSkills ? skillsUi.data : null;
+  const conns = wantConns ? connUi.data : null;
+  const plugins = wantPlugins ? plUi.data : null;
+  wrap.append(node("p", "skills-hint", {
+    all: tr("Alles, was du hinzugefügt hast: Plugins, Konnektoren und Skills."),
+    connectors: tr("Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant, zum Beispiel Mail, Kalender oder dein Überwachungssystem."),
+    skills: tr("Diese Skills gelten in allen deinen Chats. Die KI nimmt eines von selbst, wenn die Aufgabe zur Beschreibung passt."),
+  }[f]));
+  const waiting = (wantSkills && !skills && !skillsUi.status) || (wantConns && !conns && connUi.loading) || (wantPlugins && !plugins && plUi.loading);
+  if ((wantSkills && !skills && f === "skills") || (wantConns && !conns && f === "connectors") || (!skills && !conns && !plugins)) {
+    wrap.append(node("p", "mem-empty", waiting ? tr("Lädt …") : (f === "connectors" ? connUi.error : skillsUi.status) || tr("Die Liste ist gerade nicht erreichbar.")));
+    return;
+  }
+  const count = node("p", "skills-count");
+  count.setAttribute("role", "status");
+  const body = node("div", "skills-mine");
+  wrap.append(count, body);
+
+  const update = () => {
+    const q = skillsUi.q;
+    const parts = [];
+    if (plugins) parts.push({ key: "plugins", title: tr("Plugins"), have: plugins.mine.length, cards: plugins.mine.filter((p) => wordsMatch(q, `${p.name} ${p.description}`)).map((p) => pluginCard(p, "mine")) });
+    if (conns) parts.push({ key: "connectors", title: tr("Konnektoren"), have: conns.items.length, cards: conns.items.filter((c) => wordsMatch(q, `${c.name} ${c.description} ${connStatusLabel(c)}`)).map(connCard) });
+    if (skills) parts.push({ key: "skills", title: tr("Skills"), have: skills.skills.length, cards: skills.skills.filter((x) => wordsMatch(q, `${x.name} ${x.description}`)).map(skillCard) });
+    if (skills && f === "skills") {
+      const std = skills.standard.filter((x) => wordsMatch(q, `${x.label} ${x.name} ${x.description}`));
+      parts.push({ key: "standard", title: tr("Standard"), hint: tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen."), have: 0, cards: std.map((x) => skillCard({ ...x, standard: true })) });
+    }
+    const shown = parts.reduce((n, x) => n + x.cards.length, 0);
+    const have = parts.reduce((n, x) => n + x.have, 0);
+    body.replaceChildren();
+    count.textContent = q.trim() ? trn(shown, "1 Treffer", "{0} Treffer") : "";
+    if (q.trim() && !shown) {
+      body.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort."), connResetButton(() => { resetSearch(); update(); })));
+      return;
+    }
+    if (!have && !q.trim() && !shown) {
+      const go = node("button", "pill ghost", tr("Entdecken"));
+      go.type = "button";
+      go.addEventListener("click", () => { skillsUi.tab = "discover"; renderSkills(); });
+      if (f === "connectors") body.append(canAdd
+        ? connEmpty(tr("Noch kein Konnektor."), tr("Such dir bei „Entdecken“ einen Dienst aus oder trage über „Hinzufügen“ einen eigenen MCP-Server ein."), go)
+        : connEmpty(tr("Noch kein Konnektor."), tr("Die Administration hat noch keinen Konnektor für alle freigegeben.")));
+      else if (f === "skills") body.append(connEmpty(tr("Noch keine eigenen Skills."), tr("Importiere eine SKILL.md oder ein .skill, schreibe selbst eines oder such dir bei „Entdecken“ eines aus."), go));
+      else body.append(connEmpty(tr("Noch nichts hinzugefügt."), tr("Such dir bei „Entdecken“ ein Plugin, einen Dienst oder ein Skill aus, oder lege über „Hinzufügen“ eigene an."), go));
+      return;
+    }
+    for (const part of parts) {
+      if (!part.cards.length) continue;
+      if (f === "all" || part.key === "standard") body.append(node("h3", "skills-section", part.title));
+      if (part.hint) body.append(node("p", "skills-hint", part.hint));
+      const grid = node("div", "skills-grid");
+      grid.append(...part.cards);
+      body.append(grid);
+    }
+  };
+  skillsUi.onSearch = update;
+  update();
+}
+
+// ---- Entdecken: je Art ein Katalog, unter „Alle“ die Anfänge aller drei
+
+function renderDiscoverTab(wrap) {
+  const f = skillsUi.section;
+  if (f === "connectors") { renderConnDiscover(wrap); return; }
+  if (f === "skills") {
+    if (!skillsUi.data) { wrap.append(node("p", "mem-empty", skillsUi.status || tr("Die Skills sind gerade nicht erreichbar."))); return; }
+    renderDiscover(wrap, skillsUi.data);
+    return;
+  }
+  renderDiscoverAll(wrap);
+}
+
+function renderDiscoverAll(wrap) {
+  wrap.append(node("p", "skills-hint", tr("Plugins (Pakete aus Skills und Konnektoren), Dienste und Skills zum Hinzufügen. Zu jeder Art siehst du die ersten; „Alle anzeigen“ öffnet die ganze Liste.")));
+  const showConns = connectorsAvailable() && canAddConnectors();
+  if (showConns && !connUi.catalog && !connUi.catalogError) loadConnCatalog();
+  const count = node("p", "skills-count");
+  count.setAttribute("role", "status");
+  const body = node("div", "skills-mine");
+  wrap.append(count, body);
+
+  const update = () => {
+    const q = skillsUi.q;
+    const parts = [];
+    if (plUi.data) {
+      const items = plUi.data.catalog.map((p) => ({ ...p, haystack: `${p.label} ${p.summary} ${p.skills.map((x) => x.label).join(" ")} ${p.connectors.map((c) => c.label).join(" ")}` }));
+      parts.push({ key: "plugins", title: tr("Plugins"), hits: items.filter((p) => wordsMatch(q, p.haystack)), card: (p) => pluginCard(p, "catalog") });
+    }
+    if (showConns && connUi.catalog) {
+      const cats = new Map(connUi.catalog.categories.map((c) => [c.id, c.label]));
+      const have = new Map(connUi.data.items.filter((c) => c.catalog_id).map((c) => [c.catalog_id, c]));
+      const items = connUi.catalog.connectors.map((e) => ({ ...e, categoryLabel: cats.get(e.category) || "", haystack: `${e.label} ${e.provider} ${e.summary} ${cats.get(e.category) || ""}` }))
+        .sort((a, b) => a.label.localeCompare(b.label, kiLocale));
+      parts.push({ key: "connectors", title: tr("Konnektoren"), hits: items.filter((e) => wordsMatch(q, e.haystack)), card: (e) => connCatalogCard(e, have.get(e.id)) });
+    }
+    if (skillsUi.data) {
+      const cats = new Map(skillsUi.data.categories.map((c) => [c.id, c.label]));
+      const items = skillsUi.data.recommended.map((x) => ({ ...x, recommended: true, categoryLabel: cats.get(x.category) || "", haystack: `${x.label} ${x.name} ${x.summary} ${cats.get(x.category) || ""}` }))
+        .sort((a, b) => (b.installs || 0) - (a.installs || 0) || a.label.localeCompare(b.label, kiLocale));
+      parts.push({ key: "skills", title: tr("Skills"), hits: items.filter((x) => wordsMatch(q, x.haystack)), card: skillCard });
+    }
+    body.replaceChildren();
+    const total = parts.reduce((n, x) => n + x.hits.length, 0);
+    count.textContent = q.trim() ? trn(total, "1 Treffer", "{0} Treffer") : "";
+    if (!parts.length) { body.append(node("p", "mem-empty", plUi.loading || connUi.catalogLoading ? tr("Lädt …") : plUi.error || tr("Die Liste ist gerade nicht erreichbar."))); return; }
+    if (!total) { body.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort."), connResetButton(() => { resetSearch(); update(); }))); return; }
+    for (const part of parts) {
+      if (!part.hits.length) continue;
+      const limit = part.key === "plugins" ? part.hits.length : q.trim() ? 12 : 6;  // Plugins gibt es nur unter „Alle“, dort immer vollständig
+      body.append(node("h3", "skills-section", part.title));
+      const grid = node("div", "skills-grid");
+      for (const item of part.hits.slice(0, limit)) grid.append(part.card(item));
+      body.append(grid);
+      if (part.hits.length > limit) {
+        const more = node("button", "pill ghost", tr("Alle {0} anzeigen", part.hits.length));
+        more.type = "button";
+        more.addEventListener("click", () => { skillsUi.section = part.key; renderSkills(); });
+        body.append(more);
+      }
+    }
+  };
+  skillsUi.onSearch = update;
+  update();
 }
 
 // ---- Plugins: Pakete aus Skills und Konnektoren zu einem Thema
 
-const plUi = { data: null, loading: false, error: "", tab: "mine", query: "", detail: null, preview: null, result: null, busy: false };
+const plUi = { data: null, loading: false, error: "", detail: null, preview: null, result: null, busy: false };
 
 async function loadPlugins() {
   plUi.loading = true;
@@ -2922,83 +3088,6 @@ function plStateText(state) {
 
 function plCounts(skills, connectors) {
   return `${trn(skills, "1 Skill", "{0} Skills")} · ${trn(connectors, "1 Konnektor", "{0} Konnektoren")}`;
-}
-
-function renderPlugins(wrap) {
-  const status = node("p", "skills-status");
-  status.setAttribute("role", "status");
-  status.textContent = skillsUi.status;
-  wrap.append(status);
-  const data = plUi.data;
-  if (!data) {
-    wrap.append(node("p", "mem-empty", plUi.loading ? tr("Lädt …") : plUi.error || tr("Die Plugins sind gerade nicht erreichbar.")));
-    if (!plUi.loading && !plUi.error) loadPlugins();
-    return;
-  }
-  const tools = node("div", "skills-tools");
-  const seg = node("div", "seg");
-  for (const [id, label] of [["mine", tr("Meine")], ["discover", tr("Entdecken")]]) {
-    const b = node("button", "", label);
-    b.type = "button";
-    b.setAttribute("aria-pressed", String(plUi.tab === id));
-    b.addEventListener("click", () => { plUi.tab = id; skillsUi.status = ""; renderSkills(); });
-    seg.append(b);
-  }
-  const add = node("button", "pill primary compact");
-  add.type = "button";
-  add.disabled = plUi.busy;
-  add.setAttribute("aria-label", tr("Von GitHub-Link"));
-  add.title = tr("Von GitHub-Link");
-  add.append(icon("code"), node("span", "", tr("Von GitHub-Link")));
-  add.addEventListener("click", pluginGithub);
-  tools.append(seg, add);
-  wrap.append(tools);
-  if (plUi.tab === "discover") renderPluginDiscover(wrap, data);
-  else renderPluginMine(wrap, data);
-  wrap.append(node("p", "skills-note", tr("Ein Plugin legt Skills und Konnektoren an. Beim Entfernen verschwindet nur, was das Plugin selbst angelegt hat. Skills und Konnektoren aus fremden Plugins gelten als fremder Inhalt.")));
-}
-
-function pluginList(wrap, items, card, empty, label) {
-  const filter = node("div", "skills-filter");
-  const search = searchInput(label, plUi.query);
-  filter.append(search);
-  const count = node("p", "skills-count");
-  count.setAttribute("role", "status");
-  const body = node("div", "skills-grid");
-  wrap.append(filter, count, body);
-  const update = () => {
-    const hits = items.filter((p) => wordsMatch(plUi.query, p.haystack));
-    body.replaceChildren();
-    count.textContent = plUi.query.trim() ? trn(hits.length, "1 Plugin", "{0} Plugins") : "";
-    if (!items.length) { body.className = "skills-mine"; body.append(empty()); return; }
-    body.className = "skills-grid";
-    if (!hits.length) {
-      body.className = "skills-mine";
-      body.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort."), connResetButton(() => { plUi.query = ""; search.value = ""; update(); search.focus(); })));
-      return;
-    }
-    for (const p of hits) body.append(card(p));
-  };
-  search.addEventListener("input", () => { plUi.query = search.value; update(); });
-  update();
-}
-
-function renderPluginMine(wrap, data) {
-  wrap.append(node("p", "skills-hint", tr("Hier stehen die Plugins, die du hinzugefügt hast.")));
-  const items = data.mine.map((p) => ({ ...p, haystack: `${p.name} ${p.description}` }));
-  const empty = () => {
-    const go = node("button", "pill ghost", tr("Plugins entdecken"));
-    go.type = "button";
-    go.addEventListener("click", () => { plUi.tab = "discover"; renderSkills(); });
-    return connEmpty(tr("Noch kein Plugin."), tr("Such dir bei „Entdecken“ ein Paket zu deinem Thema aus oder hol dir ein Claude-Plugin von einem GitHub-Link."), go);
-  };
-  pluginList(wrap, items, (p) => pluginCard(p, "mine"), empty, tr("Plugins durchsuchen"));
-}
-
-function renderPluginDiscover(wrap, data) {
-  wrap.append(node("p", "skills-hint", tr("Pakete, die Skills und Konnektoren zu einem Thema zusammen anlegen. Du siehst vorher, was dazugehört.")));
-  const items = data.catalog.map((p) => ({ ...p, haystack: `${p.label} ${p.summary} ${p.skills.map((s) => s.label).join(" ")} ${p.connectors.map((c) => c.label).join(" ")}` }));
-  pluginList(wrap, items, (p) => pluginCard(p, "catalog"), () => connEmpty(tr("Noch keine Pakete.")), tr("Pakete durchsuchen"));
 }
 
 function pluginCard(p, kind) {
@@ -3125,7 +3214,7 @@ async function pluginInstall(entry, button) {
   try {
     const result = await api(`api/plugins/catalog/${encodeURIComponent(entry.id)}`, { method: "POST" });
     plUi.result = { name: entry.label, ...result };
-    plUi.tab = "mine";
+    skillsUi.tab = "mine";
     skillsGo("plugin-result");
     await Promise.all([loadPlugins(), loadSkills()]);
     if (connUi.data) loadConnectors();
@@ -3163,7 +3252,7 @@ function renderPluginResult(wrap) {
       go.type = "button";
       go.addEventListener("click", () => {
         skillsUi.section = "connectors";
-        connUi.tab = added ? "mine" : "discover";
+        skillsUi.tab = added ? "mine" : "discover";
         skillsGo("list");
         loadConnectors();
       });
@@ -3300,7 +3389,7 @@ function renderPluginPreview(wrap) {
       plUi.busy = false;
       plUi.result = { name: p.name, skills: result.skills, connectors: result.connectors };
       plUi.preview = null;
-      plUi.tab = "mine";
+      skillsUi.tab = "mine";
       skillsGo("plugin-result");
       await Promise.all([loadPlugins(), loadSkills()]);
       if (connUi.data) loadConnectors();
@@ -3312,67 +3401,13 @@ function renderPluginPreview(wrap) {
   wrap.append(panel);
 }
 
-function renderMine(wrap, data) {
-  wrap.append(node("p", "skills-hint", tr("Diese Skills gelten in allen deinen Chats. Die KI nimmt eines von selbst, wenn die Aufgabe zur Beschreibung passt.")));
-  const filter = node("div", "skills-filter");
-  const search = searchInput(tr("Skills durchsuchen"), skillsUi.mineQuery);
-  filter.append(search);
-  const count = node("p", "skills-count");
-  count.setAttribute("role", "status");
-  const body = node("div", "skills-mine");
-  wrap.append(filter, count, body);
-
-  const update = () => {
-    const q = skillsUi.mineQuery;
-    const own = data.skills.filter((s) => wordsMatch(q, `${s.name} ${s.description}`));
-    const std = data.standard.filter((s) => wordsMatch(q, `${s.label} ${s.name} ${s.description}`));
-    body.replaceChildren();
-    count.textContent = q.trim() ? trn(own.length + std.length, "1 Skill", "{0} Skills") : "";
-    if (q.trim() && !own.length && !std.length) {
-      const none = node("div", "skills-empty");
-      const reset = node("button", "pill ghost", tr("Suche zurücksetzen"));
-      reset.type = "button";
-      reset.addEventListener("click", () => { skillsUi.mineQuery = ""; search.value = ""; update(); search.focus(); });
-      none.append(node("p", "", tr("Nichts gefunden.")), node("p", "skills-hint", tr("Versuch es mit einem anderen Wort.")), reset);
-      body.append(none);
-      return;
-    }
-    if (!data.skills.length && !q.trim()) {
-      const empty = node("div", "skills-empty");
-      const go = node("button", "pill ghost", tr("Skills entdecken"));
-      go.type = "button";
-      go.addEventListener("click", () => { skillsUi.tab = "recommended"; renderSkills(); });
-      empty.append(
-        node("p", "", tr("Noch keine eigenen Skills.")),
-        node("p", "skills-hint", tr("Importiere eine SKILL.md oder ein .skill, schreibe selbst eines oder such dir bei „Entdecken“ eines aus.")),
-        go,
-      );
-      body.append(empty);
-    } else if (own.length) {
-      const grid = node("div", "skills-grid");
-      for (const s of own) grid.append(skillCard(s));
-      body.append(grid);
-    }
-    if (std.length) {
-      body.append(node("h3", "skills-section", tr("Standard")));
-      body.append(node("p", "skills-hint", tr("Mitgeliefert und immer an. Deine eigenen Skills gehen ihnen vor, wenn sie zur Aufgabe passen.")));
-      const grid = node("div", "skills-grid");
-      for (const s of std) grid.append(skillCard({ ...s, standard: true }));
-      body.append(grid);
-    }
-  };
-  search.addEventListener("input", () => { skillsUi.mineQuery = search.value; update(); });
-  update();
-}
-
 // Entdecken: Suche, Kategorien und Sortierung über die mitgelieferten Skills
 function renderDiscover(wrap, data) {
   wrap.append(node("p", "skills-hint", tr("Geprüfte Skills, mitgeliefert und frei nutzbar. Mit „Hinzufügen“ landen sie bei „Meine“; dort kannst du sie jederzeit ausschalten oder entfernen.")));
   const cats = new Map(data.categories.map((c) => [c.id, c.label]));
   const all = data.recommended.map((s) => ({ ...s, recommended: true, categoryLabel: cats.get(s.category) || "", haystack: `${s.label} ${s.name} ${s.summary} ${cats.get(s.category) || ""}` }));
 
-  const controls = node("div", "skills-filter");
-  const search = searchInput(tr("Skills durchsuchen"), skillsUi.query);
+  const controls = node("div", "skills-filter sort-only");
   const sort = node("select", "field");
   sort.setAttribute("aria-label", tr("Sortierung"));
   for (const [id, label] of [["popular", tr("Beliebteste")], ["az", tr("A bis Z")]]) {
@@ -3381,7 +3416,7 @@ function renderDiscover(wrap, data) {
     sort.append(o);
   }
   sort.value = skillsUi.sort;
-  controls.append(search, sort);
+  controls.append(sort);
   const chips = node("div", "skills-cats");
   chips.setAttribute("role", "group");
   chips.setAttribute("aria-label", tr("Kategorien"));
@@ -3391,7 +3426,7 @@ function renderDiscover(wrap, data) {
   wrap.append(controls, chips, count, grid);
 
   const update = () => {
-    const hits = all.filter((s) => wordsMatch(skillsUi.query, s.haystack));
+    const hits = all.filter((s) => wordsMatch(skillsUi.q, s.haystack));
     const per = new Map();
     for (const s of hits) per.set(s.category, (per.get(s.category) || 0) + 1);
     if (skillsUi.category !== "all" && !cats.has(skillsUi.category)) skillsUi.category = "all";
@@ -3412,16 +3447,13 @@ function renderDiscover(wrap, data) {
     grid.replaceChildren();
     if (!shown.length) {
       const none = node("div", "skills-empty");
-      const reset = node("button", "pill ghost", tr("Suche zurücksetzen"));
-      reset.type = "button";
-      reset.addEventListener("click", () => { skillsUi.query = ""; skillsUi.category = "all"; search.value = ""; update(); search.focus(); });
-      none.append(node("p", "", tr("Nichts gefunden.")), node("p", "skills-hint", tr("Versuch es mit einem anderen Wort oder wähle eine andere Kategorie.")), reset);
+      none.append(node("p", "", tr("Nichts gefunden.")), node("p", "skills-hint", tr("Versuch es mit einem anderen Wort oder wähle eine andere Kategorie.")), connResetButton(() => { skillsUi.category = "all"; resetSearch(); update(); }));
       grid.append(none);
       return;
     }
     for (const s of shown) grid.append(skillCard(s));
   };
-  search.addEventListener("input", () => { skillsUi.query = search.value; update(); });
+  skillsUi.onSearch = update;
   sort.addEventListener("change", () => { skillsUi.sort = sort.value; update(); });
   update();
 }
@@ -3710,12 +3742,13 @@ function renderSkillDetail(wrap) {
   wrap.append(card);
 }
 
-// ------------------------------------------------------------------- Konnektoren (Tab in den Anpassungen)
+// ------------------------------------------------------------------- Konnektoren (Filter „Konnektoren“ der Plugins-Seite)
 
 const connUi = {
-  data: null, catalog: null, catalogError: "", catalogLoading: false, tab: "mine", mineQuery: "", query: "", category: "all",
+  data: null, catalog: null, catalogError: "", catalogLoading: false, category: "all",
   registry: { q: "", items: [], next: "", loading: false, error: "", loaded: false, seq: 0 },
-  id: null, form: null, flow: null, setup: null, error: "", loading: false,
+  id: null, form: null, flow: null, setup: null, error: "", loading: false, detailTab: "overview",
+  toolOpen: new Set(),  // aufgeklappte Werkzeuge in „Berechtigungen“ („<Konnektor>:<Werkzeug>“)
   toolsOpen: new Set(),  // aufgeklappte Werkzeug-Gruppen („<Konnektor>:read“, „<Konnektor>:write“); zu ist der Standard
 };
 
@@ -3829,95 +3862,7 @@ function connResetButton(reset) {
   return b;
 }
 
-function renderConnectors(wrap) {
-  const status = node("p", "skills-status");
-  status.setAttribute("role", "status");
-  status.textContent = skillsUi.status;
-  wrap.append(status);
-  const data = connUi.data;
-  if (!data) {
-    wrap.append(node("p", "mem-empty", connUi.loading ? tr("Lädt …") : connUi.error || tr("Die Konnektoren sind gerade nicht erreichbar.")));
-    return;
-  }
-  const canAdd = data.can_create.private || data.can_create.global;
-  if (!canAdd) connUi.tab = "mine";
-  if (canAdd) {
-    const tools = node("div", "skills-tools");
-    const seg = node("div", "seg three");
-    for (const [id, label] of [["mine", tr("Meine")], ["discover", tr("Entdecken")], ["community", tr("Community")]]) {
-      const b = node("button", "", label);
-      b.type = "button";
-      b.setAttribute("aria-pressed", String(connUi.tab === id));
-      b.addEventListener("click", () => { connUi.tab = id; skillsUi.status = ""; renderSkills(); });
-      seg.append(b);
-    }
-    const add = node("button", "pill primary compact");
-    add.type = "button";
-    add.setAttribute("aria-haspopup", "menu");
-    add.setAttribute("aria-label", tr("Hinzufügen"));
-    add.append(icon("plus"), node("span", "", tr("Hinzufügen")));
-    add.addEventListener("click", async () => {
-      const entries = [
-        { value: "catalog", icon: "stack", label: tr("Aus dem Katalog") },
-        { value: "registry", icon: "globe", label: tr("Im Register suchen") },
-        { value: "own", icon: "edit", label: tr("Selbst eintragen") },
-      ];
-      const choice = wideScreen() ? await openPopover(add, entries) : await openSheet({ title: tr("Konnektor hinzufügen"), items: entries });
-      if (choice === "catalog") { connUi.tab = "discover"; renderSkills(); }
-      else if (choice === "registry") { connUi.tab = "community"; renderSkills(); }
-      else if (choice === "own") connForm(null);
-    });
-    tools.append(seg, add);
-    wrap.append(tools);
-  }
-  if (connUi.tab === "discover") renderConnDiscover(wrap);
-  else if (connUi.tab === "community") renderConnCommunity(wrap);
-  else renderConnMine(wrap, canAdd);
-  wrap.append(node("p", "skills-note", tr("Was ein Konnektor liefert (Mails, Dokumente, Tickets), gilt als fremder Inhalt. Änderungen bei einem Dienst bestätigst du im Chat.")));
-}
-
 // Meine: eigene Konnektoren zuerst, danach die für alle freigegebenen
-function renderConnMine(wrap, canAdd) {
-  const data = connUi.data;
-  wrap.append(node("p", "skills-hint", tr("Konnektoren verbinden die KI mit Diensten außerhalb von Home Assistant, zum Beispiel Mail, Kalender oder dein Überwachungssystem.")));
-  const filter = node("div", "skills-filter");
-  const search = searchInput(tr("Konnektoren durchsuchen"), connUi.mineQuery);
-  filter.append(search);
-  const count = node("p", "skills-count");
-  count.setAttribute("role", "status");
-  const body = node("div", "skills-mine");
-  wrap.append(filter, count, body);
-  const update = () => {
-    const q = connUi.mineQuery;
-    const hits = data.items.filter((c) => wordsMatch(q, `${c.name} ${c.description} ${connStatusLabel(c)}`));
-    body.replaceChildren();
-    count.textContent = q.trim() ? trn(hits.length, "1 Konnektor", "{0} Konnektoren") : "";
-    if (!data.items.length) {
-      if (canAdd) {
-        const go = node("button", "pill ghost", tr("Konnektoren entdecken"));
-        go.type = "button";
-        go.addEventListener("click", () => { connUi.tab = "discover"; renderSkills(); });
-        body.append(connEmpty(tr("Noch kein Konnektor."), tr("Such dir bei „Entdecken“ einen Dienst aus oder trage über „Hinzufügen“ einen eigenen MCP-Server ein."), go));
-      } else body.append(connEmpty(tr("Noch kein Konnektor."), tr("Die Administration hat noch keinen Konnektor für alle freigegeben.")));
-      return;
-    }
-    if (!hits.length) {
-      body.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort."), connResetButton(() => { connUi.mineQuery = ""; search.value = ""; update(); search.focus(); })));
-      return;
-    }
-    for (const [scope, title] of [["private", tr("Meine eigenen")], ["global", tr("Für alle freigegeben")]]) {
-      const group = hits.filter((c) => c.scope === scope);
-      if (!group.length) continue;
-      if (hits.some((c) => c.scope !== scope)) body.append(node("h3", "skills-section", title));
-      const grid = node("div", "skills-grid");
-      for (const c of group) grid.append(connCard(c));
-      body.append(grid);
-    }
-  };
-  search.addEventListener("input", () => { connUi.mineQuery = search.value; update(); });
-  update();
-}
-
 // ---- Entdecken: Katalog mit Suche und Kategorien
 
 function renderConnDiscover(wrap) {
@@ -3932,18 +3877,15 @@ function renderConnDiscover(wrap) {
   const cats = new Map(cat.categories.map((c) => [c.id, c.label]));
   const all = cat.connectors.map((e) => ({ ...e, categoryLabel: cats.get(e.category) || "", haystack: `${e.label} ${e.provider} ${e.summary} ${cats.get(e.category) || ""}` }))
     .sort((a, b) => a.label.localeCompare(b.label, kiLocale));
-  const controls = node("div", "skills-filter");
-  const search = searchInput(tr("Dienste durchsuchen"), connUi.query);
-  controls.append(search);
   const chips = node("div", "skills-cats");
   chips.setAttribute("role", "group");
   chips.setAttribute("aria-label", tr("Kategorien"));
   const count = node("p", "skills-count");
   count.setAttribute("role", "status");
   const grid = node("div", "skills-grid");
-  wrap.append(controls, chips, count, grid);
+  wrap.append(chips, count, grid);
   const update = () => {
-    const hits = all.filter((e) => wordsMatch(connUi.query, e.haystack));
+    const hits = all.filter((e) => wordsMatch(skillsUi.q, e.haystack));
     const per = new Map();
     for (const e of hits) per.set(e.category, (per.get(e.category) || 0) + 1);
     if (connUi.category !== "all" && !cats.has(connUi.category)) connUi.category = "all";
@@ -3960,12 +3902,12 @@ function renderConnDiscover(wrap) {
     const shown = hits.filter((e) => connUi.category === "all" || e.category === connUi.category);
     grid.replaceChildren();
     if (!shown.length) {
-      grid.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort oder wähle eine andere Kategorie."), connResetButton(() => { connUi.query = ""; connUi.category = "all"; search.value = ""; update(); search.focus(); })));
+      grid.append(connEmpty(tr("Nichts gefunden."), tr("Versuch es mit einem anderen Wort oder wähle eine andere Kategorie."), connResetButton(() => { connUi.category = "all"; resetSearch(); update(); })));
       return;
     }
     for (const e of shown) grid.append(connCatalogCard(e, have.get(e.id)));
   };
-  search.addEventListener("input", () => { connUi.query = search.value; update(); });
+  skillsUi.onSearch = update;
   update();
 }
 
@@ -4189,11 +4131,9 @@ function renderConnCommunity(wrap) {
   const r = connUi.registry;
   wrap.append(node("p", "skills-hint", tr("Hier suchst du im offenen Register für MCP-Server. Es zeigt nur Server, die du über das Internet erreichst.")));
   wrap.append(node("p", "skills-warn", tr("Nicht geprüft: Im Register kann jede Person etwas eintragen. Füge nur hinzu, was du kennst und wem du vertraust. Alles, was ein solcher Server liefert, gilt als fremder Inhalt.")));
-  const filter = node("div", "skills-filter");
-  const search = searchInput(tr("Im Register suchen"), r.q);
-  filter.append(search);
+  r.q = skillsUi.q.trim();
   const body = node("div", "skills-mine");
-  wrap.append(filter, body);
+  wrap.append(body);
   const paint = () => {
     body.replaceChildren();
     if (r.error) body.append(connEmpty(r.error, "", (() => { const b = node("button", "pill ghost", tr("Noch einmal versuchen")); b.type = "button"; b.addEventListener("click", () => connRegistrySearch(false, paint)); return b; })()));
@@ -4212,10 +4152,10 @@ function renderConnCommunity(wrap) {
     }
   };
   let timer = 0;
-  search.addEventListener("input", () => {
+  skillsUi.onSearch = () => {
     clearTimeout(timer);
-    timer = setTimeout(() => { r.q = search.value.trim(); connRegistrySearch(false, paint); }, 400);
-  });
+    timer = setTimeout(() => { r.q = skillsUi.q.trim(); connRegistrySearch(false, paint); }, 400);
+  };
   paint();
   if (!r.loaded && !r.loading && !r.error) connRegistrySearch(false, paint);
 }
@@ -4223,6 +4163,7 @@ function renderConnCommunity(wrap) {
 function connOpen(id) {
   connUi.id = id;
   connUi.flow = null;
+  connUi.detailTab = "overview";
   skillsGo("connector");
 }
 
@@ -4235,6 +4176,23 @@ function renderConnectorDetail(wrap) {
   skillHead(wrap, c.name);
   wrap.lastElementChild.classList.add("with-tile");
   wrap.lastElementChild.prepend(connTile(c));
+  if (c.status !== "ok") connUi.detailTab = "overview";
+  if (c.status === "ok") {
+    const bar = node("div", "skills-bar");
+    const tabs = node("div", "skills-tabs");
+    tabs.setAttribute("role", "tablist");
+    for (const [id, label] of [["overview", tr("Übersicht")], ["permissions", tr("Berechtigungen")]]) {
+      const tab = node("button", "skills-tab", label);
+      tab.type = "button";
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(connUi.detailTab === id));
+      tab.addEventListener("click", () => { connUi.detailTab = id; renderSkills(); });
+      tabs.append(tab);
+    }
+    bar.append(tabs);
+    wrap.append(bar);
+    if (connUi.detailTab === "permissions") { wrap.append(connPermissions(c)); return; }
+  }
   const card = node("section", "skills-panel");
   const meta = node("div", "skills-detail-meta");
   meta.append(connBadges(c));
@@ -4294,7 +4252,7 @@ function renderConnectorDetail(wrap) {
   if (c.needs_secret && c.status !== "ok") card.append(connSecretForm(c));
   if (connUi.flow && connUi.flow.id === c.id) card.append(connFlowPanel(c));
 
-  if (c.status === "ok") card.append(connToolList(c));
+  if (c.status === "ok") card.append(connToolSummary(c));
   wrap.append(card);
 }
 
@@ -4398,10 +4356,102 @@ function connFlowPanel(c) {
   return box;
 }
 
-function connToolList(c) {
-  const wrap = node("div", "conn-tools");
-  if (!c.tools.length) { wrap.append(node("p", "skills-hint", tr("Der Server meldet keine Werkzeuge."))); return wrap; }
-  const confirm = connUi.data.write_confirm === "ask";
+function connLevelMeta(level) {
+  return {
+    allow: { icon: "check", label: tr("Immer erlauben") },
+    ask: { icon: "bell", label: tr("Genehmigung erforderlich") },
+    block: { icon: "close", label: tr("Blockiert") },
+  }[level];
+}
+
+// Übersicht: kurze Zusammenfassung der Werkzeuge; Einzelheiten und Einstellungen stehen bei „Berechtigungen“
+function connToolSummary(c) {
+  const box = node("div", "conn-summary");
+  if (!c.tools.length) { box.append(node("p", "skills-hint", tr("Der Server meldet keine Werkzeuge."))); return box; }
+  box.append(node("p", "skills-label", tr("Werkzeuge")));
+  for (const [label, list] of [[tr("Lesen"), c.tools.filter((t) => t.read_only)], [tr("Ändern"), c.tools.filter((t) => !t.read_only)]]) {
+    if (!list.length) continue;
+    const names = list.slice(0, 3).map((t) => t.title).join(", ") + (list.length > 3 ? ", …" : "");
+    const row = node("p", "conn-sum-row");
+    row.append(node("strong", "", label), node("span", "", names));
+    box.append(row);
+  }
+  const n = (level) => c.tools.filter((t) => t.level === level).length;
+  box.append(node("p", "skills-hint", tr("{0} immer erlaubt · {1} mit Genehmigung · {2} blockiert", n("allow"), n("ask"), n("block"))));
+  const all = node("button", "pill ghost", tr("Alle {0} anzeigen", c.tools.length));
+  all.type = "button";
+  all.addEventListener("click", () => { connUi.detailTab = "permissions"; renderSkills(); });
+  box.append(all);
+  return box;
+}
+
+// Auswahl der Stufe: Knopf mit Menü (Immer erlauben, Genehmigung erforderlich, Blockiert); ``mixed`` zeigt „Gemischt“ ohne Haken
+function connLevelButton(current, label, pick, mixed = false) {
+  const b = node("button", "pill ghost level-btn");
+  b.type = "button";
+  b.setAttribute("aria-haspopup", "menu");
+  b.setAttribute("aria-label", label);
+  const meta = mixed ? { icon: "more", label: tr("Gemischt") } : connLevelMeta(current);
+  b.append(icon(meta.icon), node("span", "", meta.label), icon("chevron"));
+  b.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const entries = ["allow", "ask", "block"].map((level) => ({ value: level, icon: connLevelMeta(level).icon, label: connLevelMeta(level).label, active: !mixed && level === current }));
+    const choice = wideScreen() ? await openPopover(b, entries) : await openSheet({ title: label, items: entries });
+    if (!choice || (!mixed && choice === current)) return;
+    b.disabled = true;
+    try { await pick(choice); } catch (err) { skillsUi.status = errorText(err, tr("Das hat nicht geklappt.")); }
+    renderSkills();
+  });
+  return b;
+}
+
+async function connSetLevels(c, levels) {
+  connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ tools: levels }) }));
+}
+
+function connToolRow(c, t) {
+  const id = `${c.id}:${t.name}`;
+  const open = connUi.toolOpen.has(id);
+  const row = node("div", "conn-tool-row");
+  const head = node("div", "conn-tool-head");
+  const toggle = node("button", "conn-tool-open");
+  toggle.type = "button";
+  toggle.setAttribute("aria-expanded", String(open));
+  const text = node("span", "conn-tool-text");
+  text.append(node("strong", "", t.title), node("small", "mem-meta", t.description || t.name));
+  toggle.append(icon("chevron"), text);
+  toggle.addEventListener("click", () => { if (open) connUi.toolOpen.delete(id); else connUi.toolOpen.add(id); renderSkills(); });
+  head.append(toggle, connLevelButton(t.level, tr("Stufe von „{0}“", t.title), (level) => connSetLevels(c, { [t.name]: level })));
+  row.append(head);
+  if (open) {
+    const detail = node("div", "conn-tool-detail");
+    detail.append(node("p", "skill-desc full", t.description || tr("Keine Beschreibung vom Server.")));
+    const name = node("p", "conn-tool-name");
+    name.append(node("span", "skills-label", tr("Name des Werkzeugs")), node("code", "", t.name));
+    detail.append(name);
+    if (t.inputs?.length) {
+      detail.append(node("p", "skills-label", tr("Eingaben")));
+      const list = node("ul", "conn-inputs");
+      for (const input of t.inputs) {
+        const li = node("li", "");
+        li.append(node("code", "", input.name));
+        if (input.type) li.append(node("em", "", input.type));
+        if (input.required) li.append(node("span", "skill-badge", tr("Pflicht")));
+        if (input.description) li.append(node("span", "conn-input-desc", input.description));
+        list.append(li);
+      }
+      detail.append(list);
+    }
+    row.append(detail);
+  }
+  return row;
+}
+
+// Berechtigungen: je Gruppe (Lesen, Ändern) eine Stufe für alle Werkzeuge, darunter jedes Werkzeug mit eigener Stufe und aufklappbarer Beschreibung
+function connPermissions(c) {
+  const box = node("section", "skills-panel conn-perms");
+  box.append(node("p", "skills-hint", tr("Lege fest, wann die KI die Werkzeuge dieses Konnektors nutzen darf. „Immer erlauben“: ohne Rückfrage. „Genehmigung erforderlich“: die KI fragt im Chat nach, dort kannst du auch „In diesem Chat immer zulassen“ wählen. „Blockiert“: die KI bekommt das Werkzeug gar nicht erst.")));
+  if (!c.tools.length) { box.append(node("p", "skills-hint", tr("Der Server meldet keine Werkzeuge."))); return box; }
   const part = (key, title, hint, list, emptyHint = "") => {
     if (!list.length && !emptyHint) return;
     const head = node("div", "conn-group-head");
@@ -4420,44 +4470,18 @@ function connToolList(c) {
     }
     head.append(name);
     if (list.length) {
-      // Rechts je Gruppe: alles erlauben oder nichts erlauben (wie die Gruppenwahl bei Claude); bei gemischtem Stand „Benutzerdefiniert“
-      const on = list.filter((t) => t.enabled).length;
-      const now = on === list.length ? "all" : on === 0 ? "none" : "custom";
-      const bulk = node("select", "field conn-bulk");
-      bulk.setAttribute("aria-label", tr("Alle Werkzeuge der Gruppe „{0}“", title));
-      for (const [value, label] of [["all", tr("Alles erlauben")], ["none", tr("Nichts erlauben")], ["custom", tr("Benutzerdefiniert")]]) {
-        const option = node("option", "", label);
-        option.value = value;
-        option.selected = value === now;
-        option.disabled = value === "custom";
-        bulk.append(option);
-      }
-      bulk.addEventListener("change", async () => {
-        bulk.disabled = true;
-        try {
-          connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ tools: Object.fromEntries(list.map((t) => [t.name, bulk.value === "all"])) }) }));
-        } catch (err) { skillsUi.status = errorText(err, tr("Das hat nicht geklappt.")); }
-        renderSkills();
-      });
-      head.append(bulk);
+      const levels = new Set(list.map((t) => t.level));
+      const same = levels.size === 1 ? list[0].level : "";
+      head.append(connLevelButton(same, tr("Alle Werkzeuge der Gruppe „{0}“", title), (level) => connSetLevels(c, Object.fromEntries(list.map((t) => [t.name, level]))), !same));
     }
-    wrap.append(head);
+    box.append(head);
     if (!open) return;
-    wrap.append(node("p", "skills-hint", list.length ? hint : emptyHint));
-    for (const t of list) {
-      const row = node("div", "conn-tool");
-      const text = node("div", "conn-tool-text");
-      text.append(node("strong", "", t.title), node("small", "mem-meta", t.description || t.name));
-      row.append(text, connSwitch(t.enabled, t.enabled ? tr("{0} ausschalten", t.title) : tr("{0} einschalten", t.title), async (on) => {
-        connKeep(await api(`api/connectors/${c.id}/account`, { method: "PATCH", body: JSON.stringify({ tools: { [t.name]: on } }) }));
-        renderSkills();
-      }));
-      wrap.append(row);
-    }
+    box.append(node("p", "skills-hint", list.length ? hint : emptyHint));
+    for (const t of list) box.append(connToolRow(c, t));
   };
-  part("read", tr("Lesen"), tr("Diese Werkzeuge verändern nichts. Die KI darf sie ohne Rückfrage nutzen."), c.tools.filter((t) => t.read_only));
-  part("write", tr("Ändern"), confirm ? tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest, und die KI fragt vor jeder Änderung im Chat nach.") : tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie einschaltest."), c.tools.filter((t) => !t.read_only), tr("Dieser Server bietet keine ändernden Werkzeuge an. Das liegt meist am Server selbst: Er darf nur lesen (zum Beispiel „Read-only“ oder eingeschränkte Rechte des Zugangs) oder zeigt nur lesende Werkzeuge an."));
-  return wrap;
+  part("read", tr("Lesen"), tr("Diese Werkzeuge verändern nichts."), c.tools.filter((t) => t.read_only));
+  part("write", tr("Ändern"), tr("Diese Werkzeuge können etwas verändern oder senden. Sie sind erst an, wenn du sie freigibst. Bei „Immer erlauben“ führt die KI die Änderung auch aus, wenn sie vorher fremde Inhalte gelesen hat (zum Beispiel eine Mail)."), c.tools.filter((t) => !t.read_only), tr("Dieser Server bietet keine ändernden Werkzeuge an. Das liegt meist am Server selbst: Er darf nur lesen (zum Beispiel „Read-only“ oder eingeschränkte Rechte des Zugangs) oder zeigt nur lesende Werkzeuge an."));
+  return box;
 }
 
 // ---- Logo wählen: Link oder Upload (nur Rasterbilder, höchstens 128 kB; das prüft der Server noch einmal)
@@ -8727,7 +8751,7 @@ function searchActions() {
   const list = [
     { icon: "plus", label: tr("Neuer Chat"), run: () => startNew() },
     { icon: "folder", label: tr("Neues Projekt"), run: () => createProject() },
-    { icon: "skill", label: tr("Anpassungen"), run: () => openSkills() },
+    { icon: "skill", label: tr("Plugins"), run: () => openSkills() },
     { icon: "code", label: tr("Artefakte"), run: () => openArtifactLibrary() },
   ];
   if (state.me?.schedules) list.push({ icon: "clock", label: tr("Geplant"), run: () => openSchedules() });
@@ -10336,7 +10360,7 @@ async function init() {
     const [view, detail] = rememberedView();
     const again = rememberedActive();
     if (view === "settings" && narrowScreen()) await openSettings(detail);
-    else if (view === "skills") await openSkills(["connectors", "plugins"].includes(detail) ? detail : "skills");
+    else if (view === "skills") await openSkills(["connectors", "skills"].includes(detail) ? detail : "all");
     else if (view === "schedules" && state.me.schedules) await openSchedules();
     else if (view === "servers" && state.me.servers) await openServers(["activity", "add"].includes(detail) ? detail : "overview");
     else if (view === "allchats") await openAllChats(["shared", "archived"].includes(detail) ? detail : "active");

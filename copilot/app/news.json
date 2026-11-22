@@ -1,5 +1,40 @@
 [
   {
+    "version": "0.66.0",
+    "items": [
+      {
+        "de": {
+          "title": "Du bestimmst, was ich darf",
+          "text": "Bei jedem Werkzeug eines Konnektors legst du fest: immer erlauben, erst fragen oder blockieren. Bei „Immer erlauben“ frage ich nie nach, auch wenn ich vorher etwas Fremdes gelesen habe."
+        },
+        "en": {
+          "title": "You decide what I may do",
+          "text": "For every tool of a connector you choose: always allow, ask first or block. With “Always allow” I never ask, even if I have read something from outside beforehand."
+        }
+      },
+      {
+        "de": {
+          "title": "Nachfragen nur noch einmal",
+          "text": "Wenn ich bei einem Werkzeug nachfrage, kannst du immer „In diesem Chat immer zulassen“ wählen. Dann frage ich in diesem Chat bei diesem Konnektor nicht mehr ständig."
+        },
+        "en": {
+          "title": "Asking only once",
+          "text": "Whenever I ask about a tool, you can choose “Always allow in this chat”. Then I stop asking again and again in this chat for that connector."
+        }
+      },
+      {
+        "de": {
+          "title": "Alles an einem Ort: Plugins",
+          "text": "Konnektoren und Skills stehen jetzt zusammen unter „Plugins“. Oben filterst du nach Alle, Konnektoren oder Skills. Bei jedem Werkzeug siehst du, was es kann."
+        },
+        "en": {
+          "title": "Everything in one place: Plugins",
+          "text": "Connectors and skills now sit together under “Plugins”. At the top you filter by All, Connectors or Skills. For every tool you can see what it does."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.65.1",
     "items": [
       {

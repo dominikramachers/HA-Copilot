@@ -11,7 +11,7 @@ import pytest
 from app.config import ConfigError, parse_settings
 from app.connector_oauth import OAuthError, OAuthHelper, ServerAuth, new_pkce
 from app.connectors import (
-    ConnectorError, ConnectorService, ConnectorToolbox, MAX_TOOLS, clean_schema, normalize_tools, result_parts, tool_name,
+    ConnectorError, ConnectorService, ConnectorToolbox, MAX_TOOLS, clean_schema, input_summary, normalize_tools, result_parts, tool_level, tool_name,
 )
 from app.ha_tools import ToolError, ToolResult
 from app.main import build_ingress_app
@@ -682,7 +682,6 @@ class Harness:
         self.asked: list[tuple[str, str, bool]] = []
         self.events: list[dict] = []
         self.allowed: set[int] = set()
-        self.force = False
         self.counter = 0
 
     async def ask(self, label, details, offer_chat):
@@ -695,7 +694,7 @@ class Harness:
 
     def box(self, service, profile="dora", confirm=True, read_only=False):
         return ConnectorToolbox(
-            service, profile, confirm_writes=confirm, force_confirm=lambda: self.force, ask=self.ask, record=self.events.append,
+            service, profile, confirm_writes=confirm, ask=self.ask, record=self.events.append,
             chat_allowed=lambda cid: cid in self.allowed, allow_chat=self.allowed.add, next_id=self.next_id, read_only=read_only,
         )
 
@@ -763,10 +762,88 @@ def test_toolbox_asks_before_changes_and_remembers_chat_permission(store, server
         assert [e["status"] for e in h.events] == ["waiting", "running", "ok"] and h.events[0]["kind"] == "mcp-write"
         await send.handler({"to": "b@example.org"})  # „in diesem Chat immer“: keine zweite Rückfrage
         assert len(h.asked) == 1 and len(servers.calls) == 2
-        # nach fremden Inhalten (oder mit Anhang) wird trotzdem gefragt und „immer“ gar nicht erst angeboten
-        h.force = True
-        await send.handler({"to": "c@example.org"})
-        assert len(h.asked) == 2 and h.asked[1][2] is False
+    run(scenario())
+
+
+# ----------------------------------------------------------------------- Stufen je Werkzeug (0.66.0)
+
+def test_tool_level_defaults_and_legacy_values():
+    read = {"name": "r", "read_only": True}
+    write = {"name": "w", "read_only": False}
+    assert tool_level(read, {}) == "allow" and tool_level(write, {}) == "block"
+    # bis 0.65 gespeicherte Ja/Nein-Werte: an = lesend erlauben, ändernd mit Rückfrage; aus = blockiert
+    assert tool_level(read, {"r": True}) == "allow" and tool_level(write, {"w": True}) == "ask"
+    assert tool_level(read, {"r": False}) == "block" and tool_level(write, {"w": False}) == "block"
+    assert tool_level(write, {"w": "allow"}) == "allow" and tool_level(read, {"r": "ask"}) == "ask"
+    assert tool_level(write, {"w": "unsinn"}) == "block"
+
+
+def test_input_summary_lists_name_type_required_and_description():
+    schema = {"type": "object", "required": ["to"], "properties": {
+        "to": {"type": "string", "description": "Empfänger"}, "cc": {"type": ["string", "null"]}, "n": {"anyOf": [{"type": "integer"}, {"type": "string"}]}, "x": "kaputt",
+    }}
+    items = {i["name"]: i for i in input_summary(schema)}
+    assert items["to"] == {"name": "to", "type": "string", "required": True, "description": "Empfänger"}
+    assert items["cc"]["type"] == "string | null" and not items["cc"]["required"]
+    assert items["n"]["type"] == "integer | string" and items["x"]["type"] == ""
+    assert input_summary({"type": "object"}) == [] and input_summary(None) == []
+
+
+def test_set_account_stores_levels_and_view_reports_them(store, servers, service):
+    async def scenario():
+        created = await service.create("dora", bearer())
+        view = await service.connect("dora", created["id"], "tok-1")
+        by_name = {t["name"]: t for t in view["tools"]}
+        assert by_name["mail_search"]["level"] == "allow" and by_name["mail_send"]["level"] == "block"
+        assert by_name["mail_send"]["inputs"] == [{"name": "to", "type": "string", "required": False, "description": ""}] and by_name["calendar_create"]["inputs"] == []
+        view = service.set_account("dora", created["id"], tools={"mail_send": "allow", "calendar_create": "ask", "mail_search": "ask", "unbekannt": "allow", "x": 3})
+        by_name = {t["name"]: t for t in view["tools"]}
+        assert by_name["mail_send"]["level"] == "allow" and by_name["calendar_create"]["level"] == "ask" and by_name["mail_search"]["level"] == "ask"
+        assert all(t["enabled"] for t in view["tools"])
+        view = service.set_account("dora", created["id"], tools={"mail_send": False, "mail_search": True})  # alte Schreibweise bleibt gültig
+        by_name = {t["name"]: t for t in view["tools"]}
+        assert by_name["mail_send"]["level"] == "block" and not by_name["mail_send"]["enabled"] and by_name["mail_search"]["level"] == "allow"
+    run(scenario())
+
+
+def test_allow_level_runs_without_asking_even_after_foreign_content(store, servers, service):
+    async def scenario():
+        cid = await connected(service, servers)
+        service.set_account("dora", cid, tools={"mail_send": "allow"})
+        h = Harness()
+        send = next(s for s in h.box(service).specs() if s.name.endswith("mail_send"))
+        await send.handler({"to": "a@example.org"})
+        assert h.asked == [] and [e["status"] for e in h.events] == ["running", "ok"] and h.events[0]["kind"] == "mcp-write"
+    run(scenario())
+
+
+def test_ask_level_always_offers_chat_permission_and_it_wins_over_everything(store, servers, service):
+    async def scenario():
+        cid = await connected(service, servers)
+        service.set_account("dora", cid, tools={"mail_send": "ask", "calendar_create": "ask", "mail_search": "ask"})
+        h = Harness("allow_chat")
+        specs = {s.name.split("_", 1)[1]: s for s in h.box(service).specs()}
+        await specs["mail_send"].handler({"to": "a@example.org"})
+        assert len(h.asked) == 1 and h.asked[0][2] is True  # „In diesem Chat immer“ wird bei jeder Rückfrage angeboten
+        await specs["calendar_create"].handler({})  # gilt für den ganzen Konnektor, auch für ein anderes Werkzeug
+        await specs["mail_send"].handler({"to": "b@example.org"})
+        assert len(h.asked) == 1 and len(servers.calls) == 3
+        # auch ein lesendes Werkzeug kann auf „Genehmigung erforderlich“ stehen
+        h2 = Harness("allow")
+        await next(s for s in h2.box(service).specs() if s.name.endswith("mail_search")).handler({})
+        assert len(h2.asked) == 1 and h2.events[0]["status"] == "waiting" and h2.events[0]["kind"] == "mcp-read"
+    run(scenario())
+
+
+def test_blocked_tools_are_not_offered_and_scheduled_runs_only_get_free_reads(store, servers, service):
+    async def scenario():
+        cid = await connected(service, servers)
+        service.set_account("dora", cid, tools={"mail_search": "block", "mail_send": "allow"})
+        assert [s.name for s in Harness().box(service).specs()] == [f"conn{cid}_mail_send"]
+        service.set_account("dora", cid, tools={"mail_search": "ask"})
+        assert [s.name for s in Harness().box(service, read_only=True).specs()] == []  # geplante Läufe: niemand beantwortet Rückfragen, Ändern nie
+        service.set_account("dora", cid, tools={"mail_search": "allow"})
+        assert [s.name for s in Harness().box(service, read_only=True).specs()] == [f"conn{cid}_mail_search"]
     run(scenario())
 
 
@@ -780,16 +857,13 @@ def test_toolbox_denial_does_not_call_the_server(store, servers, service):
     run(scenario())
 
 
-def test_toolbox_without_confirmation_option_runs_changes_directly_unless_forced(store, servers, service):
+def test_toolbox_without_confirmation_option_runs_changes_directly(store, servers, service):
     async def scenario():
         await connected(service, servers, enable_writes=("calendar_create",))
         h = Harness()
         create = next(s for s in h.box(service, confirm=False).specs() if s.name.endswith("calendar_create"))
         await create.handler({})
         assert h.asked == []
-        h.force = True
-        await create.handler({})
-        assert len(h.asked) == 1  # Fremdinhalt im Chat: Rückfrage gilt trotz always_allow
     run(scenario())
 
 
