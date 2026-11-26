@@ -167,15 +167,19 @@ def test_model_choice_is_validated_remembered_per_chat_and_default_clears(store)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Nochmal"})
         assert seen["calls"][-1]["model"] == "claude-opus-5-5"
         await asgi(app, "POST", f"/api/chats/{other}/send", {"content": "Anderer Chat"})
-        assert seen["calls"][-1]["model"] is None  # Standard-Modell: gar keine Angabe an das Backend
-        # Standard ausdrücklich wählen löscht die Merkung
+        assert seen["calls"][-1]["model"] == "claude-haiku-5-5"  # Auto (0.67.0): kurze, leichte Nachricht → Haiku
+        # Das Modell der App ausdrücklich wählen: keine Angabe ans Backend, bleibt aber gemerkt (Auto ist kein festes Modell mehr)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Zurück", "model": "claude-sonnet-5-5"})
         assert seen["calls"][-1]["model"] is None
+        assert {c["id"]: c for c in jget(await asgi(app, "GET", "/api/chats"))}[chat]["model"] == "claude-sonnet-5-5"
+        # Auto ausdrücklich wählen löscht die Merkung
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hallo", "model": "auto"})
+        assert seen["calls"][-1]["model"] == "claude-haiku-5-5"
         assert {c["id"]: c for c in jget(await asgi(app, "GET", "/api/chats"))}[chat]["model"] == ""
-        # ein später aus der Liste entferntes Modell fällt auf den Standard zurück
+        # ein später aus der Liste entferntes Modell fällt auf Auto zurück
         store.set_chat_model("adm01", chat, "claude-veraltet")
-        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Und jetzt"})
-        assert seen["calls"][-1]["model"] is None
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Analysiere bitte ausführlich die Heizkurve und vergleiche sie mit dem Vorjahr"})
+        assert seen["calls"][-1]["model"] == "claude-opus-5-5"
 
     run(scenario())
 

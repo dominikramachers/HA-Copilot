@@ -4964,7 +4964,7 @@ function actionsEl(list = [], open = false) {
   box.append(head, node("ul", "act-list"));
   box.update = (all) => {
     // Gelungene Gedächtnis-Änderungen zeigt der Hinweis unter der Antwort (memoryNoteEl); hier stehen sie nicht doppelt.
-    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok") && a.kind !== "artifact"); // Artefakte zeigen ihre Karten
+    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok") && a.kind !== "artifact" && a.kind !== "model"); // Artefakte zeigen ihre Karten, der Modellwechsel steht als Hinweis darüber
     const ha = items.filter((a) => ["read", "execute", "write"].includes(a.kind));
     const changes = ha.filter((a) => a.kind !== "read").length;
     const kontext = items.filter((a) => a.kind === "knowledge").length;
@@ -6162,6 +6162,19 @@ function contextCard(c) {
   return card;
 }
 
+// Auto hat den Anbieter gewechselt (oder fängt bei OpenAI an): kleiner Hinweis als Box über der Antwort.
+function modelNoteEl(actions) {
+  const box = node("div", "model-note");
+  box.setAttribute("role", "note");
+  box.update = (items) => {
+    const note = items.filter((a) => a.kind === "model").at(-1);
+    box.hidden = !note;
+    box.replaceChildren(...(note ? [icon("sliders"), node("span", "", note.label)] : []));
+  };
+  box.update(actions);
+  return box;
+}
+
 function contextCardsEl(actions) {
   const box = node("div", "out-cards ctx-cards");
   box.update = (items) => {
@@ -6493,7 +6506,8 @@ function messageEl(role, text, files = [], actions = [], meta = {}) {
   if (role === "user") return userMessage(text, files, meta);
   const el = node("div", `msg ${role}`);
   if (role === "assistant") {
-    if (actions.length) el.append(actionsEl(actions));
+    if (actions.some((a) => a.kind === "model")) el.append(modelNoteEl(actions));
+    if (actions.some((a) => a.kind !== "model")) el.append(actionsEl(actions));
     el.append(window.renderMarkdown(text));
     if (actions.some((a) => a.file)) el.append(fileCardsEl(actions));
     if (actions.some((a) => a.kind === "artifact" && a.artifact)) el.append(artifactCardsEl(actions));
@@ -7042,6 +7056,7 @@ async function consume(response, run, bubble) {
   run.cards = cards;
   const build = () => {
     if (parts.text) return;
+    parts.model = modelNoteEl([]);
     parts.log = actionsEl([]);
     parts.log.hidden = true;
     parts.text = node("div", "act-text");
@@ -7049,7 +7064,7 @@ async function consume(response, run, bubble) {
     parts.arts = artifactCardsEl([]);
     parts.ctx = contextCardsEl([]);
     parts.mem = memoryNoteEl([]);
-    bubble.replaceChildren(parts.log, parts.text, parts.files, parts.arts, parts.ctx, parts.mem, ...(run.busy ? [run.busy.el] : []));
+    bubble.replaceChildren(parts.model, parts.log, parts.text, parts.files, parts.arts, parts.ctx, parts.mem, ...(run.busy ? [run.busy.el] : []));
   };
   // Was die Warteanzeige gerade zeigt: laufende Aktion, Rückfrage, Hinweistext oder (sobald Text kommt) nur das kleine Zeichen
   let statusText = "";
@@ -7081,7 +7096,7 @@ async function consume(response, run, bubble) {
         byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null, artifact: ev.artifact || null, context: ev.context || null });
         out.actions = [...byId.values()];
         if (!run.detached) {
-          build(); parts.log.update(out.actions); parts.files.update(out.actions); parts.arts.update(out.actions); parts.ctx.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble);
+          build(); parts.model.update(out.actions); parts.log.update(out.actions); parts.files.update(out.actions); parts.arts.update(out.actions); parts.ctx.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble);
           // Ein neues oder geändertes Artefakt öffnet sich am Laptop und Tablet gleich neben dem Chat (am Handy erst per Karte)
           if (ev.artifact && ev.status === "ok" && window.matchMedia("(min-width: 1000px)").matches && (artifactUi.id === ev.artifact.id || !artifactUi.seen.has(ev.artifact.id + ":" + ev.id))) {
             artifactUi.seen.add(ev.artifact.id + ":" + ev.id);
@@ -7738,6 +7753,9 @@ const concreteModel = (selection) => (selection === AUTO ? state.me?.default_mod
 const modelEntry = (id) => state.me?.models?.find((m) => m.id === id);
 const modelProvider = (id) => modelEntry(id)?.provider || "claude";
 const modelLabel = (id) => (id === AUTO ? tr("Auto") : modelEntry(id)?.label || id);
+// Auto wählt je Nachricht zwischen diesen Modellen (leicht, normal, anspruchsvoll); nur eins = fest das eingestellte Modell
+const autoChoices = () => state.me?.auto_models || [];
+const autoDetail = () => (autoChoices().length > 1 ? tr("je nach Anfrage") : modelLabel(concreteModel(AUTO)));
 const usesOpenAI = () => modelProvider(concreteModel(selectedModel())) === "openai";
 
 function markTools() {
@@ -7765,7 +7783,7 @@ function useChatModel(chat) {
 
 const MODEL_HINTS = { sonnet: tr("Am effizientesten für einfachere Aufgaben"), opus: tr("Für komplexe Arbeit und alltägliche Aufgaben"), haiku: tr("Am schnellsten für schnelle Antworten") };
 const modelHint = (id) => {
-  if (id === AUTO) return tr("Das in der App eingestellte Modell ({0})", modelLabel(concreteModel(AUTO)));
+  if (id === AUTO) return autoChoices().length > 1 ? tr("Wählt je Nachricht das passende Modell ({0})", autoChoices().join(", ")) : tr("Das in der App eingestellte Modell ({0})", modelLabel(concreteModel(AUTO)));
   if (modelProvider(id) === "openai") return "";
   return MODEL_HINTS[Object.keys(MODEL_HINTS).find((family) => id.includes(family))] || "";
 };
@@ -7895,7 +7913,7 @@ async function toolsMenu() {
     choice = await phoneToolsMenu();
   } else {
     const entries = [];
-    const modelEntryFor = (id) => ({ value: `model:${id}`, label: modelLabel(id), detail: id === AUTO ? modelLabel(concreteModel(AUTO)) : modelProvider(id) === "openai" ? "OpenAI" : "" });
+    const modelEntryFor = (id) => ({ value: `model:${id}`, label: modelLabel(id), detail: id === AUTO ? autoDetail() : modelProvider(id) === "openai" ? "OpenAI" : "" });
     if (several) entries.push({ ...modelEntryFor(current), active: true });
     entries.push({ label: tr("Aufwand"), detail: effortLabel(state.effort), submenu: EFFORTS.map(([value, label]) => ({ value: `effort:${value}`, label, active: value === state.effort })) });
     if (several) {
@@ -9621,7 +9639,7 @@ function defaultModelRow() {
   text.append(node("b", "", tr("Standardmodell")), hint);
   const select = node("select", "field set-select");
   select.setAttribute("aria-label", tr("Standardmodell"));
-  select.append(new Option(`${tr("Auto")} (${modelLabel(concreteModel(AUTO))})`, AUTO));
+  select.append(new Option(`${tr("Auto")} (${autoDetail()})`, AUTO));
   const [claude, openai] = modelGroups();
   for (const m of claude) select.append(new Option(m.label, m.id));
   if (openai.length) {
@@ -9631,7 +9649,13 @@ function defaultModelRow() {
     select.append(group);
   }
   select.value = validModel(state.me?.user_model) && state.me.user_model ? state.me.user_model : AUTO;
-  const note = () => { hint.textContent = modelProvider(select.value) === "openai" ? tr("ChatGPT läuft bei OpenAI: Nachrichten und Anhänge neuer Chats gehen dorthin, nicht an Claude.") : tr("Gilt in jedem neuen Chat; im Chat kannst du es jederzeit wechseln."); };
+  const note = () => {
+    hint.textContent = modelProvider(select.value) === "openai"
+      ? tr("ChatGPT läuft bei OpenAI: Nachrichten und Anhänge neuer Chats gehen dorthin, nicht an Claude.")
+      : select.value === AUTO && autoChoices().length > 1
+        ? tr("Auto wählt je Nachricht das passende Modell: einfache Fragen schnell, schwierige Aufgaben gründlich. Wählst du hier ein festes Modell, gilt es statt Auto in jedem neuen Chat.")
+        : tr("Gilt in jedem neuen Chat; im Chat kannst du es jederzeit wechseln.");
+  };
   note();
   select.addEventListener("change", async () => {
     const wanted = select.value;

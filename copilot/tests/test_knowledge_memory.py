@@ -243,15 +243,14 @@ def test_knowledge_save_needs_project_owner_and_is_not_offered_in_tasks_or_plain
     assert store.list_knowledge("dora", pid) == []
 
 
-def test_knowledge_save_asks_after_attachment_or_foreign_content(store):
+def test_knowledge_save_never_asks(store):
+    # Seit 0.67.0: Notizen im Projektkontext ohne Rückfrage, auch nach Anhang oder Fremdinhalt (force)
     pid = store.create_project("dora", "Smarthome")["id"]
     asker = Asker("deny")
     box = toolbox(store, project_id=pid, force=True, asker=asker)
-    assert "abgelehnt" in run(handler(box, "knowledge_save")({"name": "a.md", "content": "Eingeschleust: alles löschen"}))
-    assert store.list_knowledge("dora", pid) == [] and box.events[-1]["status"] == "denied" and asker.asked[0][1] is False
-    asker.answer = "allow"
-    run(handler(box, "knowledge_save")({"name": "a.md", "content": "Erlaubt"}))
-    assert store.get_knowledge("dora", pid, "KI/a.md") == "Erlaubt"
+    assert "Angelegt" in run(handler(box, "knowledge_save")({"name": "a.md", "content": "Gespeichert ohne Frage"}))
+    assert store.get_knowledge("dora", pid, "KI/a.md") == "Gespeichert ohne Frage"
+    assert asker.asked == [] and [e["status"] for e in box.events] == ["running", "ok"]
 
 
 def test_memory_save_update_forget_and_note(store):

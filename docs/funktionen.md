@@ -9,6 +9,11 @@ Ein Überblick über alles, was HA Copilot kann, mit den Einstellungen, die dazu
 - Antworten erscheinen als **Live-Stream** mit Markdown, verschachtelten Stichpunkten, Tabellen und Codeblöcken (kompakt, mit Knöpfen zum Kopieren und Herunterladen, schon während die Antwort läuft). Vollständige HTML-Seiten bekommen eine **Vorschau**, die abgeschottet und ohne Netzwerk läuft.
 - **Antworten laufen auf dem Server weiter.** Du kannst den Chat wechseln, die Seite neu laden oder den Tab schließen; die Antwort wird trotzdem fertig und steht danach als ungelesen in der Liste. Mit „Stopp“ brichst du sie ab.
 - **Aktionen der KI in einer Zeile (wie in Claude):** Über der Antwort steht, was die KI getan hat, als eine ruhige Zeile mit Pfeil („3 Aktionen in Home Assistant, davon 1 Änderung“). Ein Klick klappt jeden einzelnen Schritt auf. Auch **während** der Antwort bleibt die Liste zu: Im Chat siehst du nur die Aktion, die gerade läuft. Schlägt etwas fehl, steht dort in Rot „nicht ausgeführt“.
+
+| Aktionen zusammengefasst | Aufgeklappt |
+|---|---|
+| ![Aktionszeile über der Antwort mit Hinweis auf eine Notiz im Projektkontext](screenshots/aktionen-kontext.png) | ![Aufgeklappte Aktionen mit den einzelnen Schritten](screenshots/aktionen-offen.png) |
+
 - Pro Nachricht lässt sich die **Denktiefe** wählen (Niedrig, Mittel, Hoch), dazu das **Modell** und die **Websuche**. Alles steht in einem Menü (Knopf z. B. „Sonnet 5.5 Mittel“; am Computer rechts unter dem Eingabefeld, am Handy im Eingabefeld neben der Büroklammer), wie in Claude: gewähltes Modell, „Aufwand“ und „Weitere Modelle“ als Untermenüs.
 - **Listen schreiben:** `1. ` oder `- ` am Zeilenanfang wird eingerückt, Umschalt+Enter (am Handy Enter) führt die Liste fort, ein leerer Punkt beendet sie, Tab rückt ein. Gesendet erscheint sie als Liste.
 - **Modell im laufenden Chat wechseln:** geht jederzeit, auch zwischen Claude und ChatGPT. Der Verlauf geht mit, Gedächtnis, Projektwissen und Konnektoren bleiben; die Oberfläche sagt, wohin der Verlauf dann geht.
@@ -55,6 +60,9 @@ Mehr: [Inkognito-Chat](../copilot/DOCS.md#inkognito-chat-ab-0560), [Chats teilen
 - **Projekte** ordnen Chats und tragen **Anweisungen** (bis 4000 Zeichen), die in jedem Chat des Projekts mitgehen. Zu einem Projekt kannst du **Kontext** hochladen (Notizen, Word, Excel, PDF, ZIP); die KI liest bei Bedarf nach. Die KI hält Wichtiges aus euren Gesprächen **selbstständig** als Notizen im Ordner `KI/` fest (Entscheidungen, Stand, offene Punkte, dazu eine Übersichtsnotiz `stand.md`) und schlägt dort von sich aus nach, so behält ein Projekt alle Chats im Blick. Unter der Antwort erscheint dann eine Karte, die die Notiz öffnet; Notizen lassen sich lesen und bearbeiten. Deine hochgeladenen Dateien ändert sie nie. Hochgeladene Dateien bleiben als **Original** erhalten und lassen sich wieder herunterladen; unter einer erzeugten Datei legt **Im Projekt ablegen** sie im Projekt ab (die KI kann das auch selbst). In einem Projekt kennt die KI außerdem die **anderen Chats dieses Projekts** und liest bei Bedarf in ihnen nach („mach mit dem weiter, was wir letzte Woche besprochen haben“).
 ![Projektkontext mit Original und Notiz der KI](screenshots/projekt-wissen.png)
 
+![Notiz der KI im Projektkontext, geöffnet aus der Karte unter der Antwort](screenshots/kontext-notiz.png)
+
+
 ![Projektansicht mit Beschreibung, Eingabefeld und den Chats des Projekts](screenshots/projektansicht.png)
 
 - **Suchen** (Strg/Cmd+Umschalt+F) durchsucht Titel und Nachrichten aller deiner Chats, ohne Rücksicht auf Groß- und Kleinschreibung und Umlaute. Schon vor der ersten Eingabe zeigt das Fenster laufende und zuletzt benutzte Chats; Reiter trennen Chats, Projekte und geplante Aufgaben, Pfeiltasten und Enter genügen zur Bedienung.
@@ -75,6 +83,9 @@ Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigen
 - **Dateien der KI öffnen im Fenster (ab 0.63.1):** Ein Klick auf die Dateikarte (Skript, Markdown, CSV, Word, PDF …) öffnet die Datei neben dem Chat mit **Vorschau** oder **Code**, **Bearbeiten** (Textdateien, Speichern legt eine neue Fassung an), **Kopieren** und **Herunterladen**. Word, PowerPoint und PDF erscheinen **als Seiten**, Excel **als Tabelle** (ab 0.65.0, mit Farben und Zahlenformaten); der Pfeil auf der Karte lädt direkt herunter. Gibt es mehrere Fassungen einer Datei, lassen sie sich **durchblättern** und eine ältere lässt sich **wiederherstellen**.
 - Größere eigenständige Ergebnisse (HTML-Seite, Zeichnung, **Diagramm**, Dokument, Code-Datei) legt die KI als **Artefakt** an: unter der Antwort steht eine Karte, daneben öffnet sich ein Fenster mit **Vorschau** und **Code**, mit Versionen, Kopieren und Herunterladen. Änderungen („Mach den Titel größer“) erzeugen eine neue Version, die alte bleibt auswählbar. Seiten laufen abgeschottet und ohne Netzwerk; Diagramme (Mermaid, ab 0.60.4) zeichnet der Browser mit einer mitgelieferten Bibliothek, ebenfalls ohne Netzwerk, und sie lassen sich als **PNG oder SVG speichern** (ab 0.65.0). Den Text kannst du selbst ändern (neue Version), eine frühere Version wiederherstellen, das Artefakt im Projekt ablegen oder eine markierte Stelle als Zitat für die nächste Frage nehmen. Mit dem Teilen-Symbol im Fenster gibst du den **Code** (nur lesen, nie als Seite ausgeführt) per Link weiter; **Geteilt** zeigt Artefakte getrennt von Chats. Der Eintrag **Artefakte** in der Seitenleiste ist die Bibliothek: alle Artefakte an einem Ort, mit Suche (Titel, Chat, Inhalt) und Filtern nach Art und Projekt.
 
+![Mermaid-Diagramm als Artefakt neben dem Chat](screenshots/mermaid.png)
+
+
 ## Mehrere Fassungen einer Antwort
 
 - Mit „Antwort neu erzeugen“ geht die bisherige Antwort nicht verloren: unter der letzten Antwort blätterst du mit `‹ 2/3 ›` zwischen den Fassungen (bis zu 10). Mit einer neuen Frage bleibt nur die gezeigte Fassung. Jede Fassung zählt wie ein eigener Aufruf.
@@ -82,6 +93,9 @@ Mehr: [Suche, Export und eigene Daten](../copilot/DOCS.md#suche-export-und-eigen
 ## Verbrauch im Blick
 
 - Administratoren sehen unter **Einstellungen → Nutzung → Alle Personen**, wer wie viel der KI genutzt hat: Anteil an den Token, Bilder und Geld in Euro (bei englischer Sprache Dollar; Claude im Abo ist durch die Pauschale gedeckt und zählt nicht mit), außerdem ob gerade jemand arbeitet oder wann zuletzt etwas geschah, für 24 Stunden, heute, diese Woche, diesen Monat oder den letzten Monat. Es werden nur Zahlen gezählt, nie Inhalte. Administrator ist, wer in Home Assistant Administrator ist, oder wer im Benutzer-Eintrag `admin: true` hat.
+
+![Nutzung aller Personen mit Anteil, Bildern und Kosten](screenshots/nutzung-personen.png)
+
 
 ## Schreibstile
 
@@ -123,6 +137,9 @@ Mehr: [Projektkontext und Gedächtnis](../copilot/DOCS.md#projektkontext-und-ged
 
 Ein **Skill** ist eine Anleitung für die KI zu einer bestimmten Art von Aufgabe, etwa „Zabbix-Templates erstellen“ oder „Angebote schreiben“. Du findest sie auf der Seite **Plugins** in der Seitenleiste (Filter „Skills“; „Konnektoren“ und „Plugins“ siehe unten). Sie gelten für dich in allen Chats. Du fügst Skills hinzu, indem du sie importierst (`SKILL.md`, `.skill` oder ZIP, mit Vorschau), per **GitHub-Link** aus einem öffentlichen Repository holst, selbst schreibst oder unter **Entdecken** mit einem Klick übernimmst (70 geprüfte Skills in acht Kategorien, mit Suche, zum Beispiel für Marketing, Social Media, Gestaltung und Büro). Auch deine eigenen Skills lassen sich durchsuchen; jede Karte hat ein kleines Symbol. Die KI sieht nur Name und Beschreibung und lädt ein Skill von selbst, wenn die Aufgabe passt (mit `/name` am Anfang einer Nachricht verlangst du ein bestimmtes Skill); nach einer gelösten Aufgabe kannst du sie bitten, **daraus ein Skill zu machen**: Du siehst eine Vorschau und musst bestätigen, ohne Zustimmung speichert sie nichts; auch geplante Aufgaben nutzen sie (nur lesend).
 
+![Rückfrage, bevor die KI ein Skill speichert](screenshots/rueckfrage-skill.png)
+
+
 Die mitgelieferten Gestaltungsregeln für Word, PowerPoint, Excel, PDF und HTML stehen als **Standard-Skills** unter „Meine“; sie lassen sich nicht abschalten, aber eigene Skills gehen ihnen vor. Skripte in einem Skill werden **nie ausgeführt**, und importierte Skills gelten als fremder Inhalt: Danach fragt die KI vor Änderungen in Home Assistant oder bei GitHub nach.
 
 Mehr: [Skills](../copilot/DOCS.md#skills-ab-0360).
@@ -138,6 +155,9 @@ Mehr: [Konnektoren](../copilot/DOCS.md#konnektoren-ab-0410).
 ## Plugins
 
 Ein **Plugin** ist ein Paket aus Skills und Konnektoren zu einem Thema, zum Beispiel „Entwicklung“ oder „Büro & Dokumente“. Du findest sie auf der Seite **Plugins** unter dem Filter „Alle“: **Meine**, **Entdecken** (10 Pakete) und im Menü „Hinzufügen“ **Plugin von GitHub-Link**. Ein Klick auf **Hinzufügen** legt die Skills an und die Konnektoren als „nicht verbunden“ (verbunden wird bei den Konnektoren); wo eine eigene App nötig ist (Google), steht ein Hinweis. Wer ein Claude-Plugin auf GitHub gefunden hat, gibt den Link an: Du siehst in einer Vorschau, was übernommen wird, und kreuzt an, was du willst. Übernommen werden nur Skills und Server-Adressen, nie Befehle, Unteragenten oder Skripte; importierte Skills gelten als fremder Inhalt. Beim **Entfernen** verschwindet nur, was das Plugin selbst angelegt hat.
+
+![Seite Plugins mit Skills, Konnektoren und Paketen](screenshots/plugins.png)
+
 
 Mehr: [Plugins](../copilot/DOCS.md#plugins-ab-0430).
 
@@ -176,7 +196,12 @@ Die Agenten aktualisieren sich selbst (Knopf oder automatisch). Auf Wunsch nehme
 ## Websuche und Modelle
 
 - Die KI sucht im Web und liest Seiten, wenn es nötig ist oder du darum bittest. Pro Benutzer steuerbar (`web_access`). Seiten aus dem Heimnetz und interne Adressen werden nie geladen.
-- **Auto** im Modellmenü nimmt das Modell des Administrators (`chat.model`); Opus und Haiku sind im Chat zusätzlich wählbar. Jede Person kann unter Einstellungen → Allgemein ein **Standardmodell** für neue Chats festlegen.
+- **Auto** im Modellmenü wählt seit 0.67.0 je Nachricht das passende Claude-Modell: Haiku für leichte Fragen und Befehle, Sonnet (`chat.model`) für normale Aufgaben, Opus für Analysen, Konzepte, Fehlersuche und viel Code. Ist ChatGPT eingeschaltet, gehen Texte und Alltagsfragen an ein ChatGPT-Modell, Technik, Code und Smarthome bleiben bei Claude; ein kleiner Hinweis über der Antwort zeigt jeden Wechsel des Anbieters. Ein persönliches Standardmodell oder eine Wahl im Chat gehen vor. Opus und Haiku sind im Chat zusätzlich fest wählbar. Jede Person kann unter Einstellungen → Allgemein ein **Standardmodell** für neue Chats festlegen.
+
+| Auto im Menü (Handy) | Hinweis, wenn Auto zu ChatGPT wechselt |
+|---|---|
+| ![Modellmenü mit Auto und Erklärung](screenshots/modell-auto.png) | ![Hinweis über der Antwort: Auto nutzt ein ChatGPT-Modell](screenshots/auto-openai.png) |
+
 - **ChatGPT (OpenAI) neben Claude** (optional, Standard aus): Mit `chat.openai_enabled` und einem OpenAI-Schlüssel stehen ChatGPT-Modelle zur Wahl, mit denselben Fähigkeiten (Home Assistant, Gedächtnis, Dateien, Bilder, GitHub, Konnektoren, Websuche, geplante Aufgaben). Ein ChatGPT-Chat geht an OpenAI, nie an Claude; das Sprechen bleibt bei Claude Haiku. Gemeinsames Monatslimit für alle Personen (Standard 3 Millionen Token), danach fragt der Chat nach. Einrichtung und Grenzen: [ChatGPT (OpenAI) einrichten](chatgpt.md).
 - Ist ein Limit deines Abos fast erreicht, erscheint oben im Chat ein Hinweis mit der Zeit der Rücksetzung.
 
@@ -185,6 +210,9 @@ Mehr: [Web, Modell und Nutzungslimit](../copilot/DOCS.md#web-modell-und-nutzungs
 ## Dateien erzeugen
 
 Auf Wunsch legt die KI **Word, Excel, PowerPoint, PDF** und Skripte (PowerShell, Shell, Python …) an. Unter der Antwort erscheint eine Karte mit Download. Die Dateien bleiben 14 Tage und gehören nur dir. Abschalten mit `chat.files_enabled: false`.
+
+![Dateifenster mit Vorschau einer Excel-Tabelle](screenshots/dateifenster-tabelle.png)
+
 
 Die KI gestaltet neue Dateien nach Designregeln (Leitfäden, sieben Farbthemen, auf Wunsch deine Markenfarbe), mit großer Schrift, Kartenfolien, Bildfolien, farbigen Titel- und Zwischenfolien, Seitenzahlen und aufgeräumten Tabellen; auch für HTML-Präsentationen gibt es einen Leitfaden. Sie bettet Bilder, SVG-Zeichnungen und Diagramme ein, setzt ein Inhaltsverzeichnis, Links, Deckblätter, Zitat-, Kennzahlen- und Zwei-Spalten-Folien und prüft ihr Ergebnis per Vorschau-Bild. Für Mac, iPad und iPhone erzeugt sie Dateien für Keynote, Pages und Numbers.
 

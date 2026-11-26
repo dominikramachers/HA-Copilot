@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.67.0",
+    "items": [
+      {
+        "de": {
+          "title": "Ich wähle das passende Modell",
+          "text": "Bei „Auto“ nehme ich für einfache Fragen ein schnelles Modell und für schwierige ein gründliches. Ist ChatGPT an, schreibe ich Texte auch mal damit; Technik bleibt bei Claude. Ein Hinweis zeigt den Wechsel."
+        },
+        "en": {
+          "title": "I pick the right model",
+          "text": "With “Auto” I use a quick model for simple questions and a thorough one for hard tasks. If ChatGPT is on, I may write texts with it; tech stays with Claude. A note shows each switch."
+        }
+      },
+      {
+        "de": {
+          "title": "Notizen ohne Nachfrage",
+          "text": "Wichtiges aus einem Projekt halte ich jetzt ohne Rückfrage im Kontext fest. Du siehst jede Notiz unter meiner Antwort und kannst sie ändern oder löschen."
+        },
+        "en": {
+          "title": "Notes without asking",
+          "text": "I now save important project details to the context without asking. You see every note below my answer and can edit or delete it."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.66.1",
     "items": [
       {

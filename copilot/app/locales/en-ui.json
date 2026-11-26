@@ -1467,5 +1467,8 @@
  "Plugins (Pakete aus Skills und Konnektoren), Dienste und Skills zum Hinzufügen. Zu jeder Art siehst du die ersten; „Alle anzeigen“ öffnet die ganze Liste.": "Plugins (packages of skills and connectors), services and skills to add. You see the first few of each kind; “Show all” opens the whole list.",
  "Plugins, Konnektoren und Skills durchsuchen": "Search plugins, connectors and skills",
  "Ein Plugin legt Skills und Konnektoren an; beim Entfernen verschwindet nur, was es selbst angelegt hat. Was ein Konnektor liefert (Mails, Dokumente, Tickets) und importierte Skills gelten als fremder Inhalt: Danach fragt die KI vor Änderungen in Home Assistant oder bei GitHub und vor Bildern bei dir nach. Skripte in Skills werden nie ausgeführt.": "A plugin creates skills and connectors; removing it only deletes what it created itself. What a connector returns (mail, documents, tickets) and imported skills count as foreign content: afterwards the AI asks you before changes in Home Assistant or on GitHub and before creating images. Scripts in skills are never run.",
- "1 Treffer": "1 result"
+ "1 Treffer": "1 result",
+ "Wählt je Nachricht das passende Modell ({0})": "Picks the right model for each message ({0})",
+ "je nach Anfrage": "depending on the request",
+ "Auto wählt je Nachricht das passende Modell: einfache Fragen schnell, schwierige Aufgaben gründlich. Wählst du hier ein festes Modell, gilt es statt Auto in jedem neuen Chat.": "Auto picks the right model for each message: quick for simple questions, thorough for hard tasks. If you pick a fixed model here, it replaces Auto in every new chat."
 }

@@ -488,7 +488,7 @@ def test_gpt_chat_uses_the_gpt_model_and_counts_tokens(store):
         assert listed[chat]["model"] == "gpt-5.6-luna"
         # Claude-Chats zählen nichts und bekommen keinen Zähler
         other = await new_chat(app)
-        await asgi(app, "POST", f"/api/chats/{other}/send", {"content": "Hi"})
+        await asgi(app, "POST", f"/api/chats/{other}/send", {"content": "Hi", "model": "claude-sonnet-5-5"})
         assert "on_usage" not in backend.calls[-1]["kw"] and store.token_usage("adm01", month, "openai") == 1500
         usage = jget(await asgi(app, "GET", "/api/usage"))["openai"]
         assert usage == {"enabled": True, "month": month, "used": 1500, "limit": 3_000_000}
@@ -499,9 +499,9 @@ def test_gpt_chat_uses_the_gpt_model_and_counts_tokens(store):
 def test_auto_default_model_and_precedence(store):
     async def scenario():
         app, backend = gpt_app(store)
-        # Auto (ausdrücklich) und keine Angabe = das in der App eingestellte Modell, also gar keine Angabe ans Backend
+        # Auto (ausdrücklich): technische Frage → das in der App eingestellte Claude-Modell, also gar keine Angabe ans Backend
         chat = await new_chat(app)
-        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi", "model": "auto"})
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hilf mir bitte mit einem Python-Skript für den Server", "model": "auto"})
         assert backend.calls[-1]["model"] is None
         assert next(c for c in jget(await asgi(app, "GET", "/api/chats")) if c["id"] == chat)["model"] == ""  # entspricht dem Standard: nichts gemerkt
         # Standardmodell der Person: gilt in jedem neuen Chat
@@ -517,13 +517,13 @@ def test_auto_default_model_and_precedence(store):
         await asgi(app, "POST", f"/api/chats/{fresh}/send", {"content": "Und weiter"})
         assert backend.calls[-1]["model"] == "claude-opus-5-5"
         # … auch „Auto“ im Chat gilt, obwohl die Person ein anderes Standardmodell hat
-        await asgi(app, "POST", f"/api/chats/{fresh}/send", {"content": "Auto", "model": "auto"})
+        await asgi(app, "POST", f"/api/chats/{fresh}/send", {"content": "Hilf mir bitte mit einem Python-Skript für den Server", "model": "auto"})
         assert backend.calls[-1]["model"] is None
         await asgi(app, "POST", f"/api/chats/{fresh}/send", {"content": "Bleibt Auto"})
         assert backend.calls[-1]["model"] is None
         # Das Standardmodell einer anderen Person ist unberührt
         other = jget(await asgi(app, "POST", "/api/chats", {}, user=DORA))["id"]
-        await asgi(app, "POST", f"/api/chats/{other}/send", {"content": "Hi"}, user=DORA)
+        await asgi(app, "POST", f"/api/chats/{other}/send", {"content": "Hilf mir bitte mit einem Python-Skript für den Server"}, user=DORA)
         assert backend.calls[-1]["model"] is None
         # Zurück auf Auto
         assert jget(await asgi(app, "PUT", "/api/me/model", {"model": "auto"})) == {"model": ""}
@@ -541,7 +541,7 @@ def test_default_model_that_is_no_longer_offered_counts_as_auto(store):
         assert jget(await asgi(app, "GET", "/api/me"))["user_model"] == ""
         chat = await new_chat(app)
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Hi"})
-        assert backend.calls[-1]["model"] is None
+        assert backend.calls[-1]["model"] == "claude-haiku-5-5"  # Auto ohne ChatGPT: leichte Nachricht → Haiku
 
     run(scenario())
 
@@ -709,13 +709,48 @@ def test_switching_the_model_in_a_running_chat_keeps_the_history_and_tells_the_n
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Dritte Frage"})
         call = backend.calls[-1]
         assert call["model"] == "gpt-5.6-terra" and len(call["history"]) == 4 and "lief bisher" not in call["note"]
-        # zurück zu Claude (Auto): wieder Hinweis, Verlauf vollständig
-        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Vierte Frage", "model": "auto"})
+        # zurück zu Auto mit einer technischen Frage: Claude, wieder Hinweis, Verlauf vollständig
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Vierte Frage: schreib mir dazu ein Python-Skript", "model": "auto"})
         call = backend.calls[-1]
         assert call["model"] is None and len(call["history"]) == 6
         assert "lief bisher mit GPT-5.6 Terra" in call["note"] and "Sonnet 5.5" in call["note"]
         # dasselbe Modell erneut gewählt: kein Hinweis
         await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Fünfte Frage", "model": "auto"})
         assert "lief bisher" not in backend.calls[-1]["note"]
+
+    run(scenario())
+
+
+def test_auto_sends_light_text_requests_to_chatgpt_and_technical_ones_to_claude(store):
+    async def scenario():
+        app, backend = gpt_app(store, backend=Recorder(tokens=100))
+        assert set(jget(await asgi(app, "GET", "/api/me"))["auto_models"]) >= {"Haiku 5.5", "Sonnet 5.5", "Opus 5.5"}
+        chat = await new_chat(app)
+        # Textanfrage: mittleres ChatGPT-Modell, Hinweis über der Antwort
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Schreib mir einen kurzen Geburtstagsgruß für Oma"})
+        assert backend.calls[-1]["model"] == "gpt-5.6-luna"
+        events = jget(await asgi(app, "GET", f"/api/chats/{chat}/messages"))
+        notes = [a for m in events for a in (m.get("tools") or []) if a.get("kind") == "model"]
+        assert notes and "OpenAI" in notes[-1]["label"]
+        # Programmieren bleibt bei Claude; im laufenden Chat wechselt Auto mit Hinweis und Übergabe an die KI
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Schreibe jetzt ein Python-Skript, das die Grüße per Home Assistant verschickt"})
+        call = backend.calls[-1]
+        assert call["model"] is None and "lief bisher" in call["note"]
+        # kurze Rückfrage bleibt beim Anbieter
+        await asgi(app, "POST", f"/api/chats/{chat}/send", {"content": "Danke, und noch kürzer?"})
+        assert backend.calls[-1]["model"] is None and "lief bisher" not in backend.calls[-1]["note"]
+
+    run(scenario())
+
+
+def test_auto_stays_on_claude_when_the_chatgpt_limit_is_reached(store):
+    async def scenario():
+        app, backend = gpt_app(store, backend=Recorder(tokens=2000), openai_limit_month=1)
+        first = await new_chat(app)
+        await asgi(app, "POST", f"/api/chats/{first}/send", {"content": "Schreib mir einen kurzen Gruß"})
+        assert backend.calls[-1]["model"] == "gpt-5.6-terra"
+        second = await new_chat(app)
+        await asgi(app, "POST", f"/api/chats/{second}/send", {"content": "Schreib mir einen kurzen Gruß"})
+        assert backend.calls[-1]["model"] == "claude-haiku-5-5"
 
     run(scenario())

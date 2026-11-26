@@ -40,7 +40,7 @@ from .backend_openai import OpenAIBackend
 from .backend_router import RouterBackend
 from . import attachments as filelib, compact, safety
 from . import news as newslib
-from . import quotes
+from . import autoroute, quotes
 from . import research as researchlib
 from . import styles as stylelib
 from . import artifacts as artifactlib
@@ -942,8 +942,15 @@ def register_chat_routes(
         return wanted if wanted in model_ids else ""
 
     def concrete_model(selection: str) -> str:
-        """Auto (oder keine Angabe) = das in der App eingestellte Modell, sonst das gewählte."""
+        """Auto (oder keine Angabe) = das in der App eingestellte Modell, sonst das gewählte.
+
+        Für die Antwort selbst wählt Auto je Nachricht (``autoroute``); hier steht das normale Modell, etwa für Titel,
+        Zusammenfassungen und um zu entscheiden, ob ein Wechsel des Modells den Anbieter wechselt."""
         return settings.model if selection in ("", AUTO_MODEL) else selection
+
+    auto_tiers = autoroute.Tiers.from_choices(settings.model, [m["id"] for m in settings.model_choices()] or [settings.model])
+    auto_openai = autoroute.openai_tiers(list(settings.openai_models)) if settings.openai_active else None  # nur wenn ChatGPT eingeschaltet ist
+    auto_levels = autoroute.AutoMemory()  # zuletzt von Auto gewählte Stufe je Chat (nur Arbeitsspeicher)
     accounts = github_accounts or GithubAccounts(store, Vault(VAULT_PATH))
     images = images or ImageService(settings)
     voice = voice or VoiceService(settings, ha)
@@ -1070,6 +1077,8 @@ def register_chat_routes(
             "servers": await server_allowed(profile),
             "models": settings.model_choices(),
             "default_model": settings.model,
+            # Auto wählt zwischen diesen (Claude, dazu OpenAI, wenn eingeschaltet)
+            "auto_models": list(dict.fromkeys(model_label(m) for t in (auto_tiers, auto_openai) if t for m in (t.light, t.normal, t.strong))),
             "user_model": user_default_model(profile.id),
             "design": store.profile_design(profile.id) or DEFAULT_DESIGN,
             "ha_look": store.profile_ha_look(profile.id),
@@ -3096,9 +3105,27 @@ def register_chat_routes(
         requested_style = body.style.strip() if body.style is not None else None
         if requested_style is not None and not style_known(profile, requested_style):
             raise HTTPException(status_code=422, detail=tr("Unbekannter Stil"))
-        # Vorrang: Wahl in diesem Chat, dann Standardmodell der Person, dann das in der App eingestellte Modell („Auto“)
+        # Vorrang: Wahl in diesem Chat, dann Standardmodell der Person, dann „Auto“ (Modell je nach Anspruch der Nachricht)
         saved_model = chat.get("model") if chat.get("model") == AUTO_MODEL or chat.get("model") in model_ids else ""
-        chosen_model = concrete_model(requested_model or saved_model or user_default_model(profile.id))
+        selection = requested_model or saved_model or user_default_model(profile.id)
+        chosen_model = concrete_model(selection)
+        # Modell, mit dem der Chat bisher lief (gemerkte Wahl oder Standard); für Auto zählt zusätzlich die Auto-Merkung
+        previous_model = concrete_model(saved_model or user_default_model(profile.id))
+        auto_level = None
+        auto_switched = ""  # Auto wechselt den Anbieter (oder fängt bei OpenAI an): Hinweis über der Antwort
+        if selection in ("", AUTO_MODEL) and not spoken:
+            before = auto_levels.get(key) if history else None
+            openai_ok = auto_openai is not None and not (
+                settings.openai_limit_month and store.token_usage_total(datetime.now().strftime("%Y-%m"), "openai") >= settings.openai_limit_month * 1000
+            )  # Monatslimit für ChatGPT erreicht: Auto bleibt bei Claude, statt nachzufragen
+            picked = autoroute.route(
+                text, auto_tiers, auto_openai if openai_ok else None, attachments=[f.meta() for f in files], effort=effort,
+                research=bool(body.research), in_chat=bool(history), previous=before,
+            )
+            auto_level, chosen_model = picked.level, picked.model
+            earlier = before[1] if before else (provider_of(previous_model) if history else "")
+            if (picked.provider == "openai" and earlier != "openai") or (picked.provider == "claude" and earlier == "openai"):
+                auto_switched = earlier or "new"
         model = chosen_model if chosen_model != settings.model else None  # None = Standard-Modell
         if spoken:  # gesprochen: immer das schnelle Modell (Claude), die Wahl des Chats bleibt unberührt
             requested_model = ""
@@ -3106,8 +3133,15 @@ def register_chat_routes(
             model = settings.voice_model if settings.voice_model != settings.model else None
         provider = provider_of(chosen_model)
         # Wechsel des Modells mitten im Chat: der Verlauf (nur der Text) geht an das neue Modell, das bekommt einen Hinweis darauf
-        previous_model = concrete_model(saved_model or user_default_model(profile.id))
-        switched_from = previous_model if history and not spoken and requested_model and chosen_model != previous_model else ""
+        switched_from = previous_model if history and not spoken and requested_model and auto_level is None and chosen_model != previous_model else ""
+        if auto_level is not None:
+            if auto_switched and history:  # Hinweis an die KI: der frühere Verlauf stammt von einem anderen Anbieter
+                if provider_of(previous_model) == auto_switched and not before:
+                    switched_from = previous_model  # vorher fest gewähltes Modell: genau dieses nennen
+                else:
+                    switched_from = settings.model if auto_switched == "claude" else next(iter(settings.openai_models), "")
+            auto_levels.set(key, auto_level, provider_of(chosen_model))
+            log.info("Auto: %s → %s", autoroute.LEVEL_NAMES[auto_level], chosen_model)
         web_on = settings.web_level(profile) == "on" and body.web is not False
         research = body.research
         if research:
@@ -3171,12 +3205,21 @@ def register_chat_routes(
         if requested_style is not None and requested_style != (chat.get("style_id") or ""):
             store.set_chat_style(profile.id, chat_id, requested_style)
         if requested_model:
-            # Entspricht die Wahl dem, was ohnehin gilt (Standardmodell der Person), wird nichts gemerkt
-            same = concrete_model(requested_model) == concrete_model(user_default_model(profile.id))
+            # Entspricht die Wahl dem, was ohnehin gilt (Standardmodell der Person), wird nichts gemerkt. Seit 0.67.0 ist Auto
+            # kein festes Modell mehr: ein ausdrücklich gewähltes Sonnet bleibt gemerkt, auch wenn Auto sonst Sonnet nähme.
+            same = (requested_model or AUTO_MODEL) == (user_default_model(profile.id) or AUTO_MODEL)
             store.set_chat_model(profile.id, chat_id, "" if same else requested_model)
         asked = text or ONLY_FILES_PROMPT  # was Claude zu sehen bekommt; gespeichert und angezeigt wird der leere Text
         run = Run(key, asked, first_exchange)
         runs[key] = run
+        if auto_switched:
+            name = model_label(chosen_model)
+            if provider_of(chosen_model) == "openai":
+                note = (tr("Auto nutzt für diese Anfrage {model} von OpenAI. Der bisherige Verlauf dieses Chats geht dafür an OpenAI.", model=name) if history
+                        else tr("Auto nutzt für diese Anfrage {model} von OpenAI. Deine Nachricht geht an OpenAI.", model=name))
+            else:
+                note = tr("Auto ist für diese Anfrage zu {model} von Claude gewechselt. Der bisherige Verlauf dieses Chats geht dafür an Claude.", model=name)
+            run.push({"type": "tool", "id": run.next_tool_id(), "label": note, "status": "ok", "kind": "model", "note": ""})
 
         def withdraw_question() -> None:
             """Keine Antwort entstanden: Frage wieder zurücknehmen, damit sie erneut gesendet werden kann."""

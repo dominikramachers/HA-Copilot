@@ -29,6 +29,8 @@ python tools/screenshots/capture_theme.py docs/screenshots     # dasselbe mit de
 python tools/screenshots/capture_design.py docs/screenshots    # Design: die drei Hintergrund-Muster (hell/dunkel), Einstellungsseite, die vier weiteren Themes
 python tools/screenshots/capture_neu.py docs/screenshots       # Funktionen ab 0.56: Sprechen, Inkognito, Teilen, Deep Research, Projektansicht, Projektwissen, Gedächtnis (Demo-App frisch starten)
 python tools/screenshots/capture_images.py docs/screenshots    # Bilder: Platzhalter, Fassungen, Bildvorschau, Rückfrage (Demo-App frisch starten; Limit der Demo: 2 Bilder)
+python tools/screenshots/capture_067.py docs/screenshots       # Funktionen 0.60.4 bis 0.67.0: Auto, Aktionszeile, Notiz im Kontext, Dateifenster, Mermaid, Skill-Rückfrage, Plugins, Nutzung (Demo-App frisch mit DEMO_ADMIN=1)
+python tools/screenshots/capture_auto_openai.py docs/screenshots # Hinweis über der Antwort, wenn Auto zu ChatGPT wechselt (Demo-App frisch mit DEMO_OPENAI=1)
 ```
 
 Das Theme „DORALAB“ liegt als `ha_config/themes/doralab.yaml` (nur Farben, kein Logo). `capture_theme.py` schaltet es für die Aufnahme mit dem Dienst `frontend.set_theme` ein und danach wieder aus. `capture_features.py` erzeugt zusätzlich Handy-Bilder von Home Assistant (`ha-handy-*.png`), die nicht in der Dokumentation verwendet werden.
