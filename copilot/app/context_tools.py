@@ -359,7 +359,9 @@ class ContextToolbox:
                 self._extra = {"context": {"project": self.project_id, "id": entry["id"], "name": real, "verb": {"Ergänzt": "appended", "Ersetzt": "replaced"}.get(verb, "created")}}
             return f"{verb} im Projektkontext: {real} ({len(text)} Zeichen)."
 
-        return await self._run(label, "knowledge-write", action, confirm=True, details=f"{name}\n\n{content}")
+        # Seit 0.67.0 ohne Rückfrage, auch nach Fremdinhalt (Wunsch: nicht bei jeder Notiz bestätigen). Die Notiz landet nur im
+        # Ordner KI/, erscheint als Karte unter der Antwort und lässt sich dort lesen, ändern oder löschen.
+        return await self._run(label, "knowledge-write", action)
 
     # ------------------------------------------------------------- Chatwissen
 

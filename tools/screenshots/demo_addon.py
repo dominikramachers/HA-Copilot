@@ -60,6 +60,10 @@ async def fake_image_api(request):
     data = base64.b64encode(scene(wall)).decode()
     return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": data}}]}}]})
 
+def T_(de, en):
+    return de if LANG == "de" else en
+
+
 class Backend:
     last_image = None
     last_artifact = None
@@ -82,6 +86,54 @@ class Backend:
                    "Der Verbrauch liegt typischerweise bei 3.500 bis 6.000 kWh im Jahr ([Verbrauch](https://example.org/waermepumpe-verbrauch)). "
                    "Die Förderung beträgt bis zu 70 % ([Förderung](https://example.org/foerderung)).\n\n## Offene Punkte\n- Der Verbrauch stützt sich auf eine einzige Quelle.\n\n"
                    "Quellen:\n- [Verbrauch](https://example.org/waermepumpe-verbrauch)\n- [Förderung](https://example.org/foerderung)\n- [Erfunden](https://erfunden.example/x)\n"); return
+        # Ab 0.67.0 (Bilder für 0.60.4 bis 0.67.0): Aktionszeile, Notiz im Projektkontext, Dateifenster, Mermaid, Rückfrage beim Skill
+        rec, nid = kw.get("record"), kw.get("next_id")
+        if "geburtstagsgruß" in low or "birthday" in low:  # Auto gibt Textanfragen an ChatGPT (DEMO_OPENAI=1): Hinweis über der Antwort
+            yield ("Liebe Oma,\n\nalles Liebe zum Geburtstag! Danke für deine Geduld, deine Kuchen und jede Geschichte von früher. "
+                   "Bleib gesund, wir feiern dich am Sonntag.\n\nDein Enkel" if de else
+                   "Dear Grandma,\n\nhappy birthday! Thank you for your patience, your cakes and every story from the old days. "
+                   "Stay well, we will celebrate you on Sunday.\n\nLove, your grandchild"); return
+        if ("server" in low or "servers" in low) and rec and nid:
+            for label, kind in ((T_("Systemstatus lesen: nas01", "Read system status: nas01"), "srv-read"), (T_("Dienste auflisten: nas01", "List services: nas01"), "srv-read"),
+                                (T_("Speicherplatz prüfen: web01", "Check disk space: web01"), "srv-read"), (T_("Dienst neu starten: nginx auf web01", "Restart service: nginx on web01"), "srv-write")):
+                tid = nid(); rec({"type": "tool", "id": tid, "label": label, "status": "ok", "kind": kind, "note": ""}); await asyncio.sleep(0.15)
+            if "knowledge_save" in handlers:
+                await handlers["knowledge_save"]({"name": T_("server-stand.md", "server-status.md"), "mode": "replace", "content": T_(
+                    "# Server-Stand\nKurzer Stand der Server im Haus.\n\n| Server | Zustand | Hinweis |\n|---|---|---|\n| nas01 | in Ordnung | 41 % belegt |\n| web01 | in Ordnung | nginx neu gestartet |\n\n## Offen\n- Updates auf web01 am Wochenende einspielen.\n",
+                    "# Server status\nShort status of the servers at home.\n\n| Server | State | Note |\n|---|---|---|\n| nas01 | fine | 41 % used |\n| web01 | fine | nginx restarted |\n\n## Open\n- Install updates on web01 at the weekend.\n")})
+            yield T_("Beide Server laufen. Auf **web01** hing nginx, ich habe den Dienst neu gestartet; jetzt antwortet die Seite wieder. Den Stand habe ich im Projekt festgehalten.",
+                     "Both servers are running. On **web01** nginx was stuck, so I restarted it; the site answers again. I noted the status in the project.")
+            return
+        if "file_create" in handlers and ("tabelle" in low or "spreadsheet" in low):
+            rows = [[T_("Monat", "Month"), T_("Strom (kWh)", "Power (kWh)"), T_("Kosten (€)", "Cost (€)"), T_("Änderung", "Change")]]
+            prev = 0
+            for i, (m, kwh) in enumerate(zip(T_("Jan Feb Mär Apr Mai Jun", "Jan Feb Mar Apr May Jun").split(), (412, 389, 351, 298, 254, 231))):
+                rows.append([m, kwh, round(kwh * 0.32, 2), 0 if i == 0 else round((kwh - prev) / prev, 3)]); prev = kwh
+            content = json.dumps({"sheets": [{"name": T_("Verbrauch", "Usage"), "rows": rows}]})
+            name = T_("stromverbrauch.xlsx", "power-usage.xlsx")
+            for _ in range(2):  # der erste Aufruf liefert die Gestaltungsregeln
+                try:
+                    await handlers["file_create"]({"name": name, "content": content}); break
+                except Exception:
+                    continue
+            yield T_("Hier ist die Tabelle mit dem Stromverbrauch des ersten Halbjahrs. Ein Klick auf die Karte öffnet die Vorschau.",
+                     "Here is the spreadsheet with the power usage of the first half-year. Click the card to open the preview.")
+            return
+        if "artifact_create" in handlers and ("diagramm" in low or "diagram" in low):
+            await handlers["artifact_create"]({"title": T_("Ablauf Haustür", "Front door flow"), "kind": "mermaid", "content": T_(
+                "flowchart LR\n  K[Klingel] --> P{Jemand zu Hause?}\n  P -- ja --> T[Tablet im Flur zeigt Kamera]\n  P -- nein --> H[Mitteilung aufs Handy]\n  T --> O[Tür öffnen]\n  H --> O",
+                "flowchart LR\n  K[Doorbell] --> P{Anyone home?}\n  P -- yes --> T[Hallway tablet shows camera]\n  P -- no --> H[Notification to phone]\n  T --> O[Open door]\n  H --> O")})
+            yield T_("Ich habe den Ablauf als Diagramm gezeichnet. Es öffnet sich daneben; über das Bild-Symbol speicherst du es als PNG oder SVG.",
+                     "I drew the flow as a diagram. It opens beside the chat; use the image icon to save it as PNG or SVG.")
+            return
+        if "skill_save" in handlers and "skill" in low:
+            try:
+                await handlers["skill_save"]({"name": "wochenbericht", "description": T_("Erstellt jeden Montag einen kurzen Wochenbericht zum Smarthome.", "Writes a short weekly smart home report every Monday."),
+                                              "instructions": T_("# Wochenbericht\n1. Stromverbrauch der Woche zusammenfassen.\n2. Auffällige Geräte nennen.\n3. Offene Punkte als Liste.", "# Weekly report\n1. Summarise the power usage of the week.\n2. Name unusual devices.\n3. List open items.")})
+            except Exception:
+                pass
+            yield T_("Erledigt.", "Done.")
+            return
         if "artifact_create" in handlers and ("artefakt" in low or "artifact" in low):
             if "ändere" in low or "change" in low:
                 await handlers["artifact_update"]({"id": Backend.last_artifact, "edits": [{"old": "Guten Abend", "new": "Gute Nacht"}], "note": "Gruß geändert"})
@@ -125,7 +177,8 @@ raw = {
         {"id": "sam", "label": "Sam", "ha_user_id": SAM_ID, "ha_access": "read", "github_access": "none"},
     ]},
     "chat": {"anthropic_api_key": "sk-ant-platzhalter", "ha_access_default": "read", "github_access_default": "read",
-             "sharing": "public", "research_enabled": True, "research_daily_limit": 3},
+             "sharing": "public", "research_enabled": True, "research_daily_limit": 3,
+             **({"openai_enabled": True, "openai_api_key": "sk-platzhalter"} if os.environ.get("DEMO_OPENAI") else {})},
     "images": {"google_api_key": "AIza-platzhalter", "limit_month": 2},
     "voice": {"openai_api_key": "sk-platzhalter"},
     "domain": {"public_base_url": f"http://127.0.0.1:{PUBLIC_PORT}"},

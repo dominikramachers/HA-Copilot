@@ -26,5 +26,13 @@ Alle Bilder zeigen eine Test-Instanz von Home Assistant mit Demo-Geräten und di
 | `deep-research-menue.png`, `deep-research-rueckfrage.png`, `deep-research-bericht.png` | Schalter im Menü; Rückfrage vor dem Start; Bericht mit Quellenliste und Hinweis, dass eine nicht belegte Quelle entfernt wurde (die nachgebildete KI nennt absichtlich eine erfundene) |
 | `projekt-wissen.png` | Projektwissen mit hochgeladenem Original (Download) und einer Notiz der KI |
 | `gedaechtnis-projekt.png` | Gedächtnis mit Herkunft je Eintrag (gesagt, von der KI abgeleitet, von dir eingetragen) und dem Bereich „Projekt“ |
+| `aktionen-kontext.png`, `aktionen-offen.png` | Aktionen der KI als eine Zeile über der Antwort (mit „Im Projektkontext gespeichert“) und aufgeklappt |
+| `modell-auto.png`, `auto-openai.png` | Modellmenü am Handy mit „Auto“ und Erklärung; Hinweis über der Antwort, wenn Auto eine Anfrage an ChatGPT gibt |
+| `kontext-notiz.png` | Notiz der KI im Projektkontext, geöffnet aus der Karte unter der Antwort |
+| `dateifenster-tabelle.png` | Dateifenster mit Vorschau einer erzeugten Excel-Tabelle |
+| `mermaid.png` | Mermaid-Diagramm als Artefakt neben dem Chat |
+| `rueckfrage-skill.png` | Rückfrage, bevor die KI ein Skill speichert |
+| `plugins.png` | Seite „Plugins“ mit Skills, Konnektoren und Paketen |
+| `nutzung-personen.png` | Einstellungen → Nutzung → Alle Personen (Administrator) |
 
 Nicht abgebildet, weil nur ein echter Supervisor sie liefert: der Add-on-Store und die Konfigurationsseite des Add-ons in Home Assistant. Die Schritte dort beschreibt [docs/installation.md](../installation.md) im Text.

@@ -790,5 +790,8 @@
  "Die Tabelle konnte nicht gelesen werden.": "The spreadsheet could not be read.",
  "Die Tabelle hat kein sichtbares Blatt.": "The spreadsheet has no visible sheet.",
  "Das ist schon die neueste Fassung.": "This is already the newest version.",
- "Der Konnektor „{name}“ muss neu angemeldet werden (Plugins → Konnektoren).": "The connector “{name}” needs to be signed in again (Plugins → Connectors)."
+ "Der Konnektor „{name}“ muss neu angemeldet werden (Plugins → Konnektoren).": "The connector “{name}” needs to be signed in again (Plugins → Connectors).",
+ "Auto nutzt für diese Anfrage {model} von OpenAI. Der bisherige Verlauf dieses Chats geht dafür an OpenAI.": "Auto uses {model} from OpenAI for this request. The earlier messages of this chat go to OpenAI for it.",
+ "Auto nutzt für diese Anfrage {model} von OpenAI. Deine Nachricht geht an OpenAI.": "Auto uses {model} from OpenAI for this request. Your message goes to OpenAI.",
+ "Auto ist für diese Anfrage zu {model} von Claude gewechselt. Der bisherige Verlauf dieses Chats geht dafür an Claude.": "Auto switched to {model} from Claude for this request. The earlier messages of this chat go to Claude for it."
 }
