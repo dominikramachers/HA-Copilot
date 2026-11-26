@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.69.3",
+    "items": [
+      {
+        "de": {
+          "title": "Fenster lassen sich besser lesen",
+          "text": "Die Leiste zum Scrollen in den Fenstern der Serverseite ist jetzt schmal und verdeckt nichts mehr."
+        },
+        "en": {
+          "title": "Windows are easier to read",
+          "text": "The scroll bar in the windows of the server page is now slim and no longer covers anything."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.69.2",
     "items": [
       {

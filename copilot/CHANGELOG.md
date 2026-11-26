@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.69.3
+
+Scrollleiste in den Fenstern der Seite „Server“ (nur Oberfläche):
+- **Schmale, dezente Leiste:** In „Updateplan bearbeiten“ und im Fenster „Automatische Updates“ eines Servers lag die breite Standard-Scrollleiste über dem Inhalt und verdeckte den Rand von Schaltern und Feldern. Die Leiste ist jetzt dünn und halbtransparent (`scrollbar-width: thin`, bei WebKit 8 px) und hat mit `scrollbar-gutter: stable` und etwas Innenabstand rechts ihren eigenen Platz. Gilt für `.sheet-panel.srv-au` und damit auch für das Planfenster.
+
 ## 0.69.2
 
 Feinschliff der Seite „Server“ (nur Oberfläche):
