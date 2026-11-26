@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.69.0",
+    "items": [
+      {
+        "de": {
+          "title": "Server nach Plan aktualisieren",
+          "text": "Du kannst einen Plan mit Zeitfenster anlegen, zum Beispiel nachts von 2 bis 3 Uhr. Ich aktualisiere seine Server dann nacheinander."
+        },
+        "en": {
+          "title": "Updating servers by plan",
+          "text": "You can create a plan with a time window, for example 2 to 3 a.m. at night. I then update its servers one after another."
+        }
+      },
+      {
+        "de": {
+          "title": "Pläne im Blick",
+          "text": "Bei jedem Server siehst du, ob er einem Plan folgt. Du kannst ihn pausieren, aus dem Plan nehmen oder wieder seinen eigenen Zeitplan nutzen."
+        },
+        "en": {
+          "title": "Plans at a glance",
+          "text": "For each server you see whether it follows a plan. You can pause it, take it out of the plan or use its own schedule again."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.68.0",
     "items": [
       {

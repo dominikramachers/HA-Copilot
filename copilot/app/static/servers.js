@@ -7,7 +7,7 @@
 // und den Fingerabdruck der Hub-CA; der Hub hält es nur im Arbeitsspeicher (nie auf der Platte), solange der Schlüssel gilt.
 
 const srvUi = {
-  tab: "overview",            // overview | activity | add
+  tab: "overview",            // overview | updates | activity | add
   data: null,                 // Antwort von api/servers
   activity: null,
   filter: { server: "", kind: "", days: 7 },
@@ -57,7 +57,7 @@ async function openServers(tab = "overview") {
   renderSide();
   closeMenu();
   setTitle(tr("Server"));
-  srvUi.tab = ["overview", "activity", "add"].includes(tab) ? tab : "overview";
+  srvUi.tab = ["overview", "updates", "activity", "add"].includes(tab) ? tab : "overview";
   srvUi.status = "";
   srvUi.script = null;
   srvUi.editing = false;
@@ -79,6 +79,7 @@ async function srvLoad(quiet = false) {
     srvUi.data = await api("api/servers");
     if (!srvUi.form.hub) srvUi.form.hub = srvUi.data.hub.address || location.hostname || "";
     if (srvUi.tab === "activity") await srvLoadActivity(true);
+    if (srvUi.tab === "updates") await srvPlansFetch();
   } catch (err) {
     if (!quiet) srvUi.status = errorText(err, tr("Die Server sind gerade nicht erreichbar."));
   }
@@ -156,7 +157,7 @@ function renderServers() {
   const tabs = node("div", "skills-tabs");
   tabs.setAttribute("role", "tablist");
   const pending = srvUi.data?.summary?.pending || 0;
-  for (const [id, label] of [["overview", tr("Übersicht")], ["activity", tr("Aktivität")], ["add", tr("Server hinzufügen")]]) {
+  for (const [id, label] of [["overview", tr("Übersicht")], ["updates", tr("Automatische Updates")], ["activity", tr("Aktivität")], ["add", tr("Server hinzufügen")]]) {
     const tab = node("button", "skills-tab", label);
     tab.type = "button";
     tab.setAttribute("role", "tab");
@@ -170,6 +171,7 @@ function renderServers() {
       rememberDetail(id);
       renderServers();
       if (id === "activity") srvLoadActivity().catch(() => {});
+      if (id === "updates") srvPlansFetch().then(() => { if (state.view === "servers" && srvUi.tab === "updates") renderServers(); });
     });
     tabs.append(tab);
   }
@@ -185,6 +187,7 @@ function renderServers() {
     return;
   }
   if (srvUi.tab === "activity") renderServerActivity(wrap);
+  else if (srvUi.tab === "updates") renderServerUpdates(wrap);
   else if (srvUi.tab === "add") renderServerAdd(wrap);
   else renderServerOverview(wrap);
 }
@@ -323,7 +326,10 @@ function serverCard(s) {
 function srvAuBrief(a) {
   if (a.running) return SRV_AU_PHASES()[a.running.phase] || tr("läuft");
   const parts = [];
-  if (a.enabled) {
+  if (a.plan) parts.push(tr("Plan {0}", a.plan.name));
+  if (a.plan?.paused) parts.push(tr("im Plan pausiert"));
+  else if (a.plan && !a.plan.enabled) parts.push(tr("Plan aus"));
+  else if (a.enabled) {
     parts.push(a.mode === "all" ? tr("alle Updates") : tr("nur Sicherheit"));
     parts.push(a.skip_next ? tr("nächster Lauf wird übersprungen") : tr("nächster Lauf {0}", srvAuWhen(a.next_run)));
   } else parts.push(tr("aus"));
@@ -848,21 +854,8 @@ function srvAuGroup(title, note, items, d, open) {
   return box;
 }
 
-function srvAuDraw() {
-  const body = srvAu.body;
-  if (!body) return;
-  const top = body.scrollTop;
-  const d = srvAu.data;
-  body.replaceChildren();
-  if (srvAu.error) body.append(node("p", "srv-au-banner bad", srvAu.error));
-  if (!d) {
-    if (!srvAu.error) body.append(node("p", "srv-note", tr("Wird geladen …")));
-    return;
-  }
+function srvAuOwnBox(d, locked) {
   const set = d.settings;
-  const locked = srvAu.busy || !!d.running;
-
-  // 1. Schalter und Zeitplan
   const box = node("section", "srv-au-set");
   const head = node("div", "srv-au-switchrow");
   const label = node("div", "srv-au-switchtext");
@@ -900,7 +893,26 @@ function srvAuDraw() {
   } else {
     box.append(node("p", "srv-hint", tr("Ausgeschaltet: Es wird nichts automatisch installiert. Du kannst unten trotzdem prüfen und auf Abruf installieren.")));
   }
-  body.append(box);
+  const join = srvAuJoinRow(d, locked);
+  if (join) box.append(join);
+  return box;
+}
+
+function srvAuDraw() {
+  const body = srvAu.body;
+  if (!body) return;
+  const top = body.scrollTop;
+  const d = srvAu.data;
+  body.replaceChildren();
+  if (srvAu.error) body.append(node("p", "srv-au-banner bad", srvAu.error));
+  if (!d) {
+    if (!srvAu.error) body.append(node("p", "srv-note", tr("Wird geladen …")));
+    return;
+  }
+  const locked = srvAu.busy || !!d.running;
+
+  // 1. Schalter und Zeitplan, oder der Hinweis auf den Updateplan, dem der Server folgt
+  body.append(d.plan ? srvAuPlanBox(d, locked) : srvAuOwnBox(d, locked));
 
   // 2. Läuft gerade etwas?
   if (d.running) {
