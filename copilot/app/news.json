@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.69.2",
+    "items": [
+      {
+        "de": {
+          "title": "Pakete wähle ich mit Häkchen",
+          "text": "Bei den Updates setzt du jetzt ein Häkchen, ob ein Paket dabei sein soll. Die Hinweise oben auf der Serverseite sind kürzer geworden."
+        },
+        "en": {
+          "title": "You pick packages with a checkbox",
+          "text": "For updates you now tick a box to say whether a package should be included. The notes at the top of the server page are shorter."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.69.1",
     "items": [
       {

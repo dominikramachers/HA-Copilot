@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.69.2
+
+Feinschliff der Seite „Server“ (nur Oberfläche):
+- **Kästchen statt Schalter** überall dort, wo man etwas „dabei oder nicht“ wählt: bei den Paketen der Vorschau „Beim nächsten Lauf“ und bei den Servern im Plan (Plan bearbeiten). Schalter bleiben für „an oder aus“ (Plan, automatische Updates eines Servers). Texte und Doku entsprechend angepasst (`srvAuCheck`).
+- **Kopfkarte schlanker:** Die Karte oben im Reiter zeigt nur noch die kurze Beschreibung (und rechts die wichtigste Aktion). Titel und Symbol entfallen, weil der Reiter selbst beides schon zeigt (`srvHero(wrap, text, …buttons)`).
+
 ## 0.69.1
 
 Überarbeitung der Seite „Server“, vor allem des Reiters „Automatische Updates“ (nur Oberfläche, keine Änderung an den Regeln der Updatepläne):
