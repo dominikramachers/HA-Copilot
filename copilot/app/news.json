@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.68.0",
+    "items": [
+      {
+        "de": {
+          "title": "Server halte ich auf dem Laufenden",
+          "text": "Pro Server kann ich Sicherheitsupdates zu einer festen Zeit oder auf Knopfdruck einspielen. Vorher siehst du, was dran ist, und kannst jedes Paket abwählen."
+        },
+        "en": {
+          "title": "I keep your servers up to date",
+          "text": "For each server I can install security updates at a set time or on request. Before that you see what is due and can switch off any package."
+        }
+      },
+      {
+        "de": {
+          "title": "Heikles lasse ich vorsichtig liegen",
+          "text": "Dinge wie Datenbanken, Netzwerk oder Kernel spiele ich nicht von selbst ein. Du siehst, warum, und kannst sie mit einem Schalter dazunehmen."
+        },
+        "en": {
+          "title": "I leave risky things alone",
+          "text": "Things like databases, network or the kernel I never install on my own. You see why, and you can add them with one switch."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.67.1",
     "items": [
       {

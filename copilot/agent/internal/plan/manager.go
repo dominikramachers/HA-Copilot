@@ -118,6 +118,8 @@ func Allowed(p policy.Policy, a Action) string {
 		return "Refused: " + a.Reason.Text
 	case a.Class > p.MaxClass:
 		return fmt.Sprintf("The local policy only allows changes up to class %d, this request is class %d (%s)", p.MaxClass, a.Class, a.Reason.Text)
+	case a.Auto && p.AutoUpdateDeny:
+		return "Automatic updates are switched off locally on this server (auto_update=deny)."
 	case a.Tool == ToolRun && !p.RunCommand:
 		return "Free commands are switched off locally on this server (run_command=off)."
 	case a.Root && !p.Root:

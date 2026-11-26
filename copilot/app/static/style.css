@@ -2037,3 +2037,62 @@ select.art-lib-project { flex: none; width: auto; min-width: 150px; max-width: 4
 .art-table { border-collapse: collapse; font-size: 13px; margin: 12px 16px 20px; }
 .art-table th, .art-table td { border: 1px solid var(--line); padding: 5px 10px; text-align: left; vertical-align: top; max-width: 360px; overflow-wrap: anywhere; }
 .art-table th { background: var(--chip); font-weight: 600; position: sticky; top: 0; }
+
+/* Automatische Updates der Server (0.68.0): Fenster mit Zeitplan, Vorschau je Paket und Verlauf */
+.srv-au { display: grid; gap: 14px; align-content: start; text-align: left; }
+.sheet[data-wide="1"] .sheet-panel.srv-au, .sheet-panel.srv-au { max-height: min(76dvh, 720px); overflow-y: auto; overscroll-behavior: contain; margin-top: 6px; padding-right: 2px; }
+.srv-au h4 { margin: 0; font-size: 15px; font-weight: 650; }
+.srv-au-set { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--panel); }
+.srv-au-switchrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.srv-au-switchtext { display: grid; gap: 2px; min-width: 0; }
+.srv-au-switchtext b { font-size: 15px; font-weight: 650; }
+.srv-au-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.srv-au-field { display: grid; gap: 4px; min-width: 0; }
+.srv-au-label { font-size: 12px; color: var(--muted); }
+.srv-au .srv-au-field .field, :root .sheet .srv-au .srv-au-field .field { height: 38px; margin: 0; padding: 0 10px; font-size: 14px; min-width: 0; width: 100%; }
+.srv-au-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.srv-au-banner { margin: 0; padding: 9px 12px; border-radius: var(--r-1); background: var(--warn-bg); color: var(--warn-fg); font-size: 13.5px; line-height: 1.45; }
+.srv-au-banner.bad { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.srv-au-banner.busy { background: var(--chip); color: var(--text); }
+.srv-au-pvhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
+.srv-au-pvtitle { display: grid; gap: 1px; min-width: 0; }
+.srv-au-pvtitle .srv-hint { margin-top: 0; }
+.srv-au-group { border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--panel); }
+.srv-au-group + .srv-au-group, .srv-au-pvhead + .srv-au-group { margin-top: 0; }
+.srv-au-ghead { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 6px 14px; list-style: none; cursor: pointer; font-size: 14px; font-weight: 650; border-radius: var(--r-2); }
+.srv-au-ghead::-webkit-details-marker { display: none; }
+.srv-au-ghead::after { content: ""; flex: none; width: 7px; height: 7px; margin: 0 2px 2px auto; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); }
+.srv-au-group[open] > .srv-au-ghead::after { transform: rotate(-135deg); margin-bottom: -2px; }
+.srv-au-ghead:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.srv-au-gnote { margin: 0; padding: 0 14px 8px; font-size: 13px; line-height: 1.45; color: var(--text-2); }
+.srv-au-list { list-style: none; margin: 0; padding: 0; }
+.srv-au-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line-2); }
+.srv-au-item .sched-switch { margin-top: 1px; }
+.srv-au-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.srv-au-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.srv-au-name { font-size: 14.5px; font-weight: 650; overflow-wrap: anywhere; }
+.srv-au-ver { font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.srv-au-why { font-size: 13px; line-height: 1.4; color: var(--warn-fg); }
+.srv-au-why.hard { color: var(--danger); }
+.srv-au-scope { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.srv-au-scope .field, :root .sheet .srv-au-scope .field { width: auto; min-width: 130px; height: 32px; font-size: 13px; }
+.srv-chip.sec { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text); }
+.srv-au-foot { display: grid; gap: 6px; justify-items: start; }
+.srv-au-foot .pill { min-height: 42px; }
+.srv-au-history { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--line-2); }
+.srv-au-history .srv-hint { margin-top: 0; }
+.srv-au-runs { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.srv-au-run { padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--panel); }
+.srv-au-runtop { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; }
+.srv-au-runtext { margin: 4px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.srv-au-more summary { margin-top: 6px; font-size: 13px; color: var(--text-2); cursor: pointer; }
+.srv-au-pkgs { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.srv-au-detail { margin: 6px 0 0; padding: 8px 10px; max-height: 160px; overflow: auto; border-radius: var(--r-1); background: var(--chip); font: 12px/1.45 var(--mono, ui-monospace, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .srv-au-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .srv-au-set { padding: 12px; }
+  .srv-au-item { padding: 10px 12px; }
+  .srv-au-foot .pill { width: 100%; }
+  .srv-au-pvhead .pill { flex: none; }
+}
+@media (max-width: 360px) { .srv-au-grid { grid-template-columns: minmax(0, 1fr); } }

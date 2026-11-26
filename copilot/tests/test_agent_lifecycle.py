@@ -602,3 +602,11 @@ def test_agent_messages_are_cleaned():
     assert cleaned["then"][0]["then"][0]["then"] == [] or "then" not in cleaned["then"][0]["then"][0]  # zu tief verschachtelt: gekappt
     dirty = clean_msg({"text": "x\x00y" + "z" * 9000, "code": "Boese Code!", "params": {"k": "v\x1b", 5: "nein", "list": ["x"]}})
     assert "\x00" not in dirty["text"] and len(dirty["text"]) == 6000 and "code" not in dirty and dirty["params"] == {"k": "v"}
+
+
+def test_heartbeat_reports_a_locally_denied_auto_update_only_for_true():
+    base = {"hostname": "h"}
+    assert serverlib.clean_heartbeat({**base, "auto_update_denied": True})["auto_update_denied"] is True
+    for value in (False, "true", 1, None, "deny"):
+        assert serverlib.clean_heartbeat({**base, "auto_update_denied": value})["auto_update_denied"] is False
+    assert serverlib.clean_heartbeat(base)["auto_update_denied"] is False

@@ -15,7 +15,7 @@ import (
 )
 
 // Names sind die Werkzeuge in der Reihenfolge des Hubs (READ_TOOLS in app/servers.py).
-var Names = []string{"system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users", "metrics", "file_read", "package_info", "docker"}
+var Names = []string{"system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users", "metrics", "file_read", "package_info", "docker", "update_candidates"}
 
 var (
 	unitRe     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9:_.@\\-]{0,99}$`)
@@ -98,6 +98,13 @@ func Call(ctx context.Context, name string, args Args) (string, error) {
 		out, err = packageInfo(ctx, args)
 	case "docker":
 		out, err = docker(ctx, args)
+	case "update_candidates":
+		// strukturierte Antwort (JSON) für den Hub: nicht durch Redact/Kürzen verändern, updateCandidates hält die Größe selbst ein
+		raw, cerr := updateCandidates(ctx, args)
+		if cerr != nil {
+			return "", cerr
+		}
+		return raw, nil
 	default:
 		return "", errors.New("unknown tool")
 	}

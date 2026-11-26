@@ -481,3 +481,67 @@ func TestManagerRefusesProgramsOutsideSystemDirectories(t *testing.T) {
 		t.Fatalf("/bin/echo: %v", err)
 	}
 }
+
+func TestAutoUpgrade(t *testing.T) {
+	many := make([]string, 120)
+	for i := range many {
+		many[i] = "pkg" + strings.Repeat("a", i%5) + string(rune('a'+i%26)) + string(rune('a'+(i/26)%26))
+	}
+	a, err := Classify(ToolPackage, Args{"action": "upgrade", "packages": toAny(many), "auto": true})
+	if err != nil {
+		t.Fatalf("120 Pakete im Auto-Modus: %v", err)
+	}
+	if !a.Auto || a.Class != 1 || a.Args["auto"] != true {
+		t.Fatalf("Auto-Aktion: %+v", a)
+	}
+	if !strings.Contains(a.Command, "--only-upgrade") {
+		t.Errorf("nur gezieltes Upgrade erwartet: %s", a.Command)
+	}
+	// Ohne auto bleibt die Grenze bei 20.
+	if _, err := Classify(ToolPackage, Args{"action": "upgrade", "packages": toAny(many)}); err == nil {
+		t.Error("ohne auto müssen mehr als 20 Pakete abgelehnt werden")
+	}
+	// auto gilt nur für ein Upgrade mit Liste.
+	for _, bad := range []Args{
+		{"action": "install", "packages": list("htop"), "auto": true},
+		{"action": "remove", "packages": list("htop"), "auto": true},
+		{"action": "upgrade", "auto": true},
+		{"action": "upgrade", "packages": list(), "auto": true},
+	} {
+		if _, err := Classify(ToolPackage, bad); err == nil {
+			t.Errorf("%v hätte abgelehnt werden müssen", bad)
+		}
+	}
+	// Mehr als 300 geht auch im Auto-Modus nicht.
+	over := make([]string, 301)
+	for i := range over {
+		over[i] = "p" + string(rune('a'+i%26)) + string(rune('a'+(i/26)%26)) + string(rune('a'+(i/676)%26))
+	}
+	if _, err := Classify(ToolPackage, Args{"action": "upgrade", "packages": toAny(over), "auto": true}); err == nil {
+		t.Error("301 Pakete müssen abgelehnt werden")
+	}
+}
+
+func TestAutoUpgradeBlockedByLocalPolicy(t *testing.T) {
+	a, err := Classify(ToolPackage, Args{"action": "upgrade", "packages": list("openssl"), "auto": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := policy.Parse("ki_access=operate\n")
+	if why := Allowed(p, a); why != "" {
+		t.Fatalf("erlaubt erwartet: %s", why)
+	}
+	p = policy.Parse("ki_access=operate\nauto_update=deny\n")
+	if why := Allowed(p, a); !strings.Contains(why, "auto_update=deny") {
+		t.Fatalf("auto_update=deny muss sperren: %q", why)
+	}
+	// Eine gewöhnliche (freigegebene) Paketaktion bleibt davon unberührt.
+	manual, _ := Classify(ToolPackage, Args{"action": "upgrade", "packages": list("openssl")})
+	if why := Allowed(p, manual); why != "" {
+		t.Errorf("manuelles Upgrade darf nicht gesperrt sein: %s", why)
+	}
+	// Der Hash bindet das Auto-Kennzeichen: ein Auftrag kann nicht nachträglich zum manuellen werden.
+	if a.Hash() == manual.Hash() {
+		t.Error("Hash muss auto unterscheiden")
+	}
+}

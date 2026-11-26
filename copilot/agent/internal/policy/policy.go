@@ -37,6 +37,9 @@ type Policy struct {
 	WritePaths []string
 	// Update: off, manual oder auto (siehe oben). Ohne Angabe gilt manual.
 	Update string
+	// AutoUpdateDeny: die automatische Aktualisierung des Hubs (Systempakete, Sicherheitspatches) ist auf diesem Server gesperrt
+	// (auto_update=deny). Ohne Angabe darf der Hub sie nach Schalter in der App einrichten.
+	AutoUpdateDeny bool
 	// UpdateKey: öffentlicher ed25519-Schlüssel (Base64). Ist er gesetzt, werden nur Agenten-Dateien mit passender Signatur installiert.
 	UpdateKey string
 }
@@ -96,6 +99,8 @@ func Parse(content string) Policy {
 			if value == UpdateOff || value == UpdateManual || value == UpdateAuto {
 				p.Update = value
 			}
+		case "auto_update":
+			p.AutoUpdateDeny = value == "deny" || value == "off"
 		case "update_key":
 			p.UpdateKey = raw
 		}

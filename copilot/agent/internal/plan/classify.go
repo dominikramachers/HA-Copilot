@@ -109,6 +109,7 @@ type Action struct {
 	Undo    Msg
 	Check   []string // lesender Befehl für die Nachprüfung (läuft ohne Rechte)
 	Args    Args     // normalisierte Argumente (gehen in den Hash)
+	Auto    bool     // automatische Aktualisierung aus dem Hub (Paketliste vorab geprüft); die lokale Richtlinie kann sie sperren
 }
 
 // Classify bildet einen Auftrag auf eine Action ab. Ungültige Angaben ergeben einen Fehler; Stufe 3 ist eine gültige Antwort
@@ -258,6 +259,9 @@ func dpkgCheck(pkgs []string) []string {
 	return append([]string{"dpkg-query", "-W", "-f=${Package} ${Version} ${db:Status-Abbrev}\\n"}, pkgs...)
 }
 
+// maxAutoPackages ist die größte Liste einer automatischen Aktualisierung.
+const maxAutoPackages = 300
+
 func classifyPackage(args Args) (Action, error) {
 	manager := tools.PackageManager()
 	if manager != tools.PkgApt && manager != tools.PkgDnf {
@@ -267,9 +271,21 @@ func classifyPackage(args Args) (Action, error) {
 	if _, ok := packageActs[action]; !ok {
 		return Action{}, errors.New("action must be update, install, remove or upgrade")
 	}
-	pkgs, err := args.list("packages", 20, 100)
+	// auto: die automatische Aktualisierung des Hubs. Nur gezieltes Upgrade einer vorab geprüften Liste (größere Grenze), nie „alles“.
+	auto := args.flag("auto")
+	maxPkgs := 20
+	if auto {
+		if action != "upgrade" {
+			return Action{}, errors.New("auto is only allowed together with action upgrade")
+		}
+		maxPkgs = maxAutoPackages
+	}
+	pkgs, err := args.list("packages", maxPkgs, 100)
 	if err != nil {
 		return Action{}, err
+	}
+	if auto && len(pkgs) == 0 {
+		return Action{}, errors.New("auto needs a list of packages")
 	}
 	for _, p := range pkgs {
 		if !tools.ValidPackageName(manager, p) {
@@ -285,6 +301,11 @@ func classifyPackage(args Args) (Action, error) {
 	a := Action{
 		Tool: ToolPackage, Class: 1, Root: true, Timeout: 15 * time.Minute,
 		Args: Args{"action": action, "packages": toAny(pkgs)},
+	}
+	if auto {
+		a.Auto = true
+		a.Args["auto"] = true
+		a.Timeout = 30 * time.Minute
 	}
 	var argv []string
 	var check []string

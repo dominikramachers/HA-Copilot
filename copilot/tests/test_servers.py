@@ -44,6 +44,9 @@ class Who:
     def patch(self, url, **kw):
         return self.client.patch(url, headers=self._h(kw), **kw)
 
+    def put(self, url, **kw):
+        return self.client.put(url, headers=self._h(kw), **kw)
+
     def delete(self, url, **kw):
         return self.client.delete(url, headers=self._h(kw), **kw)
 
@@ -598,7 +601,8 @@ def test_tool_list_is_fixed_and_read_only(tmp_path):
     specs, *_ = toolbox(tmp_path)
     assert set(specs) == {"server_list", "server_status", "server_read"}
     assert all(s.level == "read" for s in specs.values())
-    assert specs["server_read"].schema["properties"]["what"]["enum"] == list(serverlib.READ_TOOLS)
+    assert specs["server_read"].schema["properties"]["what"]["enum"] == list(serverlib.AI_READ_TOOLS)
+    assert "update_candidates" in serverlib.READ_TOOLS and "update_candidates" not in serverlib.AI_READ_TOOLS
 
 
 def test_reading_goes_through_the_hub_is_marked_as_foreign_content_and_logged(tmp_path):
@@ -640,3 +644,45 @@ def test_clean_args_keeps_only_what_belongs_to_the_tool():
 def test_servers_count_as_foreign_content_for_other_tools():
     from app.main import TAINTING_KINDS
     assert "srv-read" in TAINTING_KINDS
+
+
+def test_autoupdate_through_the_api(api):
+    client, store, cfg = api
+    admin, dora = Who(client, ADM01), Who(client, DORA)
+    hub = serverlib.hub_for(store, cfg)
+    hub.repo.server_create("srv-1", "web01", "ee" * 32, "k")
+    hub.repo.server_state("srv-1", "active")
+    hub.repo.server_seen("srv-1", "10.0.0.5", {"os": "Debian 12", "operate": True, "agent_version": "0.68.0"})
+    base = "/api/servers/srv-1/autoupdate"
+    view = admin.get(base).json()
+    assert view["settings"]["enabled"] is False and view["can_change"] is True
+    assert dora.get(base).status_code == 403  # ohne Serverzugriff
+    assert admin.put(base, json={"enabled": True}).status_code == 403  # ohne Schutz-Header
+    saved = admin.put(base, json={"enabled": True, "mode": "all", "weekday": 2, "at_time": "04:15", "grace_days": 3}, headers=WRITE)
+    assert saved.status_code == 200 and saved.json()["settings"]["at_time"] == "04:15" and saved.json()["settings"]["enabled"] is True
+    assert admin.put(base, json={"at_time": "25:99"}, headers=WRITE).status_code in (400, 422)
+    assert admin.put(base, json={"mode": "everything"}, headers=WRITE).status_code in (400, 422)
+    assert admin.put(base, json={"grace_days": 99}, headers=WRITE).status_code in (400, 422)
+    assert admin.post(base + "/skip", json={"skip": True}, headers=WRITE).status_code == 200
+    assert admin.post(base + "/package", json={"package": "nginx", "decision": "include", "once": True}, headers=WRITE).status_code == 200
+    assert admin.post(base + "/package", json={"package": "bad name;rm", "decision": "include", "once": True}, headers=WRITE).status_code in (400, 422)
+    assert admin.post(base + "/package", json={"package": "nginx", "decision": "maybe", "once": True}, headers=WRITE).status_code in (400, 422)
+    assert admin.get("/api/servers").json()["servers"][0]["autoupdate"]["enabled"] is True
+    assert admin.get("/api/servers/unknown/autoupdate").status_code == 404
+    assert admin.post(base + "/run").status_code == 403  # ohne Schutz-Header
+
+
+def test_autoupdate_refuses_an_old_agent_and_a_locally_denied_server(api):
+    client, store, cfg = api
+    admin = Who(client, ADM01)
+    hub = serverlib.hub_for(store, cfg)
+    hub.repo.server_create("srv-1", "web01", "ee" * 32, "k")
+    hub.repo.server_state("srv-1", "active")
+    hub.repo.server_seen("srv-1", "10.0.0.5", {"os": "Debian 12", "operate": True, "agent_version": "0.67.1"})
+    hub._connection = lambda ref: (hub.repo.server_get("srv-1"), None)
+    old = admin.post("/api/servers/srv-1/autoupdate/run", headers=WRITE)
+    assert old.status_code == 409 and "zu alt" in old.json()["detail"]
+    assert admin.post("/api/servers/srv-1/autoupdate/refresh", headers=WRITE).status_code == 409
+    hub.repo.server_seen("srv-1", "10.0.0.5", {"os": "Debian 12", "operate": True, "agent_version": "0.68.0", "auto_update_denied": True})
+    denied = admin.post("/api/servers/srv-1/autoupdate/run", headers=WRITE)
+    assert denied.status_code == 403 and "auto_update=deny" in denied.json()["detail"]

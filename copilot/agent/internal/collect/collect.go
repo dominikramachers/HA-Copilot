@@ -43,6 +43,8 @@ type Heartbeat struct {
 	Operate  bool `json:"operate"`
 	MaxClass int  `json:"max_class"`
 	Helper   bool `json:"helper"`
+	// AutoUpdateDenied: die lokale Richtlinie sperrt die automatische Aktualisierung (auto_update=deny)
+	AutoUpdateDenied bool `json:"auto_update_denied,omitempty"`
 	// Zertifikat und Aktualisierung (0.61.0)
 	CertExpires int64  `json:"cert_expires,omitempty"` // Unix-Sekunden
 	UpdateMode  string `json:"update_mode,omitempty"`  // off | manual | auto (lokale Richtlinie)
