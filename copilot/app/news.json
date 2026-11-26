@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.69.1",
+    "items": [
+      {
+        "de": {
+          "title": "Pläne sind übersichtlicher",
+          "text": "Die Seite für automatische Updates ist aufgeräumt. Pläne und Server stehen in gleichen Karten, die Serverlisten sind kürzer und lassen sich einklappen."
+        },
+        "en": {
+          "title": "Plans are easier to read",
+          "text": "The page for automatic updates is tidier. Plans and servers sit in matching cards, and the server lists are shorter and can be folded away."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.69.0",
     "items": [
       {

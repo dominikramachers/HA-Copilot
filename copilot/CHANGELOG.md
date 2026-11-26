@@ -1,11 +1,19 @@
 # Änderungen
 
+## 0.69.1
+
+Überarbeitung des Reiters „Automatische Updates“ (nur Oberfläche, keine Änderung an den Regeln):
+- Pläne und „Server ohne Plan“ sind gleich aufgebaute Karten (Titel, Hinweis, Liste); der Leerzustand „Noch kein Updateplan“ ist eine eigene, gestrichelte Karte und steht nicht mehr lose zwischen Überschrift und Liste.
+- Serverzeilen sind einzeilig: Punkt, Name, Stand (bei Servern ohne Plan „aus“ oder Plan und nächster Lauf) und die Knöpfe rechts; die leere Zeitspalte entfällt. Auf dem Handy wird daraus höchstens eine zweite Zeile für die Knöpfe.
+- „Bearbeiten“ und der Schalter stehen oben in der Plankarte, der Fußbereich entfällt. Die Serverliste eines Plans ist einklappbar (Titel, Anzahl, Namen in einer Zeile); der Hinweis zur Verteilung im Fenster steht in der aufgeklappten Liste.
+- Beim Bearbeiten stehen weitere Server eingeklappt unter „Weitere Server hinzufügen“; pausierte Server bekommen keine Uhrzeit. Die Aktionen „Speichern“ und „Abbrechen“ sind auch am Rechner sichtbar.
+
 ## 0.69.0
 
 Updatepläne für Server: Statt jeden Server einzeln zu planen, legst du einen Plan mit Zeitfenster an (zum Beispiel jede Nacht zwischen 2 und 3 Uhr) und weist ihm mehrere Server zu. Die Server kommen **nacheinander** dran, gleichmäßig über das Fenster verteilt; es läuft nie mehr als einer gleichzeitig. Der eigene Zeitplan je Server (0.68.0) bleibt möglich.
 
 **Oberfläche (`server-plans.js`, `servers.js`):**
-- Neuer Reiter **Automatische Updates** in der Seite „Server“: die Pläne als Karten (Schalter, Umfang, Tag, Fenster, nächster Lauf, „Diesen Lauf überspringen“), darin die Serverliste einklappbar (Titel, Anzahl und Namen in einer Zeile) mit Uhrzeit je Server, „Pausieren“ und „Herausnehmen“; darunter „Server ohne Plan“ als gleich aufgebaute Karte mit einzeiligen, kompakten Zeilen (Stand, „Eigener Zeitplan“, Auswahl „Zu Plan hinzufügen“). „Bearbeiten“ und Schalter stehen oben in der Plankarte.
+- Neuer Reiter **Automatische Updates** in der Seite „Server“: die Pläne als Karten (Schalter, Umfang, Tag, Fenster, nächster Lauf, „Diesen Lauf überspringen“), darin die Serverliste einklappbar (Titel, Anzahl und Namen in einer Zeile) mit Uhrzeit je Server, „Pausieren“ und „Herausnehmen“; darunter „Server ohne Plan“ (ebenfalls einklappbar) mit Auswahl „Zu einem Plan hinzufügen“.
 - **Plan bearbeiten:** Name, Schalter, Umfang, Tag, Fenster von/bis, Karenzzeit; Server per Schalter dazunehmen, Reihenfolge mit ↑/↓ (bestimmt die Uhrzeit, die Vorschau rechnet live mit), weitere Server unter „Weitere Server hinzufügen“ eingeklappt; „Plan löschen“ mit Rückfrage.
 - **Fenster „Automatische Updates“ eines Servers:** Folgt der Server einem Plan, steht oben ein Hinweis mit Plan, Zeitplan, seinem Zeitpunkt und **Plan ansehen** (springt in den Reiter und öffnet den Plan), dazu **Im Plan pausieren/fortsetzen**, **Aus dem Plan nehmen** (der eigene Zeitplan gilt wieder, wie er war) und **Eigenen Zeitplan nutzen** (herausnehmen und den eigenen Zeitplan einschalten). Ohne Plan gibt es die Auswahl „Zu einem Updateplan hinzufügen“. Die Karte des Servers nennt den Plan.
 
