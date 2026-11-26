@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.67.1",
+    "items": [
+      {
+        "de": {
+          "title": "Ich frage nach, wenn es offen ist",
+          "text": "Ist deine Anfrage nicht eindeutig, stelle ich über dem Eingabefeld kurze Fragen mit Antworten zum Anklicken. Du kannst auch eigene Worte tippen oder eine Frage überspringen."
+        },
+        "en": {
+          "title": "I ask when things are open",
+          "text": "If your request isn’t clear, I ask short questions above the input box with answers to click. You can also type your own words or skip a question."
+        }
+      },
+      {
+        "de": {
+          "title": "Darstellung wieder sauber",
+          "text": "In den Einstellungen unter „Darstellung“ passt die Auswahl „Wie Home Assistant, Auto, Hell, Dunkel“ jetzt wieder ordentlich in ihre Knöpfe, auch auf dem Handy."
+        },
+        "en": {
+          "title": "Appearance looks tidy again",
+          "text": "In the settings under “Appearance”, the choice “Like Home Assistant, Auto, Light, Dark” fits neatly into its buttons again, on phones too."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.67.0",
     "items": [
       {

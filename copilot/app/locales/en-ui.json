@@ -1470,5 +1470,17 @@
  "1 Treffer": "1 result",
  "Wählt je Nachricht das passende Modell ({0})": "Picks the right model for each message ({0})",
  "je nach Anfrage": "depending on the request",
- "Auto wählt je Nachricht das passende Modell: einfache Fragen schnell, schwierige Aufgaben gründlich. Wählst du hier ein festes Modell, gilt es statt Auto in jedem neuen Chat.": "Auto picks the right model for each message: quick for simple questions, thorough for hard tasks. If you pick a fixed model here, it replaces Auto in every new chat."
+ "Auto wählt je Nachricht das passende Modell: einfache Fragen schnell, schwierige Aufgaben gründlich. Wählst du hier ein festes Modell, gilt es statt Auto in jedem neuen Chat.": "Auto picks the right model for each message: quick for simple questions, thorough for hard tasks. If you pick a fixed model here, it replaces Auto in every new chat.",
+ "1 ausgewählt": "1 selected",
+ "Absenden": "Send",
+ "Eigene Antwort": "Your own answer",
+ "Etwas anderes": "Something else",
+ "Nächste Frage": "Next question",
+ "Vorherige Frage": "Previous question",
+ "Oder direkt antworten …": "Or reply directly …",
+ "Rückfrage überspringen": "Skip the question",
+ "Vorschau: {0}": "Preview: {0}",
+ "{0} von {1}": "{0} of {1}",
+ "Überspringen": "Skip",
+ "Wartet auf deine Antwort": "Waiting for your answer"
 }

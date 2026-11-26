@@ -93,6 +93,21 @@ class Backend:
                    "Bleib gesund, wir feiern dich am Sonntag.\n\nDein Enkel" if de else
                    "Dear Grandma,\n\nhappy birthday! Thank you for your patience, your cakes and every story from the old days. "
                    "Stay well, we will celebrate you on Sunday.\n\nLove, your grandchild"); return
+        if "ask_user" in handlers and ("rückfrage" in low or "ask me" in low):  # ab 0.67.1: Rückfrage mit Auswahl über dem Eingabefeld
+            yield T_("Kurz nachgefragt, damit es passt.\n\n", "A quick question so it fits.\n\n")
+            sketch = "┌───────────────────────┐\n│  Chatverlauf …        │\n├───────────────────────┤\n│ ? Welche Räume?       │\n│  1 Wohnzimmer         │\n│  2 Küche              │\n│  ✎ Etwas anderes      │\n├───────────────────────┤\n│ Oder direkt antworten │\n└───────────────────────┘"
+            result = await handlers["ask_user"]({"questions": [
+                {"question": T_("Wo soll die Rückfrage-Box erscheinen?", "Where should the question box appear?"), "header": T_("Position", "Position"), "options": [
+                    {"label": T_("Über dem Eingabefeld (Empfohlen)", "Above the input (Recommended)"), "description": T_("Wie bei Claude: der Verlauf bleibt sichtbar", "Like Claude: the chat stays visible"), "preview": sketch},
+                    {"label": T_("Inline im Chatverlauf", "Inline in the chat"), "description": T_("Bleibt danach als beantwortete Frage stehen", "Stays as an answered question")},
+                    {"label": T_("Als Dialog", "As a dialog"), "description": T_("Fenster in der Mitte, Chat dahinter abgedunkelt", "Window in the middle, chat dimmed")}]},
+                {"question": T_("Welche Antwortarten soll die Box unterstützen?", "Which kinds of answers should the box support?"), "header": T_("Antworttyp", "Answer type"), "multi_select": True, "options": [
+                    {"label": T_("Einfachauswahl", "Single choice"), "description": T_("Eine Möglichkeit wählen", "Pick one option")},
+                    {"label": T_("Mehrfachauswahl", "Multiple choice"), "description": T_("Mehrere Möglichkeiten ankreuzen", "Tick several options")},
+                    {"label": T_("Mehrere Fragen am Stück", "Several questions in a row"), "description": T_("Bis zu 4 Fragen zum Blättern", "Up to 4 questions to page through")}]},
+            ]})
+            yield T_("Danke! Dann kommt die Box über das Eingabefeld, mit den gewählten Antwortarten.", "Thanks! Then the box goes above the input, with the answer types you picked.") if result else ""
+            return
         if ("server" in low or "servers" in low) and rec and nid:
             for label, kind in ((T_("Systemstatus lesen: nas01", "Read system status: nas01"), "srv-read"), (T_("Dienste auflisten: nas01", "List services: nas01"), "srv-read"),
                                 (T_("Speicherplatz prüfen: web01", "Check disk space: web01"), "srv-read"), (T_("Dienst neu starten: nginx auf web01", "Restart service: nginx on web01"), "srv-write")):

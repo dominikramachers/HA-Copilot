@@ -793,5 +793,13 @@
  "Der Konnektor „{name}“ muss neu angemeldet werden (Plugins → Konnektoren).": "The connector “{name}” needs to be signed in again (Plugins → Connectors).",
  "Auto nutzt für diese Anfrage {model} von OpenAI. Der bisherige Verlauf dieses Chats geht dafür an OpenAI.": "Auto uses {model} from OpenAI for this request. The earlier messages of this chat go to OpenAI for it.",
  "Auto nutzt für diese Anfrage {model} von OpenAI. Deine Nachricht geht an OpenAI.": "Auto uses {model} from OpenAI for this request. Your message goes to OpenAI.",
- "Auto ist für diese Anfrage zu {model} von Claude gewechselt. Der bisherige Verlauf dieses Chats geht dafür an Claude.": "Auto switched to {model} from Claude for this request. The earlier messages of this chat go to Claude for it."
+ "Auto ist für diese Anfrage zu {model} von Claude gewechselt. Der bisherige Verlauf dieses Chats geht dafür an Claude.": "Auto switched to {model} from Claude for this request. The earlier messages of this chat go to Claude for it.",
+ "Frage {n}": "Question {n}",
+ "Rückfrage beantwortet": "Question answered",
+ "Rückfrage direkt beantwortet": "Question answered directly",
+ "Rückfrage ohne Antwort": "Question without an answer",
+ "Rückfrage übersprungen": "Question skipped",
+ "Keine Antwort": "No answer",
+ "Direkt geantwortet": "Answered directly",
+ "Übersprungen": "Skipped"
 }
