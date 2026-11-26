@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.67.1",
+    "items": [
+      {
+        "de": {
+          "title": "Darstellung wieder sauber",
+          "text": "In den Einstellungen unter „Darstellung“ passt die Auswahl „Wie Home Assistant, Auto, Hell, Dunkel“ jetzt wieder ordentlich in ihre Knöpfe, auch auf dem Handy."
+        },
+        "en": {
+          "title": "Appearance looks tidy again",
+          "text": "In the settings under “Appearance”, the choice “Like Home Assistant, Auto, Light, Dark” fits neatly into its buttons again, on phones too."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.67.0",
     "items": [
       {

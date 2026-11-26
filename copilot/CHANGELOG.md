@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.67.1
+
+Einstellungen → Allgemein → Darstellung: Die Auswahl „Wie Home Assistant · Auto · Hell · Dunkel“ wird wieder sauber angezeigt.
+
+- Die Knöpfe hatten eine feste Höhe von 32 px, brachen aber „Wie Home Assistant“ in drei Zeilen um; der Text lief über den Rahmen hinaus. Die Beschriftungen bleiben jetzt einzeilig, jeder Knopf ist so breit wie sein Text (`.set-row > .seg button`: `flex: 1 0 auto`, `white-space: nowrap`).
+- Reicht der Platz neben dem Text nicht, rutscht der Umschalter unter die Beschreibung (`.set-row:has(> .seg)` mit `flex-wrap`, Text `flex: 1 1 240px`). Auf dem Handy (bis 760 px) nimmt er die ganze Breite ein; dort darf eine Beschriftung umbrechen, der Knopf wächst dann in der Höhe mit (`height: auto`, `min-height: 32px`).
+- Geprüft im Browser bei 1280, 900 und 390 px Breite im dunklen Design.
+
 ## 0.67.0
 Modus „Auto“ wählt das Modell jetzt je Nachricht nach dem Anspruch (Haiku, Sonnet oder Opus) und schickt, wenn ChatGPT eingeschaltet ist, Text- und Alltagsanfragen an ein ChatGPT-Modell; Technik, Code und Smarthome bleiben bei Claude. Notizen im Projektkontext speichert die KI ohne Rückfrage. Neue Doku-Bilder.
 - **Auto je nach Anspruch.** Neues Modul `autoroute.py`: `level_for()` ordnet jede Nachricht einer von drei Stufen zu, `Tiers.from_choices()` holt die Modelle dazu aus der Auswahl (leicht = Haiku, normal = `chat.model`, anspruchsvoll = Opus; fehlt eins, gilt `chat.model`). Merkmale: Deep Research oder Aufwand „Hoch“ → anspruchsvoll; ab 1500 Zeichen, ab 40 Zeilen Code oder ab zwei Dokumenten (PDF, Word, Excel, PowerPoint) → anspruchsvoll; Schlüsselwörter wie „analysiere“, „Konzept“, „Architektur“, „Fehlersuche“, „vergleiche“, „implementiere“ bei mehr als 60 Zeichen → anspruchsvoll; kurze Nachrichten ohne Anhang, Code und Fachwörter, die wie ein Befehl, eine Begrüßung oder eine kurze Frage aussehen (oder bei Aufwand „Niedrig“) → leicht; sonst normal. Eingefügter Text zählt zur Länge. Kurze Folgenachrichten (unter 300 Zeichen, ohne Anhang) behalten mindestens die Stufe der vorigen Auto-Antwort im Chat (`AutoMemory`, nur im Arbeitsspeicher, höchstens 2000 Chats). Kein zusätzlicher Aufruf der KI.

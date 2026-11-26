@@ -1336,6 +1336,15 @@ button.conn-group-toggle { margin-left: -6px; padding: 6px 8px 6px 4px; border-r
 .set-row-text span { font-size: 13px; line-height: 1.4; color: var(--text-2); }
 .set-value { flex: none; font-size: 14.5px; color: var(--text-2); }
 .set-row .seg { flex: none; }
+/* Umschalter in einer Einstellungszeile (z. B. Darstellung „Wie Home Assistant · Auto · Hell · Dunkel“): Beschriftung bleibt einzeilig
+   in der festen Knopfhöhe; reicht der Platz neben dem Text nicht, rutscht der Umschalter unter den Text (0.67.1). */
+.set-row:has(> .seg) { flex-wrap: wrap; row-gap: 10px; }
+.set-row:has(> .seg) > .set-row-text { flex: 1 1 240px; }
+.set-row > .seg button { flex: 1 0 auto; white-space: nowrap; }
+@media (max-width: 760px) {
+  .set-row > .seg { flex: 1 1 100%; }
+  .set-row > .seg button { flex: 1 1 0; min-width: 0; height: auto; min-height: 32px; padding: 6px 8px; line-height: 1.25; white-space: normal; }
+}
 .set-row select.set-select { flex: none; width: auto; min-width: 150px; max-width: 240px; height: 34px; margin: 0; padding: 0 30px 0 12px; border-radius: var(--r-1); font-size: 14px; background-position: right 10px center; background-size: 14px; }
 @media (max-width: 760px) { .set-row select.set-select { min-width: 0; max-width: 46%; } }
 .set-block { display: grid; gap: 10px; margin: 0 0 26px; }
