@@ -1,5 +1,20 @@
 # Änderungen
 
+## 0.69.1
+
+Überarbeitung der Seite „Server“, vor allem des Reiters „Automatische Updates“ (nur Oberfläche, keine Änderung an den Regeln der Updatepläne):
+
+**Gemeinsames Aussehen aller Reiter (`servers.js`):**
+- Kopf mit Kachel (Serversymbol), senkrechtem Trenner, Titel und Text. Reiter mit Symbolen (Übersicht, Automatische Updates, Aktivität, Server hinzufügen); auf schmalen Bildschirmen ohne Symbole und seitlich verschiebbar.
+- **Kopfkarte je Reiter** (`srvHero`): Symbol, Titel, kurzer Text und rechts die wichtigste Aktion („Neuer Plan“, „Server hinzufügen“). Der Text zu „Neuen Server verbinden“ steht jetzt in dieser Karte.
+- Neue Symbole `refresh`, `pulse`, `gear`, `calendarClock` in `app.js`.
+
+**Automatische Updates (`server-plans.js`):**
+- Pläne und „Server ohne Plan“ sind gleich aufgebaute Karten mit Symbolkachel. Der Leerzustand „Noch kein Updateplan“ ist eine zentrierte, gestrichelte Karte mit Symbol.
+- Serverzeilen sind einzeilig (Punkt, Name, Stand, Knöpfe rechts); auf dem Handy höchstens eine zweite Zeile für die Knöpfe. „Bearbeiten“ und der Schalter stehen oben in der Plankarte.
+- Die Serverliste eines Plans ist einklappbar (Titel, Anzahl, Namen in einer Zeile); der Hinweis zur Verteilung im Fenster steht in der aufgeklappten Liste. „Server ohne Plan“ ist ebenfalls eine einklappbare Karte.
+- Beim Bearbeiten stehen weitere Server eingeklappt unter „Weitere Server hinzufügen“; pausierte Server bekommen keine Uhrzeit. „Speichern“ und „Abbrechen“ sind auch am Rechner sichtbar.
+
 ## 0.69.0
 
 Updatepläne für Server: Statt jeden Server einzeln zu planen, legst du einen Plan mit Zeitfenster an (zum Beispiel jede Nacht zwischen 2 und 3 Uhr) und weist ihm mehrere Server zu. Die Server kommen **nacheinander** dran, gleichmäßig über das Fenster verteilt; es läuft nie mehr als einer gleichzeitig. Der eigene Zeitplan je Server (0.68.0) bleibt möglich.

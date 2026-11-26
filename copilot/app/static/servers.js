@@ -148,17 +148,46 @@ async function srvAct(path, method, body, done) {
 
 // ------------------------------------------------------------- Seite
 
+// Kopfkarte eines Reiters: Symbol, Titel, kurzer Text und rechts die wichtigste Aktion. Auch vom Reiter „Automatische Updates“ genutzt.
+function srvHero(wrap, glyph, title, text, ...buttons) {
+  const hero = node("section", "srv-hero");
+  hero.append(node("span", "srv-hero-icon", ""));
+  hero.firstChild.setAttribute("aria-hidden", "true");
+  hero.firstChild.append(icon(glyph));
+  const body = node("div", "srv-hero-body");
+  body.append(node("h3", "", title), node("p", "", text));
+  hero.append(body);
+  if (buttons.length) {
+    const box = node("div", "srv-hero-buttons");
+    box.append(...buttons);
+    hero.append(box);
+  }
+  wrap.append(hero);
+  return hero;
+}
+
+function srvHeroButton(label, glyph, run, primary = true) {
+  const b = node("button", `pill ${primary ? "primary" : "ghost"}`);
+  b.type = "button";
+  b.append(icon(glyph), node("span", "", label));
+  b.addEventListener("click", run);
+  return b;
+}
+
 function renderServers() {
   const wrap = $("servers-wrap");
   wrap.replaceChildren();
   skillHead(wrap, tr("Server"), tr("Deine Linux-Server melden sich hier von selbst. Die KI sieht sie an und ändert etwas nur nach deiner Freigabe im Chat."));
+  wrap.lastElementChild.classList.add("with-tile", "srv-head");
+  wrap.lastElementChild.prepend(tile("server"));
 
   const bar = node("div", "skills-bar");
-  const tabs = node("div", "skills-tabs");
+  const tabs = node("div", "skills-tabs srv-tabs");
   tabs.setAttribute("role", "tablist");
   const pending = srvUi.data?.summary?.pending || 0;
-  for (const [id, label] of [["overview", tr("Übersicht")], ["updates", tr("Automatische Updates")], ["activity", tr("Aktivität")], ["add", tr("Server hinzufügen")]]) {
-    const tab = node("button", "skills-tab", label);
+  for (const [id, label, glyph] of [["overview", tr("Übersicht"), "chart"], ["updates", tr("Automatische Updates"), "refresh"], ["activity", tr("Aktivität"), "pulse"], ["add", tr("Server hinzufügen"), "plus"]]) {
+    const tab = node("button", "skills-tab srv-tab");
+    tab.append(icon(glyph), node("span", "", label));
     tab.type = "button";
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", String(srvUi.tab === id));
@@ -196,6 +225,8 @@ function renderServers() {
 
 function renderServerOverview(wrap) {
   const { servers, summary } = srvUi.data;
+  srvHero(wrap, "chart", tr("Übersicht"), tr("So geht es deinen Servern auf einen Blick. Neue Server erscheinen hier zuerst als „Ausstehend“, bis du sie bestätigst."),
+    srvHeroButton(tr("Server hinzufügen"), "plus", () => { srvUi.tab = "add"; srvUi.status = ""; rememberDetail("add"); renderServers(); }));
   const tiles = node("div", "srv-tiles");
   for (const key of ["online", "degraded", "offline", "pending", "blocked"]) {
     const tile = node("div", `srv-tile ${key}`);
@@ -376,6 +407,7 @@ const SRV_KINDS = () => [["", tr("Alle Arten")], ["read", tr("Lesen")], ["change
 const SRV_DAYS = () => [[1, tr("Letzte 24 Stunden")], [7, tr("Letzte 7 Tage")], [30, tr("Letzte 30 Tage")], [90, tr("Letzte 90 Tage")]];
 
 function renderServerActivity(wrap) {
+  srvHero(wrap, "pulse", tr("Aktivität"), tr("Was auf deinen Servern passiert ist: was die KI angesehen oder geändert hat und was die automatischen Updates gemacht haben."));
   const filter = node("div", "skills-filter srv-filter");
   const select = (label, options, current, set) => {
     const el = node("select", "field");
@@ -474,11 +506,8 @@ async function srvCreateScript() {
 function renderServerAdd(wrap) {
   const { hub, keys } = srvUi.data;
   const form = srvUi.form;
+  srvHero(wrap, "plus", tr("Neuen Server verbinden"), tr("Du bekommst ein Skript mit allem, was der Server braucht: Adresse, Schlüssel und Prüfsummen. Führe es auf dem Server als root aus. Danach erscheint der Server hier als „Ausstehend“, und du bestätigst ihn."));
   const card = node("section", "srv-add");
-  card.append(
-    node("h3", "", tr("Neuen Server verbinden")),
-    node("p", "srv-note", tr("Du bekommst ein Skript mit allem, was der Server braucht: Adresse, Schlüssel und Prüfsummen. Führe es auf dem Server als root aus. Danach erscheint der Server hier als „Ausstehend“, und du bestätigst ihn.")),
-  );
   if (!hub.agents.length) {
     card.append(node("p", "srv-reasons", tr("In diesem Add-on ist keine Programmdatei des Agenten enthalten. Bitte das Add-on neu bauen oder aktualisieren.")));
     wrap.append(card);
