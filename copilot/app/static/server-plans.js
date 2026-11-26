@@ -63,46 +63,51 @@ function srvPlanSpacing(start, end, count) {
 
 // ------------------------------------------------------------- Reiter
 
+function srvIco(glyph) {
+  const box = node("span", "srv-ico");
+  box.setAttribute("aria-hidden", "true");
+  box.append(icon(glyph));
+  return box;
+}
+
 function renderServerUpdates(wrap) {
   const d = srvPlan.data;
-  const intro = node("p", "srv-note", tr("Ein Updateplan aktualisiert mehrere Server nacheinander in einem Zeitfenster, zum Beispiel jede Nacht zwischen 2 und 3 Uhr. Server ohne Plan behalten ihren eigenen Zeitplan."));
-  wrap.append(intro);
+  const add = srvHeroButton(tr("Neuer Plan"), "plus", () => { srvPlanSheet(null).catch(() => {}); });
+  add.disabled = !d || d.plans.length >= d.limits.plans_max || !d.servers.length;
+  srvHero(wrap, "refresh", tr("Automatische Updates"), tr("Ein Updateplan aktualisiert mehrere Server nacheinander in einem Zeitfenster, zum Beispiel jede Nacht zwischen 2 und 3 Uhr. Server ohne Plan behalten ihren eigenen Zeitplan."), add);
   if (srvPlan.error) wrap.append(node("p", "srv-au-banner bad", srvPlan.error));
   if (!d) {
     if (!srvPlan.error) wrap.append(node("p", "skills-status", tr("Wird geladen …")));
     return;
   }
 
-  const head = node("div", "srv-plan-head");
-  head.append(node("h3", "", tr("Updatepläne")));
-  const add = node("button", "pill primary", tr("Neuer Plan"));
-  add.type = "button";
-  add.disabled = d.plans.length >= d.limits.plans_max || !d.servers.length;
-  add.addEventListener("click", () => { srvPlanSheet(null).catch(() => {}); });
-  head.append(add);
-  wrap.append(head);
-
+  wrap.append(node("h3", "srv-section", tr("Updatepläne")));
   if (!d.servers.length) wrap.append(node("p", "srv-note", tr("Es gibt noch keinen bestätigten Server. Sobald einer da ist, kannst du hier einen Plan anlegen.")));
   else if (!d.plans.length) {
-    const empty = node("section", "srv-plan srv-plan-empty");
-    empty.append(node("h3", "", tr("Noch kein Updateplan")),
-      node("span", "srv-hint", tr("Lege einen Plan an, wähle seine Server und das Zeitfenster. Ich aktualisiere sie dann nacheinander.")));
+    const empty = node("section", "srv-plan-empty");
+    const mark = srvIco("calendarClock");
+    mark.classList.add("big");
+    empty.append(mark, node("h3", "", tr("Noch kein Updateplan")),
+      node("p", "", tr("Lege einen Plan an, wähle seine Server und das Zeitfenster. Ich aktualisiere sie dann nacheinander.")));
     wrap.append(empty);
   }
   for (const plan of d.plans) wrap.append(srvPlanCard(plan, d));
 
   const free = d.servers.filter((s) => !s.plan);
   if (free.length) {
-    const box = node("section", "srv-plan srv-plan-free");
-    const title = node("div", "srv-plan-title");
-    const h = node("h3", "", tr("Server ohne Plan"));
-    h.append(node("span", "srv-count", String(free.length)));
-    title.append(h, node("span", "srv-hint", tr("Sie folgen ihrem eigenen Zeitplan oder aktualisieren sich nicht automatisch.")));
-    const top = node("div", "srv-plan-top");
-    top.append(title);
+    const box = node("details", "srv-plan srv-plan-free");
+    box.open = srvPlan.open.has("free");
+    box.addEventListener("toggle", () => { if (box.open) srvPlan.open.add("free"); else srvPlan.open.delete("free"); });
+    const head = node("summary", "srv-plan-summary");
+    const text = node("div", "srv-plan-title");
+    text.append(node("h3", "", tr("Server ohne Plan")), node("span", "srv-hint", tr("Sie folgen ihrem eigenen Zeitplan oder aktualisieren sich nicht automatisch.")));
+    const line = node("div", "srv-plan-foldline");
+    line.append(node("span", "srv-plan-foldtitle", tr("Server anzeigen")), node("span", "srv-count", String(free.length)), node("span", "srv-plan-foldbrief", free.map((s) => s.name).join(", ")));
+    text.append(line);
+    head.append(srvIco("server"), text, node("span", "srv-chevron"));
     const list = node("ul", "srv-plan-list");
     for (const s of free) list.append(srvPlanFreeRow(s, d));
-    box.append(top, list);
+    box.append(head, list);
     wrap.append(box);
   }
 }
@@ -118,7 +123,7 @@ function srvPlanCard(plan, d) {
   edit.addEventListener("click", () => { srvPlanSheet(plan).catch(() => {}); });
   const controls = node("div", "srv-plan-controls");
   controls.append(edit, srvAuSwitch(plan.enabled, tr("Plan {0} einschalten", plan.name), false, () => srvPlanAct(`api/servers/update-plans/${plan.id}`, "PUT", { enabled: !plan.enabled })));
-  top.append(title, controls);
+  top.append(srvIco("refresh"), title, controls);
   card.append(top);
 
   if (plan.enabled) {

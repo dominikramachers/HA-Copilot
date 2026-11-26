@@ -1620,5 +1620,8 @@
  "Noch kein Updateplan": "No update plan yet",
  "Sie folgen ihrem eigenen Zeitplan oder aktualisieren sich nicht automatisch.": "They follow their own schedule or do not update automatically.",
  "Zu Plan hinzufügen …": "Add to plan …",
- "Plan wählen …": "Choose a plan …"
+ "Plan wählen …": "Choose a plan …",
+ "Server anzeigen": "Show servers",
+ "So geht es deinen Servern auf einen Blick. Neue Server erscheinen hier zuerst als „Ausstehend“, bis du sie bestätigst.": "How your servers are doing at a glance. New servers first appear here as “Pending” until you confirm them.",
+ "Was auf deinen Servern passiert ist: was die KI angesehen oder geändert hat und was die automatischen Updates gemacht haben.": "What has happened on your servers: what the AI looked at or changed and what the automatic updates did."
 }

@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.69.2
+
+Die Seite „Server“ bekommt ein einheitliches Aussehen (nur Oberfläche):
+- **Kopf:** Kachel mit Serversymbol, senkrechter Trenner, Titel und Text. **Reiter** mit Symbolen (Übersicht, Automatische Updates, Aktivität, Server hinzufügen); auf schmalen Bildschirmen ohne Symbole und seitlich verschiebbar.
+- **Kopfkarte je Reiter** (`srvHero`): Symbol, Titel, kurzer Text und rechts die wichtigste Aktion („Neuer Plan“, „Server hinzufügen“). Der Text zu „Neuen Server verbinden“ steht jetzt in dieser Karte.
+- **Automatische Updates:** Leerzustand als zentrierte, gestrichelte Karte mit Symbol; Pläne und „Server ohne Plan“ mit Symbolkachel. „Server ohne Plan“ ist eine einklappbare Karte (zu: Anzahl und Namen in einer Zeile, auf: eine kompakte Zeile je Server).
+- Neue Symbole `refresh`, `pulse`, `gear`, `calendarClock` in `app.js`.
+
 ## 0.69.1
 
 Überarbeitung des Reiters „Automatische Updates“ (nur Oberfläche, keine Änderung an den Regeln):
