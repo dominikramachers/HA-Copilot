@@ -420,6 +420,71 @@ button.img-card:disabled { opacity: .55; cursor: default; }
   .dock .ask-actions { grid-column: 1; grid-row: auto; justify-content: flex-start; margin-top: 8px; }
 }
 
+/* ---------- Rückfragen mit Auswahl (ask_user): Box über dem Eingabefeld wie bei Claude ----------
+   Keine feste Höhe: die Box wächst mit Fragen, Optionen und Vorschau und ist nach oben begrenzt; dann scrollt nur die Liste. */
+.dock .q-card { display: block; padding: 0; overflow: hidden; color: var(--text); background: var(--panel); box-shadow: 0 6px 24px rgba(0, 0, 0, .12); }
+.dock .q-card:focus, .dock .q-card:focus-visible { outline: none; } /* nur Ziel für die Tastatur (Ziffern, Pfeile); die Möglichkeiten haben eigene Ringe */
+.dock .q-card.busy { opacity: .7; }
+.q-head { display: flex; align-items: center; gap: 10px; padding: 12px 10px 6px 18px; }
+.q-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
+.q-nav { display: flex; align-items: center; gap: 2px; color: var(--muted); font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.q-nav[hidden] { display: none; }
+.q-count { padding: 0 2px; }
+.q-head .icon-btn { width: 30px; height: 30px; color: var(--text-2); }
+.q-head .icon-btn:hover:not(:disabled) { background: var(--chip); color: var(--text); }
+.q-head .icon-btn:disabled { opacity: .35; cursor: default; }
+.q-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 4px 10px 10px; }
+.q-body.with-preview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.q-options { display: flex; flex-direction: column; min-height: 0; max-height: min(52vh, 480px); overflow: auto; overscroll-behavior: contain; }
+.q-opt, .q-other { position: relative; display: flex; align-items: center; gap: 14px; width: 100%; min-height: 52px; padding: 9px 10px; border-radius: var(--r-2); text-align: left; color: var(--text); background: none; }
+.q-opt + .q-opt::before, .q-opt + .q-other::before { content: ""; position: absolute; left: 10px; right: 10px; top: 0; border-top: 1px solid var(--line); }
+.q-opt:hover::before, .q-opt:hover + .q-opt::before, .q-opt:hover + .q-other::before, .q-opt.on::before, .q-opt.on + .q-opt::before, .q-opt.on + .q-other::before { border-color: transparent; }
+.q-opt { cursor: pointer; }
+.q-opt:hover, .q-opt:focus-visible { background: var(--chip); }
+.q-opt.on { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.q-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.q-num { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-1); background: var(--chip); color: var(--text-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.q-opt.on .q-num { background: var(--accent); color: var(--on-accent); }
+.q-pen .icon { width: 15px; height: 15px; }
+.q-check { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin: 0 5px; border: 1.5px solid var(--line-2); border-radius: 5px; color: transparent; }
+.q-check .icon { width: 14px; height: 14px; }
+.q-opt.on .q-check, .q-other.on .q-check { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.q-opt-text { display: grid; gap: 2px; min-width: 0; }
+.q-label { font-size: 14.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.q-desc { font-size: 13px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
+.q-other { cursor: text; }
+.q-other-input { flex: 1; min-width: 0; height: 32px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 14.5px; }
+.q-other-input:focus { outline: none; }
+.q-other:focus-within { background: var(--chip); }
+.q-other .q-skip { flex: none; }
+.q-skip { height: 32px; padding: 0 14px; font-size: 13.5px; }
+/* Die Vorschau bestimmt die Höhe nicht mit: sie füllt, was die Optionen vorgeben (mindestens ein kleiner Bereich), und scrollt selbst */
+.q-preview { position: relative; min-height: 160px; border-radius: var(--r-2); background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+.q-preview[hidden] { display: none; }
+.q-preview-text { position: absolute; inset: 0; margin: 0; padding: 12px 14px; overflow: auto; overscroll-behavior: contain; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace; color: var(--text-2); white-space: pre; tab-size: 4; }
+.q-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px 18px; border-top: 1px solid var(--line); }
+.q-foot[hidden] { display: none; }
+.q-picked { flex: 1; font-size: 13px; color: var(--muted); }
+.q-go { width: 32px; height: 32px; border-radius: var(--r-2); background: var(--accent); color: var(--on-accent); }
+.q-go:disabled { background: var(--chip); color: var(--muted); cursor: default; }
+@media (max-width: 639px) {
+  .q-body, .q-body.with-preview { grid-template-columns: minmax(0, 1fr); }
+  .q-options { max-height: 46vh; }
+  .q-preview { min-height: 140px; }
+  .q-head { padding-left: 14px; }
+  .q-other .q-skip { padding: 0 10px; }
+}
+@media (pointer: coarse) { .q-opt, .q-other { min-height: 56px; } .q-head .icon-btn { width: 38px; height: 38px; } }
+
+/* Beantwortete Rückfrage im Antworttext (wie bei Claude): umrandet, Frage grau, Antwort darunter */
+.q-seg[hidden] { display: none; }
+.q-answered { display: grid; gap: 14px; margin: 14px 0; padding: 14px 18px; border: 1px solid var(--line-2); border-radius: var(--r-3); max-width: 680px; }
+.q-answered:first-child { margin-top: 0; }
+.q-answered-item { display: grid; gap: 3px; }
+.q-answered-q { font-size: 14px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.q-answered-a { font-size: 15px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
+.q-answered-item.skipped .q-answered-a { color: var(--muted); font-style: italic; }
+
 /* ---------- Auf einen Ausschnitt antworten ---------- */
 .quote-bar { display: flex; align-items: center; gap: 10px; margin: 0 0 8px -8px; padding: 7px 6px 7px 12px; border-radius: var(--r-2); background: var(--panel-2); border: 1px solid var(--line); color: var(--text-2); font-size: 14px; line-height: 1.45; }
 .quote-bar .icon { flex: none; width: 16px; height: 16px; color: var(--muted); }

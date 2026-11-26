@@ -20,7 +20,7 @@ from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -86,6 +86,7 @@ from . import limits as limitlib
 from . import notifier as notifierlib
 from . import schedule as sched
 from .scheduler import NOTIFY_MODES, PROMPT_MAX, NAME_MAX, Scheduler, plain_excerpt
+from .questions import QUESTIONS_NOTE, QuestionToolbox
 from .web_tools import WEB_NOTE, WebToolbox
 from . import voice as voicelib
 from .voice import VoiceError, VoiceService
@@ -659,6 +660,7 @@ class Run:
         self.pending: dict[int, asyncio.Future] = {}  # offene Rückfragen (Zulassen/Ablehnen), nach ID
         self.actions: dict[int, dict] = {}  # Aktionen in Home Assistant, nach ID (zuletzt bekannter Stand)
         self.approval_seq = 0
+        self.question_ids: set[int] = set()  # welche offenen Rückfragen Auswahlfragen (ask_user) sind und keine Freigaben
         self.tool_seq = 0
         self._tick = asyncio.Event()
 
@@ -678,9 +680,16 @@ class Run:
                 self.actions[event["id"]]["undo"] = event["undo"]
             if event.get("context"):
                 self.actions[event["id"]]["context"] = event["context"]  # Notiz im Projektkontext: die Oberfläche zeigt eine Karte
+            if event.get("question"):
+                self.actions[event["id"]]["question"] = event["question"]  # beantwortete Rückfrage: der Block im Antworttext
+                self.actions[event["id"]]["at"] = event.get("at", 0)
             if event.get("own"):
                 self.actions[event["id"]]["own"] = True  # nur eigene Notizen der KI gelesen: zählt nicht als Fremdinhalt
         self.wake()
+
+    def text_offset(self) -> int:
+        """Länge des bisherigen Antworttexts in UTF-16-Einheiten (so zählt die Oberfläche)."""
+        return sum(len(part.encode("utf-16-le")) for part in self.parts) // 2
 
     def next_tool_id(self) -> int:
         self.tool_seq += 1
@@ -898,6 +907,19 @@ class GithubTokenBody(BaseModel):
 class ApproveBody(BaseModel):
     id: int
     decision: Literal["allow", "deny", "allow_chat"]
+
+
+class AnswerItem(BaseModel):
+    selected: list[Annotated[int, Field(ge=0, le=9)]] = Field(default_factory=list, max_length=10)
+    other: str = Field(default="", max_length=2000)
+
+
+class AnswerBody(BaseModel):
+    """Antwort auf ``ask_user``: je Frage eine Auswahl (oder null), alles übersprungen oder direkt im Eingabefeld getippt."""
+    id: int
+    answers: list[AnswerItem | None] = Field(default_factory=list, max_length=4)
+    skipped: bool = False
+    direct: str = Field(default="", max_length=4000)
 
 
 def register_chat_routes(
@@ -3251,6 +3273,26 @@ def register_chat_routes(
         async def ask(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("ha", label, details, offer_chat)
 
+        async def ask_questions(questions: list[dict]) -> dict | None:
+            """Auswahlfragen der KI (ask_user): Box über dem Eingabefeld, wartet auf die Antwort (None: keine Antwort)."""
+            if spoken:
+                return None
+            run.approval_seq += 1
+            aid = run.approval_seq
+            future: asyncio.Future = asyncio.get_running_loop().create_future()
+            run.pending[aid] = future
+            run.question_ids.add(aid)
+            run.push({"type": "question", "id": aid, "questions": questions})
+            try:
+                answer = await asyncio.wait_for(future, APPROVAL_TIMEOUT)
+                return answer if isinstance(answer, dict) else None
+            except TimeoutError:
+                return None
+            finally:
+                run.pending.pop(aid, None)
+                run.question_ids.discard(aid)
+                run.push({"type": "question_done", "id": aid})
+
         async def ask_memory(label: str, details: str, offer_chat: bool) -> str:
             return await ask_about("memory", label, details, offer_chat)
 
@@ -3367,11 +3409,16 @@ def register_chat_routes(
         if web_on:
             specs += WebToolbox(run.push, run.next_tool_id).specs()
             extra.update(web=True, record=run.push, next_id=run.next_tool_id)
+        if not spoken:
+            # Rückfragen mit Auswahl nur getippt (per Sprache kann niemand klicken; geplante Aufgaben bauen ihre Werkzeuge selbst)
+            specs += QuestionToolbox(ask_questions, run.push, run.next_tool_id, offset=run.text_offset).specs()
         if specs:
             extra["tools"] = specs
         extra["note"] = context.note([p.label or p.id for p in settings.profiles], level, any(s.name.startswith("ha_") for s in specs))
         if server_note:
             extra["note"] += "\n" + server_note
+        if not spoken:
+            extra["note"] += "\n" + QUESTIONS_NOTE
         if incognito:
             extra["note"] += "\n" + INCOGNITO_NOTE
         if switched_from:
@@ -3615,10 +3662,20 @@ def register_chat_routes(
     async def approve(chat_id: str, body: ApproveBody, profile: Profile = Depends(current_profile)) -> Response:
         """Antwort auf eine Rückfrage (Zulassen, Ablehnen, in diesem Chat immer zulassen)."""
         run = live_run((profile.id, chat_id))
-        future = run.pending.get(body.id) if run else None
+        future = run.pending.get(body.id) if run and body.id not in run.question_ids else None
         if future is None or future.done():
             raise HTTPException(status_code=404, detail=tr("Keine offene Rückfrage"))
         future.set_result(body.decision)
+        return Response(status_code=204)
+
+    @app.post("/api/chats/{chat_id}/answer", status_code=204, dependencies=[Depends(write_guard)])
+    async def answer_question(chat_id: str, body: AnswerBody, profile: Profile = Depends(current_profile)) -> Response:
+        """Antwort auf eine Auswahlfrage der KI (gewählte Möglichkeiten, eigene Antwort, übersprungen oder direkt getippt)."""
+        run = live_run((profile.id, chat_id))
+        future = run.pending.get(body.id) if run and body.id in run.question_ids else None
+        if future is None or future.done():
+            raise HTTPException(status_code=404, detail=tr("Keine offene Rückfrage"))
+        future.set_result(body.model_dump())
         return Response(status_code=204)
 
     @app.post("/api/chats/{chat_id}/stop", status_code=204, dependencies=[Depends(write_guard)])

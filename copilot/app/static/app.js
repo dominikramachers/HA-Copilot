@@ -4964,7 +4964,7 @@ function actionsEl(list = [], open = false) {
   box.append(head, node("ul", "act-list"));
   box.update = (all) => {
     // Gelungene Gedächtnis-Änderungen zeigt der Hinweis unter der Antwort (memoryNoteEl); hier stehen sie nicht doppelt.
-    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok") && a.kind !== "artifact" && a.kind !== "model"); // Artefakte zeigen ihre Karten, der Modellwechsel steht als Hinweis darüber
+    const items = all.filter((a) => !(a.kind === "memory" && a.status === "ok") && a.kind !== "artifact" && a.kind !== "model" && a.kind !== "question"); // Rückfragen zeigen ihre Antworten über dem Text, Artefakte zeigen ihre Karten, der Modellwechsel steht als Hinweis darüber
     const ha = items.filter((a) => ["read", "execute", "write"].includes(a.kind));
     const changes = ha.filter((a) => a.kind !== "read").length;
     const kontext = items.filter((a) => a.kind === "knowledge").length;
@@ -6507,8 +6507,9 @@ function messageEl(role, text, files = [], actions = [], meta = {}) {
   const el = node("div", `msg ${role}`);
   if (role === "assistant") {
     if (actions.some((a) => a.kind === "model")) el.append(modelNoteEl(actions));
-    if (actions.some((a) => a.kind !== "model")) el.append(actionsEl(actions));
-    el.append(window.renderMarkdown(text));
+    if (actions.some((a) => a.kind !== "model" && a.kind !== "question")) el.append(actionsEl(actions));
+    if (actions.some((a) => a.kind === "question")) { const box = node("div", "act-text"); renderAnswerInto(box, text, actions); el.append(box); }
+    else el.append(window.renderMarkdown(text));
     if (actions.some((a) => a.file)) el.append(fileCardsEl(actions));
     if (actions.some((a) => a.kind === "artifact" && a.artifact)) el.append(artifactCardsEl(actions));
     if (actions.some((a) => a.context && a.status === "ok")) el.append(contextCardsEl(actions));
@@ -7072,15 +7073,16 @@ async function consume(response, run, bubble) {
     if (!run.busy || run.detached) return;
     const running = out.actions.filter((a) => a.status === "running");
     const waiting = out.actions.some((a) => a.status === "waiting") || cards.size > 0;
+    const question = [...cards.values()].some((c) => c.answerDirect); // offene Auswahlfrage: „Wartet auf deine Antwort“
     const current = running.at(-1);
-    run.busy.set({ tool: current?.label || "", kind: current?.kind || "", recap: running.length ? "" : recapOf(out.actions), status: statusText, waiting, streaming: !!out.answer && !running.length && !waiting });
+    run.busy.set({ tool: current?.label || "", kind: current?.kind || "", recap: running.length ? "" : recapOf(out.actions), status: statusText, waiting, question, streaming: !!out.answer && !running.length && !waiting });
   };
   let frame = 0;
   const paint = () => {
     frame = 0;
     if (run.detached) return;
     build();
-    window.renderMarkdownInto(parts.text, out.answer); // gleicht ab: Codeblöcke und ihre Knöpfe bleiben bestehen (Kopieren geht schon beim Schreiben)
+    renderAnswerInto(parts.text, out.answer, out.actions); // gleicht ab: Codeblöcke und ihre Knöpfe bleiben bestehen (Kopieren geht schon beim Schreiben)
     followAnswer(bubble);
   };
   try {
@@ -7093,8 +7095,9 @@ async function consume(response, run, bubble) {
       } else if (ev.type === "status") {
         statusText = ev.text.replace(/\s*…\s*$/, "");
       } else if (ev.type === "tool") {
-        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null, artifact: ev.artifact || null, context: ev.context || null });
+        byId.set(ev.id, { label: ev.label, kind: ev.kind, status: ev.status, note: ev.note || "", file: ev.file || null, link: ev.link || "", undo: ev.undo || null, artifact: ev.artifact || null, context: ev.context || null, question: ev.question || null, at: ev.at ?? null });
         out.actions = [...byId.values()];
+        if (ev.kind === "question" && !frame) frame = requestAnimationFrame(paint); // beantwortete Rückfrage gleich in den Text setzen
         if (!run.detached) {
           build(); parts.model.update(out.actions); parts.log.update(out.actions); parts.files.update(out.actions); parts.arts.update(out.actions); parts.ctx.update(out.actions); parts.mem.update(out.actions); followAnswer(bubble);
           // Ein neues oder geändertes Artefakt öffnet sich am Laptop und Tablet gleich neben dem Chat (am Handy erst per Karte)
@@ -7108,6 +7111,14 @@ async function consume(response, run, bubble) {
       } else if (ev.type === "approval_done") {
         cards.get(ev.id)?.remove();
         cards.delete(ev.id);
+        syncDock();
+      } else if (ev.type === "question") {
+        if (!run.detached) { build(); const card = questionCard(run.chatId, ev); cards.set(ev.id, card); $("dock-asks").append(card); syncDock(); setAsking(card); }
+      } else if (ev.type === "question_done") {
+        const card = cards.get(ev.id);
+        card?.remove();
+        cards.delete(ev.id);
+        if (card && state.asking === card) setAsking([...cards.values()].findLast((c) => c.answerDirect) || null);
         syncDock();
       } else if (ev.type === "compacted") {
         out.compacted = true;
@@ -7243,7 +7254,7 @@ function makeBusy() {
     if (now.recap !== recapShown) { recapShown = now.recap; index = 0; } // Neues Ergebnis: zuerst kurz zeigen, dann wieder Denkwörter
     const cycle = now.recap ? [now.recap, ...words] : words;
     spark.dataset.art = now.streaming || now.waiting || !now.tool ? "dots" : BUSY_ART[now.kind] || "dots";
-    const label = now.waiting ? tr("Wartet auf deine Freigabe") : (now.tool || now.status || cycle[index % cycle.length]) + (now.recap && !now.tool && !now.status && index % cycle.length === 0 ? "" : " …");
+    const label = now.waiting ? (now.question ? tr("Wartet auf deine Antwort") : tr("Wartet auf deine Freigabe")) : (now.tool || now.status || cycle[index % cycle.length]) + (now.recap && !now.tool && !now.status && index % cycle.length === 0 ? "" : " …");
     if (label !== shown) {
       shown = label;
       word.textContent = label;
@@ -7306,6 +7317,7 @@ function syncDock() {
 
 function clearAsks(run) {
   for (const card of run.cards?.values() || []) card.remove();
+  if (state.asking && [...(run.cards?.values() || [])].includes(state.asking)) setAsking(null);
   run.cards?.clear();
   syncDock();
 }
@@ -7354,6 +7366,307 @@ function approvalCard(chatId, ev) {
   }
   card.append(row);
   return card;
+}
+
+// ------------------------------------------------- Rückfragen mit Auswahl (ask_user)
+// Box über dem Eingabefeld wie bei Claude: bis zu vier Fragen nacheinander, Einfach- oder Mehrfachauswahl, optional mit
+// Vorschau, immer mit „Etwas anderes“. Die Höhe richtet sich nach dem Inhalt und gleitet beim Wechsel der Frage mit.
+// Alle Texte kommen von der KI und werden nur als Text gesetzt.
+function questionCard(chatId, ev) {
+  const questions = Array.isArray(ev.questions) ? ev.questions : [];
+  const picks = questions.map(() => new Set());
+  const others = questions.map(() => "");
+  const done = questions.map(() => false); // beantwortet oder übersprungen
+  let at = 0;
+  let sending = false;
+  let shownPreview = -1;
+
+  const card = node("div", "ask-card q-card");
+  card.qid = ev.id;
+  card.tabIndex = -1;
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", tr("Rückfrage"));
+
+  const head = node("div", "q-head");
+  const title = node("div", "q-title");
+  title.id = `q-title-${ev.id}`;
+  const nav = node("div", "q-nav");
+  const prev = node("button", "icon-btn q-step");
+  prev.type = "button";
+  prev.append(icon("chevron-left"));
+  prev.setAttribute("aria-label", tr("Vorherige Frage"));
+  const count = node("span", "q-count");
+  const next = node("button", "icon-btn q-step");
+  next.type = "button";
+  next.append(icon("chevron"));
+  next.setAttribute("aria-label", tr("Nächste Frage"));
+  nav.append(prev, count, next);
+  nav.hidden = questions.length < 2;
+  const close = node("button", "icon-btn q-close");
+  close.type = "button";
+  close.append(icon("close"));
+  close.setAttribute("aria-label", tr("Rückfrage überspringen"));
+  close.title = tr("Rückfrage überspringen");
+  head.append(title, nav, close);
+
+  const body = node("div", "q-body");
+  const list = node("div", "q-options");
+  list.setAttribute("aria-labelledby", title.id);
+  const pane = node("div", "q-preview");
+  const pre = node("pre", "q-preview-text");
+  pane.append(pre);
+  body.append(list, pane);
+
+  const foot = node("div", "q-foot");
+  const picked = node("span", "q-picked");
+  const skip = node("button", "pill ghost q-skip", tr("Überspringen"));
+  skip.type = "button";
+  const go = node("button", "icon-btn q-go");
+  go.type = "button";
+  go.append(icon("arrowUp"));
+  foot.append(picked, skip, go);
+  card.append(head, body, foot);
+
+  const multi = () => !!questions[at]?.multi;
+  const last = () => at === questions.length - 1;
+  const answered = (i) => picks[i].size > 0 || others[i].trim() !== "";
+
+  const post = async (payload) => {
+    if (sending) return;
+    sending = true;
+    card.classList.add("busy");
+    for (const b of card.querySelectorAll("button, input")) b.disabled = true;
+    try {
+      await api(`api/chats/${encodeURIComponent(chatId)}/answer`, { method: "POST", body: JSON.stringify({ id: ev.id, ...payload }) });
+    } catch {
+      toast(tr("Die Rückfrage ist nicht mehr offen."));
+    }
+  };
+  const submit = () => post({ answers: questions.map((_, i) => (answered(i) ? { selected: [...picks[i]], other: others[i].trim() } : null)) });
+  card.answerDirect = (text) => post({ direct: text });
+
+  // Weiter zur nächsten offenen Frage; sind alle durch, wird abgeschickt (bei der letzten Frage immer).
+  const advance = () => {
+    done[at] = true;
+    const open = questions.findIndex((_, i) => i > at && !done[i]);
+    if (open >= 0) show(open);
+    else if (last() || done.every(Boolean)) submit();
+    else show(questions.findIndex((_, i) => !done[i]));
+  };
+
+  const setPreview = (index) => {
+    const options = questions[at]?.options || [];
+    const withPreview = options.map((o, i) => (o.preview ? i : -1)).filter((i) => i >= 0);
+    pane.hidden = withPreview.length === 0;
+    body.classList.toggle("with-preview", !pane.hidden);
+    if (pane.hidden) return;
+    const chosen = [...picks[at]].find((i) => options[i]?.preview);
+    const target = options[index]?.preview ? index : chosen ?? withPreview[0];
+    if (target === shownPreview) return;
+    shownPreview = target;
+    pre.textContent = options[target].preview;
+    pane.setAttribute("aria-label", tr("Vorschau: {0}", options[target].label));
+  };
+
+  const optionEl = (option, index) => {
+    const isMulti = multi();
+    const row = node("button", "q-opt");
+    row.type = "button";
+    row.setAttribute("role", isMulti ? "checkbox" : "radio");
+    const mark = isMulti ? node("span", "q-check") : node("span", "q-num", String(index + 1));
+    if (isMulti) mark.append(icon("check"));
+    const text = node("span", "q-opt-text");
+    text.append(node("span", "q-label", option.label));
+    if (option.description) text.append(node("span", "q-desc", option.description));
+    row.append(mark, text);
+    const sync = () => {
+      const on = picks[at].has(index);
+      row.classList.toggle("on", on);
+      row.setAttribute("aria-checked", on ? "true" : "false");
+    };
+    sync();
+    row.sync = sync;
+    row.addEventListener("pointerenter", () => setPreview(index));
+    row.addEventListener("focus", () => setPreview(index));
+    row.addEventListener("click", () => choose(index));
+    return row;
+  };
+
+  const choose = (index) => {
+    if (sending || !questions[at]?.options[index]) return;
+    if (multi()) {
+      if (picks[at].has(index)) picks[at].delete(index);
+      else picks[at].add(index);
+      for (const row of list.querySelectorAll(".q-opt")) row.sync();
+      syncFoot();
+      setPreview(index);
+      return;
+    }
+    picks[at] = new Set([index]);
+    others[at] = "";
+    for (const row of list.querySelectorAll(".q-opt")) row.sync();
+    advance();
+  };
+
+  const otherEl = () => {
+    const row = node("label", "q-other");
+    const mark = multi() ? node("span", "q-check") : node("span", "q-num q-pen");
+    mark.append(icon(multi() ? "check" : "edit"));
+    const field = node("input", "q-other-input");
+    field.type = "text";
+    field.maxLength = 2000;
+    field.placeholder = tr("Etwas anderes");
+    field.setAttribute("aria-label", tr("Eigene Antwort"));
+    field.value = others[at];
+    const sync = () => row.classList.toggle("on", others[at].trim() !== "");
+    field.addEventListener("input", () => { others[at] = field.value; sync(); syncFoot(); });
+    field.addEventListener("keydown", (event) => {
+      if (event.isComposing) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (others[at].trim() || picks[at].size) advance();
+      }
+      event.stopPropagation(); // Ziffern und Pfeile gehören hier dem Text
+    });
+    row.append(mark, field);
+    sync();
+    if (!multi()) {
+      // Einfachauswahl: Überspringen steht direkt neben dem Feld (wie bei Claude), eine eigene Fußzeile gibt es nicht
+      const skipHere = node("button", "pill ghost q-skip", tr("Überspringen"));
+      skipHere.type = "button";
+      skipHere.addEventListener("click", (event) => { event.preventDefault(); skipOne(); });
+      row.append(skipHere);
+    }
+    return row;
+  };
+
+  const syncFoot = () => {
+    foot.hidden = !multi();
+    const n = picks[at].size + (others[at].trim() ? 1 : 0);
+    picked.textContent = trn(n, "1 ausgewählt", "{0} ausgewählt");
+    const label = last() ? tr("Absenden") : tr("Weiter");
+    go.setAttribute("aria-label", label);
+    go.title = label;
+    go.disabled = sending || n === 0;
+    go.replaceChildren(icon(last() ? "arrowUp" : "chevron"));
+  };
+
+  const skipOne = () => {
+    picks[at].clear();
+    others[at] = "";
+    advance();
+  };
+
+  // Höhe weich anpassen: alte Höhe merken, Inhalt tauschen, auf die neue Höhe gleiten (ohne Bewegung, wenn gewünscht)
+  const resize = (swap) => {
+    const before = card.isConnected ? card.offsetHeight : 0;
+    swap();
+    if (!before || window.matchMedia("(prefers-reduced-motion: reduce)").matches || !card.animate) return;
+    const after = card.offsetHeight;
+    if (Math.abs(after - before) < 2) return;
+    card.animate([{ height: `${before}px` }, { height: `${after}px` }], { duration: 180, easing: "cubic-bezier(.2, 0, 0, 1)" });
+  };
+
+  const show = (index) => {
+    at = Math.max(0, Math.min(questions.length - 1, index));
+    shownPreview = -1;
+    resize(() => {
+      const q = questions[at];
+      title.textContent = q.question;
+      count.textContent = tr("{0} von {1}", at + 1, questions.length);
+      prev.disabled = at === 0;
+      next.disabled = at === questions.length - 1;
+      list.setAttribute("role", q.multi ? "group" : "radiogroup");
+      list.replaceChildren(...q.options.map(optionEl), otherEl());
+      setPreview(-1);
+      syncFoot();
+    });
+  };
+
+  prev.addEventListener("click", () => show(at - 1));
+  next.addEventListener("click", () => show(at + 1));
+  close.addEventListener("click", () => post({ skipped: true }));
+  skip.addEventListener("click", skipOne);
+  go.addEventListener("click", () => { if (picks[at].size || others[at].trim()) advance(); });
+  card.addEventListener("keydown", (event) => {
+    if (event.ctrlKey || event.metaKey || event.altKey || sending) return;
+    const digit = Number(event.key);
+    if (Number.isInteger(digit) && digit >= 1 && digit <= (questions[at]?.options.length || 0)) {
+      event.preventDefault();
+      choose(digit - 1);
+      list.querySelectorAll(".q-opt")[digit - 1]?.focus({ preventScroll: true });
+    } else if (event.key === "ArrowLeft" && at > 0) { event.preventDefault(); show(at - 1); }
+    else if (event.key === "ArrowRight" && at < questions.length - 1) { event.preventDefault(); show(at + 1); }
+    else if (event.key === "Escape") { event.preventDefault(); post({ skipped: true }); }
+  });
+
+  show(0);
+  return card;
+}
+
+// Solange eine Auswahlfrage offen ist, geht Getipptes im Eingabefeld als direkte Antwort an die KI.
+function setAsking(card) {
+  state.asking = card || null;
+  const input = $("input");
+  input.readOnly = !!state.streaming && !card;
+  input.placeholder = card ? tr("Oder direkt antworten …") : composerPlaceholder();
+  if (card && !window.matchMedia("(pointer: coarse)").matches && !input.value.trim()) card.focus({ preventScroll: true });
+}
+
+function answerDirect() {
+  const input = $("input");
+  const text = input.value.trim();
+  if (!state.asking || !text) return false;
+  state.asking.answerDirect(text);
+  input.value = "";
+  autosize();
+  return true;
+}
+
+// Beantwortete Rückfragen im Text der Antwort, an der Stelle, an der die KI gefragt hat (wie bei Claude):
+// umrandeter Block, je Frage die Frage in Grau und darunter die Antwort. ``at`` ist die Stelle im Antworttext
+// (UTF-16 wie in JavaScript); fehlt sie, steht der Block am Anfang.
+function askedOf(actions, length) {
+  return actions
+    .filter((a) => a.kind === "question" && Array.isArray(a.question) && a.question.length)
+    .map((a) => ({ a, at: Number.isInteger(a.at) ? Math.max(0, Math.min(a.at, length)) : 0 }))
+    .sort((x, y) => x.at - y.at);
+}
+
+function answeredCard(action) {
+  const box = node("div", "q-answered");
+  box.setAttribute("role", "group");
+  box.setAttribute("aria-label", action.label || tr("Rückfrage"));
+  for (const row of action.question) {
+    const item = node("div", `q-answered-item${row.skipped ? " skipped" : ""}`);
+    item.append(node("div", "q-answered-q", row.question || ""), node("div", "q-answered-a", row.answer || ""));
+    box.append(item);
+  }
+  return box;
+}
+
+// Antworttext mit eingeschobenen Rückfragen darstellen: Text, Block, Text … (während des Schreibens und danach gleich)
+function renderAnswerInto(box, text, actions) {
+  const asked = askedOf(actions, text.length);
+  if (!asked.length) {
+    if (box.dataset.split) { box.replaceChildren(); delete box.dataset.split; }
+    window.renderMarkdownInto(box, text);
+    return;
+  }
+  const key = asked.map((q) => `${q.at}:${q.a.question.length}`).join(",");
+  if (box.dataset.split !== key) {
+    box.replaceChildren();
+    box.dataset.split = key;
+    box.append(node("div", "q-seg"));
+    for (const q of asked) box.append(answeredCard(q.a), node("div", "q-seg"));
+  }
+  const segs = box.querySelectorAll(":scope > .q-seg");
+  const cuts = [0, ...asked.map((q) => q.at), text.length];
+  segs.forEach((seg, i) => {
+    const piece = text.slice(cuts[i], cuts[i + 1]);
+    seg.hidden = !piece.trim();
+    window.renderMarkdownInto(seg, piece);
+  });
 }
 
 const SEND_ERRORS = {
@@ -7590,7 +7903,7 @@ function initQuotePicker() {
 }
 
 async function sendMessage(edit = null, spoken = null) {
-  if (state.streaming) { if (!edit && !spoken) stopAnswer(); return; }
+  if (state.streaming) { if (!edit && !spoken && !answerDirect()) stopAnswer(); return; }
   const input = $("input");
   const text = edit ? edit.text : spoken ? spoken.text : input.value.trim();
   // Ein Anhang allein genügt (wie bei Claude): die KI geht dann auf den Anhang ein.

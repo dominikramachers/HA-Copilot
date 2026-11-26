@@ -288,6 +288,7 @@ def test_spoken_message_uses_the_fast_model_few_tools_and_the_voice_note(store):
     assert out.status_code == 200 and "Das Licht im Flur ist an." in out.text
     assert backend.seen["effort"] == "low" and backend.seen["model"] == "claude-haiku-5-5"
     assert "kurz" in backend.seen["note"].lower() and not any(t.startswith(("image_", "github_", "file_")) for t in backend.seen["tools"])
+    assert "ask_user" not in backend.seen["tools"] and "ask_user" not in backend.seen["note"]  # Auswahlfragen gehen nur getippt
 
 
 def test_spoken_message_rejects_attachments_and_quotes(store):

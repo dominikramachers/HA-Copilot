@@ -633,6 +633,14 @@ def _tools(raw: str | None) -> list[dict[str, Any]]:
                 "project": str(ctx.get("project") or "")[:64], "id": ctx["id"], "name": ctx["name"][:200],
                 "verb": ctx.get("verb") if ctx.get("verb") in ("created", "appended", "replaced") else "created",
             }
+        asked = i.get("question")
+        if isinstance(asked, list):  # beantwortete Rückfrage (ask_user): je Frage Frage und Antwort, dazu die Stelle im Text
+            entry["question"] = [
+                {"question": str(q.get("question", ""))[:300], "answer": str(q.get("answer", ""))[:400], **({"skipped": True} if q.get("skipped") is True else {})}
+                for q in asked[:4] if isinstance(q, dict)
+            ]
+            at = i.get("at")
+            entry["at"] = at if isinstance(at, int) and not isinstance(at, bool) and 0 <= at <= 10_000_000 else 0
         if i.get("own") is True:
             entry["own"] = True
         out.append(entry)
