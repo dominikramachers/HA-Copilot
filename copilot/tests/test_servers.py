@@ -686,3 +686,44 @@ def test_autoupdate_refuses_an_old_agent_and_a_locally_denied_server(api):
     hub.repo.server_seen("srv-1", "10.0.0.5", {"os": "Debian 12", "operate": True, "agent_version": "0.68.0", "auto_update_denied": True})
     denied = admin.post("/api/servers/srv-1/autoupdate/run", headers=WRITE)
     assert denied.status_code == 403 and "auto_update=deny" in denied.json()["detail"]
+
+
+def test_update_plans_through_the_api(api):
+    client, store, cfg = api
+    admin, dora = Who(client, ADM01), Who(client, DORA)
+    hub = serverlib.hub_for(store, cfg)
+    for i in (1, 2):
+        hub.repo.server_create(f"srv-{i}", f"web0{i}", f"e{i}" * 32, f"k{i}")
+        hub.repo.server_state(f"srv-{i}", "active")
+        hub.repo.server_seen(f"srv-{i}", f"10.0.0.{i}", {"os": "Debian 12", "operate": True, "agent_version": "0.68.0"})
+    base = "/api/servers/update-plans"
+    assert admin.get(base).json()["plans"] == [] and len(admin.get(base).json()["servers"]) == 2
+    assert dora.get(base).status_code == 403  # ohne Serverzugriff
+    body = {"name": "Nacht", "mode": "security", "weekday": 7, "window_start": "02:00", "window_end": "03:00", "enabled": True, "servers": ["srv-1", "srv-2"]}
+    assert admin.post(base, json=body).status_code == 403  # ohne Schutz-Header
+    created = admin.post(base, json=body, headers=WRITE)
+    assert created.status_code == 200
+    plan = created.json()
+    assert plan["name"] == "Nacht" and [m["slot"] for m in plan["members"]] == ["02:00", "02:30"] and plan["per_server"] == 30
+    for bad in ({"window_end": "02:03"}, {"mode": "alle"}, {"weekday": 9}, {"grace_days": 99}, {"window_start": "99:00"}):
+        assert admin.post(base, json={**body, **bad}, headers=WRITE).status_code in (400, 422)
+    listing = admin.get(base).json()
+    assert [s["plan"]["name"] for s in listing["servers"]] == ["Nacht", "Nacht"]
+    assert admin.get("/api/servers").json()["servers"][0]["autoupdate"]["plan"]["name"] == "Nacht"
+    saved = admin.put(f"{base}/{plan['id']}", json={"window_end": "04:00", "servers": ["srv-2"]}, headers=WRITE)
+    assert saved.status_code == 200 and [m["id"] for m in saved.json()["members"]] == ["srv-2"] and saved.json()["length"] == 120
+    assert admin.put(f"{base}/nope", json={"name": "x"}, headers=WRITE).status_code == 404
+    assert admin.post(f"{base}/{plan['id']}/skip", json={"skip": True}, headers=WRITE).json()["skip_next"] is True
+    # ein Server im Plan
+    server_base = "/api/servers/srv-1/update-plan"
+    assert admin.post(server_base + "/join", json={"plan_id": plan["id"]}, headers=WRITE).json()["plan"]["name"] == "Nacht"
+    assert admin.put("/api/servers/srv-1/autoupdate", json={"at_time": "05:00"}, headers=WRITE).status_code == 409  # folgt dem Plan
+    assert admin.post(server_base + "/pause", json={"paused": True}, headers=WRITE).json()["plan"]["paused"] is True
+    assert admin.post(server_base + "/pause", json={"paused": False}, headers=WRITE).json()["plan"]["paused"] is False
+    left = admin.post(server_base + "/leave", json={"use_own": True}, headers=WRITE).json()
+    assert left["plan"] is None and left["effective"]["source"] == "own" and left["settings"]["enabled"] is True
+    assert admin.post(server_base + "/leave", json={}, headers=WRITE).status_code == 409  # gehört zu keinem Plan
+    assert admin.post(server_base + "/join", json={"plan_id": "nope"}, headers=WRITE).status_code == 404
+    assert admin.delete(f"{base}/{plan['id']}").status_code == 403  # ohne Schutz-Header
+    assert admin.delete(f"{base}/{plan['id']}", headers=WRITE).status_code == 200
+    assert admin.get(base).json()["plans"] == [] and admin.delete(f"{base}/{plan['id']}", headers=WRITE).status_code == 404

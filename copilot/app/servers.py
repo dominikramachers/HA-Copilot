@@ -755,6 +755,7 @@ class ServerHub:
             raise ServerError(tr("Dieser Server ist nicht bekannt."), 404)
         self.repo.server_delete(server_id)
         self.autoupdate.repo.drop_server(server_id)
+        self.autoupdate.plans.forget(server_id)
         self._online.pop(server_id, None)
         self.repo.audit_add("event", tr("Server entfernt"), server_id=server_id, server_name=row["name"], actor=actor, result="ok")
         self._drop(server_id)

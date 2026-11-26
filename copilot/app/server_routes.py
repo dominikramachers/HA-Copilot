@@ -47,6 +47,30 @@ class AutoUpdateSkipBody(BaseModel):
     skip: bool = True
 
 
+class UpdatePlanBody(BaseModel):
+    """Ein Updateplan; beim Ändern bleiben nicht gesendete Felder, wie sie sind. ``servers`` ist die Liste der Server in Reihenfolge."""
+    name: str | None = Field(default=None, max_length=80)
+    enabled: bool | None = None
+    mode: str | None = Field(default=None, max_length=12)
+    weekday: int | None = Field(default=None, ge=0, le=7)
+    window_start: str | None = Field(default=None, max_length=5)
+    window_end: str | None = Field(default=None, max_length=5)
+    grace_days: int | None = Field(default=None, ge=0, le=14)
+    servers: list[str] | None = Field(default=None, max_length=100)
+
+
+class PlanJoinBody(BaseModel):
+    plan_id: str = Field(min_length=1, max_length=40)
+
+
+class PlanLeaveBody(BaseModel):
+    use_own: bool = False  # danach den eigenen Zeitplan des Servers einschalten
+
+
+class PlanPauseBody(BaseModel):
+    paused: bool = True
+
+
 class RenameBody(BaseModel):
     name: str = Field(min_length=1, max_length=60)
 
@@ -127,6 +151,62 @@ def register_server_routes(
         """Den Agenten auf die Fassung im Add-on aktualisieren lassen (er prüft die Datei und setzt bei einem Fehlstart zurück)."""
         try:
             return {"ok": True, "message": await hub.update_agent(server_id, actor(profile))}
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    # -- Updatepläne (ab 0.69.0): ein Zeitplan mit Zeitfenster für mehrere Server, die nacheinander drankommen
+
+    @app.get("/api/servers/update-plans")
+    def update_plans_list(profile: Profile = Depends(current_profile)) -> dict:
+        return hub.autoupdate.plans.listing()
+
+    @app.post("/api/servers/update-plans", dependencies=[Depends(write_guard)])
+    def update_plans_create(body: UpdatePlanBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.plans.create(body.model_dump(exclude_none=True), actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.put("/api/servers/update-plans/{plan_id}", dependencies=[Depends(write_guard)])
+    def update_plans_save(plan_id: str, body: UpdatePlanBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.plans.update(plan_id, body.model_dump(exclude_none=True), actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.delete("/api/servers/update-plans/{plan_id}", dependencies=[Depends(write_guard)])
+    def update_plans_delete(plan_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            hub.autoupdate.plans.delete(plan_id, actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+        return {"ok": True}
+
+    @app.post("/api/servers/update-plans/{plan_id}/skip", dependencies=[Depends(write_guard)])
+    def update_plans_skip(plan_id: str, body: AutoUpdateSkipBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.plans.set_skip(plan_id, body.skip, actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.post("/api/servers/{server_id}/update-plan/join", dependencies=[Depends(write_guard)])
+    def update_plan_join(server_id: str, body: PlanJoinBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.plans.join(server_id, body.plan_id, actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.post("/api/servers/{server_id}/update-plan/leave", dependencies=[Depends(write_guard)])
+    def update_plan_leave(server_id: str, body: PlanLeaveBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.plans.leave(server_id, body.use_own, actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.post("/api/servers/{server_id}/update-plan/pause", dependencies=[Depends(write_guard)])
+    def update_plan_pause(server_id: str, body: PlanPauseBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.plans.pause(server_id, body.paused, actor(profile))
         except ServerError as exc:
             raise fail(exc) from None
 

@@ -26,6 +26,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from .i18n import tr
+from .server_updateplans import EVERY_DAY, GRACE_MAX_DAYS, MODES, UpdatePlans, _slot_time, _TIME, last_slot, next_slot, slot_key  # noqa: F401 (Namen bleiben hier erreichbar)
 from .servers import ServerError, _json, _now, clean_text, parse_version
 
 if TYPE_CHECKING:
@@ -33,9 +34,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("copilot.autoupdate")
 
-MODES = ("security", "all")
-EVERY_DAY = 7  # weekday: 0 = Montag … 6 = Sonntag, 7 = täglich
-GRACE_MAX_DAYS = 14
 MIN_AGENT = (0, 68, 0)  # ab dieser Fassung kennt der Agent update_candidates und das Flag auto
 CATCHUP_HOURS = 12  # so lange nach der geplanten Zeit wird ein verpasster Lauf noch nachgeholt (Server war aus, Add-on neu gestartet)
 QUIET_RETRY_MINUTES = 30  # nach einer fehlgeschlagenen stillen Prüfung so lange nicht erneut versuchen
@@ -45,7 +43,6 @@ MAX_PACKAGES = 300
 CANDIDATES_TIMEOUT = 150  # der Agent prüft je Paket per Trockenlauf (bis etwa 70 s)
 RUNS_KEPT = 30
 SETTLE_SECONDS = 20  # nach dem Einspielen kurz warten, bis Dienste neu gestartet sind, bevor verglichen wird
-_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _PACKAGE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._:\-]{0,99}$")
 _FAILED_UNIT = re.compile(r"^\s*[●*×]?\s*([A-Za-z0-9:_.@\\-]+\.(?:service|socket|mount|automount|swap|timer|target|path|scope|slice))\b", re.M)
 
@@ -244,34 +241,6 @@ def _parse(value: Any) -> datetime | None:
     return moment
 
 
-def _slot_time(day: datetime, at: str) -> datetime:
-    hour, minute = int(at[:2]), int(at[3:])
-    return day.replace(hour=hour, minute=minute, second=0, microsecond=0)
-
-
-def last_slot(now: datetime, weekday: int, at: str) -> datetime:
-    """Der letzte geplante Zeitpunkt, der nicht in der Zukunft liegt."""
-    base = _slot_time(now, at)
-    for back in range(8):
-        candidate = base - timedelta(days=back)
-        if candidate <= now and (weekday == EVERY_DAY or candidate.weekday() == weekday):
-            return candidate
-    return base
-
-
-def next_slot(now: datetime, weekday: int, at: str) -> datetime:
-    base = _slot_time(now, at)
-    for ahead in range(8):
-        candidate = base + timedelta(days=ahead)
-        if candidate > now and (weekday == EVERY_DAY or candidate.weekday() == weekday):
-            return candidate
-    return base + timedelta(days=7)
-
-
-def slot_key(moment: datetime) -> str:
-    return moment.isoformat(timespec="minutes")
-
-
 def failed_units(text: str) -> set[str]:
     return set(_FAILED_UNIT.findall(text or ""))
 
@@ -403,6 +372,7 @@ class AutoUpdate:
         self._errors: dict[str, str] = {}  # letzte Fehlermeldung einer Prüfung im Hintergrund, bis zur nächsten Aktion (nur Arbeitsspeicher)
         self._tasks: set[asyncio.Task] = set()
         self._quiet_retry: dict[str, datetime] = {}  # frühester nächster Versuch der stillen Prüfung je Server
+        self.plans = UpdatePlans(self)  # Updatepläne: ein Zeitplan für mehrere Server (ab 0.69.0)
 
     # -- Ansicht und Einstellungen
 
@@ -415,9 +385,34 @@ class AutoUpdate:
             raise ServerError(tr("Diesen Server kenne ich nicht. Frag mit server_list nach den bekannten Servern."), 404)
         return row
 
+    def effective(self, server_id: str) -> dict[str, Any]:
+        """Was für diesen Server gilt: sein eigener Zeitplan oder, wenn er in einem Plan ist, der Plan (Umfang, Tag, Zeit im Fenster, Karenzzeit).
+        ``enabled`` heißt hier: es ist ein Lauf geplant. Gespeichert bleiben immer beide; der eigene ruht, solange der Server im Plan ist."""
+        own = self.repo.settings(server_id)
+        found = self.plans.membership(server_id)
+        if found is None:
+            return {**own, "source": "own", "offset": 0, "length": 0, "plan": None}
+        plan = found["plan"]
+        return {
+            **own, "source": "plan", "mode": plan["mode"], "weekday": plan["weekday"], "at_time": plan["window_start"], "grace_days": plan["grace_days"],
+            "enabled": plan["enabled"] and not found["paused"], "offset": found["offset"], "length": found["length"], "plan": plan,
+            "paused": found["paused"],
+        }
+
+    def _slot(self, eff: dict[str, Any], *, ahead: bool) -> datetime:
+        fn = next_slot if ahead else last_slot
+        return fn(self.clock(), eff["weekday"], eff["at_time"], eff["offset"])
+
+    @staticmethod
+    def _plan_skipped(eff: dict[str, Any], slot: datetime) -> bool:
+        """Gilt „diesen Lauf überspringen“ für diesen Zeitpunkt (für den Server oder für den ganzen Plan)?"""
+        if eff["skip_slot"] == slot_key(slot):
+            return True
+        return bool(eff["plan"]) and eff["plan"]["skip_slot"] == slot_key(slot - timedelta(minutes=eff["offset"]))
+
     def evaluated(self, server_id: str) -> dict[str, Any] | None:
         """Die zuletzt geprüfte Lage, mit den heutigen Einstellungen und Ausnahmen neu bewertet (Schalter wirken sofort, ohne den Server zu fragen)."""
-        settings = self.repo.settings(server_id)
+        settings = self.effective(server_id)
         try:
             report = json.loads(settings["preview"]) if settings["preview"] else None
         except ValueError:
@@ -430,29 +425,34 @@ class AutoUpdate:
         row = self._row(ref)
         sid = row["id"]
         settings = self.repo.settings(sid)
+        eff = self.effective(sid)
         info = _json(row["info"])
-        now = self.clock()
-        slot = next_slot(now, settings["weekday"], settings["at_time"])
-        skipped = settings["skip_slot"] == slot_key(slot)
+        slot = self._slot(eff, ahead=True)
+        skipped = self._plan_skipped(eff, slot)
         return {
             "server": {"id": sid, "name": row["name"]},
-            "settings": {k: settings[k] for k in ("enabled", "mode", "weekday", "at_time", "grace_days")},
+            "settings": {k: settings[k] for k in ("enabled", "mode", "weekday", "at_time", "grace_days")},  # die eigenen, auch wenn ein Plan gilt
+            "plan": self.plans.server_info(sid), "plans": [{"id": p["id"], "name": p["name"]} for p in self.plans.all()],
+            "effective": {k: eff[k] for k in ("enabled", "mode", "weekday", "at_time", "grace_days", "source")},
             "can_change": self.hub.can_change(row), "denied_locally": bool(info.get("auto_update_denied")),
             "supported": bool(info.get("os")),
-            "next_run": slot_key(slot) if settings["enabled"] else "", "skip_next": skipped,
+            "next_run": slot_key(slot) if eff["enabled"] else "", "skip_next": skipped,
             "checked_at": settings["preview_at"], "preview": self.evaluated(sid),
             "running": self._running.get(sid), "error": self._errors.get(sid, ""), "runs": self.repo.runs(sid),
         }
 
     def brief(self, server_id: str) -> dict[str, Any]:
         """Kurzfassung für die Übersicht der Server (eine Zeile auf der Karte)."""
-        settings = self.repo.settings(server_id)
-        result = self.evaluated(server_id) if settings["enabled"] else None
+        eff = self.effective(server_id)
+        result = self.evaluated(server_id) if eff["enabled"] else None
         last = self.repo.runs(server_id, 1)
-        slot = next_slot(self.clock(), settings["weekday"], settings["at_time"]) if settings["enabled"] else None
+        slot = self._slot(eff, ahead=True) if eff["enabled"] else None
         return {
-            "enabled": settings["enabled"], "mode": settings["mode"], "next_run": slot_key(slot) if slot else "",
-            "skip_next": bool(slot) and settings["skip_slot"] == slot_key(slot),
+            "enabled": eff["enabled"], "mode": eff["mode"], "next_run": slot_key(slot) if slot else "",
+            "skip_next": bool(slot) and self._plan_skipped(eff, slot),
+            "own_enabled": bool(eff["enabled"]) if eff["source"] == "own" else bool(self.repo.settings(server_id)["enabled"]),
+            "plan": ({"id": eff["plan"]["id"], "name": eff["plan"]["name"], "paused": eff["paused"], "enabled": eff["plan"]["enabled"],
+                      "slot": (self.plans.server_info(server_id) or {}).get("slot", "")} if eff["plan"] else None),
             "include": result["counts"]["include"] if result else None, "held": result["counts"]["hold"] if result else None,
             "last": {"status": last[0]["status"], "summary": last[0]["summary"], "at": last[0]["finished_at"] or last[0]["started_at"]} if last else None,
             "running": self._running.get(server_id),
@@ -462,6 +462,9 @@ class AutoUpdate:
         row = self._row(ref)
         sid = row["id"]
         current = self.repo.settings(sid)
+        found = self.plans.membership(sid)
+        if found is not None and any(k in data for k in ("enabled", "mode", "weekday", "at_time", "grace_days")):
+            raise ServerError(tr("Der Server {name} folgt dem Updateplan {plan}. Ändere den Plan oder nimm den Server zuerst aus dem Plan.", name=row["name"], plan=found["plan"]["name"]), 409)
         values: dict[str, Any] = {}
         if "mode" in data:
             if data["mode"] not in MODES:
@@ -483,11 +486,7 @@ class AutoUpdate:
         if enable is not None and not isinstance(enable, bool):
             raise ServerError(tr("Der Schalter muss ein/aus sein."))
         if enable:
-            info = _json(row["info"])
-            if info.get("auto_update_denied"):
-                raise ServerError(tr("Auf dem Server {name} ist die automatische Aktualisierung lokal gesperrt (auto_update=deny).", name=row["name"]), 403)
-            if not self.hub.can_change(row):
-                raise ServerError(tr("Auf dem Server {name} sind Änderungen nicht erlaubt (lokale Richtlinie ki_access). Ohne das kann ich dort nichts aktualisieren.", name=row["name"]), 403)
+            self._check_enable(row)
         if enable is not None:
             values["enabled"] = enable
         merged = {**current, **values}
@@ -500,6 +499,13 @@ class AutoUpdate:
         if values:
             self._log(row, tr("Automatische Aktualisierung eingestellt"), actor, "ok", self._describe(self.repo.settings(sid)))
         return self.view(sid)
+
+    def _check_enable(self, row: dict[str, Any]) -> None:
+        """Darf für diesen Server überhaupt automatisch aktualisiert werden (lokale Richtlinie)?"""
+        if _json(row["info"]).get("auto_update_denied"):
+            raise ServerError(tr("Auf dem Server {name} ist die automatische Aktualisierung lokal gesperrt (auto_update=deny).", name=row["name"]), 403)
+        if not self.hub.can_change(row):
+            raise ServerError(tr("Auf dem Server {name} sind Änderungen nicht erlaubt (lokale Richtlinie ki_access). Ohne das kann ich dort nichts aktualisieren.", name=row["name"]), 403)
 
     @staticmethod
     def _describe(settings: dict[str, Any]) -> str:
@@ -527,10 +533,10 @@ class AutoUpdate:
 
     def set_skip(self, ref: str, skip: bool, actor: str) -> dict[str, Any]:
         row = self._row(ref)
-        settings = self.repo.settings(row["id"])
-        if not settings["enabled"]:
+        eff = self.effective(row["id"])
+        if not eff["enabled"]:
             raise ServerError(tr("Die automatische Aktualisierung ist für diesen Server nicht eingeschaltet."), 409)
-        slot = slot_key(next_slot(self.clock(), settings["weekday"], settings["at_time"]))
+        slot = slot_key(self._slot(eff, ahead=True))
         self.repo.save(row["id"], {"skip_slot": slot if skip else ""}, actor)
         self._log(row, tr("Nächsten Lauf überspringen") if skip else tr("Nächsten Lauf wieder einplanen"), actor, "ok", slot)
         return self.view(row["id"])
@@ -662,7 +668,7 @@ class AutoUpdate:
             self._phase(sid, "check")
             report = await self._fetch(row, refresh_lists=True)
             self._store_report(sid, report)
-            result = self.evaluated(sid) or evaluate(report, self.repo.settings(sid), {}, {}, self.clock())
+            result = self.evaluated(sid) or evaluate(report, self.effective(sid), {}, {}, self.clock())
             chosen = selected(result)
             held_back = len(result["items"]) - len(chosen)
             reboot = result["reboot_required"]
@@ -736,33 +742,45 @@ class AutoUpdate:
 
     # -- Zeitplan
 
+    def _plan_busy(self, server_id: str, plan_id: str) -> bool:
+        """Läuft gerade ein anderer Server desselben Plans? (Pläne aktualisieren ihre Server nacheinander.)"""
+        for member in self.plans.members(plan_id):
+            other = member["server_id"]
+            running = self._running.get(other)
+            if other != server_id and running and running.get("phase") != "check":
+                return True
+        return False
+
     async def tick(self) -> None:
         """Etwa jede Minute: fällige Läufe starten, verpasste nachholen oder melden, die Prüfung auffrischen."""
         now = self.clock()
-        for sid in self.repo.enabled_ids():
+        for sid in self.plans.scheduled_ids():
             row = self.hub.repo.server_get(sid)
             if row is None or row["state"] != "active":
                 continue
-            settings = self.repo.settings(sid)
-            slot = last_slot(now, settings["weekday"], settings["at_time"])
+            eff = self.effective(sid)
+            plan = eff["plan"]
+            slot = self._slot(eff, ahead=False)
             key = slot_key(slot)
             online = self.hub.status_of(row)[0] in ("online", "degraded")
-            if key > (settings["last_slot"] or ""):
-                if settings["skip_slot"] == key:
-                    self.repo.save(sid, {"last_slot": key, "skip_slot": ""}, settings["updated_by"])
+            if key > (eff["last_slot"] or ""):
+                if self._plan_skipped(eff, slot):
+                    self.repo.save(sid, {"last_slot": key, "skip_slot": ""}, eff["updated_by"])
                     self._log(row, tr("Automatische Aktualisierung: Lauf übersprungen (auf Wunsch)"), "", "skipped", key)
                     continue
-                if now - slot > timedelta(hours=CATCHUP_HOURS):
-                    self.repo.save(sid, {"last_slot": key}, settings["updated_by"])
-                    why = tr("Server war zur geplanten Zeit nicht erreichbar")
+                # Ein eigener Zeitplan holt einen verpassten Lauf bis 12 Stunden später nach; ein Plan nur innerhalb seines Zeitfensters
+                deadline = slot - timedelta(minutes=eff["offset"]) + timedelta(minutes=eff["length"]) if plan else slot + timedelta(hours=CATCHUP_HOURS)
+                if now > deadline:
+                    self.repo.save(sid, {"last_slot": key}, eff["updated_by"])
+                    why = tr("Das Zeitfenster des Plans {name} war vorbei, bevor der Server an der Reihe war", name=plan["name"]) if plan else tr("Server war zur geplanten Zeit nicht erreichbar")
                     run_id = self.repo.run_start(sid, "schedule", "")
                     self.repo.run_finish(run_id, "skipped", tr("Übersprungen: {why}", why=why))
                     self._log(row, tr("Automatische Aktualisierung: Lauf ausgefallen"), "", "skipped", why)
                     if self.on_result is not None:
                         await self.on_result(row, self.repo.runs(sid, 1)[0])
                     continue
-                if online and not self._lock(sid).locked() and sid not in self._running:
-                    self.repo.save(sid, {"last_slot": key}, settings["updated_by"])
+                if online and not self._lock(sid).locked() and sid not in self._running and not (plan and self._plan_busy(sid, plan["id"])):
+                    self.repo.save(sid, {"last_slot": key}, eff["updated_by"])
                     try:
                         self._check_runnable(row)
                     except ServerError as exc:
@@ -775,7 +793,7 @@ class AutoUpdate:
                     self._spawn(self._guarded(row, "", "schedule"))
                 continue
             # Prüfung auffrischen, damit „Nächster Lauf“ in der Oberfläche aktuell ist
-            age = _parse(settings["preview_at"])
+            age = _parse(eff["preview_at"])
             stale = age is None or (now - age) > timedelta(hours=PREVIEW_MAX_AGE_HOURS)
             retry_at = self._quiet_retry.get(sid)
             if stale and online and not self._lock(sid).locked() and sid not in self._running and self.hub.can_change(row) and (retry_at is None or now >= retry_at):

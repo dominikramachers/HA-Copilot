@@ -10703,7 +10703,7 @@ async function init() {
     if (view === "settings" && narrowScreen()) await openSettings(detail);
     else if (view === "skills") await openSkills(["connectors", "skills"].includes(detail) ? detail : "all");
     else if (view === "schedules" && state.me.schedules) await openSchedules();
-    else if (view === "servers" && state.me.servers) await openServers(["activity", "add"].includes(detail) ? detail : "overview");
+    else if (view === "servers" && state.me.servers) await openServers(["updates", "activity", "add"].includes(detail) ? detail : "overview");
     else if (view === "allchats") await openAllChats(["shared", "archived"].includes(detail) ? detail : "active");
     else if (view === "project" && projectOf(detail)) await openProject(detail);
     else if (again && state.chats.some((c) => c.id === again)) await selectChat(again);

@@ -1,5 +1,25 @@
 # Änderungen
 
+## 0.69.0
+
+Updatepläne für Server: Statt jeden Server einzeln zu planen, legst du einen Plan mit Zeitfenster an (zum Beispiel jede Nacht zwischen 2 und 3 Uhr) und weist ihm mehrere Server zu. Die Server kommen **nacheinander** dran, gleichmäßig über das Fenster verteilt; es läuft nie mehr als einer gleichzeitig. Der eigene Zeitplan je Server (0.68.0) bleibt möglich.
+
+**Oberfläche (`server-plans.js`, `servers.js`):**
+- Neuer Reiter **Automatische Updates** in der Seite „Server“: die Pläne als Karten (Schalter, Umfang, Tag, Fenster, nächster Lauf, „Diesen Lauf überspringen“), darin die Serverliste einklappbar (Titel, Anzahl und Namen in einer Zeile) mit Uhrzeit je Server, „Pausieren“ und „Herausnehmen“; darunter „Server ohne Plan“ (ebenfalls einklappbar) mit Auswahl „Zu einem Plan hinzufügen“.
+- **Plan bearbeiten:** Name, Schalter, Umfang, Tag, Fenster von/bis, Karenzzeit; Server per Schalter dazunehmen, Reihenfolge mit ↑/↓ (bestimmt die Uhrzeit, die Vorschau rechnet live mit), weitere Server unter „Weitere Server hinzufügen“ eingeklappt; „Plan löschen“ mit Rückfrage.
+- **Fenster „Automatische Updates“ eines Servers:** Folgt der Server einem Plan, steht oben ein Hinweis mit Plan, Zeitplan, seinem Zeitpunkt und **Plan ansehen** (springt in den Reiter und öffnet den Plan), dazu **Im Plan pausieren/fortsetzen**, **Aus dem Plan nehmen** (der eigene Zeitplan gilt wieder, wie er war) und **Eigenen Zeitplan nutzen** (herausnehmen und den eigenen Zeitplan einschalten). Ohne Plan gibt es die Auswahl „Zu einem Updateplan hinzufügen“. Die Karte des Servers nennt den Plan.
+
+**Regeln (Hub, `server_updateplans.py`):**
+- Ein Plan hat Name, Schalter, Umfang (nur Sicherheit / alle), Wochentag oder täglich, Zeitfenster (Beginn und Ende, darf über Mitternacht gehen, 10 Minuten bis 12 Stunden) und Karenzzeit (0 bis 14 Tage). Höchstens 20 Pläne und 100 Server je Plan.
+- Ein Server gehört zu höchstens einem Plan; wird er einem anderen zugewiesen, wandert er. **Paketausnahmen bleiben je Server.** Der **eigene Zeitplan bleibt gespeichert, ruht aber** solange der Server im Plan ist; im Plan lassen sich Zeitplan-Felder des Servers nicht ändern (409 mit Hinweis).
+- Zeitpunkt je Server: Fensterbeginn plus `Fensterlänge × Platz / Zahl der aktiven Server` (pausierte zählen nicht). Ein Server startet nur, wenn er online ist und kein anderer Server des Plans gerade läuft; wartet er, wird jede Minute neu versucht. Endet das Fenster, bevor er drankam, wird der Lauf als „übersprungen“ gespeichert und gemeldet (bei eigenem Zeitplan gilt weiter die Frist von 12 Stunden).
+- Beitreten verlangt dieselben Voraussetzungen wie das Einschalten (bestätigter Server, `ki_access=operate`, nicht `auto_update=deny`, Agent ab 0.68.0). Beim Beitreten, Herausnehmen und Verschieben werden die gemerkten Zeitpunkte zurückgesetzt, damit nichts rückwirkend läuft. Wird ein Server entfernt, rücken die anderen nach.
+- Eingeschaltet und geändert wird nur über die Oberfläche; die KI im Chat hat kein Werkzeug dafür. Änderungen stehen im Protokoll der Server.
+
+**Technik:**
+- Tabellen `server_update_plans` und `server_update_plan_members` (Schema 39); Endpunkte `GET/POST /api/servers/update-plans`, `PUT/DELETE …/update-plans/{id}`, `POST …/update-plans/{id}/skip`, `POST /api/servers/{id}/update-plan/join|leave|pause`. `AutoUpdate.effective()` liefert je Server die geltenden Einstellungen (eigene oder die des Plans); `tick()` und die Vorschau nutzen sie. Der Agent ist unverändert (nötig bleibt ab 0.68.0).
+- Nicht in dieser Fassung: ein Knopf „Plan jetzt ausführen“ (einzelne Server lassen sich weiter auf Abruf aktualisieren).
+
 ## 0.68.0
 
 Automatische Updates für Server: Pro Server lassen sich Systempakete und Sicherheitspatches zu einer festen Zeit oder auf Knopfdruck einspielen. Vorher zeigt ein Fenster, was beim nächsten Lauf installiert würde; jedes Paket lässt sich mit einem Schalter herausnehmen. Heikle Pakete sind von vornherein herausgenommen und lassen sich mit dem Schalter dazunehmen.
