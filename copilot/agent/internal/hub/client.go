@@ -450,6 +450,7 @@ func (a *Agent) annotate(hb *collect.Heartbeat) {
 	}
 	p := a.Changes.Policy()
 	hb.Operate, hb.MaxClass, hb.UpdateMode = p.Operate, p.MaxClass, p.Update
+	hb.AutoUpdateDenied = p.AutoUpdateDeny
 	if f := update.ReadFailure(a.PolicyDir); f != nil {
 		hb.UpdateFailed, hb.UpdateReason = f.Version, f.Reason
 	}

@@ -1,5 +1,35 @@
 # Änderungen
 
+## 0.68.0
+
+Automatische Updates für Server: Pro Server lassen sich Systempakete und Sicherheitspatches zu einer festen Zeit oder auf Knopfdruck einspielen. Vorher zeigt ein Fenster, was beim nächsten Lauf installiert würde; jedes Paket lässt sich mit einem Schalter herausnehmen. Heikle Pakete sind von vornherein herausgenommen und lassen sich mit dem Schalter dazunehmen.
+
+**Aufteilung der Arbeit:** Der **Agent** liefert nur Tatsachen (neues Werkzeug `update_candidates`: was ansteht, aus welcher Quelle, ob es ein Sicherheitsupdate ist, was angehalten ist, was ein Trockenlauf entfernen würde) und installiert am Ende nur die Liste, die der Hub schickt, über die gewohnte, geprüfte Paketaktion. Der **Hub** (neues Modul `app/server_autoupdate.py`) wendet die Regeln an, merkt sich Einstellungen und Ausnahmen, plant die Läufe und protokolliert. Die Regeln liegen im Add-on, damit sie sich ohne neue Agenten ändern lassen.
+
+**Sicherung (mehrere Stufen):**
+- Der Server muss lokal Änderungen erlauben (`ki_access=operate`). Mit `auto_update=deny` in `/etc/copilot-agent/policy` sperrt der Server die Funktion dauerhaft; weder Hub noch KI können das aufheben. Der Agent meldet das mit jeder Meldung (`auto_update_denied`), die Karte zeigt es an.
+- Eingeschaltet wird nur über den Schalter in der Seite „Server“. Die KI im Chat hat kein Werkzeug dafür und sieht auch `update_candidates` nicht.
+- Automatische Läufe starten nie einen Neustart. Steht einer aus, zeigt das Fenster einen Hinweis.
+- Ist weniger als 1024 MB frei, wird nicht installiert. Zusätzlich gilt die gewohnte Obergrenze von 300 Paketen je Lauf.
+- Vor und nach dem Lauf werden die fehlgeschlagenen Dienste verglichen; neue Ausfälle stehen im Ergebnis und gehen als Meldung aufs Handy.
+
+**Regeln (Hub):**
+- **Standardmäßig zurückgehalten, mit Begründung:** Kernel, Firmware und Bootloader; Netzwerk und Firewall; Datenbanken; Container und Kubernetes; Virtualisierung und Speicher (zum Beispiel ZFS, Ceph, qemu); Server-Anwendungen (nginx, apache2, postfix, bind9, php-fpm, samba, grafana, …); große Versionssprünge (die Hauptversion ändert sich; bei dnf ohne Epoche, Datumsversionen ab 1900 zählen nicht); Pakete aus Drittquellen oder unbekannter Herkunft; Pakete, die einen neuen Kernel nachziehen.
+- **Nie zuschaltbar:** durch `apt-mark hold` angehaltene Pakete und Pakete, deren Installation andere Pakete entfernen würde.
+- Grundlegende Sicherheitsbibliotheken (libc6, openssl, openssh, sudo, …) sind bewusst **nicht** pauschal ausgenommen, sonst kämen Sicherheitspatches genau dort nie an. Der Trockenlauf je Paket fängt Entfernungen ab.
+- **Umfang:** „Nur Sicherheit“ (Standard) oder „Alle Updates“. **Karenzzeit** 0 bis 14 Tage gilt nur für normale Updates (so lange müssen sie verfügbar sein); Sicherheitsupdates warten nie.
+- **Ausnahmen je Paket:** „nur diesmal“ oder „dauerhaft“, zum Dazunehmen wie zum Herausnehmen. „Diesen Lauf überspringen“ gilt für genau den nächsten Lauf.
+- Ein verpasster Lauf (Server aus, Add-on neu gestartet) wird bis 12 Stunden danach nachgeholt, sonst als „übersprungen“ gespeichert und gemeldet.
+
+**Ablauf und Oberfläche (`servers.js`):** In der Serverkarte steht der Stand der automatischen Updates; **Automatische Updates** öffnet das Fenster mit Schalter, Umfang, Wochentag (oder täglich), Uhrzeit, Karenzzeit, nächstem Lauf, „Beim nächsten Lauf“ (Gruppen „Wird installiert“ und „Zurückgehalten“ mit Schalter je Paket, bei Bedarf mit Dauer „Nur diesmal/Dauerhaft“), **Neu prüfen**, **Jetzt installieren** und dem Verlauf der letzten Läufe. Der Verlauf nennt je Paket die alte Version, damit sich von Hand zurückgehen lässt. Während ein Lauf arbeitet, aktualisiert sich das Fenster von selbst. Die Zeit gilt in der Zeitzone von Home Assistant. Mehrere Aufrufe gleichzeitig (zwei Personen, Zeitplan und Knopf) sperren sich je Server gegenseitig.
+
+**Technik:**
+- Agent: `internal/tools/updatecheck.go` (Parser für `apt list --upgradable`, `apt-cache policy` und die Trockenläufe, Herkunftsprüfung, dnf über den Root-Helfer mit `--security`), `Action.Auto` in `plan/classify.go` (nur Paketaktion `upgrade` mit Namensliste, Obergrenze 300, immer Stufe 1 mit Trockenlauf), `plan/manager.go` (`auto_update=deny` verweigert), `policy/policy.go`, Heartbeat-Feld `auto_update_denied`.
+- Hub: Tabellen `server_autoupdate`, `server_autoupdate_pkg`, `server_autoupdate_seen`, `server_autoupdate_run` (Schema 38); Endpunkte `GET/PUT /api/servers/{id}/autoupdate`, `POST …/autoupdate/refresh`, `…/package`, `…/skip`, `…/run`; Zeitplan im `watch()`-Takt des Hubs; Ergebnis als Push (`autoupdate_result`).
+- **Hinweis zur Veröffentlichung:** Die Agenten auf den Servern müssen erst auf diese Version aktualisiert sein (Werkzeug `update_candidates`, Flag `auto`); bis dahin zeigt das Fenster „Der Agent kann das noch nicht“. Erst das Release veröffentlichen, warten bis „Agent signieren“ grün ist, dann das Add-on aktualisieren.
+- Nicht in dieser Fassung: Neustarts, Rückgängig-Knopf, Pakete aus Drittquellen. Auf dnf-Servern gibt es keinen Trockenlauf je Paket; ein gemeinsamer Trockenlauf bricht den ganzen Lauf ab, wenn er etwas entfernen würde.
+- Tests: `tests/test_server_autoupdate.py` (Regeln, Zeitplan, Ausnahmen, Ablauf, Nachholen, Sperren), `agent/internal/tools/updatecheck_test.go`, `agent/internal/plan/plan_test.go`, `agent/internal/policy/policy_test.go`.
+
 ## 0.67.1
 
 Rückfragen mit Auswahl wie bei Claude: Die KI kann der Person über dem Eingabefeld bis zu vier Fragen mit Antwortmöglichkeiten stellen und wartet auf die Wahl; Fragen und Antworten stehen danach als Block im Antworttext. Außerdem wird die Darstellungsauswahl in den Einstellungen wieder sauber angezeigt.

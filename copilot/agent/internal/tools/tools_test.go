@@ -63,10 +63,13 @@ func TestCallRejectsUnknownToolsAndBadArguments(t *testing.T) {
 }
 
 func TestEveryNameIsHandled(t *testing.T) {
-	want := []string{"system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users", "metrics", "file_read", "package_info", "docker"}
+	want := []string{"system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users", "metrics", "file_read", "package_info", "docker", "update_candidates"}
 	if strings.Join(Names, ",") != strings.Join(want, ",") {
 		t.Fatalf("Werkzeugliste weicht vom Hub ab (READ_TOOLS in app/servers.py): %v", Names)
 	}
+	old := PackageManager
+	PackageManager = func() string { return "" } // update_candidates soll hier nicht wirklich apt befragen (dauert)
+	defer func() { PackageManager = old }()
 	for _, name := range Names {
 		_, err := Call(context.Background(), name, Args{"unit": "ssh.service"})
 		if err != nil && err.Error() == "unbekanntes Werkzeug" {

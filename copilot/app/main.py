@@ -95,6 +95,7 @@ from . import connector_catalog, connector_icons
 from .connectors import ConnectorError, ConnectorService, ConnectorToolbox
 from .vault import Vault
 from . import servers as serverlib
+from .server_autoupdate import result_title
 from .server_routes import register_server_routes
 from .server_tools import ServerToolbox
 from .github_tools import GITHUB_NOTE, GITHUB_OFF_NO_TOKEN, GITHUB_OFF_NOTE, GithubToolbox, level_text as github_level_text
@@ -1073,6 +1074,19 @@ def register_chat_routes(
             notifier.spawn_text(profile, f"copilot-server-{server['id']}", title, message, fallback=fallback)
 
     server_hub.on_pending = server_pending
+
+    async def autoupdate_result(server: dict, run: dict) -> None:
+        """Ein Lauf der automatischen Aktualisierung ist zu Ende (oder ausgefallen): Meldung aufs Handy aller, die Server verwalten dürfen."""
+        title, message = result_title(server, run)
+
+        async def fallback() -> None:
+            if server_hub.notify is not None:
+                await server_hub.notify(title, message)
+        for profile in settings.profiles:
+            if await server_allowed(profile):
+                notifier.spawn_text(profile, f"copilot-autoupdate-{server['id']}", title, message, fallback=fallback)
+
+    server_hub.autoupdate.on_result = autoupdate_result
 
     async def server_profile(profile: Profile = Depends(current_profile)) -> Profile:
         if not await server_allowed(profile):

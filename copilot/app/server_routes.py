@@ -28,6 +28,25 @@ class ScriptBody(BaseModel):
     signed_updates: bool = True  # nur signierte Programme annehmen (update_key), falls die mitgelieferten Agenten signiert sind
 
 
+class AutoUpdateBody(BaseModel):
+    """Einstellungen der automatischen Aktualisierung; nicht gesendete Felder bleiben, wie sie sind."""
+    enabled: bool | None = None
+    mode: str | None = Field(default=None, max_length=12)
+    weekday: int | None = Field(default=None, ge=0, le=7)
+    at_time: str | None = Field(default=None, max_length=5)
+    grace_days: int | None = Field(default=None, ge=0, le=14)
+
+
+class AutoUpdatePackageBody(BaseModel):
+    package: str = Field(min_length=1, max_length=100)
+    decision: str = Field(pattern="^(include|exclude|clear)$")
+    once: bool = False  # nur beim nächsten Lauf (sonst dauerhaft)
+
+
+class AutoUpdateSkipBody(BaseModel):
+    skip: bool = True
+
+
 class RenameBody(BaseModel):
     name: str = Field(min_length=1, max_length=60)
 
@@ -108,6 +127,52 @@ def register_server_routes(
         """Den Agenten auf die Fassung im Add-on aktualisieren lassen (er prüft die Datei und setzt bei einem Fehlstart zurück)."""
         try:
             return {"ok": True, "message": await hub.update_agent(server_id, actor(profile))}
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    # -- Automatische Aktualisierung (Systempakete und Sicherheitspatches). Eingestellt wird nur hier; die KI im Chat hat dafür kein Werkzeug.
+
+    @app.get("/api/servers/{server_id}/autoupdate")
+    def autoupdate_view(server_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.view(server_id)
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.put("/api/servers/{server_id}/autoupdate", dependencies=[Depends(write_guard)])
+    def autoupdate_save(server_id: str, body: AutoUpdateBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.save_settings(server_id, body.model_dump(exclude_none=True), actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.post("/api/servers/{server_id}/autoupdate/refresh", dependencies=[Depends(write_guard)])
+    async def autoupdate_refresh(server_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """„Neu prüfen“: Paketlisten erneuern und die anstehenden Updates bewerten (installiert nichts); läuft im Hintergrund."""
+        try:
+            return hub.autoupdate.start_refresh(server_id, actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.post("/api/servers/{server_id}/autoupdate/package", dependencies=[Depends(write_guard)])
+    def autoupdate_package(server_id: str, body: AutoUpdatePackageBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.set_package(server_id, body.package, body.decision, body.once, actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.post("/api/servers/{server_id}/autoupdate/skip", dependencies=[Depends(write_guard)])
+    def autoupdate_skip(server_id: str, body: AutoUpdateSkipBody, profile: Profile = Depends(current_profile)) -> dict:
+        try:
+            return hub.autoupdate.set_skip(server_id, body.skip, actor(profile))
+        except ServerError as exc:
+            raise fail(exc) from None
+
+    @app.post("/api/servers/{server_id}/autoupdate/run", dependencies=[Depends(write_guard)])
+    async def autoupdate_run(server_id: str, profile: Profile = Depends(current_profile)) -> dict:
+        """„Jetzt installieren“: startet einen Lauf mit der aktuellen Auswahl im Hintergrund; der Stand steht in der Ansicht („running“)."""
+        try:
+            return hub.autoupdate.start(server_id, actor(profile))
         except ServerError as exc:
             raise fail(exc) from None
 

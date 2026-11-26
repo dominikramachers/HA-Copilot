@@ -187,7 +187,7 @@ func (s *server) handle(ctx context.Context, c *net.UnixConn) {
 		return
 	}
 	if req.Tool == checkTool {
-		s.handleCheckUpdates(ctx, c)
+		s.handleCheckUpdates(ctx, c, req)
 		return
 	}
 	if req.Tool == updateTool || req.Tool == confirmTool {
@@ -334,12 +334,16 @@ func containsArg(argv []string, want string) bool {
 
 // handleCheckUpdates fragt dnf nach ausstehenden Aktualisierungen (nur lesen; Ausgabe 100 heißt „es gibt welche“). Wie bei Docker muss
 // die lokale Richtlinie root-Befehle erlauben.
-func (s *server) handleCheckUpdates(ctx context.Context, c net.Conn) {
+func (s *server) handleCheckUpdates(ctx context.Context, c net.Conn, req plan.Request) {
 	if !s.opt.Policy().Root {
 		reply(c, plan.Response{ExitCode: -1, Error: "Commands with root rights are switched off locally on this server (root=off)."})
 		return
 	}
-	out, code, err := tools.RunWith(ctx, tools.Opts{Timeout: 120 * time.Second}, "dnf", "-q", "check-update")
+	argv := []string{"-q", "check-update"}
+	if sec, _ := req.Args["security"].(bool); sec {
+		argv = append(argv, "--security") // nur Sicherheitsaktualisierungen (für die Kennzeichnung)
+	}
+	out, code, err := tools.RunWith(ctx, tools.Opts{Timeout: 120 * time.Second}, "dnf", argv...)
 	switch {
 	case err != nil:
 		reply(c, plan.Response{ExitCode: -1, Error: err.Error()})

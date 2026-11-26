@@ -74,8 +74,11 @@ AGENT_UPDATE_TIMEOUT = 30
 # Was der Hub einem Agenten überhaupt auftragen darf (der Agent prüft noch einmal selbst, siehe agent/internal/tools)
 READ_TOOLS = (
     "system", "disks", "memory", "load", "processes", "services_failed", "service", "journal", "network", "updates", "users",
-    "metrics", "file_read", "package_info", "docker",
+    "metrics", "file_read", "package_info", "docker", "update_candidates",
 )
+# Nur für den Hub selbst (automatische Aktualisierung): die KI bekommt dieses Werkzeug nicht, ihre Antwort wäre ein langer JSON-Block.
+HUB_ONLY_TOOLS = ("update_candidates",)
+AI_READ_TOOLS = tuple(t for t in READ_TOOLS if t not in HUB_ONLY_TOOLS)
 
 # Ändernde Aufträge (Etappe 2): nur nach Einstufung durch den Agenten und Freigabe in der App
 CHANGE_TOOLS = ("service_action", "package", "run_command", "file_write")
@@ -206,6 +209,7 @@ def clean_heartbeat(data: Any) -> dict[str, Any] | None:
         # Etappe 2: was die lokale Richtlinie des Servers erlaubt (der Hub kann das nicht erweitern)
         "operate": data.get("operate") is True,
         "helper": data.get("helper") is True,
+        "auto_update_denied": data.get("auto_update_denied") is True,  # lokale Richtlinie sperrt die automatische Aktualisierung
         # 0.61: Ablauf des Zertifikats, Richtlinie zur Selbstaktualisierung und ein zurückgesetztes Update
         "cert_expires": _iso_time(data.get("cert_expires")),
         "update_mode": data.get("update_mode") if data.get("update_mode") in ("off", "manual", "auto") else "",
@@ -612,6 +616,9 @@ class ServerHub:
         self._scripts: dict[str, dict[str, Any]] = {}  # Installationsskripte je Schlüssel, nur im Arbeitsspeicher
         self._server: Any = None
         self.port = 0
+        from .server_autoupdate import AutoUpdate  # hier und nicht oben: das Modul braucht ServerError & Co. aus dieser Datei
+
+        self.autoupdate = AutoUpdate(self)
 
     # -- Installationsskripte (nur im Arbeitsspeicher: solange der Schlüssel gilt, bleibt das Skript abrufbar)
 
@@ -694,6 +701,7 @@ class ServerHub:
                 "failed": info.get("update_failed") or "", "reason": info.get("update_reason") or "",
             },
             "cert_days": cert_days_left(info),
+            "autoupdate": self.autoupdate.brief(row["id"]) if row["state"] == "active" else None,
         }
 
     def listing(self) -> list[dict[str, Any]]:
@@ -746,6 +754,7 @@ class ServerHub:
         if row is None:
             raise ServerError(tr("Dieser Server ist nicht bekannt."), 404)
         self.repo.server_delete(server_id)
+        self.autoupdate.repo.drop_server(server_id)
         self._online.pop(server_id, None)
         self.repo.audit_add("event", tr("Server entfernt"), server_id=server_id, server_name=row["name"], actor=actor, result="ok")
         self._drop(server_id)
@@ -904,12 +913,12 @@ class ServerHub:
         finally:
             conn.pending.pop(call_id, None)
 
-    async def call(self, server_ref: str, tool: str, args: dict[str, Any] | None = None) -> str:
+    async def call(self, server_ref: str, tool: str, args: dict[str, Any] | None = None, *, timeout: float = CALL_TIMEOUT) -> str:
         """Einen lesenden Aufruf an einen bestätigten, verbundenen Server schicken und auf die Antwort warten."""
         if tool not in READ_TOOLS:
             raise ServerError(tr("Dieses Werkzeug gibt es nicht."))
         row, conn = self._connection(server_ref)
-        return await self._request(row, conn, {"t": "call", "tool": tool, "args": args or {}}, CALL_TIMEOUT)
+        return await self._request(row, conn, {"t": "call", "tool": tool, "args": args or {}}, timeout)
 
     # -- Änderungen (Etappe 2): vorbereiten (der Agent stuft ein, nichts passiert) und nach Freigabe ausführen
 
@@ -1205,6 +1214,8 @@ class ServerHub:
             ticks += 1
             try:
                 await self.check_online()
+                if ticks % 4 == 0:  # etwa jede Minute: fällige automatische Aktualisierungen
+                    await self.autoupdate.tick()
                 if ticks % 240 == 0:
                     self.repo.audit_prune()
             except asyncio.CancelledError:

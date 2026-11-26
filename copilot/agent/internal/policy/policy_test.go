@@ -54,3 +54,15 @@ func TestParseUpdateAndWritePaths(t *testing.T) {
 		t.Error("WriteAllowed must match whole directories only")
 	}
 }
+
+func TestParseAutoUpdate(t *testing.T) {
+	if Parse("").AutoUpdateDeny {
+		t.Error("ohne Angabe ist die automatische Aktualisierung nicht gesperrt")
+	}
+	if !Parse("auto_update=deny").AutoUpdateDeny || !Parse("auto_update = OFF # nie").AutoUpdateDeny {
+		t.Error("auto_update=deny/off muss sperren")
+	}
+	if Parse("auto_update=allow").AutoUpdateDeny || Parse("auto_update=quatsch").AutoUpdateDeny {
+		t.Error("andere Werte sperren nicht")
+	}
+}

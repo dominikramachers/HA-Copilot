@@ -168,6 +168,9 @@ update=$UPDATE
 # update_key    optional: public ed25519 key (base64). If set, only agent files signed with the matching key are installed,
 #               so nobody who controls the hub can put other programs on this server.
 $UPDATE_KEY_LINE
+# auto_update   set to "deny" to block automatic package updates (the schedule and "Install now" on the Servers page) on this
+#               server for good. Nobody but root on this server can lift it. Not set = allowed, if ki_access=operate.
+#auto_update=deny
 EOF
     chmod 0644 "$POLICY"
     say "Local policy created: $POLICY (ki_access=$ACCESS, update=$UPDATE)."

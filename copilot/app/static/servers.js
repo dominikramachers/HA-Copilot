@@ -273,6 +273,7 @@ function serverCard(s) {
   if (info.agent_version) add(tr("Agent"), s.update?.available ? `${info.agent_version} → ${s.update.available}` : info.agent_version);
   if (s.update?.mode && s.status !== "offline") add(tr("Aktualisierung des Agenten"), SRV_UPDATE_MODES()[s.update.mode] || s.update.mode);
   if (s.update?.failed) add(tr("Zurückgenommen"), tr("Fassung {0}: {1}", s.update.failed, s.update.reason || tr("Der Agent ist nicht angelaufen.")), true);
+  if (s.autoupdate && s.status !== "pending") add(tr("Automatische Updates"), srvAuBrief(s.autoupdate), ["attention", "failed"].includes(s.autoupdate.last?.status));
   if (s.cert_days != null) add(tr("Zertifikat"), s.cert_days < 0 ? tr("abgelaufen") : tr("gültig noch {0} Tage", s.cert_days), s.cert_days < 30);
   // Was die lokale Richtlinie auf dem Server erlaubt: nicht über die App änderbar
   if (s.status !== "pending" && s.status !== "offline" && s.status !== "blocked") add(tr("Änderungen"), info.operate ? tr("erlaubt, nur nach deiner Freigabe") : tr("nur lesen (lokale Richtlinie)"));
@@ -296,6 +297,7 @@ function serverCard(s) {
     if (live && s.update?.available && s.update.mode !== "off") {
       foot.append(button(tr("Agent aktualisieren"), "ghost", () => srvAct(`api/servers/${s.id}/update`, "POST", null, tr("Die Aktualisierung läuft. Der Agent meldet sich gleich wieder."))));
     }
+    if (s.state === "active") foot.append(button(tr("Automatische Updates"), "ghost", () => srvAuOpen(s)));
     if (live) foot.append(button(tr("Zertifikat erneuern"), "ghost", () => srvAct(`api/servers/${s.id}/renew`, "POST", null, tr("Die Erneuerung des Zertifikats wurde angestoßen."))));
     foot.append(button(tr("Umbenennen"), "ghost", () => srvRename(body, foot, s)));
     if (s.state === "blocked") foot.append(button(tr("Entsperren"), "ghost", () => srvAct(`api/servers/${s.id}/unblock`, "POST", null, tr("Entsperrt."))));
@@ -316,6 +318,17 @@ function serverCard(s) {
   body.append(foot);
   card.append(body);
   return card;
+}
+
+function srvAuBrief(a) {
+  if (a.running) return SRV_AU_PHASES()[a.running.phase] || tr("läuft");
+  const parts = [];
+  if (a.enabled) {
+    parts.push(a.mode === "all" ? tr("alle Updates") : tr("nur Sicherheit"));
+    parts.push(a.skip_next ? tr("nächster Lauf wird übersprungen") : tr("nächster Lauf {0}", srvAuWhen(a.next_run)));
+  } else parts.push(tr("aus"));
+  if (a.last && ["attention", "failed", "partial"].includes(a.last.status)) parts.push(a.last.summary);
+  return parts.join(" · ");
 }
 
 const SRV_UPDATE_MODES = () => ({ auto: tr("automatisch"), manual: tr("auf Knopfdruck"), off: tr("aus (lokale Richtlinie)") });
@@ -677,4 +690,304 @@ function renderScriptResult(script, hub) {
   how.append(node("code", "", `sudo bash ${script.filename}`));
   box.append(how, node("p", "srv-note", tr("Der Server muss {0} auf Port {1} erreichen (Firewall).", srvUi.form.hub.trim() || "–", hub.port)));
   return box;
+}
+
+// ------------------------------------------------------------- Automatische Updates (ab 0.68.0)
+// Ein Fenster je Server: Schalter und Zeitplan, die Vorschau „Was wird beim nächsten Lauf installiert“ mit einem Schalter je Paket,
+// „Neu prüfen“, „Jetzt installieren“ und der Verlauf. Alles liegt im Hub; die KI im Chat kann hier nichts einstellen.
+
+const SRV_AU_DAYS = () => [[7, tr("täglich")], [0, tr("Montag")], [1, tr("Dienstag")], [2, tr("Mittwoch")], [3, tr("Donnerstag")], [4, tr("Freitag")], [5, tr("Samstag")], [6, tr("Sonntag")]];
+const SRV_AU_GRACE = [0, 1, 2, 3, 5, 7, 14];
+const SRV_AU_PHASES = () => ({
+  start: tr("Starte …"), check: tr("Prüfe die anstehenden Updates …"), prepare: tr("Bereite das Einspielen vor …"),
+  install: tr("Installiere die Updates …"), verify: tr("Prüfe, ob alles weiterläuft …"),
+});
+const SRV_AU_STATUS = () => ({
+  ok: [tr("Erledigt"), ""], partial: [tr("Teilweise"), "warn"], failed: [tr("Fehlgeschlagen"), "bad"], attention: [tr("Braucht Aufmerksamkeit"), "bad"],
+  skipped: [tr("Übersprungen"), ""], running: [tr("Läuft"), ""],
+});
+
+const srvAu = { id: "", body: null, data: null, timer: 0, busy: false, error: "", armed: 0 };
+
+function srvAuWhen(iso) {
+  // „2026-11-27T03:30“ ist die Ortszeit des Hubs: nicht in die Zeitzone des Browsers umrechnen
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/.exec(iso || "");
+  if (!m) return "";
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  let text = "";
+  try { text = day.toLocaleDateString(kiLocale, { weekday: "short", day: "numeric", month: "short" }); } catch { text = `${m[3]}.${m[2]}.`; }
+  return `${text}, ${m[4]}`;
+}
+
+async function srvAuOpen(s) {
+  srvAu.id = s.id;
+  srvAu.data = null;
+  srvAu.busy = false;
+  srvAu.error = "";
+  const closed = openSheet({
+    title: tr("Automatische Updates"), sub: s.name, plain: true, wide: true,
+    panel: (body) => { body.classList.add("srv-au"); srvAu.body = body; srvAuDraw(); srvAuLoad(); },
+  });
+  await closed;
+  clearTimeout(srvAu.timer);
+  clearTimeout(srvAu.armed);
+  srvAu.body = null;
+  srvAu.id = "";
+  srvLoad(true).catch(() => {});
+}
+
+function srvAuPoll() {
+  clearTimeout(srvAu.timer);
+  if (srvAu.body && srvAu.data?.running) srvAu.timer = setTimeout(srvAuLoad, 3000);
+}
+
+async function srvAuLoad() {
+  const id = srvAu.id;
+  if (!id) return;
+  try {
+    const data = await api(`api/servers/${id}/autoupdate`);
+    if (srvAu.id !== id) return;
+    srvAu.data = data;
+    srvAu.error = "";
+  } catch (err) {
+    if (srvAu.id !== id) return;
+    srvAu.error = errorText(err, tr("Das hat nicht geklappt."));
+  }
+  srvAuDraw();
+  srvAuPoll();
+}
+
+async function srvAuAct(path, method, body, done) {
+  const id = srvAu.id;
+  if (!id || srvAu.busy) return;
+  srvAu.busy = true;
+  srvAuDraw();
+  try {
+    const data = await api(`api/servers/${id}/autoupdate${path}`, { method, ...(body ? { body: JSON.stringify(body) } : {}) });
+    if (done) toast(done);
+    if (data && data.settings) { if (srvAu.id === id) srvAu.data = data; srvAu.error = ""; }
+    else if (srvAu.id === id) { srvAu.busy = false; await srvAuLoad(); return; }
+  } catch (err) {
+    srvAu.error = errorText(err, tr("Das hat nicht geklappt."));
+  }
+  srvAu.busy = false;
+  if (srvAu.id !== id) return;
+  srvAuDraw();
+  srvAuPoll();
+}
+
+function srvAuToggle(item) {
+  const on = item.status === "include";
+  const once = item.override ? item.override.startsWith("once_") : true; // Vorgabe: nur beim nächsten Lauf
+  let decision;
+  if (on) decision = item.override && item.override.endsWith("include") ? "clear" : "exclude";
+  else decision = item.status === "user_excluded" ? "clear" : "include";
+  srvAuAct("/package", "POST", { package: item.name, decision, once: decision === "clear" ? false : once });
+}
+
+function srvAuSwitch(checked, label, disabled, run) {
+  const sw = node("button", "sched-switch");
+  sw.type = "button";
+  sw.setAttribute("role", "switch");
+  sw.setAttribute("aria-checked", String(checked));
+  sw.setAttribute("aria-label", label);
+  sw.disabled = !!disabled;
+  sw.append(node("span", "knob"));
+  sw.addEventListener("click", run);
+  return sw;
+}
+
+function srvAuSelect(label, options, value, onChange, disabled) {
+  const wrap = node("label", "srv-au-field");
+  wrap.append(node("span", "srv-au-label", label));
+  const select = node("select", "field");
+  for (const [val, text] of options) {
+    const option = node("option", "", text);
+    option.value = String(val);
+    select.append(option);
+  }
+  select.value = String(value);
+  select.disabled = !!disabled;
+  select.addEventListener("change", () => onChange(select.value));
+  wrap.append(select);
+  return wrap;
+}
+
+function srvAuRow(item, d) {
+  const row = node("li", `srv-au-item ${item.status}`);
+  const locked = srvAu.busy || !!d.running || !d.can_change;
+  const sw = srvAuSwitch(item.status === "include", tr("{0} automatisch installieren", item.name), locked || !item.can_include, () => srvAuToggle(item));
+  const main = node("div", "srv-au-main");
+  const top = node("div", "srv-au-top");
+  top.append(node("b", "srv-au-name", item.name));
+  if (item.security) top.append(node("span", "srv-chip sec", tr("Sicherheit")));
+  main.append(top, node("div", "srv-au-ver", `${item.installed || "?"} → ${item.candidate}`));
+  for (const why of item.reasons || []) main.append(node("div", "srv-au-why" + (item.can_include ? "" : " hard"), why.text));
+  if (item.override) {
+    const decision = item.override.endsWith("exclude") ? "exclude" : "include";
+    const scope = srvAuSelect(tr("Gilt"), [["once", tr("Nur diesmal")], ["always", tr("Dauerhaft")]], item.override.startsWith("once_") ? "once" : "always",
+      (value) => srvAuAct("/package", "POST", { package: item.name, decision, once: value === "once" }), locked);
+    scope.classList.add("srv-au-scope");
+    main.append(scope);
+  }
+  row.append(sw, main);
+  return row;
+}
+
+function srvAuGroup(title, note, items, d, open) {
+  if (!items.length) return null;
+  const box = node("details", "srv-au-group");
+  box.open = open;
+  const head = node("summary", "srv-au-ghead");
+  head.append(node("span", "", title), node("span", "srv-count", String(items.length)));
+  box.append(head);
+  if (note) box.append(node("p", "srv-au-gnote", note));
+  const list = node("ul", "srv-au-list");
+  for (const item of items) list.append(srvAuRow(item, d));
+  box.append(list);
+  return box;
+}
+
+function srvAuDraw() {
+  const body = srvAu.body;
+  if (!body) return;
+  const top = body.scrollTop;
+  const d = srvAu.data;
+  body.replaceChildren();
+  if (srvAu.error) body.append(node("p", "srv-au-banner bad", srvAu.error));
+  if (!d) {
+    if (!srvAu.error) body.append(node("p", "srv-note", tr("Wird geladen …")));
+    return;
+  }
+  const set = d.settings;
+  const locked = srvAu.busy || !!d.running;
+
+  // 1. Schalter und Zeitplan
+  const box = node("section", "srv-au-set");
+  const head = node("div", "srv-au-switchrow");
+  const label = node("div", "srv-au-switchtext");
+  label.append(node("b", "", tr("Automatisch aktualisieren")),
+    node("span", "srv-hint", set.mode === "all" ? tr("Systempakete und Sicherheitspatches werden zum geplanten Zeitpunkt eingespielt.") : tr("Sicherheitspatches werden zum geplanten Zeitpunkt eingespielt.")));
+  head.append(label, srvAuSwitch(set.enabled, tr("Automatisch aktualisieren"), locked || (!set.enabled && (!d.can_change || d.denied_locally)),
+    () => srvAuAct("", "PUT", { enabled: !set.enabled })));
+  box.append(head);
+  if (d.denied_locally) box.append(node("p", "srv-au-banner", tr("Auf dem Server ist die automatische Aktualisierung gesperrt (auto_update=deny in der lokalen Richtlinie). Das lässt sich nur dort ändern.")));
+  else if (!d.can_change) box.append(node("p", "srv-au-banner", tr("Der Server erlaubt keine Änderungen (lokale Richtlinie ki_access=read). Ohne Erlaubnis dort kann ich nichts installieren.")));
+  const grid = node("div", "srv-au-grid");
+  grid.append(srvAuSelect(tr("Umfang"), [["security", tr("Nur Sicherheit")], ["all", tr("Alle Updates")]], set.mode, (v) => srvAuAct("", "PUT", { mode: v }), locked));
+  grid.append(srvAuSelect(tr("Tag"), SRV_AU_DAYS(), set.weekday, (v) => srvAuAct("", "PUT", { weekday: Number(v) }), locked));
+  const time = node("label", "srv-au-field");
+  time.append(node("span", "srv-au-label", tr("Uhrzeit")));
+  const input = node("input", "field");
+  input.type = "time";
+  input.value = set.at_time;
+  input.disabled = locked;
+  input.addEventListener("change", () => { if (/^\d\d:\d\d$/.test(input.value)) srvAuAct("", "PUT", { at_time: input.value }); });
+  time.append(input);
+  grid.append(time);
+  grid.append(srvAuSelect(tr("Karenzzeit"), SRV_AU_GRACE.map((n) => [n, n ? tr("{0} Tage", n) : tr("keine")]), set.grace_days, (v) => srvAuAct("", "PUT", { grace_days: Number(v) }), locked));
+  box.append(grid);
+  box.append(node("p", "srv-hint", tr("Die Karenzzeit gilt nur für normale Updates: Sie müssen so lange verfügbar sein, bevor sie eingespielt werden. Sicherheitsupdates warten nie.")));
+  if (set.enabled) {
+    const next = node("div", "srv-au-next");
+    next.append(node("span", "", d.skip_next ? tr("Nächster Lauf: {0} (wird übersprungen)", srvAuWhen(d.next_run)) : tr("Nächster Lauf: {0}", srvAuWhen(d.next_run))));
+    const skip = node("button", "pill ghost small", d.skip_next ? tr("Wieder einplanen") : tr("Diesen Lauf überspringen"));
+    skip.type = "button";
+    skip.disabled = locked;
+    skip.addEventListener("click", () => srvAuAct("/skip", "POST", { skip: !d.skip_next }));
+    next.append(skip);
+    box.append(next);
+  } else {
+    box.append(node("p", "srv-hint", tr("Ausgeschaltet: Es wird nichts automatisch installiert. Du kannst unten trotzdem prüfen und auf Abruf installieren.")));
+  }
+  body.append(box);
+
+  // 2. Läuft gerade etwas?
+  if (d.running) {
+    const phase = SRV_AU_PHASES()[d.running.phase] || SRV_AU_PHASES().start;
+    const run = node("p", "srv-au-banner busy", phase);
+    run.setAttribute("role", "status");
+    body.append(run);
+  }
+
+  // 3. Vorschau
+  const pv = d.preview;
+  const headRow = node("div", "srv-au-pvhead");
+  const title = node("div", "srv-au-pvtitle");
+  title.append(node("h4", "", tr("Beim nächsten Lauf")),
+    node("span", "srv-hint", d.checked_at ? tr("Zuletzt geprüft: {0}", srvAgo(d.checked_at)) : tr("Noch nicht geprüft")));
+  const recheck = node("button", "pill ghost small", tr("Neu prüfen"));
+  recheck.type = "button";
+  recheck.disabled = locked || !d.can_change;
+  recheck.addEventListener("click", () => srvAuAct("/refresh", "POST", null));
+  headRow.append(title, recheck);
+  body.append(headRow);
+  if (!pv) {
+    body.append(node("p", "srv-note", tr("Tippe auf „Neu prüfen“. Ich lade die Paketlisten des Servers, prüfe jedes Paket und zeige dir, was ich einspielen würde und was nicht.")));
+  } else {
+    for (const why of pv.blocked || []) body.append(node("p", "srv-au-banner bad", tr("Wird nicht gestartet: {0}", why.text)));
+    if (pv.reboot_required) body.append(node("p", "srv-au-banner", tr("Auf dem Server steht ein Neustart aus. Ich starte nie von selbst neu.")));
+    if (pv.note) body.append(node("p", "srv-hint", pv.note));
+    const by = (status) => pv.items.filter((i) => i.status === status);
+    if (!pv.items.length) body.append(node("p", "srv-note", tr("Alles aktuell: Es steht nichts an.")));
+    const parts = [
+      srvAuGroup(tr("Wird installiert"), "", by("include"), d, true),
+      srvAuGroup(tr("Zurückgehalten"), tr("Diese Pakete habe ich nicht für automatische Updates vorgesehen, damit nichts kaputtgeht. Mit dem Schalter nimmst du sie dazu."), by("hold"), d, true),
+      srvAuGroup(tr("Wartet (Karenzzeit)"), "", by("waiting"), d, false),
+      srvAuGroup(tr("Normale Updates"), tr("Nicht im Umfang, weil nur Sicherheitsupdates eingestellt sind."), by("scope"), d, false),
+      srvAuGroup(tr("Von dir ausgenommen"), "", by("user_excluded"), d, false),
+    ];
+    for (const part of parts) if (part) body.append(part);
+    if (pv.more) body.append(node("p", "srv-hint", tr("Und {0} weitere, die hier nicht aufgeführt sind.", pv.more)));
+    const count = by("include").length;
+    const foot = node("div", "srv-au-foot");
+    const go = node("button", "pill primary", tr("Jetzt installieren ({0})", count));
+    go.type = "button";
+    go.disabled = locked || !d.can_change || !count || d.denied_locally || (pv.blocked || []).length > 0;
+    go.addEventListener("click", () => {
+      if (!srvAu.armed) {
+        go.textContent = tr("Wirklich jetzt installieren?");
+        go.classList.add("danger");
+        srvAu.armed = setTimeout(() => { srvAu.armed = 0; srvAuDraw(); }, 4000);
+        return;
+      }
+      clearTimeout(srvAu.armed);
+      srvAu.armed = 0;
+      srvAuAct("/run", "POST", null, tr("Die Aktualisierung läuft. Du kannst das Fenster schließen."));
+    });
+    foot.append(go, node("span", "srv-hint", tr("Spielt genau die Pakete ein, die oben unter „Wird installiert“ stehen.")));
+    body.append(foot);
+  }
+
+  // 4. Verlauf
+  if (d.runs?.length) {
+    const history = node("section", "srv-au-history");
+    history.append(node("h4", "", tr("Verlauf")), node("p", "srv-hint", tr("Hier stehen die alten Versionen, falls du ein Paket zurücksetzen möchtest.")));
+    const list = node("ul", "srv-au-runs");
+    for (const run of d.runs) {
+      const [text, tone] = (SRV_AU_STATUS()[run.status] || SRV_AU_STATUS().ok);
+      const li = node("li", "srv-au-run");
+      const line = node("div", "srv-au-runtop");
+      line.append(node("span", `srv-chip ${tone}`, text), node("span", "srv-log-time", srvTime(run.finished_at || run.started_at)));
+      if (run.trigger === "manual") line.append(node("span", "srv-kind", tr("auf Abruf")));
+      if (run.reboot) line.append(node("span", "srv-chip warn", tr("Neustart erforderlich")));
+      li.append(line, node("p", "srv-au-runtext", run.summary || ""));
+      if (run.new_failed?.length) li.append(node("p", "srv-au-why hard", tr("Neu fehlgeschlagen: {0}", run.new_failed.join(", "))));
+      if (run.installed?.length || run.detail) {
+        const more = node("details", "srv-au-more");
+        more.append(node("summary", "", run.installed?.length ? tr("{0} Pakete anzeigen", run.installed.length) : tr("Einzelheiten")));
+        if (run.installed?.length) {
+          const pkgs = node("ul", "srv-au-pkgs");
+          for (const p of run.installed) pkgs.append(node("li", "", `${p.name}: ${p.from || "?"} → ${p.to}`));
+          more.append(pkgs);
+        }
+        if (run.detail) more.append(node("pre", "srv-au-detail", run.detail));
+        li.append(more);
+      }
+      list.append(li);
+    }
+    history.append(list);
+    body.append(history);
+  }
+  body.scrollTop = top;
 }
