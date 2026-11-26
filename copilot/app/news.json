@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.69.1",
+    "items": [
+      {
+        "de": {
+          "title": "Die Serverseite sieht neu aus",
+          "text": "Jeder Reiter hat oben eine Karte mit Symbol und der wichtigsten Aktion. Die Reiter haben Symbole, und die Listen sind kürzer und übersichtlicher."
+        },
+        "en": {
+          "title": "The server page has a new look",
+          "text": "Every tab starts with a card showing an icon and the main action. The tabs have icons, and the lists are shorter and easier to read."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.69.0",
     "items": [
       {
