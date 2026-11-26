@@ -12,7 +12,7 @@ Wer was tut:
 
 Grundsatz der Regeln: Was beim Einspielen Ärger machen kann (Kernel, Netzwerk, Datenbanken, Container, Server-Anwendungen, große
 Versionssprünge, Drittquellen), wird nicht automatisch eingespielt, sondern mit Begründung zurückgehalten. Die Person kann jedes
-zurückgehaltene Paket mit einem Schalter dazunehmen („nur diesmal“ oder „dauerhaft“) und jedes vorgesehene herausnehmen. Nicht
+zurückgehaltene Paket mit einem Häkchen dazunehmen („nur diesmal“ oder „dauerhaft“) und jedes vorgesehene herausnehmen. Nicht
 dazunehmen lässt sich, was technisch nicht geht (angehalten) oder etwas anderes entfernen würde.
 """
 from __future__ import annotations

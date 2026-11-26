@@ -2177,15 +2177,11 @@ button.srv-plan-name:focus-visible { outline: 2px solid var(--accent); outline-o
 .skills-tab.srv-tab[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .skills-tab.srv-tab[aria-selected="true"] .icon { color: var(--accent); }
 .skills-tab.srv-tab:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
-.srv-hero { display: flex; align-items: center; gap: 18px; margin: 14px 0 18px; padding: 16px 18px; border: 1px solid var(--line-2); border-radius: var(--r-3); background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 9%, var(--panel)), var(--panel) 62%); }
-.srv-hero-icon { flex: none; display: grid; place-items: center; align-self: stretch; width: 64px; padding-right: 18px; border-right: 1px solid var(--line-2); color: var(--accent); }
-.srv-hero-icon .icon { width: 36px; height: 36px; }
-.srv-hero-body { flex: 1; min-width: 0; }
-.srv-hero-body h3 { margin: 0 0 4px; font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
-.srv-hero-body p { margin: 0; max-width: 64ch; font-size: 14px; line-height: 1.5; color: var(--text-2); }
+.srv-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px 18px; margin: 12px 0 16px; padding: 10px 14px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.srv-hero-text { flex: 1; min-width: 0; margin: 0; max-width: 78ch; font-size: 14px; line-height: 1.5; color: var(--text-2); }
 .srv-hero-buttons { flex: none; display: flex; flex-wrap: wrap; gap: 8px; }
-.srv-hero-buttons .pill { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; }
-.srv-hero-buttons .pill .icon { width: 17px; height: 17px; }
+.srv-hero-buttons .pill { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; }
+.srv-hero-buttons .pill .icon { width: 16px; height: 16px; }
 .srv-section { margin: 4px 0 10px; font-size: 16px; font-weight: 650; }
 .srv-ico { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-2); background: color-mix(in srgb, var(--accent) 13%, var(--chip)); color: var(--accent); }
 .srv-ico .icon { width: 21px; height: 21px; }
@@ -2211,10 +2207,8 @@ button.srv-plan-name:focus-visible { outline: 2px solid var(--accent); outline-o
   .skills-top.srv-head .tile { width: 44px; height: 44px; }
   .skills-top.srv-head .tile + div { padding-left: 12px; }
   .skills-tab.srv-tab .icon { display: none; }
-  .srv-hero { flex-wrap: wrap; gap: 12px 14px; padding: 14px; }
-  .srv-hero-icon { width: 44px; padding-right: 14px; }
-  .srv-hero-icon .icon { width: 28px; height: 28px; }
-  .srv-hero-body { flex-basis: calc(100% - 70px); }
+  .srv-hero { flex-wrap: wrap; padding: 10px 12px; }
+  .srv-hero-text { flex-basis: 100%; }
   .srv-hero-buttons { flex-basis: 100%; }
   .srv-hero-buttons .pill { flex: 1 1 auto; justify-content: center; }
   .srv-plan { padding: 12px; }
@@ -2224,3 +2218,7 @@ button.srv-plan-name:focus-visible { outline: 2px solid var(--accent); outline-o
   .srv-plan-free > .srv-plan-list > .srv-plan-row { padding-left: 0; }
 }
 .srv-plan-foldline { font-size: 14px; }
+.srv-check { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; }
+.srv-check:disabled { cursor: default; }
+.srv-au-item .srv-check { margin: 2px 2px 0 0; }
+.srv-plan-sheet .srv-plan-row .srv-check { margin: 0 2px 0 0; }

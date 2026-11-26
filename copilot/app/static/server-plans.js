@@ -74,7 +74,7 @@ function renderServerUpdates(wrap) {
   const d = srvPlan.data;
   const add = srvHeroButton(tr("Neuer Plan"), "plus", () => { srvPlanSheet(null).catch(() => {}); });
   add.disabled = !d || d.plans.length >= d.limits.plans_max || !d.servers.length;
-  srvHero(wrap, "refresh", tr("Automatische Updates"), tr("Ein Updateplan aktualisiert mehrere Server nacheinander in einem Zeitfenster, zum Beispiel jede Nacht zwischen 2 und 3 Uhr. Server ohne Plan behalten ihren eigenen Zeitplan."), add);
+  srvHero(wrap, tr("Ein Updateplan aktualisiert mehrere Server nacheinander in einem Zeitfenster, zum Beispiel jede Nacht zwischen 2 und 3 Uhr. Server ohne Plan behalten ihren eigenen Zeitplan."), add);
   if (srvPlan.error) wrap.append(node("p", "srv-au-banner bad", srvPlan.error));
   if (!d) {
     if (!srvPlan.error) wrap.append(node("p", "skills-status", tr("Wird geladen …")));
@@ -255,7 +255,7 @@ async function srvPlanSheet(plan) {
       const selected = index >= 0;
       const li = node("li", `srv-plan-row${selected ? "" : " free"}`);
       const blocked = !selected && (s.denied_locally || !s.can_change);
-      const sw = srvAuSwitch(selected, tr("{0} gehört zum Plan", s.name), blocked, () => {
+      const sw = srvAuCheck(selected, tr("{0} gehört zum Plan", s.name), blocked, () => {
         if (selected) draft.servers = draft.servers.filter((id) => id !== s.id);
         else draft.servers = [...draft.servers, s.id];
         drawServers();

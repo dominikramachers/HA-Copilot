@@ -1296,7 +1296,6 @@
  "Letzte Meldung": "Last report",
  "Name des Servers": "Server name",
  "Name des Servers (optional)": "Server name (optional)",
- "Neuen Server verbinden": "Connect a new server",
  "Neustart": "Restart",
  "Noch kein Server gemeldet.": "No server has reported in yet.",
  "Offline": "Offline",
@@ -1497,7 +1496,6 @@
  "Der Server erlaubt keine Änderungen (lokale Richtlinie ki_access=read). Ohne Erlaubnis dort kann ich nichts installieren.": "The server does not allow changes (local policy ki_access=read). Without permission there, I cannot install anything.",
  "Die Aktualisierung läuft. Du kannst das Fenster schließen.": "The update is running. You can close this window.",
  "Die Karenzzeit gilt nur für normale Updates: Sie müssen so lange verfügbar sein, bevor sie eingespielt werden. Sicherheitsupdates warten nie.": "The grace period only applies to normal updates: they have to be available this long before they are installed. Security updates never wait.",
- "Diese Pakete habe ich nicht für automatische Updates vorgesehen, damit nichts kaputtgeht. Mit dem Schalter nimmst du sie dazu.": "I have not planned these packages for automatic updates so that nothing breaks. Use the switch to add them.",
  "Diesen Lauf überspringen": "Skip this run",
  "Fehlgeschlagen": "Failed",
  "Gilt": "Applies",
@@ -1623,5 +1621,6 @@
  "Plan wählen …": "Choose a plan …",
  "Server anzeigen": "Show servers",
  "So geht es deinen Servern auf einen Blick. Neue Server erscheinen hier zuerst als „Ausstehend“, bis du sie bestätigst.": "How your servers are doing at a glance. New servers first appear here as “Pending” until you confirm them.",
- "Was auf deinen Servern passiert ist: was die KI angesehen oder geändert hat und was die automatischen Updates gemacht haben.": "What has happened on your servers: what the AI looked at or changed and what the automatic updates did."
+ "Was auf deinen Servern passiert ist: was die KI angesehen oder geändert hat und was die automatischen Updates gemacht haben.": "What has happened on your servers: what the AI looked at or changed and what the automatic updates did.",
+ "Diese Pakete habe ich nicht für automatische Updates vorgesehen, damit nichts kaputtgeht. Mit dem Häkchen nimmst du sie dazu.": "I have not planned these packages for automatic updates so that nothing breaks. Use the checkbox to add them."
 }

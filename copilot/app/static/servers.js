@@ -148,15 +148,10 @@ async function srvAct(path, method, body, done) {
 
 // ------------------------------------------------------------- Seite
 
-// Kopfkarte eines Reiters: Symbol, Titel, kurzer Text und rechts die wichtigste Aktion. Auch vom Reiter „Automatische Updates“ genutzt.
-function srvHero(wrap, glyph, title, text, ...buttons) {
+// Kurzer Hinweis oben im Reiter (Beschreibung, optional mit der wichtigsten Aktion rechts). Auch vom Reiter „Automatische Updates“ genutzt.
+function srvHero(wrap, text, ...buttons) {
   const hero = node("section", "srv-hero");
-  hero.append(node("span", "srv-hero-icon", ""));
-  hero.firstChild.setAttribute("aria-hidden", "true");
-  hero.firstChild.append(icon(glyph));
-  const body = node("div", "srv-hero-body");
-  body.append(node("h3", "", title), node("p", "", text));
-  hero.append(body);
+  hero.append(node("p", "srv-hero-text", text));
   if (buttons.length) {
     const box = node("div", "srv-hero-buttons");
     box.append(...buttons);
@@ -225,7 +220,7 @@ function renderServers() {
 
 function renderServerOverview(wrap) {
   const { servers, summary } = srvUi.data;
-  srvHero(wrap, "chart", tr("Übersicht"), tr("So geht es deinen Servern auf einen Blick. Neue Server erscheinen hier zuerst als „Ausstehend“, bis du sie bestätigst."),
+  srvHero(wrap, tr("So geht es deinen Servern auf einen Blick. Neue Server erscheinen hier zuerst als „Ausstehend“, bis du sie bestätigst."),
     srvHeroButton(tr("Server hinzufügen"), "plus", () => { srvUi.tab = "add"; srvUi.status = ""; rememberDetail("add"); renderServers(); }));
   const tiles = node("div", "srv-tiles");
   for (const key of ["online", "degraded", "offline", "pending", "blocked"]) {
@@ -407,7 +402,7 @@ const SRV_KINDS = () => [["", tr("Alle Arten")], ["read", tr("Lesen")], ["change
 const SRV_DAYS = () => [[1, tr("Letzte 24 Stunden")], [7, tr("Letzte 7 Tage")], [30, tr("Letzte 30 Tage")], [90, tr("Letzte 90 Tage")]];
 
 function renderServerActivity(wrap) {
-  srvHero(wrap, "pulse", tr("Aktivität"), tr("Was auf deinen Servern passiert ist: was die KI angesehen oder geändert hat und was die automatischen Updates gemacht haben."));
+  srvHero(wrap, tr("Was auf deinen Servern passiert ist: was die KI angesehen oder geändert hat und was die automatischen Updates gemacht haben."));
   const filter = node("div", "skills-filter srv-filter");
   const select = (label, options, current, set) => {
     const el = node("select", "field");
@@ -506,7 +501,7 @@ async function srvCreateScript() {
 function renderServerAdd(wrap) {
   const { hub, keys } = srvUi.data;
   const form = srvUi.form;
-  srvHero(wrap, "plus", tr("Neuen Server verbinden"), tr("Du bekommst ein Skript mit allem, was der Server braucht: Adresse, Schlüssel und Prüfsummen. Führe es auf dem Server als root aus. Danach erscheint der Server hier als „Ausstehend“, und du bestätigst ihn."));
+  srvHero(wrap, tr("Du bekommst ein Skript mit allem, was der Server braucht: Adresse, Schlüssel und Prüfsummen. Führe es auf dem Server als root aus. Danach erscheint der Server hier als „Ausstehend“, und du bestätigst ihn."));
   const card = node("section", "srv-add");
   if (!hub.agents.length) {
     card.append(node("p", "srv-reasons", tr("In diesem Add-on ist keine Programmdatei des Agenten enthalten. Bitte das Add-on neu bauen oder aktualisieren.")));
@@ -728,7 +723,7 @@ function renderScriptResult(script, hub) {
 }
 
 // ------------------------------------------------------------- Automatische Updates (ab 0.68.0)
-// Ein Fenster je Server: Schalter und Zeitplan, die Vorschau „Was wird beim nächsten Lauf installiert“ mit einem Schalter je Paket,
+// Ein Fenster je Server: Schalter und Zeitplan, die Vorschau „Was wird beim nächsten Lauf installiert“ mit einem Kästchen je Paket,
 // „Neu prüfen“, „Jetzt installieren“ und der Verlauf. Alles liegt im Hub; die KI im Chat kann hier nichts einstellen.
 
 const SRV_AU_DAYS = () => [[7, tr("täglich")], [0, tr("Montag")], [1, tr("Dienstag")], [2, tr("Mittwoch")], [3, tr("Donnerstag")], [4, tr("Freitag")], [5, tr("Samstag")], [6, tr("Sonntag")]];
@@ -832,6 +827,17 @@ function srvAuSwitch(checked, label, disabled, run) {
   return sw;
 }
 
+// Auswahlkästchen für „dabei oder nicht“ (Pakete, Server im Plan); Schalter bleiben für „an oder aus“.
+function srvAuCheck(checked, label, disabled, run) {
+  const box = node("input", "srv-check");
+  box.type = "checkbox";
+  box.checked = !!checked;
+  box.disabled = !!disabled;
+  box.setAttribute("aria-label", label);
+  box.addEventListener("change", run);
+  return box;
+}
+
 function srvAuSelect(label, options, value, onChange, disabled) {
   const wrap = node("label", "srv-au-field");
   wrap.append(node("span", "srv-au-label", label));
@@ -851,7 +857,7 @@ function srvAuSelect(label, options, value, onChange, disabled) {
 function srvAuRow(item, d) {
   const row = node("li", `srv-au-item ${item.status}`);
   const locked = srvAu.busy || !!d.running || !d.can_change;
-  const sw = srvAuSwitch(item.status === "include", tr("{0} automatisch installieren", item.name), locked || !item.can_include, () => srvAuToggle(item));
+  const sw = srvAuCheck(item.status === "include", tr("{0} automatisch installieren", item.name), locked || !item.can_include, () => srvAuToggle(item));
   const main = node("div", "srv-au-main");
   const top = node("div", "srv-au-top");
   top.append(node("b", "srv-au-name", item.name));
@@ -973,7 +979,7 @@ function srvAuDraw() {
     if (!pv.items.length) body.append(node("p", "srv-note", tr("Alles aktuell: Es steht nichts an.")));
     const parts = [
       srvAuGroup(tr("Wird installiert"), "", by("include"), d, true),
-      srvAuGroup(tr("Zurückgehalten"), tr("Diese Pakete habe ich nicht für automatische Updates vorgesehen, damit nichts kaputtgeht. Mit dem Schalter nimmst du sie dazu."), by("hold"), d, true),
+      srvAuGroup(tr("Zurückgehalten"), tr("Diese Pakete habe ich nicht für automatische Updates vorgesehen, damit nichts kaputtgeht. Mit dem Häkchen nimmst du sie dazu."), by("hold"), d, true),
       srvAuGroup(tr("Wartet (Karenzzeit)"), "", by("waiting"), d, false),
       srvAuGroup(tr("Normale Updates"), tr("Nicht im Umfang, weil nur Sicherheitsupdates eingestellt sind."), by("scope"), d, false),
       srvAuGroup(tr("Von dir ausgenommen"), "", by("user_excluded"), d, false),
