@@ -2,8 +2,9 @@
 
 ## 0.69.3
 
-Scrollleiste in den Fenstern der Seite „Server“ (nur Oberfläche):
-- **Schmale, dezente Leiste:** In „Updateplan bearbeiten“ und im Fenster „Automatische Updates“ eines Servers lag die breite Standard-Scrollleiste über dem Inhalt und verdeckte den Rand von Schaltern und Feldern. Die Leiste ist jetzt dünn und halbtransparent (`scrollbar-width: thin`, bei WebKit 8 px) und hat mit `scrollbar-gutter: stable` und etwas Innenabstand rechts ihren eigenen Platz. Gilt für `.sheet-panel.srv-au` und damit auch für das Planfenster.
+Logo in den Handy-Meldungen und Scrollleiste in den Fenstern der Seite „Server“:
+- **Logo aus Enhanced Notify:** Die Handy-Meldungen des Copilot (fertige Antwort bei ungelesenem Chat, Hinweise wie „Ein Server wartet“, Ergebnis geplanter Aufgaben) gehen direkt an `notify.mobile_app_*` und trugen deshalb das Logo von Home Assistant. Jetzt liest das Add-on das Standard-Icon aus den Einstellungen der Integration Enhanced Notify (`push_icon`, z. B. `/local/logos/logo-full.png`) und hängt es als `icon_url` an. Dafür öffnet es kurz das Optionsformular der Integration (`config_entries/get`, `POST /config/config_entries/options/flow`), liest den vorgeschlagenen Wert und bricht das Formular mit `DELETE` wieder ab; es wird nichts verändert. Der Wert (auch „kein Icon“) bleibt zehn Minuten im Speicher (`Notifier.push_icon`). Ohne Enhanced Notify, ohne gesetztes Icon, bei ungültigem Wert oder wenn das Lesen scheitert, geht die Meldung wie bisher ohne Icon raus. Auf iOS wird `icon_url` zum Absender-Bild der Meldung (der Chat-Titel dient als Absendername), auf Android zum Icon. Es gibt nichts einzustellen; `push_icon_force` von Enhanced Notify spielt hier keine Rolle, weil der Copilot kein eigenes Bild je Meldung hat.
+- **Schmale, dezente Scrollleiste (Oberfläche):**- **Schmale, dezente Leiste:** In „Updateplan bearbeiten“ und im Fenster „Automatische Updates“ eines Servers lag die breite Standard-Scrollleiste über dem Inhalt und verdeckte den Rand von Schaltern und Feldern. Die Leiste ist jetzt dünn und halbtransparent (`scrollbar-width: thin`, bei WebKit 8 px) und hat mit `scrollbar-gutter: stable` und etwas Innenabstand rechts ihren eigenen Platz. Gilt für `.sheet-panel.srv-au` und damit auch für das Planfenster.
 
 ## 0.69.2
 

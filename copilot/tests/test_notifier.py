@@ -24,6 +24,8 @@ class PhoneHa(RecordingHa):
             {"user_id": ADM01, "device_trackers": ["device_tracker.pixel"]},
             {"user_id": DORA, "device_trackers": ["device_tracker.sinas_handy"]},
         ]
+        self.icon = None  # Standard-Icon in den Einstellungen von Enhanced Notify (None: Integration nicht installiert)
+        self.rest_calls = []
 
     def give_tablet_to_admin(self):
         self.persons[0]["device_trackers"].append("device_tracker.tablet")
@@ -33,7 +35,21 @@ class PhoneHa(RecordingHa):
             return self.services
         if command["type"] == "person/list":
             return {"storage": self.persons, "config": []}
+        if command["type"] == "config_entries/get":
+            if self.icon is None:
+                return []
+            return [{"domain": "enhanced_notify", "entry_id": "EN1", "state": "loaded"}]
         return await super().call(command)
+
+    async def rest(self, method, path, body=None):
+        self.rest_calls.append((method, path))
+        if method == "POST":
+            assert body == {"handler": "EN1"}
+            return {"flow_id": "F1", "type": "form", "data_schema": [
+                {"name": "max_items", "type": "integer", "default": 200},
+                {"name": "push_icon", "optional": True, "type": "string", "description": {"suggested_value": self.icon}},
+            ]}
+        return {}
 
     def sent(self):
         return [c for c in self.calls if c["type"] == "call_service" and c["domain"] == "notify"]
@@ -236,3 +252,38 @@ def test_setup_check_shows_the_own_phone_from_home_assistant_without_notify_serv
     assert items["notify"]["status"] == "ok" and "Pixel" in items["notify"]["detail"] and "Tablet" not in items["notify"]["detail"]
     other = {i["id"]: i for i in client.get("/api/setup", headers=as_user(DORA)).json()["items"]}
     assert "Sinas handy" in other["notify"]["detail"] and "Pixel" not in other["notify"]["detail"]
+
+
+def test_push_carries_the_icon_of_enhanced_notify_and_the_form_is_closed_again(store):
+    _, _, notifier, ha = build(store)
+    ha.icon = "/local/logos/logo-full.png"
+    chat = unread_chat(store)
+    assert run(notifier.announce(profile(), chat, "Text")) is True
+    assert ha.sent()[0]["service_data"]["data"]["icon_url"] == "/local/logos/logo-full.png"
+    assert ha.rest_calls == [("POST", "/config/config_entries/options/flow"), ("DELETE", "/config/config_entries/options/flow/F1")]  # nichts verändert
+    assert run(notifier.announce_text(profile(), "tag1", "Ein Server wartet", "Bitte prüfen.")) == "sent"
+    assert ha.sent()[1]["service_data"]["data"]["icon_url"] == "/local/logos/logo-full.png"
+    assert len(ha.rest_calls) == 2  # der Wert bleibt zwischengespeichert, kein zweites Formular
+
+
+def test_push_without_enhanced_notify_or_without_icon_has_no_icon_and_still_goes_out(store):
+    for icon in (None, "", "  ", "javascript:alert(1)"):
+        _, _, notifier, ha = build(store)
+        ha.icon = icon
+        chat = unread_chat(store)
+        assert run(notifier.announce(profile(), chat, "Text")) is True
+        assert "icon_url" not in ha.sent()[0]["service_data"]["data"], icon
+
+
+def test_a_failing_icon_lookup_never_blocks_the_notification(store):
+    _, _, notifier, ha = build(store)
+    ha.icon = "/local/x.png"
+
+    async def broken(method, path, body=None):
+        from app.ha_client import HaApiError
+        raise HaApiError("HTTP 403")
+
+    ha.rest = broken
+    chat = unread_chat(store)
+    assert run(notifier.announce(profile(), chat, "Text")) is True
+    assert "icon_url" not in ha.sent()[0]["service_data"]["data"]

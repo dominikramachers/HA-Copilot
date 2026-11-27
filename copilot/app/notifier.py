@@ -31,6 +31,10 @@ PRESENCE_TTL = 45  # so lange gilt „Chat ist offen“ nach der letzten Meldung
 EXCERPT = 300  # Länge des Antworttextes in der Meldung (das Telefon kürzt selbst, wenn es nicht passt)
 SERVICE_PREFIX = "notify.mobile_app_"
 _SERVICE_RE = re.compile(r"^notify\.mobile_app_[a-z0-9_]{1,80}$")
+ICON_DOMAIN = "enhanced_notify"  # Integration „Enhanced Notify“: ihr Standard-Icon für Push-Meldungen gilt auch hier
+ICON_OPTION = "push_icon"
+ICON_CACHE_SECONDS = 600  # so lange gilt der gelesene Wert (Änderungen in Enhanced Notify kommen spätestens dann an)
+_ICON_RE = re.compile(r"^(?:/(?!/)\S+|https?://\S+)$")  # wie in Enhanced Notify: Pfad (/local/…) oder Adresse
 
 
 class Presence:
@@ -83,6 +87,7 @@ class Notifier:
         self.delay = NOTIFY_DELAY_SECONDS if delay is None else delay
         self._sent: dict[tuple[str, str], list[str]] = {}  # (Person, Chat) → Geräte, die gerade eine Meldung zeigen
         self._tasks: set[asyncio.Task] = set()
+        self._icon: tuple[float, str | None] | None = None  # (Zeitpunkt, Icon) aus Enhanced Notify
 
     # ------------------------------------------------------------ Einstellungen je Person
 
@@ -170,6 +175,51 @@ class Notifier:
             return [profile.notify_service]
         return list(allowed)
 
+    # ------------------------------------------------------------ Logo
+
+    async def push_icon(self) -> str | None:
+        """Das Standard-Icon aus den Einstellungen von Enhanced Notify (``push_icon``), sonst ``None``.
+
+        Die Meldungen des Copilot gehen direkt an die Handys und bekämen sonst das Logo von Home Assistant. Das Add-on
+        liest das Icon selbst: Es öffnet das Optionsformular von Enhanced Notify, liest den vorgeschlagenen Wert und
+        bricht das Formular wieder ab (es wird nichts verändert). Das Ergebnis, auch „kein Icon“, bleibt zehn Minuten.
+        """
+        now = time.monotonic()
+        if self._icon is not None and now - self._icon[0] < ICON_CACHE_SECONDS:
+            return self._icon[1]
+        value: str | None = None
+        try:
+            value = await self._read_icon()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - ohne Icon geht die Meldung trotzdem raus
+            log.info("Icon von Enhanced Notify nicht gelesen: %s", exc)
+        self._icon = (now, value)
+        return value
+
+    async def _read_icon(self) -> str | None:
+        if self.ha is None or not self.available:
+            return None
+        entries = await self.ha.call({"type": "config_entries/get", "domain": ICON_DOMAIN})
+        entry = next((e for e in entries or [] if isinstance(e, dict) and e.get("domain") == ICON_DOMAIN and e.get("state") == "loaded"), None)
+        if not entry or not entry.get("entry_id"):
+            return None
+        flow = await self.ha.rest("POST", "/config/config_entries/options/flow", {"handler": entry["entry_id"]})
+        try:
+            for field in (flow or {}).get("data_schema") or []:
+                if isinstance(field, dict) and field.get("name") == ICON_OPTION:
+                    suggested = (field.get("description") or {}).get("suggested_value")
+                    value = str(suggested or "").strip()
+                    return value if _ICON_RE.match(value) else None
+            return None
+        finally:
+            flow_id = (flow or {}).get("flow_id")
+            if flow_id:
+                try:
+                    await self.ha.rest("DELETE", f"/config/config_entries/options/flow/{flow_id}")
+                except HaApiError as exc:
+                    log.info("Optionsformular von Enhanced Notify nicht beendet: %s", exc)
+
     # ------------------------------------------------------------ Senden
 
     def spawn(self, profile: Profile, chat_id: str, text: str, title: str = "") -> None:
@@ -201,6 +251,9 @@ class Notifier:
         base = self.settings.public_base_url
         if base:
             data.update(url=base, clickAction=base)
+        icon = await self.push_icon()
+        if icon:
+            data["icon_url"] = icon  # dasselbe Logo wie bei Enhanced Notify statt dem von Home Assistant
         # Wie eine Chat-Nachricht: oben der Chat-Titel, darunter die Antwort.
         payload = {"title": (title or chat.get("title") or self.settings.app_name)[:120], "message": text or tr("Antwort fertig"), "data": data}
         sent: list[str] = []
@@ -249,6 +302,9 @@ class Notifier:
         base = self.settings.public_base_url
         if base:
             data.update(url=base, clickAction=base)
+        icon = await self.push_icon()
+        if icon:
+            data["icon_url"] = icon
         payload = {"title": title[:120], "message": message[:300], "data": data}
         sent = 0
         for device in devices:
