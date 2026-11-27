@@ -1,5 +1,30 @@
 [
   {
+    "version": "0.69.3",
+    "items": [
+      {
+        "de": {
+          "title": "Meine Meldungen haben dein Logo",
+          "text": "Wenn ich dir aufs Handy schreibe, steht jetzt dein Logo daneben und nicht mehr das von Home Assistant."
+        },
+        "en": {
+          "title": "My notifications show your logo",
+          "text": "When I send you a message on your phone, your logo is now shown instead of the Home Assistant one."
+        }
+      },
+      {
+        "de": {
+          "title": "Fenster lassen sich besser lesen",
+          "text": "Die Leiste zum Scrollen in den Fenstern der Serverseite ist jetzt schmal und verdeckt nichts mehr."
+        },
+        "en": {
+          "title": "Windows are easier to read",
+          "text": "The scroll bar in the windows of the server page is now slim and no longer covers anything."
+        }
+      }
+    ]
+  },
+  {
     "version": "0.69.2",
     "items": [
       {

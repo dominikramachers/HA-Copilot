@@ -2,7 +2,7 @@
 
 Privater KI-Chat für Home Assistant. Jedes Profil hat eigene Chats, die für andere Profile unsichtbar sind.
 
-**Stand: 0.69.2.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
+**Stand: 0.69.3.** Was in welcher Version neu ist, steht im Reiter „Änderungsprotokoll“.
 
 **Schnellzugriff (Dokumentation im Repository, mit Bildern):**
 [Installation](https://github.com/dominikramachers/HA-Copilot/blob/main/docs/installation.md) ·
@@ -535,6 +535,7 @@ Ist eine Antwort fertig und der Chat bleibt ungelesen, meldet sich die KI aufs H
 - **Text:** Wie eine Chat-Nachricht: oben der Titel des Chats, darunter der Anfang der Antwort (bis etwa 300 Zeichen, das Telefon kürzt selbst). Hat der Chat noch keinen Titel, steht oben `look.app_name` aus der Add-on-Konfiguration. Der Text steht auch auf dem Sperrbildschirm; wer das nicht will, schaltet die Meldungen aus.
 - **Geräte:** Unter **Einstellungen → Benachrichtigungen** schaltet jede Person die Meldungen ein oder aus und hakt ihre Geräte an. Jede Person sieht und wählt **nur ihre eigenen Geräte**: die, die in Home Assistant zu ihrer Person gehören (Geräteverfolger der Personen-Entität, die zum Benutzer passt), dazu ein vom Administrator eingetragener `notify_service` (z. B. `notify.mobile_app_pixel`). Fremde Geräte erscheinen weder in der Liste noch bekommen sie Meldungen, auch nicht über einen manipulierten Aufruf. Fehlt ein eigenes Gerät (z. B. ein iPad), ordnest du es in Home Assistant deiner Person zu (Einstellungen → Personen). Ohne Auswahl bekommen alle eigenen Geräte die Meldung.
 - **Geplante Aufgaben** mit „Zusätzlich aufs Handy“ melden an dieselben Geräte.
+- **Logo (ab 0.69.3):** Ist in Home Assistant die Integration **Enhanced Notify** eingerichtet und dort ein *Standard-Icon für Push-Meldungen* eingestellt, tragen auch die Meldungen der KI dieses Logo statt dem von Home Assistant (auf iOS als Absender-Bild, auf Android als Icon). Das Add-on liest die Einstellung selbst und übernimmt Änderungen nach spätestens 10 Minuten; du musst nichts einstellen. Ohne Enhanced Notify oder ohne dieses Icon bleibt alles wie bisher.
 - **Technik:** Die Oberfläche meldet alle 20 Sekunden und bei jedem Wechsel, welchen Chat sie sichtbar zeigt (`POST /api/presence`, nur im Arbeitsspeicher, 45 Sekunden gültig). Das Entfernen läuft über `clear_notification` mit dem `tag` des Chats.
 
 `chat.schedules_enabled: false` schaltet den Menüpunkt ab; bestehende Aufgaben ruhen dann.
